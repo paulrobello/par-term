@@ -762,9 +762,10 @@ jobs:
           done
           PUBLISHED_CRATES=()
 
-          # Layer 3: depend on par-term-fonts
-          echo "=== Layer 3: Render crate ==="
+          # Layer 3: depend on Layer 2 crates (render -> fonts; mux -> tmux)
+          echo "=== Layer 3: Render + mux crates ==="
           publish_if_needed par-term-render
+          publish_if_needed par-term-mux
 
           for entry in "${PUBLISHED_CRATES[@]}"; do
             wait_for_crate "${entry%%=*}" "${entry#*=}"

@@ -42,6 +42,17 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.46.0
+
+par-mux sessions, a command palette, plugins, and agent tooling. par-term can now attach tabs to persistent [par-mux](https://github.com/paulrobello/par-mux) sessions (the daemon ships with every release), and core library 0.51 is required.
+
+- **par-mux client** — attach a tab or profile to a par-mux session that survives detach and reconnect; the `par-mux` daemon is bundled in the macOS app and in new `par-term-bundle-*` Linux/Windows archives. See [MUX.md](docs/features/MUX.md).
+- **Agent roster** — a status-bar widget and palette picker for agents running in par-mux panes, fed by hook installers for Claude Code, Codex, and Grok plus extensions for pi and omp.
+- **Command palette** — a fuzzy launcher over every bindable action (bind `toggle_command_palette`; no default chord).
+- **Plugin system** — git-installed plugins that add status-bar widgets, custom actions, Settings panels, and interactive overlays. See [PLUGINS.md](docs/features/PLUGINS.md).
+- **Agent usage panel** and **agent-authored commands** — usage/cost snapshots in the status bar, and commands agents create over MCP that appear in the palette.
+- **Asciicast v3 session logging**, a renderer fix for strobing after display changes, and a `warn` default log level.
+
 ### 0.45.2
 
 Custom-action prefix keys work with single-character follow-up keybindings, and occluded frames no longer corrupt egui chrome text. Patch release; no core-library change (`par-term-emu-core-rust` remains at 0.48).

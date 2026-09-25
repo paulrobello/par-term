@@ -13,10 +13,10 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Sync layer, parser bridge, types, and key translation — reused in place
-par-term-tmux = { path = "../par-term-tmux", version = "0.1.15" }
+par-term-tmux = { path = "../par-term-tmux", version = "0.1.16" }
 
 # Tab/pane id types for the sync mappings
-par-term-config = { path = "../par-term-config", version = "0.14.4" }
+par-term-config = { path = "../par-term-config", version = "0.14.5" }
 
 # Terminal emulator core (MuxClient transport)
 par-term-emu-core-rust.workspace = true

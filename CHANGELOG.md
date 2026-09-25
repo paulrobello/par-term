@@ -11,6 +11,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+---
+
+## [0.46.0] - 2026-09-24
+
 ### Added
 
 - **Bundled par-mux daemon** — releases now ship the `par-mux` daemon next to par-term: the macOS `.app` carries it in `Contents/MacOS` (signed and notarized with the app), Linux and Windows releases add `par-term-bundle-*` archives containing both binaries, and `make install` stages it into `~/.cargo/bin`. `scripts/build-par-mux.sh` builds the daemon pinned to the Cargo.lock core version so client and daemon version stamps match at attach. The daemon is resolved next to the executable first, then on `PATH` (core ≥ 0.51), and a version-mismatched daemon is still surfaced on attach rather than silently used.
@@ -22,13 +26,13 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 - **par-mux client** — a par-term tab or profile can attach to a [par-mux](https://github.com/paulrobello/par-mux) session: the profile editor has a separate **par-mux** section with `mux_session_name` and auto-attach settings independent of tmux, a fresh attach creates the session when missing, sessions survive detach and reconnect, and attach seeds the pane with the session's scrollback before live output. Enabled by default since the core library's 0.50 release ships its `mux` feature. See [MUX.md](docs/features/MUX.md).
 - **par-mux hook installers** — `par-term install-mux-hooks` / `uninstall-mux-hooks` wire a session hook into Claude Code (merging into `~/.claude/settings.json`), Codex (`hooks.json` + a features flag), and Grok (an owned file under `~/.grok/hooks`) so those agents report their state into the par-mux roster; Windows variants ship as `.ps1` hooks using named pipes.
 - **par-mux agent-state extensions** — `par-term install-mux-extensions` / `uninstall-mux-extensions` install extensions for pi and omp so their state (working / blocked / idle) feeds the agent roster directly instead of being scraped.
+- **Agent-authored commands** — MCP clients and the built-in ACP agent can create, list, and delete commands at runtime (one YAML file per command under `<config_dir>/commands/`). New commands appear in the command palette and the CLI with no restart, and the Settings → Agent Commands section lets you edit or delete them. See [AGENT_COMMANDS.md](docs/features/AGENT_COMMANDS.md).
 - **Asciicast v3 session logging** — `session_log_format: asciicast_v3` records sessions in asciicast v3 with graphics events, opt-in alongside the existing plain/html/asciicast formats.
 
 ### Changed
 
-- `par-term-emu-core-rust` 0.50.0 → 0.51.0: par-mux daemon resolution falls back to `PATH` after the executable's directory, `pane-info` and `par-mux --cmd` client mode land in the core, and on macOS a PTY child that exits before its output is read no longer loses that output. No par-term code changes required.
-- `par-term-emu-core-rust` 0.49.0 → 0.50.0: the core's **`mux` feature is now published**, so the par-mux client ships enabled by default and the local vendoring machinery (`make with-local-core` / `scripts/with-local-core.sh`) is retired — `layout-conformance` (par-term-tmux) and every mux feature gate now build against the published crate, and clippy's previously deferred workspace-wide `--all-features` pass is part of `make lint-all` and CI.
-- `par-term-emu-core-rust` 0.48.0 → 0.49.0: DECSDM sixel display mode (`CSI ? 80 h/l`), numbered XTPUSHCOLORS/XTPOPCOLORS color-stack slots (`CSI Pi # P/Q`), and Kitty graphics placement cursor advance (with `C=1` suppression) now work correctly — all internal to the core library's parser, no par-term code changes required. Verified visually against a live debug build (sixel + Kitty default/`C=1` placements). Also corrected the session-logging docs' stale claim that only `o` (output) events are written; `i` (input) and `r` (resize) events are produced too.
+- **Core library `par-term-emu-core-rust` 0.48 → 0.51.** The core's `mux` feature is now published, so the par-mux client is on by default and the local core-vendoring machinery (`make with-local-core`) is retired. The core also brings DECSDM sixel display mode (`CSI ? 80 h/l`), numbered XTPUSHCOLORS/XTPOPCOLORS slots, Kitty placement cursor advance (with `C=1` suppression), par-mux daemon resolution that falls back to `PATH` after the executable's directory, and a macOS fix so a PTY child that exits before its output is read no longer loses that output.
+- **New `par-term-mux` crate** is published alongside the other sub-crates; it owns the par-mux control-mode client.
 - **The default log level is now `warn`** (was `info`), so runtime faults surface in the debug log without setting `RUST_LOG`. `--log-level` and config overrides behave as before.
 
 ### Fixed

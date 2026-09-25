@@ -1,6 +1,6 @@
 [package]
 name = "par-term-mcp"
-version = "0.2.9"
+version = "0.2.10"
 edition = "2024"
 rust-version = "1.98"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -17,7 +17,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 # Agent-command file format (command_create/list/delete write these files)
-par-term-config = { path = "../par-term-config", version = "0.14.4" }
+par-term-config = { path = "../par-term-config", version = "0.14.5" }
 
 # Logging
 log.workspace = true
