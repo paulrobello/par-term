@@ -365,8 +365,11 @@ mod tests {
 
         // Update the file; the watcher must surface it via poll().
         write(&dir, "claude.json", &READY_RECORD.replace("42.0", "90.0"));
+        // 15s, not 3s: FSEvents delivery plus the 300ms debounce can exceed a
+        // tight tolerance when the full suite has the machine loaded; the
+        // helper returns on first event, so a healthy run still costs ~0.3s.
         assert!(
-            poll_until_event(&mut store, Duration::from_secs(3)),
+            poll_until_event(&mut store, Duration::from_secs(15)),
             "watcher event should arrive within tolerance"
         );
         assert_eq!(store.snapshot().records[0].limits[0].percent, Some(90.0));
