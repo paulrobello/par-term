@@ -558,6 +558,7 @@ jobs:
 
       - name: Create universal daemon
         run: |
+          mkdir -p target/universal-release
           lipo -create \
             target/aarch64-apple-darwin/release/par-mux \
             target/x86_64-apple-darwin/release/par-mux \
