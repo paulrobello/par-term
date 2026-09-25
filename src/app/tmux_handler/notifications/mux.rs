@@ -351,8 +351,8 @@ impl TmuxState {
 /// too long to hold the event loop), reports the outcome over the channel,
 /// and [`WindowState::poll_mux_attach`] consumes it on the main thread.
 pub(crate) struct MuxAttachPending {
-    name: String,
-    rx: std::sync::mpsc::Receiver<io::Result<par_term_emu_core_rust::mux::MuxClient>>,
+    pub(crate) name: String,
+    pub(crate) rx: std::sync::mpsc::Receiver<io::Result<par_term_emu_core_rust::mux::MuxClient>>,
 }
 
 impl WindowState {
@@ -698,7 +698,7 @@ impl WindowState {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::tmux::{ParserBridge, TmuxSync};
     use par_term_emu_core_rust::mux::MuxServer;
@@ -710,7 +710,7 @@ mod tests {
     /// replay must carry it back as `PaneOutput`.
     const MARKER: &str = "par-term-mux-wiring-marker";
 
-    fn socket_path(tag: &str) -> PathBuf {
+    pub(crate) fn socket_path(tag: &str) -> PathBuf {
         let mut path = std::env::temp_dir();
         path.push(format!(
             "par-term-mux-wiring-{}-{tag}.sock",
@@ -722,7 +722,7 @@ mod tests {
 
     /// In-process daemon (the compat.rs pattern): bind and serve on a
     /// thread; `run()` serves until process end.
-    fn spawn_daemon(path: &Path) {
+    pub(crate) fn spawn_daemon(path: &Path) {
         let server = MuxServer::bind(path).expect("daemon binds");
         std::thread::spawn(move || server.run());
     }

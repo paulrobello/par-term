@@ -8,7 +8,7 @@ use crate::tmux::TmuxWindowId;
 
 impl WindowState {
     /// Handle window add notification - creates a new tab
-    pub(super) fn handle_tmux_window_add(&mut self, window_id: TmuxWindowId) {
+    pub(crate) fn handle_tmux_window_add(&mut self, window_id: TmuxWindowId) {
         crate::debug_info!("TMUX", "Window added: @{}", window_id);
 
         // Check max tabs limit

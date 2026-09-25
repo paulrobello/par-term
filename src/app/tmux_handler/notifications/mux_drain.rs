@@ -121,7 +121,7 @@ impl WindowState {
     /// consumer path as `check_tmux_notifications`: session/window
     /// structure before layout before output. Called from the shared poll
     /// loop while a transport is installed.
-    pub(super) fn check_mux_notifications(&mut self) -> bool {
+    pub(crate) fn check_mux_notifications(&mut self) -> bool {
         let (core_notifications, disconnected) = match &self.tmux_state.transport {
             Some(transport) => transport.drain(),
             None => return false,
