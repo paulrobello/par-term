@@ -14,9 +14,31 @@
 //! (`Tab::try_with_read_terminal`) and the input seam
 //! (`send_input_via_tmux`).
 
+use crate::app::tmux_handler::tmux_state::TmuxState;
 use crate::app::window_state::WindowState;
 use crate::pane::PaneId;
 use crate::tab::{Tab, TabId};
+
+/// Free-function form of [`WindowState::route_mux_pane_write`] for callers
+/// that hold `&mut` borrows elsewhere on the window state (the anti-idle
+/// loop iterates `tabs_mut` while routing through `tmux_state`) — direct
+/// field borrows split, `&self` method calls do not.
+#[cfg_attr(not(feature = "mux"), allow(unused_variables))]
+pub(crate) fn route_mux_pane_write_state(
+    tmux_state: &TmuxState,
+    tab_id: TabId,
+    pane_id: PaneId,
+    data: &[u8],
+) -> bool {
+    #[cfg(feature = "mux")]
+    if let Some(transport) = &tmux_state.transport
+        && let Some(pane) = tmux_state.tmux_pane_in_tab(tab_id, pane_id)
+    {
+        super::notifications::mux::route_literal_bytes(&**transport, Some(pane), data);
+        return true;
+    }
+    false
+}
 
 impl WindowState {
     /// Route a pane-targeted write to the daemon when `pane_id` inside
@@ -25,14 +47,7 @@ impl WindowState {
     /// own terminal write.
     #[cfg_attr(not(feature = "mux"), allow(unused_variables))]
     pub(crate) fn route_mux_pane_write(&self, tab_id: TabId, pane_id: PaneId, data: &[u8]) -> bool {
-        #[cfg(feature = "mux")]
-        if let Some(transport) = &self.tmux_state.transport
-            && let Some(pane) = self.tmux_state.tmux_pane_in_tab(tab_id, pane_id)
-        {
-            super::notifications::mux::route_literal_bytes(&**transport, Some(pane), data);
-            return true;
-        }
-        false
+        route_mux_pane_write_state(&self.tmux_state, tab_id, pane_id, data)
     }
 
     /// Tab-level variant: routes to the daemon pane behind the tab's

@@ -346,18 +346,28 @@ impl WindowState {
                 "\x1b]99;i={};\x1b\\",
                 entry.osc_id.as_deref().unwrap_or("0")
             );
-            match entry.terminal.upgrade() {
-                Some(terminal) => match terminal.try_read() {
-                    Ok(term) => {
-                        if let Err(e) = term.write_str(&report) {
-                            log::debug!("Failed to write OSC 99 activation report: {}", e);
+            // A mux pane's notification is collected from the mirror, which
+            // has no PTY — the reply must reach the daemon pane that
+            // emitted it, not the held terminal reference.
+            let routed = entry.pane_id.is_some_and(|pane_id| {
+                self.route_mux_pane_write(entry.tab_id, pane_id, report.as_bytes())
+            });
+            if !routed {
+                match entry.terminal.upgrade() {
+                    Some(terminal) => match terminal.try_read() {
+                        Ok(term) => {
+                            if let Err(e) = term.write_str(&report) {
+                                log::debug!("Failed to write OSC 99 activation report: {}", e);
+                            }
                         }
+                        Err(_) => {
+                            log::debug!("Skipped OSC 99 activation report: terminal lock contended")
+                        }
+                    },
+                    None => {
+                        log::debug!("Skipped OSC 99 activation report: terminal no longer exists")
                     }
-                    Err(_) => {
-                        log::debug!("Skipped OSC 99 activation report: terminal lock contended")
-                    }
-                },
-                None => log::debug!("Skipped OSC 99 activation report: terminal no longer exists"),
+                }
             }
         }
 

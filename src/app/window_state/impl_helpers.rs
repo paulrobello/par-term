@@ -186,7 +186,21 @@ impl WindowState {
         let mut next_due: Option<std::time::Instant> = None;
 
         for tab in self.tab_manager.tabs_mut() {
-            if let Ok(term) = tab.terminal.try_read() {
+            // Track activity on the terminal the user sees: the focused
+            // pane's (the daemon mirror in a mux tab) with a fallback to
+            // the tab terminal. Reading the hidden shell's generation in a
+            // mux tab would make the tab look permanently idle — and
+            // keep-alives belong to the daemon pane, where the SSH session
+            // the feature exists to keep alive actually runs.
+            let (focused_pane_id, terminal) = match tab.pane_manager().and_then(|pm| {
+                pm.focused_pane()
+                    .map(|pane| (pane.id, Arc::clone(&pane.terminal)))
+            }) {
+                Some((pane_id, terminal)) => (Some(pane_id), terminal),
+                None => (None, Arc::clone(&tab.terminal)),
+            };
+
+            if let Ok(term) = terminal.try_read() {
                 // Treat new terminal output as activity
                 let current_generation = term.update_generation();
                 if current_generation > tab.activity.anti_idle_last_generation {
@@ -197,14 +211,21 @@ impl WindowState {
                 // If idle long enough, send keep-alive code
                 if should_send_keep_alive(tab.activity.anti_idle_last_activity, now, idle_threshold)
                 {
-                    if let Err(e) = term.write(&keep_alive_code) {
-                        log::warn!(
-                            "Failed to send anti-idle keep-alive for tab {}: {}",
+                    // Routed through the free-function form: the tabs_mut
+                    // iteration holds the mutable tab borrow, so a &self
+                    // method call would not compile here.
+                    let routed = focused_pane_id.is_some_and(|pane_id| {
+                        crate::app::tmux_handler::pane_write::route_mux_pane_write_state(
+                            &self.tmux_state,
                             tab.id,
-                            e
-                        );
-                    } else {
+                            pane_id,
+                            &keep_alive_code,
+                        )
+                    });
+                    if routed || term.write(&keep_alive_code).is_ok() {
                         tab.activity.anti_idle_last_activity = now;
+                    } else {
+                        log::warn!("Failed to send anti-idle keep-alive for tab {}", tab.id);
                     }
                 }
 
