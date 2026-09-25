@@ -510,7 +510,12 @@ args = ["mcp", "serve"]
         assert_eq!(asset, codex_hook_asset());
         assert!(asset.contains(CODEX_HOOK_MARKER));
         assert!(asset.contains("CODEX_THREAD_ID"));
-        assert!(asset.contains(r#""codex", "resume", session_id"#));
+        let resume_argv = if cfg!(windows) {
+            r#"@("codex", "resume", "$sessionId")"#
+        } else {
+            r#""codex", "resume", session_id"#
+        };
+        assert!(asset.contains(resume_argv));
         assert!(!asset.contains("HERDR_"), "fully env-renamed port");
         #[cfg(unix)]
         {
@@ -740,7 +745,8 @@ args = ["mcp", "serve"]
         let command = installed_command(&root.path().join(codex_hook_install_name()));
         // A group the user built that carries BOTH their command and ours.
         let mixed = format!(
-            r#"{{"hooks":{{"SessionStart":[{{"hooks":[{{"type":"command","command":"/usr/local/bin/codex-motd"}},{{"type":"command","command":"{command}"}}]}}]}}}}"#
+            r#"{{"hooks":{{"SessionStart":[{{"hooks":[{{"type":"command","command":"/usr/local/bin/codex-motd"}},{{"type":"command","command":{command}}}]}}]}}}}"#,
+            command = serde_json::to_string(&command).unwrap()
         );
         fs::write(codex_dir.join("hooks.json"), mixed).unwrap();
         let hook = root.path().join(codex_hook_install_name());

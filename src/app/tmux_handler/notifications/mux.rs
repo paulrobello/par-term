@@ -666,10 +666,25 @@ mod tests {
 
             first.send("split-window -t %0 -h").expect("split-window");
             first
-                .send_keys(0, format!("echo {MARKER}\n").as_bytes())
+                .send_keys(0, format!("echo {MARKER}\r").as_bytes())
                 .expect("send-keys marker");
-            // Give the shell a moment to run the echo before the drop.
-            std::thread::sleep(Duration::from_millis(300));
+            // Wait for the echo to land before the drop: a fixed sleep raced
+            // shell startup (cmd.exe's banner on Windows outlasted 300 ms).
+            let deadline = Instant::now() + Duration::from_secs(15);
+            loop {
+                let screen = first
+                    .send("capture-pane -t %0 -p")
+                    .expect("capture-pane")
+                    .join("\n");
+                if screen.lines().any(|line| line.trim() == MARKER) {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "the marker never printed: {screen:?}"
+                );
+                std::thread::sleep(Duration::from_millis(50));
+            }
         }
 
         // Reattach through the app's attach sequence: the transport, the
@@ -1199,6 +1214,8 @@ mod tests {
     /// alt-screens, paints a bordered grid, then pushes cursor-addressed
     /// incremental updates. If this fails, the transport or the seed is
     /// dropping real screen content, not the app renderer.
+    // The pane runs a POSIX shell TUI (printf/read/python3); Windows panes run PowerShell.
+    #[cfg(unix)]
     #[test]
     fn tui_replay_and_live_output_render_in_a_client_emulator() {
         let path = socket_path("tui-live");
@@ -1350,6 +1367,8 @@ out.flush()
     /// pattern): frame 1 must arrive via the SEED, frame 2 via LIVE
     /// `%output` after the reattached side releases it — so the test
     /// cannot pass on either path alone.
+    // The pane runs a POSIX shell TUI (printf/read/python3); Windows panes run PowerShell.
+    #[cfg(unix)]
     #[test]
     fn reattach_renders_and_updates_a_tui_through_the_window_state_path() {
         let path = socket_path("ws-tui");

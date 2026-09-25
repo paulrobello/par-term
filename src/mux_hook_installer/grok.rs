@@ -187,7 +187,8 @@ mod tests {
         assert_eq!(entry["type"], "command");
         assert_eq!(entry["timeout"], HOOK_TIMEOUT_SECS);
         let command = entry["command"].as_str().unwrap();
-        assert!(command.starts_with("sh ") && command.ends_with(" session"));
+        let runner = if cfg!(windows) { "powershell " } else { "sh " };
+        assert!(command.starts_with(runner) && command.ends_with(" session"));
         assert!(command.contains(grok_hook_install_name()));
         assert!(
             config["hooks"]["SessionStart"][0].get("matcher").is_none(),

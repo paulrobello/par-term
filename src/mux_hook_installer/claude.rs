@@ -439,7 +439,8 @@ mod tests {
         let command = installed_command(&hook);
         // A group the user built that carries BOTH their command and ours.
         let mixed = format!(
-            r#"{{"hooks":{{"SessionStart":[{{"matcher":"*", "hooks":[{{"type":"command","command":"/usr/local/bin/motd"}},{{"type":"command","command":"{command}"}}]}}]}}}}"#
+            r#"{{"hooks":{{"SessionStart":[{{"matcher":"*", "hooks":[{{"type":"command","command":"/usr/local/bin/motd"}},{{"type":"command","command":{command}}}]}}]}}}}"#,
+            command = serde_json::to_string(&command).unwrap()
         );
         fs::write(&settings, mixed).unwrap();
 
@@ -508,11 +509,12 @@ mod tests {
         let content = fs::read_to_string(&settings).unwrap();
         let commands = session_start_commands(&content);
         assert_eq!(commands.len(), 1);
-        assert!(
-            commands[0].starts_with('\'') && commands[0].ends_with('\''),
-            "spaced path is quoted: {}",
-            commands[0]
-        );
+        let quoted = if cfg!(windows) {
+            commands[0].ends_with('"')
+        } else {
+            commands[0].starts_with('\'') && commands[0].ends_with('\'')
+        };
+        assert!(quoted, "spaced path is quoted: {}", commands[0]);
         // The quoted command still parses back out of the JSON intact.
         assert!(commands[0].contains("my hooks"));
     }
