@@ -78,7 +78,22 @@ fields. Validation on load: id charset (`[a-z0-9-]+`, ≤64 bytes) and
 | `command_delete` | Delete by id (refuses user files) |
 
 The built-in ACP agent reaches the same tools through its `par-term-config`
-MCP server descriptor (`build_mcp_server_descriptor`).
+MCP server descriptor (`build_mcp_server_descriptor`). To verify that end to
+end without touching your real config, drive a real agent through the ACP
+harness against an isolated `XDG_CONFIG_HOME`:
+
+```bash
+ROOT=/tmp/pt-acp-cmd-e2e; rm -rf "$ROOT"; mkdir -p "$ROOT/cfg/par-term"
+cargo build --bin par-term --bin par-term-acp-harness
+XDG_CONFIG_HOME="$ROOT/cfg" target/debug/par-term-acp-harness \
+  --agent claude.com --par-term-bin target/debug/par-term --no-shader-context \
+  --transcript-file "$ROOT/transcript.log" \
+  --prompt "Use the par-term MCP tool command_create to save a macro command \
+with id acp-e2e-hello, title 'ACP e2e hello', that inserts the text 'hello from acp'."
+cat "$ROOT/cfg/par-term/commands/acp-e2e-hello.yaml"   # created_by: agent
+```
+
+The transcript shows `mcp__par-term-config__command_create … status=completed`.
 
 ## Code map
 
