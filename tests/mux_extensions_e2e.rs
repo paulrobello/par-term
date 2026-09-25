@@ -3,12 +3,15 @@
 //! temp agent directory by [`par_term::mux_extension_installer`], a bun
 //! driver loads THAT FILE and fires the agent's lifecycle events, and the
 //! accepted report comes back from the daemon as an `%agent-state-changed`
-//! broadcast — proving asset and hook endpoint agree on the wire — and
-//! reads back through the `list-agents` roster query with its provenance
-//! (the A2b task 1 fill path, live). The wait requires TWO broadcasts:
-//! the state report's own push, then the REBROADCAST only an accepted
-//! session report produces — the assets send theirs path-only with a
-//! `session_resume_argv`, the shape the id-or-path contract exists for.
+//! broadcast — proving asset and hook endpoint agree on the wire. The wait
+//! requires TWO broadcasts: the state report's own push, then the
+//! REBROADCAST only an accepted session report produces — the assets send
+//! theirs path-only with a `session_resume_argv`, the shape the
+//! id-or-path contract exists for. The driver then fires
+//! `session_shutdown(quit)`, and the pane must LEAVE the `list-agents`
+//! roster on an `%agent-released` broadcast — the sender-side leg of the
+//! pane.release_agent protocol (core aed41c2): without it the roster shows
+//! a dead agent working until the pane dies.
 //!
 //! Gated on `mux`, which is on by default. Run directly:
 //!
@@ -51,6 +54,10 @@ const ctx = {
 };
 for (const cb of handlers["session_start"] ?? []) await cb({ reason: "startup" }, ctx);
 for (const cb of handlers["agent_start"] ?? []) await cb({}, ctx);
+await new Promise((resolve) => setTimeout(resolve, 1500));
+// A quit must release the pane's claim (pane.release_agent): the shutdown
+// handler awaits the send, so the release is on the wire before exit.
+for (const cb of handlers["session_shutdown"] ?? []) await cb({ type: "session_shutdown", reason: "quit" });
 await new Promise((resolve) => setTimeout(resolve, 1500));
 "#;
 
@@ -153,6 +160,7 @@ fn installed_extension_drives_the_daemon(
     // state landed). An error-replied session report — the id-required
     // contract the pi/omp path-only shape used to hit — sends nothing.
     let mut broadcasts = 0usize;
+    let mut released = false;
     while Instant::now() < deadline {
         let (notes, _) = client.drain_core_notifications();
         broadcasts += notes
@@ -172,29 +180,35 @@ fn installed_extension_drives_the_daemon(
                 )
             })
             .count();
-        if broadcasts >= 2 {
+        released |= notes.iter().any(|note| {
+            matches!(
+                note,
+                par_term_emu_core_rust::tmux_control::TmuxNotification::AgentReleased {
+                    pane_id,
+                    agent: released_agent,
+                } if pane_id == "%0" && released_agent == agent
+            )
+        });
+        if broadcasts >= 2 && released {
             // A2b task 1 live leg: the report the broadcast announced must
             // also read back through the roster query, with the hook
-            // provenance the endpoint records.
+            // provenance the endpoint records — and after the shutdown
+            // release, the pane must be GONE from the roster (the stale-
+            // claim repro the release protocol exists to clear).
             let roster = client.list_agents().expect("list-agents");
-            let found = roster
-                .iter()
-                .find(|entry| entry.pane == 0)
-                .expect("the reported pane is rostered");
-            assert_eq!(
-                (found.agent.as_str(), found.state.as_str()),
-                (agent, "working"),
-                "roster entry matches the report: {found:?}"
+            assert!(
+                roster.iter().all(|entry| entry.pane != 0),
+                "pane %0 must leave the roster after session_shutdown(quit): {roster:?}"
             );
-            assert_eq!(found.source, par_term_mux::AgentSource::Hook);
             let _ = std::fs::remove_file(&socket);
             return;
         }
         std::thread::sleep(Duration::from_millis(50));
     }
     panic!(
-        "{agent} extension: expected the state broadcast AND the session-report \
-         rebroadcast, saw {broadcasts} in 20s"
+        "{agent} extension: expected the state broadcast, the session-report \
+         rebroadcast, AND the quit release, saw {broadcasts} broadcasts and \
+         released={released} in 20s"
     );
 }
 

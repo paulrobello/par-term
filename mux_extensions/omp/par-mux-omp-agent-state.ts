@@ -180,6 +180,24 @@ function reportSession(sessionStartSource = "startup"): Promise<void> {
   });
 }
 
+// The agent is gone: release the pane's claim so the roster drops the pane
+// and a restart respawns the original command instead of a resume for a
+// session with no live agent (pane.release_agent, core aed41c2). Guards are
+// the daemon's: label must match the claim and seq must advance past the
+// reports above, which nextReportSeq guarantees.
+function releaseAgent(): Promise<void> {
+  return sendRequest({
+    id: `${source}:release:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    method: "pane.release_agent",
+    params: {
+      pane_id: paneId,
+      source,
+      agent: "omp",
+      seq: nextReportSeq(),
+    },
+  });
+}
+
 function sendState(state: AgentState, message?: string, seq = nextReportSeq()): Promise<void> {
   return sendRequest({
     id: `${source}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
@@ -481,9 +499,18 @@ export default function (pi) {
     scheduleIdle();
   });
 
-  pi.on("session_shutdown", () => {
-    if (rootSession) {
-      clearPendingTimers();
+  // Only a real exit releases: reload/new/resume/fork replace the session
+  // in the same pane and re-claim through session_start, and releasing
+  // those would drop a live pane's claim mid-flight. The runtime awaits
+  // shutdown handlers, so the release is delivered before the process
+  // exits (bounded by the socket timeouts in sendRequest).
+  pi.on("session_shutdown", async (event) => {
+    if (!rootSession) {
+      return;
+    }
+    clearPendingTimers();
+    if (event?.reason === "quit") {
+      await releaseAgent();
     }
   });
 }
