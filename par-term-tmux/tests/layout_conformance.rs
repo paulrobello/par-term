@@ -14,6 +14,7 @@
 //! `cargo test -p par-term-tmux --features layout-conformance`.
 
 use par_term_emu_core_rust::mux::layout::ResizeDirection;
+use par_term_emu_core_rust::mux::pane::SpawnContext;
 use par_term_emu_core_rust::mux::{
     LayoutTree, MuxError, MuxPane, MuxTree, PaneFactory, PaneId, SessionId, ShellPaneFactory,
     SplitDirection, WindowId,
@@ -232,8 +233,9 @@ impl PaneFactory for QuietFactory {
         cols: u16,
         rows: u16,
         _command: Option<&str>,
+        context: &SpawnContext<'_>,
     ) -> Result<MuxPane, MuxError> {
-        ShellPaneFactory::default().create_pane(id, cols, rows, Some("sleep 30"))
+        ShellPaneFactory::default().create_pane(id, cols, rows, Some("sleep 30"), context)
     }
 }
 
