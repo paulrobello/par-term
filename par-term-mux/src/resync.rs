@@ -10,6 +10,7 @@
 
 use crate::client::MuxSessionClient;
 use par_term_tmux::{TmuxPaneId, TmuxWindowId};
+use std::collections::HashMap;
 use std::io::{self, ErrorKind};
 
 /// One session from `list-sessions` (`$N: name`).
@@ -86,6 +87,21 @@ impl MuxSessionClient {
     /// mangled session: `Par Mux Test` would arrive as `-s Par` and create
     /// a session named `Par`.
     pub fn create_or_attach(&mut self, name: &str) -> io::Result<AttachOutcome> {
+        self.create_or_attach_with_env(name, &HashMap::new())
+    }
+
+    /// [`Self::create_or_attach`], seeding the session environment: a
+    /// created session gets `env` through `new-session -e` (its first pane
+    /// spawns inside that command); an existing one gets it through
+    /// `set-environment`, so panes spawned after this attach see the
+    /// client's current values. Env failures never fail the attach: a
+    /// daemon that predates session env ignores `-e` and refuses
+    /// `set-environment`.
+    pub fn create_or_attach_with_env(
+        &mut self,
+        name: &str,
+        env: &HashMap<String, String>,
+    ) -> io::Result<AttachOutcome> {
         if name.is_empty()
             || name
                 .chars()
@@ -99,9 +115,26 @@ impl MuxSessionClient {
         }
         let existing = self.list_sessions()?.into_iter().find(|s| s.name == name);
         match existing {
-            Some(session) => Ok(AttachOutcome::Attached(session)),
+            Some(session) => {
+                if !env.is_empty() {
+                    let (skipped, refused) = self.push_session_env(session.id, env)?;
+                    warn_skipped(&skipped);
+                    if !refused.is_empty() {
+                        log::warn!(
+                            "par-mux session env: daemon refused {} of {} variables ({}); \
+                             the daemon likely predates set-environment, restart it",
+                            refused.len(),
+                            env.len(),
+                            refused.join(", ")
+                        );
+                    }
+                }
+                Ok(AttachOutcome::Attached(session))
+            }
             None => {
-                self.send(&format!("new-session -s {name}"))?;
+                let (env_args, skipped) = crate::env::new_session_env_args(env);
+                warn_skipped(&skipped);
+                self.send(&format!("new-session -s {name}{env_args}"))?;
                 let created = self
                     .list_sessions()?
                     .into_iter()
@@ -124,6 +157,18 @@ impl MuxSessionClient {
     /// through [`MuxSessionClient::set_client_size`].
     pub fn refresh_pane(&mut self, pane: TmuxPaneId) -> io::Result<Vec<String>> {
         self.send(&format!("refresh-client -t %{pane}"))
+    }
+}
+
+/// Report env variables the line-framed wire cannot carry (a newline or
+/// NUL in a `shell_env` value). Names only, never values.
+fn warn_skipped(skipped: &[String]) {
+    if !skipped.is_empty() {
+        log::warn!(
+            "par-mux session env: skipped variables the wire cannot carry \
+             (newline or NUL in the value): {}",
+            skipped.join(", ")
+        );
     }
 }
 

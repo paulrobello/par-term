@@ -157,16 +157,22 @@ pub(crate) fn route_literal_bytes(
 /// the screen; they are NOT `%output` pushes), and read the agent roster
 /// for the initial fill (A2b task 1: `list-agents` on attach and
 /// reattach — the single call site of the roster query in app code).
+///
+/// `env` is par-term's shell environment (`build_shell_env`), handed to
+/// the daemon as the session environment so mux panes match local tabs:
+/// `new-session -e` on create, `set-environment` on reattach (which also
+/// refreshes it after a par-term update or `shell_env` change).
 pub(crate) fn attach_sequence(
     transport: &MuxTransport,
     name: &str,
     size: Option<(u16, u16)>,
+    env: &std::collections::HashMap<String, String>,
 ) -> io::Result<AttachSequence> {
     // Degrade to None rather than failing the attach: the version query is
     // diagnostic, and a daemon that cannot answer it is handled by the
     // mismatch check, not by refusing to attach.
     let daemon_version = transport.client().daemon_version().ok();
-    let outcome = transport.client().create_or_attach(name)?;
+    let outcome = transport.client().create_or_attach_with_env(name, env)?;
     let mut existing_windows = Vec::new();
     if matches!(outcome, AttachOutcome::Attached(_)) {
         for window in transport.client().list_windows()? {
@@ -205,6 +211,26 @@ pub(crate) fn attach_sequence(
         screens,
         agents,
     })
+}
+
+/// Give the next pane spawned in session `$session` its own
+/// `ITERM_SESSION_ID`. The variable lives in the shared session
+/// environment, so par-term restamps it before every pane it asks the
+/// daemon for; panes spawned by anyone else (an agent calling
+/// `PAR_MUX_BIN`, the daemon's restore after a restart) reuse the last
+/// stamp. Failure is logged by name only and never blocks the split.
+fn stamp_pane_session_id(transport: &dyn TmuxTransport, session: Option<u64>) {
+    let Some(session) = session else {
+        return;
+    };
+    let value = par_term_mux::quote_env_value(&format!("w0t0p0:{}", uuid::Uuid::new_v4()));
+    // The reply body is dropped unread: an %error from a daemon that
+    // predates set-environment is harmless here (the pane still spawns).
+    if let Err(e) = transport.send_command(&format!(
+        "set-environment -t ${session} ITERM_SESSION_ID {value}"
+    )) {
+        crate::debug_error!("MUX", "set-environment ITERM_SESSION_ID failed: {e}");
+    }
 }
 
 /// What [`attach_sequence`] learned — the tuple it returned, named: the
@@ -278,6 +304,7 @@ impl WindowState {
             return false;
         };
         // tmux's -h is a side-by-side split (par-term "vertical"); -v stacks.
+        stamp_pane_session_id(transport.as_ref(), self.tmux_state.mux_session_id);
         let flag = if vertical { "-h" } else { "-v" };
         let cmd = format!("split-window {flag} -t %{target}");
         match transport.send_command(&cmd) {
@@ -434,7 +461,9 @@ impl WindowState {
         // `handle_tmux_window_add` can borrow the window state freely;
         // boxing into tmux_state happens only once attached.
         let size = self.renderer.as_ref().map(mux_client_grid);
-        let attach = attach_sequence(&transport, name, size).map(
+        let env = crate::tab::build_shell_env(self.config.load().shell.shell_env.as_ref())
+            .unwrap_or_default();
+        let attach = attach_sequence(&transport, name, size, &env).map(
             |AttachSequence {
                  daemon_version,
                  outcome,
@@ -481,6 +510,9 @@ impl WindowState {
                 self.tmux_state.transport = Some(Box::new(transport));
                 self.tmux_state.mux_focused_pane = None;
                 self.tmux_state.tmux_session_name = Some(name.to_string());
+                self.tmux_state.mux_session_id = Some(match &outcome {
+                    AttachOutcome::Created(s) | AttachOutcome::Attached(s) => s.id,
+                });
                 self.tmux_state.tmux_sync.enable();
                 let verb = match &outcome {
                     AttachOutcome::Created(_) => "created",
@@ -693,8 +725,8 @@ mod tests {
         // runs short of tab allocation. The size differs from the daemon's
         // 80x24 default so the `-C` refit genuinely broadcasts a layout.
         let transport = connect(&path);
-        let attach =
-            attach_sequence(&transport, "wiring", Some((120, 40))).expect("attach_sequence");
+        let attach = attach_sequence(&transport, "wiring", Some((120, 40)), &Default::default())
+            .expect("attach_sequence");
         assert!(
             matches!(attach.outcome, AttachOutcome::Attached(ref s) if s.name == "wiring"),
             "reattached to the persisted session: {:?}",
@@ -742,7 +774,13 @@ mod tests {
         spawn_daemon(&path);
 
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "version-check", Some((80, 24))).expect("attach");
+        let attach = attach_sequence(
+            &transport,
+            "version-check",
+            Some((80, 24)),
+            &Default::default(),
+        )
+        .expect("attach");
         let daemon_reply = attach
             .daemon_version
             .expect("the daemon answered `version` during the attach sequence");
@@ -764,13 +802,14 @@ mod tests {
 
         {
             let transport = connect(&path);
-            let attach = attach_sequence(&transport, "keep", Some((80, 24))).expect("attach");
+            let attach = attach_sequence(&transport, "keep", Some((80, 24)), &Default::default())
+                .expect("attach");
             assert!(matches!(attach.outcome, AttachOutcome::Created(_)));
             // Dropping the transport drops the socket — detach, D5.
         }
 
         let second = connect(&path);
-        let attach = attach_sequence(&second, "keep", None).expect("reattach");
+        let attach = attach_sequence(&second, "keep", None, &Default::default()).expect("reattach");
         assert!(
             matches!(attach.outcome, AttachOutcome::Attached(ref s) if s.name == "keep"),
             "the daemon and session survived the dropped socket: {:?}",
@@ -995,6 +1034,20 @@ mod tests {
             "focus must move to the reply's new pane id"
         );
 
+        // The install path recorded the session id, so the split stamped
+        // its own ITERM_SESSION_ID (card 01a0d93b1c03 criterion 2).
+        assert!(ws.tmux_state.mux_session_id.is_some());
+        let transport = MuxTransport {
+            client: RefCell::new(probe),
+        };
+        #[cfg(unix)]
+        assert_ne!(
+            pane_var(&transport, 0, "ITERM_SESSION_ID"),
+            pane_var(&transport, 1, "ITERM_SESSION_ID"),
+            "a split pane must not share the first pane's ITERM_SESSION_ID"
+        );
+        drop(transport);
+
         let _ = std::fs::remove_file(&path);
     }
 
@@ -1107,7 +1160,8 @@ mod tests {
         let path = socket_path("palette-row");
         spawn_daemon(&path);
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "rows", Some((80, 24))).expect("attach");
+        let attach = attach_sequence(&transport, "rows", Some((80, 24)), &Default::default())
+            .expect("attach");
         assert!(matches!(attach.outcome, AttachOutcome::Created(_)));
         ws.tmux_state.transport = Some(Box::new(transport));
         ws.tmux_state.tmux_session_name = Some("rows".to_string());
@@ -1143,7 +1197,8 @@ mod tests {
         );
 
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "det", Some((80, 24))).expect("attach");
+        let attach = attach_sequence(&transport, "det", Some((80, 24)), &Default::default())
+            .expect("attach");
         assert!(matches!(attach.outcome, AttachOutcome::Created(_)));
         ws.tmux_state.transport = Some(Box::new(transport));
         ws.tmux_state.tmux_session_name = Some("det".to_string());
@@ -1176,7 +1231,8 @@ mod tests {
         // D5 through the app's own detach: the daemon outlives the dropped
         // socket and a fresh client reattaches to the same session.
         let second = connect(&path);
-        let reattach = attach_sequence(&second, "det", None).expect("reattach");
+        let reattach =
+            attach_sequence(&second, "det", None, &Default::default()).expect("reattach");
         assert!(
             matches!(reattach.outcome, AttachOutcome::Attached(ref s) if s.name == "det"),
             "the daemon survived the explicit detach: {:?}",
@@ -1192,7 +1248,8 @@ mod tests {
         spawn_daemon(&path);
 
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "roster", Some((80, 24))).expect("attach");
+        let attach = attach_sequence(&transport, "roster", Some((80, 24)), &Default::default())
+            .expect("attach");
         // Absent means absent: a daemon whose panes have no agent reports
         // rostered nothing — the fill is empty, not idle-populated.
         assert!(
@@ -1279,7 +1336,8 @@ out.flush()
 
         // The app's exact attach: create-or-attach, size push, per-pane replay.
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "tui", Some((80, 24))).expect("attach_sequence");
+        let attach = attach_sequence(&transport, "tui", Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
 
         let seed = attach
             .screens
@@ -1422,7 +1480,8 @@ out.flush()
         // a real (renderer-less) WindowState — the same steps
         // `install_mux_transport` performs minus the renderer-derived size.
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "wstui", Some((80, 24))).expect("attach_sequence");
+        let attach = attach_sequence(&transport, "wstui", Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
         assert!(
             attach
                 .screens
@@ -1658,8 +1717,8 @@ out.flush()
         // Attach + install into a renderer-less WindowState — the same
         // steps `install_mux_transport` performs (the reattach pattern).
         let transport = connect(&path);
-        let attach =
-            attach_sequence(&transport, "wspaste", Some((80, 24))).expect("attach_sequence");
+        let attach = attach_sequence(&transport, "wspaste", Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
         let mut ws = manners_state();
         let mut existing_windows = attach.existing_windows.clone();
         if existing_windows.is_empty() {
@@ -1716,6 +1775,192 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Poll `capture-pane` on `%pane` until `needle` shows up (or 10s).
+    fn capture_until(transport: &MuxTransport, pane: u64, needle: &str) -> String {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let view = transport
+                .send_command(&format!("capture-pane -t %{pane} -p"))
+                .expect("capture")
+                .join("|");
+            if view.contains(needle) || Instant::now() >= deadline {
+                return view;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    /// Print `name`'s value in `%pane`, bracketed so the capture can be
+    /// parsed back out. The markers are split in the typed command so the
+    /// shell's echo of the command line never matches.
+    fn pane_var(transport: &MuxTransport, pane: u64, name: &str) -> String {
+        let tag = format!("V{pane}{name}");
+        transport
+            .send_command(&format!(
+                "send-keys -t %{pane} -l 'echo \"<{tag}\"\"=${name}>\"'"
+            ))
+            .expect("send-keys");
+        transport
+            .send_command(&format!("send-keys -t %{pane} Enter"))
+            .expect("enter");
+        let view = capture_until(transport, pane, &format!("<{tag}="));
+        let start = view
+            .find(&format!("<{tag}="))
+            .unwrap_or_else(|| panic!("{name} never printed in %{pane}: {view:?}"));
+        let rest = &view[start + tag.len() + 2..];
+        rest[..rest.find('>').expect("closing marker")].to_string()
+    }
+
+    /// `len:first8:last8` of a value — the form [`pane_var_summary`] prints.
+    fn summarize(value: &str) -> String {
+        let head: String = value.chars().take(8).collect();
+        let tail: String = value[value.len().saturating_sub(8)..].to_string();
+        format!("{}:{head}:{tail}", value.len())
+    }
+
+    /// [`pane_var`] for values too long for one screen row: the shell
+    /// prints [`summarize`]'s form instead of the value.
+    fn pane_var_summary(transport: &MuxTransport, pane: u64, name: &str) -> String {
+        let tag = format!("S{pane}{name}");
+        let script = format!(
+            "v=\"${name}\"; printf '<{tag}''=%s:%s:%s>\\n' \"${{#v}}\" \"${{v:0:8}}\" \"$(printf %s \"$v\" | tail -c 8)\""
+        );
+        transport
+            .send_command(&format!(
+                "send-keys -t %{pane} -l {}",
+                par_term_mux::quote_env_value(&script)
+            ))
+            .expect("send-keys");
+        transport
+            .send_command(&format!("send-keys -t %{pane} Enter"))
+            .expect("enter");
+        let view = capture_until(transport, pane, &format!("<{tag}="));
+        let start = view
+            .find(&format!("<{tag}="))
+            .unwrap_or_else(|| panic!("{name} never printed in %{pane}: {view:?}"));
+        let rest = &view[start + tag.len() + 2..];
+        rest[..rest.find('>').expect("closing marker")].to_string()
+    }
+
+    /// Card 01a0d93b1c03: mux panes get par-term's shell environment. A
+    /// created session's first pane sees the attach env (`new-session -e`);
+    /// a split gets its own ITERM_SESSION_ID; a reattach with a changed
+    /// value refreshes it for panes created afterwards.
+    #[cfg(unix)]
+    #[test]
+    fn mux_panes_get_the_attach_env_and_a_unique_iterm_session_id() {
+        let path = socket_path("session-env");
+        spawn_daemon(&path);
+        let env: std::collections::HashMap<String, String> = [
+            ("TERM_PROGRAM", "iTerm.app"),
+            ("__PAR_TERM", "1"),
+            ("PAR_TERM_ENV_PROBE", "first value"),
+            ("ITERM_SESSION_ID", "w0t0p0:attach"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "envs", None, &env).expect("attach");
+        let AttachOutcome::Created(session) = attach.outcome else {
+            panic!("expected a created session");
+        };
+        // The first pane spawned inside new-session, so -e reached it —
+        // including over the core's own TERM_PROGRAM=kitty default.
+        assert_eq!(pane_var(&transport, 0, "TERM_PROGRAM"), "iTerm.app");
+        assert_eq!(pane_var(&transport, 0, "__PAR_TERM"), "1");
+        assert_eq!(pane_var(&transport, 0, "PAR_TERM_ENV_PROBE"), "first value");
+
+        stamp_pane_session_id(&transport, Some(session.id));
+        let reply = transport
+            .send_command("split-window -h -t %0")
+            .expect("split");
+        assert!(
+            reply.iter().any(|l| l.trim() == "%1"),
+            "split reply: {reply:?}"
+        );
+        let first_id = pane_var(&transport, 0, "ITERM_SESSION_ID");
+        let second_id = pane_var(&transport, 1, "ITERM_SESSION_ID");
+        assert_eq!(first_id, "w0t0p0:attach");
+        assert!(second_id.starts_with("w0t0p0:"), "{second_id:?}");
+        assert_ne!(
+            first_id, second_id,
+            "each pane needs its own ITERM_SESSION_ID"
+        );
+        drop(transport);
+
+        // Reattach with a changed value: panes created afterwards see it,
+        // the pane already running keeps what it spawned with.
+        let mut changed = env.clone();
+        changed.insert("PAR_TERM_ENV_PROBE".to_string(), "it's changed".to_string());
+        let second = connect(&path);
+        let reattach = attach_sequence(&second, "envs", None, &changed).expect("reattach");
+        assert!(matches!(reattach.outcome, AttachOutcome::Attached(_)));
+        second
+            .send_command("split-window -v -t %1")
+            .expect("split after reattach");
+        assert_eq!(pane_var(&second, 2, "PAR_TERM_ENV_PROBE"), "it's changed");
+        assert_eq!(pane_var(&second, 0, "PAR_TERM_ENV_PROBE"), "first value");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Criterion 1 of card 01a0d93b1c03: a mux pane shows the same values
+    /// a local tab gets from `build_shell_env` for the parity keys, with a
+    /// `shell_env` entry and a UTF-8 locale in the mix. PATH is compared
+    /// whole: the daemon has the test process's PATH, and the session env
+    /// must replace it with par-term's augmented one.
+    #[cfg(unix)]
+    #[test]
+    fn mux_pane_env_matches_a_local_tab_for_the_parity_keys() {
+        let path = socket_path("env-parity");
+        spawn_daemon(&path);
+        let shell_env: std::collections::HashMap<String, String> = [(
+            "PAR_TERM_USER_VAR".to_string(),
+            "from shell_env".to_string(),
+        )]
+        .into();
+        let local = crate::tab::build_shell_env(Some(&shell_env)).expect("env");
+        let mut sent = local.clone();
+        sent.insert("PAR_TERM_PATH_PROBE".to_string(), local["PATH"].clone());
+        let transport = connect(&path);
+        attach_sequence(&transport, "parity", None, &sent).expect("attach");
+        for key in [
+            "TERM_PROGRAM",
+            "TERM_PROGRAM_VERSION",
+            "LC_TERMINAL",
+            "LC_TERMINAL_VERSION",
+            "__PAR_TERM",
+            "LANG",
+            "PAR_TERM_USER_VAR",
+            "ITERM_SESSION_ID",
+        ] {
+            // Long values wrap across screen rows; compare the byte length
+            // plus the ends, which is what the capture can carry intact.
+            let expected = local.get(key).cloned().unwrap_or_default();
+            let got = pane_var_summary(&transport, 0, key);
+            assert_eq!(got, summarize(&expected), "{key}");
+        }
+        // PATH: the pane's shell rc may add entries of its own (a local
+        // tab runs the same rc), so parity means every entry of par-term's
+        // augmented PATH is present. The expected value rides in as a probe
+        // var and the shell counts the entries missing from $PATH.
+        let script = r#"n=0; printf '%s\n' "$PAR_TERM_PATH_PROBE" | tr : '\n' > /tmp/.ptprobe.$$; while read -r d; do [[ ":$PATH:" == *":$d:"* ]] || n=$((n+1)); done < /tmp/.ptprobe.$$; rm -f /tmp/.ptprobe.$$; echo "<MISS""=$n>""#;
+        transport
+            .send_command(&format!(
+                "send-keys -t %0 -l {}",
+                par_term_mux::quote_env_value(script)
+            ))
+            .expect("send-keys");
+        transport
+            .send_command("send-keys -t %0 Enter")
+            .expect("enter");
+        let view = capture_until(&transport, 0, "<MISS=");
+        assert!(view.contains("<MISS=0>"), "PATH entries missing: {view:?}");
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// A window attached to a par-mux daemon must persist its session name
     /// as a MUX name, never a tmux one: the next launch restored a
     /// tmux-tagged name through the tmux gateway, which spawned a real
@@ -1727,7 +1972,7 @@ out.flush()
         let path = socket_path("persist-kind");
         spawn_daemon(&path);
         let transport = connect(&path);
-        attach_sequence(&transport, "kind", None).expect("attach");
+        attach_sequence(&transport, "kind", None, &Default::default()).expect("attach");
 
         let mut ws = manners_state();
         ws.tmux_state.transport = Some(Box::new(transport));
@@ -1752,7 +1997,7 @@ out.flush()
         let path = socket_path("stale-focus");
         spawn_daemon(&path);
         let transport = connect(&path);
-        attach_sequence(&transport, "stale", None).expect("attach");
+        attach_sequence(&transport, "stale", None, &Default::default()).expect("attach");
 
         let mut ws = manners_state();
         ws.tmux_state.transport = Some(Box::new(transport));

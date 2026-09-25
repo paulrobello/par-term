@@ -21,6 +21,8 @@
 //!   (`check_daemon_version`) that surfaces a stale daemon on attach
 //! - `resync.rs`: reattach queries over the command tier —
 //!   list-sessions/windows/panes, create-or-attach, per-pane screen seeding
+//! - `env.rs`: the session environment — `new-session -e` on create,
+//!   `set-environment` on reattach, value quoting for the wire
 //! - `agents.rs`: the agent roster wire tier — the `list-agents` query and
 //!   the `%agent-state-changed` push payload as one entry shape
 //!
@@ -35,8 +37,10 @@
 
 mod agents;
 mod client;
+mod env;
 mod resync;
 
 pub use agents::{AgentEntry, AgentSource};
 pub use client::{MuxSessionClient, VersionCheck, check_daemon_version};
+pub use env::{is_wire_safe, new_session_env_args, quote_env_value};
 pub use resync::{AttachOutcome, SessionSummary, WindowSummary};

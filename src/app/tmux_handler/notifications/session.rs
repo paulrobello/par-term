@@ -196,6 +196,7 @@ impl WindowState {
             session.disconnect();
         }
         self.tmux_state.tmux_session_name = None;
+        self.tmux_state.mux_session_id = None;
 
         // Clear pane mappings
         self.tmux_state.tmux_pane_to_native_pane.clear();

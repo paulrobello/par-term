@@ -12,6 +12,7 @@ On top of sessions, par-mux carries an **agent roster**: what coding agents (Cla
 - [Setup](#setup)
 - [Attaching](#attaching)
 - [Working in a mux pane](#working-in-a-mux-pane)
+- [Pane environment](#pane-environment)
 - [Detach and reattach](#detach-and-reattach)
 - [Daemon lifecycle and the stale-daemon check](#daemon-lifecycle-and-the-stale-daemon-check)
 - [Agent roster](#agent-roster)
@@ -86,6 +87,27 @@ While attached, the pane is daemon-driven:
 - Input goes to the daemon's **focused** pane; splits, divider drags, and pane closes are routed **daemon-side** so the layout stays negotiated with the session, not just local.
 - Paste is routed daemon-side, mouse reports reach mouse-aware TUIs (htop, vim with mouse support), and resizes push to the daemon.
 - The scrollbar draws in a reserved strip, so pane content never renders under it.
+
+## Pane environment
+
+A mux pane gets the same shell environment a local tab does. On attach, par-term hands the daemon the environment it builds for local tabs, and the daemon applies it on top of its own environment for every pane spawned in that session:
+
+- `TERM_PROGRAM=iTerm.app`, `TERM_PROGRAM_VERSION`, `LC_TERMINAL=iTerm2`, `LC_TERMINAL_VERSION`, and `__PAR_TERM=1` — these replace the daemon's `TERM_PROGRAM=kitty` default, since par-term is the renderer.
+- A UTF-8 locale (`LANG` falls back to `en_US.UTF-8` when none is inherited).
+- par-term's augmented `PATH` (the extra tool directories added for Finder/Dock launches).
+- Everything in your `shell_env` config.
+- `ITERM_SESSION_ID`, unique per pane: par-term restamps it before every split it requests.
+
+When it is sent and refreshed:
+
+- **Creating a session** sends the environment with `new-session -e`, so the session's first pane already has it.
+- **Every attach and reattach** resends it with `set-environment`. Panes created afterwards see the current values, so a par-term update or a `shell_env` change reaches new panes after a reattach. Panes already running keep the environment they started with (tmux semantics) — restart the shell in a pane to pick up a change.
+- A variable you **remove** from `shell_env` stays in the session environment: reattach only sets values, it never unsets them. Kill and recreate the session to drop one.
+- `ITERM_SESSION_ID` is only fresh for panes par-term asks for. A pane spawned by something else — an agent running `par-mux` itself, or the daemon restoring panes after a restart — reuses the most recent value.
+
+A daemon older than the session-environment protocol ignores all of this, and its panes get the daemon's own environment. Creating a session on such a daemon is silent (it drops `-e` without complaint). Reattaching logs a warning naming the refused variables (names only, never values). Restart the daemon to fix it (see [the stale-daemon check](#daemon-lifecycle-and-the-stale-daemon-check)). A `shell_env` value containing a newline cannot travel over the line-based protocol, so it is skipped with its own warning.
+
+Values can carry secrets (tokens in `shell_env`). They travel over the owner-only daemon socket, persist in the daemon's owner-only (`0600`) state file, and are never logged.
 
 ## Detach and reattach
 

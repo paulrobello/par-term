@@ -51,6 +51,9 @@ pub(crate) struct TmuxState {
     /// tracks its own; the transport has nowhere else to keep it)
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) mux_focused_pane: Option<TmuxPaneId>,
+    /// The attached par-mux session's id (`$N`), the target of
+    /// `set-environment`. `None` while no mux session is attached.
+    pub(crate) mux_session_id: Option<u64>,
     /// Replayed screens awaiting their pane mapping (reattach seeding:
     /// `refresh-client -t` replies, applied once the layout consumers
     /// create the panes)
@@ -87,6 +90,7 @@ impl TmuxState {
             tmux_prefix_key,
             tmux_prefix_state: PrefixState::new(),
             mux_focused_pane: None,
+            mux_session_id: None,
             mux_screen_seeds: std::collections::HashMap::new(),
             #[cfg(feature = "mux")]
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),

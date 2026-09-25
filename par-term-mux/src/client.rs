@@ -117,6 +117,15 @@ impl MuxSessionClient {
         self.client.send(command)
     }
 
+    /// Run one command and return the whole reply block, including whether
+    /// the daemon closed it with `%end` (`ok`) or `%error`.
+    pub fn send_checked(
+        &mut self,
+        command: &str,
+    ) -> io::Result<par_term_emu_core_rust::mux::Reply> {
+        self.client.send_checked(command)
+    }
+
     /// Route raw input bytes to a pane as tmux key names.
     ///
     /// This is the form the tmux gateway sends today: the daemon's
