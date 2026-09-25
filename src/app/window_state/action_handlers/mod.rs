@@ -10,7 +10,7 @@
 //! - [`integrations`] — shader install, shell integration install, conflict resolution.
 //! - Clipboard history (inline below) — paste, clear-all, clear-slot (too small for its own file).
 
-mod inspector;
+pub(crate) mod inspector;
 pub(crate) mod integrations;
 mod pane;
 mod tab_bar;

@@ -52,7 +52,7 @@
 //! All `super::` references inside `render_pipeline/*.rs` correctly resolve to
 //! the `render_pipeline` module itself (unchanged).
 
-mod action_handlers;
+pub(crate) mod action_handlers;
 mod agent_config;
 mod agent_message_helpers;
 mod agent_messages;

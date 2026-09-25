@@ -217,71 +217,75 @@ impl WindowState {
         // Detect new command completions and auto-refresh the snapshot.
         // This is separate from agent auto-context so the panel always shows
         // up-to-date command history regardless of agent connection state.
+        // Reads go through the read seam: in a mux tab the command history
+        // lives on the focused mirror pane, not the hidden local shell.
         if self.overlay_ui.ai_inspector.open
             && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_read()
+            && let Some((current_count, last_completed, cwd)) = tab.try_with_read_terminal(|term| {
+                let history = term.core_command_history();
+                (
+                    history.len(),
+                    history.last().cloned(),
+                    term.shell_integration_cwd(),
+                )
+            })
+            && current_count != self.overlay_ui.ai_inspector.last_command_count
         {
-            let history = term.core_command_history();
-            let current_count = history.len();
+            let had_commands = self.overlay_ui.ai_inspector.last_command_count > 0;
+            self.overlay_ui.ai_inspector.last_command_count = current_count;
+            self.overlay_ui.ai_inspector.needs_refresh = true;
 
-            if current_count != self.overlay_ui.ai_inspector.last_command_count {
-                // Command count changed — refresh the snapshot
-                let had_commands = self.overlay_ui.ai_inspector.last_command_count > 0;
-                self.overlay_ui.ai_inspector.last_command_count = current_count;
-                self.overlay_ui.ai_inspector.needs_refresh = true;
+            // Auto-context feeding: send latest command info to agent.
+            // Fires when auto-context is enabled OR when terminal drive is
+            // active so the agent can see the outcome of commands it ran.
+            if had_commands
+                && current_count > 0
+                && (self.config.load().ai_inspector.ai_inspector_auto_context
+                    || self
+                        .config
+                        .load()
+                        .ai_inspector
+                        .ai_inspector_agent_terminal_access)
+                && self.overlay_ui.ai_inspector.agent_status == AgentStatus::Connected
+                && let Some((cmd, exit_code, duration_ms)) = &last_completed
+            {
+                let now = std::time::Instant::now();
+                let throttled =
+                    self.agent_state
+                        .last_auto_context_sent_at
+                        .is_some_and(|last_sent| {
+                            now.duration_since(last_sent)
+                                < std::time::Duration::from_millis(AUTO_CONTEXT_MIN_INTERVAL_MS)
+                        });
 
-                // Auto-context feeding: send latest command info to agent.
-                // Fires when auto-context is enabled OR when terminal drive is
-                // active so the agent can see the outcome of commands it ran.
-                if had_commands
-                    && current_count > 0
-                    && (self.config.load().ai_inspector.ai_inspector_auto_context
-                        || self
-                            .config
-                            .load()
-                            .ai_inspector
-                            .ai_inspector_agent_terminal_access)
-                    && self.overlay_ui.ai_inspector.agent_status == AgentStatus::Connected
-                    && let Some((cmd, exit_code, duration_ms)) = history.last()
-                {
-                    let now = std::time::Instant::now();
-                    let throttled =
-                        self.agent_state
-                            .last_auto_context_sent_at
-                            .is_some_and(|last_sent| {
-                                now.duration_since(last_sent)
-                                    < std::time::Duration::from_millis(AUTO_CONTEXT_MIN_INTERVAL_MS)
-                            });
+                if !throttled {
+                    let exit_code_str = exit_code
+                        .map(|c| c.to_string())
+                        .unwrap_or_else(|| "N/A".to_string());
+                    let duration = duration_ms.unwrap_or(0);
 
-                    if !throttled {
-                        let exit_code_str = exit_code
-                            .map(|c| c.to_string())
-                            .unwrap_or_else(|| "N/A".to_string());
-                        let duration = duration_ms.unwrap_or(0);
+                    let cwd = cwd.clone().unwrap_or_default();
+                    let (sanitized_cmd, was_redacted) = redact_auto_context_command(cmd);
 
-                        let cwd = term.shell_integration_cwd().unwrap_or_default();
-                        let (sanitized_cmd, was_redacted) = redact_auto_context_command(cmd);
+                    let context = format!(
+                        "[Auto-context event]\nCommand completed:\n$ {}\nExit code: {}\nDuration: {}ms\nCWD: {}\nSensitive arguments redacted: {}",
+                        sanitized_cmd, exit_code_str, duration, cwd, was_redacted
+                    );
 
-                        let context = format!(
-                            "[Auto-context event]\nCommand completed:\n$ {}\nExit code: {}\nDuration: {}ms\nCWD: {}\nSensitive arguments redacted: {}",
-                            sanitized_cmd, exit_code_str, duration, cwd, was_redacted
-                        );
-
-                        if let Some(agent) = &self.agent_state.agent {
-                            self.agent_state.last_auto_context_sent_at = Some(now);
-                            self.overlay_ui.ai_inspector.chat.add_system_message(if was_redacted {
-                                "Auto-context sent command metadata to the agent (sensitive values redacted).".to_string()
-                            } else {
-                                "Auto-context sent command metadata to the agent.".to_string()
-                            });
-                            self.focus_state.needs_redraw = true;
-                            let agent = agent.clone();
-                            let content = vec![ContentBlock::Text { text: context }];
-                            self.runtime.spawn(async move {
-                                let agent = agent.lock().await;
-                                let _ = agent.send_prompt(content).await;
-                            });
-                        }
+                    if let Some(agent) = &self.agent_state.agent {
+                        self.agent_state.last_auto_context_sent_at = Some(now);
+                        self.overlay_ui.ai_inspector.chat.add_system_message(if was_redacted {
+                            "Auto-context sent command metadata to the agent (sensitive values redacted).".to_string()
+                        } else {
+                            "Auto-context sent command metadata to the agent.".to_string()
+                        });
+                        self.focus_state.needs_redraw = true;
+                        let agent = agent.clone();
+                        let content = vec![ContentBlock::Text { text: context }];
+                        self.runtime.spawn(async move {
+                            let agent = agent.lock().await;
+                            let _ = agent.send_prompt(content).await;
+                        });
                     }
                 }
             }
@@ -294,16 +298,19 @@ impl WindowState {
         if self.overlay_ui.ai_inspector.open
             && self.overlay_ui.ai_inspector.needs_refresh
             && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_read()
+            // Read seam: in a mux tab the visible screen and command history
+            // live on the focused mirror pane, not the hidden local shell.
+            && let Some(snapshot) = tab.try_with_read_terminal(|term| {
+                crate::ai_inspector::snapshot::SnapshotData::gather(
+                    term,
+                    &self.overlay_ui.ai_inspector.scope,
+                    self.config
+                        .load()
+                        .ai_inspector
+                        .ai_inspector_context_max_lines,
+                )
+            })
         {
-            let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
-                &term,
-                &self.overlay_ui.ai_inspector.scope,
-                self.config
-                    .load()
-                    .ai_inspector
-                    .ai_inspector_context_max_lines,
-            );
             self.overlay_ui.ai_inspector.snapshot = Some(snapshot);
             self.overlay_ui.ai_inspector.needs_refresh = false;
         }

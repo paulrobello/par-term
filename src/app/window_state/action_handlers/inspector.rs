@@ -68,12 +68,17 @@ impl WindowState {
                         );
                     }
                 });
-                // Record command count before execution so we can detect completion
+                // Record command count before execution so we can detect completion.
+                // Read seam: in a mux tab the command lands in the daemon
+                // pane, so the baseline and the poll must watch the focused
+                // mirror — `tab.terminal` is the hidden local shell whose
+                // history never sees it.
                 let history_len = self
                     .tab_manager
                     .active_tab()
-                    .and_then(|tab| tab.terminal.try_read().ok())
-                    .map(|term| term.core_command_history().len())
+                    .and_then(|tab| {
+                        tab.try_with_read_terminal(|term| term.core_command_history().len())
+                    })
                     .unwrap_or(0);
                 // Spawn a task that polls for command completion and notifies the agent
                 if let Some(agent) = &self.agent_state.agent {
@@ -82,26 +87,10 @@ impl WindowState {
                     let terminal = self
                         .tab_manager
                         .active_tab()
-                        .map(|tab| tab.terminal.clone());
+                        .map(|tab| tab.read_terminal_handle());
                     let cmd_for_msg = cmd.clone();
                     self.runtime.spawn(async move {
-                        // Poll for command completion (up to 30 seconds)
-                        let mut exit_code: Option<i32> = None;
-                        for _ in 0..300 {
-                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                            if let Some(ref terminal) = terminal
-                                && let Ok(term) = terminal.try_read()
-                            {
-                                let history = term.core_command_history();
-                                if history.len() > history_len {
-                                    // New command finished
-                                    if let Some(last) = history.last() {
-                                        exit_code = last.1;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
+                        let exit_code = poll_command_exit(terminal, history_len, 300).await;
                         // Send feedback to agent
                         let exit_str = exit_code
                             .map(|c| format!("exit code {c}"))
@@ -446,4 +435,29 @@ impl WindowState {
             InspectorAction::None => {}
         }
     }
+}
+
+/// Poll `terminal`'s shell-integration command history until one more
+/// command than `history_len` has finished (its exit code), or `polls`
+/// 100 ms ticks pass. Extracted from run-and-notify so the mux read-side
+/// (the poll must watch the daemon mirror, not the hidden local shell)
+/// is testable without a live agent.
+pub(crate) async fn poll_command_exit(
+    terminal: Option<std::sync::Arc<tokio::sync::RwLock<par_term_terminal::TerminalManager>>>,
+    history_len: usize,
+    polls: usize,
+) -> Option<i32> {
+    for _ in 0..polls {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        if let Some(ref terminal) = terminal
+            && let Ok(term) = terminal.try_read()
+        {
+            let history = term.core_command_history();
+            if history.len() > history_len {
+                // New command finished
+                return history.last().and_then(|last| last.1);
+            }
+        }
+    }
+    None
 }

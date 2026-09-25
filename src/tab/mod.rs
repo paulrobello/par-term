@@ -269,6 +269,23 @@ impl Tab {
         terminal.try_read().ok().map(|guard| f(&guard))
     }
 
+    /// Owned handle to the terminal [`Self::try_with_read_terminal`]
+    /// reads from: the focused pane's terminal when the tab has panes —
+    /// in a mux tab that is the daemon-pane mirror — else the tab
+    /// terminal. Async read-pollers (the inspector's run-and-notify exit
+    /// check) must watch this terminal, not `terminal` (a hidden login
+    /// shell in a mux tab whose history never sees pane commands).
+    #[inline]
+    pub(crate) fn read_terminal_handle(
+        &self,
+    ) -> std::sync::Arc<tokio::sync::RwLock<TerminalManager>> {
+        self.pane_manager
+            .as_ref()
+            .and_then(|pm| pm.focused_pane())
+            .map(|pane| std::sync::Arc::clone(&pane.terminal))
+            .unwrap_or_else(|| std::sync::Arc::clone(&self.terminal))
+    }
+
     /// Non-blocking write access to this tab's `TerminalManager`.
     ///
     /// Returns `None` on lock contention (expected: another async task holds it).

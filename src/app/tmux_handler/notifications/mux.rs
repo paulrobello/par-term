@@ -1434,6 +1434,214 @@ pub(crate) mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// The inspector's snapshot and command history must read the focused
+    /// pane's terminal — the daemon mirror — in a mux tab. `tab.terminal`
+    /// there is a hidden local login shell, so the agent reasoned about a
+    /// screen and history it cannot see. Seeds a full OSC 133 command
+    /// lifecycle into the mirror the way daemon `%output` delivers it, then
+    /// asserts the snapshot carries that command.
+    #[test]
+    fn inspector_snapshot_reads_the_mux_mirror_not_the_hidden_shell() {
+        let path = socket_path("mux-inspector-read");
+        spawn_daemon(&path);
+
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "inspect".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "window @0 never got a mapped pane"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let (tab_id, pane) = ws.tmux_state.tmux_pane_owners[&0];
+        ws.tab_manager.switch_to(tab_id);
+
+        // Seed ONLY the mirror with a complete shell-integration command
+        // lifecycle, exactly as the daemon pane's shell would emit it.
+        ws.handle_tmux_output(
+            0,
+            b"\x1b]133;C;echo mirror-cmd\x07mirror-output\r\n\x1b]133;D;7\x07",
+        );
+        // Bridge the queued OSC events into command history — the same
+        // update the render pipeline's pane gather performs.
+        {
+            let tab = ws.tab_manager.get_tab(tab_id).expect("mux tab");
+            let p = tab
+                .pane_manager()
+                .and_then(|pm| pm.get_pane(pane))
+                .expect("mirror pane");
+            let mut term = p.terminal.try_write().expect("mirror write lock");
+            let sb_len = term.scrollback_len();
+            let (_, cursor_row) = term.cursor_position();
+            term.update_scrollback_metadata(sb_len, cursor_row);
+        }
+        let mirror_history = {
+            let tab = ws.tab_manager.get_tab(tab_id).expect("mux tab");
+            tab.try_with_read_terminal(|term| term.core_command_history())
+        }
+        .expect("readable mirror terminal");
+        assert!(
+            mirror_history
+                .iter()
+                .any(|(cmd, ..)| cmd == "echo mirror-cmd"),
+            "seed must land in the mirror's command history, got {mirror_history:?}"
+        );
+
+        // The inspector snapshot must carry the mirror's command, not the
+        // hidden shell's (empty) history.
+        ws.overlay_ui.ai_inspector.open = true;
+        ws.overlay_ui.ai_inspector.needs_refresh = true;
+        ws.refresh_inspector_snapshot();
+        let snapshot = ws
+            .overlay_ui
+            .ai_inspector
+            .snapshot
+            .as_ref()
+            .expect("snapshot must gather");
+        assert!(
+            !ws.overlay_ui.ai_inspector.needs_refresh,
+            "a successful gather clears the refresh flag"
+        );
+        let commands: Vec<_> = snapshot
+            .commands
+            .iter()
+            .map(|c| c.command.as_str())
+            .collect();
+        assert!(
+            commands.contains(&"echo mirror-cmd"),
+            "the snapshot must read the mirror's command history, got {commands:?}"
+        );
+        let exit = snapshot
+            .commands
+            .iter()
+            .find(|c| c.command == "echo mirror-cmd")
+            .and_then(|c| c.exit_code);
+        assert_eq!(
+            exit,
+            Some(7),
+            "the mirror's exit code must survive the gather"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Run-and-notify's exit-status poll must watch the focused mirror in
+    /// a mux tab: the command runs in the daemon pane, so only the
+    /// mirror's shell-integration history ever records its exit code. The
+    /// differential half pins the defect — polling the hidden local shell
+    /// (`tab.terminal`, the pre-fix wiring) never sees the command and the
+    /// agent is told "unknown exit code".
+    #[test]
+    fn run_and_notify_exit_poll_watches_the_mux_mirror() {
+        let path = socket_path("mux-inspector-poll");
+        spawn_daemon(&path);
+
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "polltest".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "window @0 never got a mapped pane"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let (tab_id, pane) = ws.tmux_state.tmux_pane_owners[&0];
+        ws.tab_manager.switch_to(tab_id);
+
+        // Baseline recorded before the command lands, as run-and-notify
+        // does, plus the two handles the poll could be wired to.
+        let (baseline, mirror_handle, hidden_shell) = {
+            let tab = ws.tab_manager.get_tab(tab_id).expect("mux tab");
+            (
+                tab.try_with_read_terminal(|term| term.core_command_history().len())
+                    .expect("readable mirror terminal"),
+                tab.read_terminal_handle(),
+                std::sync::Arc::clone(&tab.terminal),
+            )
+        };
+
+        // The command completes in the daemon pane: its OSC 133 lifecycle
+        // reaches the mirror through %output, events bridged as the pane
+        // gather does.
+        ws.handle_tmux_output(0, b"\x1b]133;C;pwd\x07/home/user\r\n\x1b]133;D;0\x07");
+        {
+            let tab = ws.tab_manager.get_tab(tab_id).expect("mux tab");
+            let p = tab
+                .pane_manager()
+                .and_then(|pm| pm.get_pane(pane))
+                .expect("mirror pane");
+            let mut term = p.terminal.try_write().expect("mirror write lock");
+            let sb_len = term.scrollback_len();
+            let (_, cursor_row) = term.cursor_position();
+            term.update_scrollback_metadata(sb_len, cursor_row);
+        }
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("poll runtime");
+        let exit = runtime.block_on(
+            crate::app::window_state::action_handlers::inspector::poll_command_exit(
+                Some(mirror_handle),
+                baseline,
+                300,
+            ),
+        );
+        assert_eq!(exit, Some(0), "the poll must read the mirror's exit code");
+
+        // Differential: the hidden local shell never saw the command — the
+        // pre-fix wiring times out with no exit code.
+        let none = runtime.block_on(
+            crate::app::window_state::action_handlers::inspector::poll_command_exit(
+                Some(hidden_shell),
+                baseline,
+                2,
+            ),
+        );
+        assert_eq!(none, None, "polling the hidden shell must find nothing");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Closing a focused mux pane goes daemon-side (`kill-pane -t %N`): the
     /// daemon's pane count drops, the killed pane's tmux→native mapping is
     /// removed by the %layout-change reconciliation (no dangling mapping),

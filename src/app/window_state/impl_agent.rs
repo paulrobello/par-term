@@ -238,13 +238,14 @@ impl WindowState {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .to_string();
+            // Read seam: in a mux tab the shell the user (and the agent's
+            // commands) run in is the daemon pane — its cwd arrives on the
+            // focused mirror, while `tab.terminal` is a hidden local shell
+            // parked in the startup dir.
             let cwd = if let Some(tab) = self.tab_manager.active_tab() {
-                if let Ok(term) = tab.terminal.try_read() {
-                    term.shell_integration_cwd()
-                        .unwrap_or_else(|| fallback_cwd.clone())
-                } else {
-                    fallback_cwd.clone()
-                }
+                tab.try_with_read_terminal(|term| term.shell_integration_cwd())
+                    .flatten()
+                    .unwrap_or_else(|| fallback_cwd.clone())
             } else {
                 fallback_cwd
             };
