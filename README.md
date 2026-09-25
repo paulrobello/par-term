@@ -42,6 +42,10 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### Unreleased
+
+- **Self-updater installs the native macOS build** — Apple Silicon now updates to `par-term-macos-aarch64.zip` instead of the Universal zip, whose x86_64 slices made macOS 27 warn "App Update Required … will not open in macOS 28". Universal remains the fallback. If you already see that warning, reinstall from the aarch64 zip or `brew install --cask par-term`.
+
 ### 0.46.0
 
 par-mux sessions, a command palette, plugins, and agent tooling. par-term can now attach tabs to persistent [par-mux](https://github.com/paulrobello/par-mux) sessions (the daemon ships with every release), and core library 0.51 is required.

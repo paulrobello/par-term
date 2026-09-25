@@ -517,10 +517,12 @@ jobs:
   # par-term-update's get_asset_name() and the Homebrew cask bake the
   # arch-specific asset names into shipped/published artifacts, so those names
   # can't change without breaking in-the-wild updaters. This job additionally
-  # produces ONE fat binary as par-term-macos-universal.zip so a manual download
-  # never has to (and cannot wrongly) pick an Intel-only build on Apple Silicon
-  # — the Rosetta "Support ending for Intel-based apps" path. The universal .app
-  # is signed, notarized, and stapled exactly like the per-arch ones.
+  # produces ONE fat binary as par-term-macos-universal.zip for mixed Apple
+  # Silicon / Intel fleets. It is NOT the recommended Apple Silicon download:
+  # its x86_64 slices make macOS 27 warn that the app "includes a component that
+  # will not open in macOS 28", so the self-updater prefers the per-arch zip and
+  # only falls back to this one. The universal .app is signed, notarized, and
+  # stapled exactly like the per-arch ones.
   #
   # Tests are not re-run here: both per-arch macOS jobs (required by
   # publish-crates and github-release below) already run `cargo test --workspace`,

@@ -11,6 +11,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Fixed
+
+- **Self-updater installs the native macOS build** — the updater preferred `par-term-macos-universal.zip` on every Mac, so Apple Silicon installs picked up x86_64 slices (including the bundled `par-mux`) and macOS 27 warned "App Update Required: this version of par-term includes a component that will not open in macOS 28". It now prefers the per-arch zip (`par-term-macos-aarch64.zip` / `-x86_64.zip`) and falls back to Universal only when a release lacks it. Existing installs that show the warning need one reinstall from the aarch64 zip or the Homebrew cask.
+
 ---
 
 ## [0.46.0] - 2026-09-24

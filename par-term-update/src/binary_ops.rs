@@ -9,25 +9,23 @@ use sha2::{Digest, Sha256};
 
 /// Ordered asset-name candidates for the current platform (preferred first).
 ///
-/// macOS prefers the Universal build (`par-term-macos-universal.zip`) so an
-/// Apple-Silicon host never installs the Intel-only slice (and an Intel host
-/// never installs the ARM-only slice) — the Rosetta "Support ending for
-/// Intel-based apps" path. The per-arch asset is kept as a fallback so the
-/// updater still resolves against a release that predates the Universal build,
-/// or one where the Universal job failed but the per-arch job succeeded. Other
-/// platforms resolve to a single candidate.
+/// macOS prefers the native per-arch build, so an Apple-Silicon host installs
+/// an arm64-only bundle. The Universal build (`par-term-macos-universal.zip`)
+/// also carries x86_64 slices, and on Apple Silicon macOS 27 warns that such a
+/// bundle "includes a component that will not open in macOS 28". Universal stays as the fallback for a release where the
+/// per-arch job failed. Other platforms resolve to a single candidate.
 fn asset_name_candidates() -> Result<Vec<&'static str>, String> {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
 
     match (os, arch) {
         ("macos", "aarch64") => Ok(vec![
-            "par-term-macos-universal.zip",
             "par-term-macos-aarch64.zip",
+            "par-term-macos-universal.zip",
         ]),
         ("macos", "x86_64") => Ok(vec![
-            "par-term-macos-universal.zip",
             "par-term-macos-x86_64.zip",
+            "par-term-macos-universal.zip",
         ]),
         ("linux", "aarch64") => Ok(vec!["par-term-linux-aarch64"]),
         ("linux", "x86_64") => Ok(vec!["par-term-linux-x86_64"]),
@@ -43,7 +41,7 @@ fn asset_name_candidates() -> Result<Vec<&'static str>, String> {
 /// Get the preferred platform asset name for the current OS/architecture.
 ///
 /// This is the first (preferred) entry from [`asset_name_candidates`] — the
-/// Universal build on macOS. [`get_download_urls`] falls back through the rest
+/// native per-arch build on macOS. [`get_download_urls`] falls back through the rest
 /// of the list when the preferred asset is absent from a release.
 pub fn get_asset_name() -> Result<&'static str, String> {
     asset_name_candidates()?
@@ -54,7 +52,7 @@ pub fn get_asset_name() -> Result<&'static str, String> {
 
 /// Get the checksum asset name for the current platform.
 ///
-/// Returns the expected `.sha256` filename, e.g. `par-term-macos-universal.zip.sha256`.
+/// Returns the expected `.sha256` filename, e.g. `par-term-macos-aarch64.zip.sha256`.
 pub fn get_checksum_asset_name() -> Result<String, String> {
     let asset_name = get_asset_name()?;
     Ok(format!("{}.sha256", asset_name))
@@ -63,7 +61,7 @@ pub fn get_checksum_asset_name() -> Result<String, String> {
 /// Get the detached-signature asset name for the current platform.
 ///
 /// Returns the expected `.minisig` filename, e.g.
-/// `par-term-macos-universal.zip.minisig` — the name `minisign -S -m <asset>`
+/// `par-term-macos-aarch64.zip.minisig` — the name `minisign -S -m <asset>`
 /// produces by default.
 pub fn get_signature_asset_name() -> Result<String, String> {
     let asset_name = get_asset_name()?;
@@ -94,7 +92,7 @@ pub struct DownloadUrls {
 /// Get the download URLs for the platform binary, checksum and signature from
 /// the release API response.
 ///
-/// macOS prefers the Universal asset and falls back to the per-arch asset; see
+/// macOS prefers the native per-arch asset and falls back to Universal; see
 /// [`asset_name_candidates`]. The first candidate whose binary is present in the
 /// release is selected, and its `.sha256` / `.minisig` URLs are resolved
 /// alongside it.
@@ -130,9 +128,9 @@ pub fn get_download_urls(api_url: &str) -> Result<DownloadUrls, String> {
         .unwrap_or_default();
 
     // Pick the first candidate (preferred order) whose binary asset is present.
-    // macOS resolves to the Universal build when available and the per-arch
-    // build otherwise, so an Apple-Silicon host never installs the Intel-only
-    // slice even when updating against an older release that predates Universal.
+    // macOS resolves to the native per-arch build when available and the
+    // Universal build otherwise, so an Apple-Silicon host never installs x86_64
+    // code it would have to run under Rosetta.
     let asset_name = candidates
         .iter()
         .find(|candidate| asset_urls.iter().any(|url| url.ends_with(*candidate)))
@@ -415,24 +413,23 @@ mod tests {
     }
 
     #[test]
-    fn test_macos_prefers_universal_build() {
-        // On macOS the Universal build must be the first candidate so the
-        // updater never installs an Intel-only binary on Apple Silicon (or
-        // vice-versa), with the per-arch asset as a fallback for older releases.
+    fn test_macos_prefers_native_arch_build() {
+        // The Universal build carries x86_64 slices that macOS 27 treats as a
+        // Rosetta dependency on Apple Silicon, so the native per-arch zip must
+        // come first, with Universal only as a fallback.
         if std::env::consts::OS != "macos" {
             return;
         }
         let candidates = asset_name_candidates().expect("macos resolves candidates");
         assert_eq!(
-            candidates[0], "par-term-macos-universal.zip",
-            "macOS must prefer the Universal build"
+            candidates[0],
+            format!("par-term-macos-{}.zip", std::env::consts::ARCH),
+            "macOS must prefer the native per-arch build"
         );
-        assert!(
-            candidates
-                .iter()
-                .any(|c| c.ends_with(&format!("-{}.zip", std::env::consts::ARCH))),
-            "expected a per-arch fallback candidate for {}",
-            std::env::consts::ARCH
+        assert_eq!(
+            candidates.last().copied(),
+            Some("par-term-macos-universal.zip"),
+            "Universal must remain the fallback"
         );
     }
 

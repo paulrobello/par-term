@@ -300,7 +300,7 @@ These gates run on a staged copy beside the live bundle, and only after the chec
 
 The macOS release asset is a zip archive containing a complete `.app` bundle. The update process:
 
-1. Downloads the platform-appropriate zip file (`par-term-macos-universal.zip`, falling back to `par-term-macos-aarch64.zip` or `par-term-macos-x86_64.zip` on releases that predate the Universal build)
+1. Downloads the platform-appropriate zip file: the native `par-term-macos-aarch64.zip` or `par-term-macos-x86_64.zip`, falling back to `par-term-macos-universal.zip` when the release lacks the per-arch asset. The native build comes first because a Universal bundle carries x86_64 slices, and on Apple Silicon macOS 27 warns that it "includes a component that will not open in macOS 28"
 2. Verifies the download's SHA256 checksum and its detached minisign signature, both against assets of the same release. Neither can be skipped, and nothing below runs until both pass — see [Release Verification Gates](#release-verification-gates)
 3. Derives the `.app` root directory by navigating three levels up from the running binary (`Contents/MacOS/par-term` -> `.app/`)
 4. Opens the downloaded zip archive and locates the top-level `.app` directory within it
