@@ -81,6 +81,122 @@ pub(super) fn render_resize_overlay(
         });
 }
 
+/// Render the IME preedit (composing) text at the terminal cursor.
+///
+/// Shows a small composition box directly under the cursor row while an IME
+/// composition is active, mirroring the inline preedit other terminals draw.
+/// `cursor_rect` is the focused cursor's rect in logical points; when `None`
+/// (cursor hidden or scrolled into scrollback) the overlay anchors at the
+/// bottom-left so an active composition is never fully invisible.
+pub(super) fn render_ime_preedit_overlay(
+    ctx: &egui::Context,
+    preedit: Option<&str>,
+    cursor_rect: Option<(f32, f32, f32, f32)>,
+) {
+    let Some(text) = preedit else { return };
+    if text.is_empty() {
+        return;
+    }
+    ensure_ime_fallback_font(ctx);
+
+    let screen = ctx.input(|i| i.viewport_rect());
+    let area = egui::Area::new(egui::Id::new("ime_preedit_overlay")).order(egui::Order::Foreground);
+    let area = match cursor_rect {
+        Some((x, y, _w, h)) => {
+            let pos = egui::pos2(
+                x.min(screen.right() - 40.0),
+                (y + h).min(screen.bottom() - h),
+            );
+            area.fixed_pos(pos)
+        }
+        None => area.anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(10.0, -30.0)),
+    };
+    let font_size = cursor_rect
+        .map(|(_, _, _, h)| (h * 0.85).clamp(10.0, 22.0))
+        .unwrap_or(14.0);
+    area.show(ctx, |ui| {
+        egui::Frame::NONE
+            .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 240))
+            .inner_margin(egui::Margin::symmetric(8, 4))
+            .corner_radius(4.0)
+            .stroke(egui::Stroke::new(
+                1.0,
+                egui::Color32::from_rgb(100, 149, 237).additive(),
+            ))
+            .show(ui, |ui| {
+                ui.style_mut().visuals.override_text_color =
+                    Some(egui::Color32::from_rgb(240, 240, 240));
+                ui.label(egui::RichText::new(text).size(font_size).underline());
+            });
+    });
+}
+
+/// egui's bundled fonts cover Latin scripts only; CJK preedit text would
+/// render as tofu boxes. Lazily install the first readable system CJK font
+/// as a fallback family member so Japanese/Chinese composition is legible.
+/// No-op when none of the candidates exists (Latin preedit still renders
+/// with the bundled font) and runs at most once per process.
+fn ensure_ime_fallback_font(ctx: &egui::Context) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static TRIED: AtomicBool = AtomicBool::new(false);
+    if TRIED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    install_cjk_fallback_font(ctx);
+}
+
+/// Try the system CJK font candidates and install the first readable one as
+/// an egui fallback family member. Returns whether a font was installed.
+fn install_cjk_fallback_font(ctx: &egui::Context) -> bool {
+    for path in CJK_FONT_CANDIDATES {
+        let Ok(bytes) = std::fs::read(path) else {
+            continue;
+        };
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "ime_cjk".into(),
+            std::sync::Arc::new(egui::FontData::from_owned(bytes)),
+        );
+        for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+            if let Some(list) = fonts.families.get_mut(&family) {
+                list.push("ime_cjk".into());
+            }
+        }
+        ctx.set_fonts(fonts);
+        return true;
+    }
+    false
+}
+
+/// System fonts with CJK coverage, tried in order for the IME preedit overlay.
+#[cfg_attr(not(test), allow(dead_code))]
+const CJK_FONT_CANDIDATES: &[&str] = {
+    #[cfg(target_os = "macos")]
+    {
+        &[
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            "/System/Library/Fonts/Supplemental/Songti.ttc",
+        ]
+    }
+    #[cfg(target_os = "linux")]
+    {
+        &[
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK.ttc",
+        ]
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        &[
+            r"C:\Windows\Fonts\YuGothM.ttc",
+            r"C:\Windows\Fonts\msgothic.ttc",
+            r"C:\Windows\Fonts\msyh.ttc",
+        ]
+    }
+};
+
 /// Render the toast notification overlay (top-center) for transient status messages.
 ///
 /// Only renders when `message` is `Some`.
@@ -635,5 +751,52 @@ pub(super) fn render_agent_command_confirm_dialog(
             store.confirm_dialog_activated_frame = None;
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod ime_tests {
+    use super::{CJK_FONT_CANDIDATES, install_cjk_fallback_font, render_ime_preedit_overlay};
+
+    fn run_with(preedit: Option<&str>, cursor_rect: Option<(f32, f32, f32, f32)>) -> egui::Context {
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::pos2(0.0, 0.0),
+                egui::vec2(800.0, 600.0),
+            )),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ctx| {
+            render_ime_preedit_overlay(ctx, preedit, cursor_rect);
+        });
+        // No GPU backend in the test: acknowledge the font-texture rebuild
+        // the CJK fallback install schedules, or the delta asserts on drop.
+        output.textures_delta.clear();
+        ctx
+    }
+
+    #[test]
+    fn preedit_overlay_renders_for_all_branches_without_panicking() {
+        // Cursor-rect branch, bottom-left fallback branch, and the no-op cases.
+        run_with(Some("あいう"), Some((100.0, 200.0, 8.0, 16.0)));
+        run_with(Some("composing"), None);
+        run_with(Some(""), Some((0.0, 0.0, 8.0, 16.0)));
+        run_with(None, None);
+    }
+
+    #[test]
+    fn preedit_overlay_installs_cjk_fallback_when_a_system_font_exists() {
+        // The render-side once-guard already ran in the branches test above,
+        // so exercise the installer directly on a fresh context.
+        let ctx = egui::Context::default();
+        let has_candidate = CJK_FONT_CANDIDATES
+            .iter()
+            .any(|p| std::path::Path::new(p).exists());
+        assert_eq!(
+            install_cjk_fallback_font(&ctx),
+            has_candidate,
+            "a system CJK font exists, so composing text must not render as tofu"
+        );
     }
 }

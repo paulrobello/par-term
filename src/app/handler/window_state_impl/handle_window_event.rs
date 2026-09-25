@@ -336,6 +336,10 @@ impl WindowState {
                 self.handle_key_event(event, event_loop);
             }
 
+            WindowEvent::Ime(ime_event) => {
+                self.handle_ime_event(ime_event);
+            }
+
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.input_handler.update_modifiers(modifiers);
             }

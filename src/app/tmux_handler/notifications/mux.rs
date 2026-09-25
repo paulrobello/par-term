@@ -2255,6 +2255,70 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// The IME commit path must route through the daemon transport — the
+    /// `send_input_via_tmux` seam — when a mux pane is focused, not into the
+    /// PTY-less local mirror. The marker carries a multi-byte é so the test
+    /// also proves UTF-8 committed text survives the wire (card
+    /// 01a0d9e6e6167353b58822718f83b15d, criterion 1's mux clause).
+    #[test]
+    fn ime_commit_reaches_the_mux_pane_via_the_transport() {
+        let path = socket_path("ws-ime");
+        spawn_daemon(&path);
+
+        // Attach + install into a renderer-less WindowState — the same
+        // steps `install_mux_transport` performs (the reattach pattern).
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "wsime", Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
+        let mut ws = manners_state();
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("wsime".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until the layout consumer creates the native pane — the
+        // input router resolves its target from the focused native pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0)
+                || ws.tmux_state.tmux_sync.get_native_pane(0).is_some()
+            {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the pane"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // The committed text must land in the daemon pane (the shell echoes
+        // the bytes, so capture-pane sees the marker).
+        ws.handle_ime_event(winit::event::Ime::Commit("é-IME-ROUTE-OK".into()));
+        let mut daemon_view = String::new();
+        while Instant::now() < deadline && !daemon_view.contains("é-IME-ROUTE-OK") {
+            daemon_view = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("capture-pane -t %0 -p")
+                .expect("capture")
+                .join("|");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            daemon_view.contains("é-IME-ROUTE-OK"),
+            "the IME commit must reach the daemon pane: {daemon_view:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Attach a WindowState to a fresh daemon, pump until pane %0 has its
     /// native mirror, then arm bracketed paste and run `cat -v` in the
     /// daemon pane: `cat -v` renders the pane's raw input bytes in caret

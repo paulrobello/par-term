@@ -32,6 +32,9 @@ pub(crate) struct OverlayState {
     /// When to hide the toast notification
     pub(crate) toast_hide_time: Option<Instant>,
 
+    /// Active IME preedit (composing) text, drawn at the terminal cursor
+    pub(crate) ime_preedit: Option<String>,
+
     /// When to hide the pane identification overlay
     pub(crate) pane_identify_hide_time: Option<Instant>,
 
@@ -52,6 +55,7 @@ impl Default for OverlayState {
             resize_dimensions: None,
             toast_message: None,
             toast_hide_time: None,
+            ime_preedit: None,
             pane_identify_hide_time: None,
             closed_tabs: VecDeque::new(),
         }

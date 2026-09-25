@@ -86,6 +86,89 @@ pub(crate) fn pixel_to_pane_cell_raw(
 }
 
 impl WindowState {
+    /// Pixel rect (x, y, w, h, physical px) of the focused pane's terminal
+    /// cursor, for `set_ime_cursor_area` and the preedit overlay.
+    ///
+    /// Inverse of `pixel_to_selection_cell`: split panes position the cursor
+    /// inside the focused pane's bounds (same padding/title/centering math as
+    /// `pixel_to_pane_cell`), single-pane and gateway tabs position it at the
+    /// window padding + content offsets (inverse of `pixel_to_cell`).
+    ///
+    /// Returns `None` when the cursor is hidden or scrolled into scrollback —
+    /// the same conditions under which the renderer stops drawing it.
+    pub(crate) fn focused_cursor_pixel_rect(&self) -> Option<(f64, f64, f64, f64)> {
+        let renderer = self.renderer.as_ref()?;
+        let tab = self.tab_manager.active_tab()?;
+        let cell_width = renderer.cell_width() as f64;
+        let cell_height = renderer.cell_height() as f64;
+
+        if let Some(pm) = tab.pane_manager.as_ref()
+            && let Some(focused_pane) = pm.focused_pane()
+        {
+            // Cursor is only drawn when the focused pane is at the live screen.
+            if tab.active_scroll_state().offset != 0 {
+                return None;
+            }
+            let term = focused_pane.terminal.try_read().ok()?;
+            if !term.is_cursor_visible() {
+                return None;
+            }
+            let (col, row) = term.cursor_position();
+
+            // Same pane geometry as pixel_to_pane_cell: padding is suppressed
+            // for single-pane and gateway tabs; title bars offset the grid.
+            let scale = renderer.scale_factor() as f64;
+            let pane_count = pm.pane_count();
+            let pane_padding = if self.is_gateway_active() || pane_count <= 1 {
+                0.0
+            } else {
+                (self.config.load().panes.pane_divider_width.unwrap_or(2.0) / 2.0
+                    + self.config.load().panes.pane_padding) as f64
+                    * scale
+            };
+            let title_offset = if self.config.load().panes.show_pane_titles {
+                self.config.load().panes.pane_title_height as f64 * scale
+            } else {
+                0.0
+            };
+
+            let bx = focused_pane.bounds.x as f64;
+            let by = focused_pane.bounds.y as f64;
+            let bw = focused_pane.bounds.width as f64;
+            let bh = focused_pane.bounds.height as f64;
+
+            // Centering offsets mirrored from gather_pane_render_data — the
+            // renderer centres the integer cell grid within the content area.
+            let viewport_h = bh - title_offset;
+            let content_h = (viewport_h - pane_padding * 2.0).max(cell_height);
+            let rows_fit = ((content_h / cell_height).floor() as usize).max(1);
+            let center_offset_y = ((content_h - rows_fit as f64 * cell_height) / 2.0).floor();
+
+            let content_w = (bw - pane_padding * 2.0).max(cell_width);
+            let cols_fit = ((content_w / cell_width).floor() as usize).max(1);
+            let center_offset_x = ((content_w - cols_fit as f64 * cell_width) / 2.0).floor();
+
+            let x = bx + pane_padding + center_offset_x + col as f64 * cell_width;
+            let y = by + title_offset + pane_padding + center_offset_y + row as f64 * cell_height;
+            Some((x, y, cell_width, cell_height))
+        } else {
+            if tab.active_scroll_state().offset != 0 {
+                return None;
+            }
+            let term = tab.terminal.try_read().ok()?;
+            if !term.is_cursor_visible() {
+                return None;
+            }
+            let (col, row) = term.cursor_position();
+
+            // Inverse of pixel_to_cell: window padding + content offsets.
+            let padding = renderer.window_padding() as f64;
+            let x = padding + renderer.content_offset_x() as f64 + col as f64 * cell_width;
+            let y = padding + renderer.content_offset_y() as f64 + row as f64 * cell_height;
+            Some((x, y, cell_width, cell_height))
+        }
+    }
+
     /// Convert pixel coordinates to terminal cell coordinates
     pub(crate) fn pixel_to_cell(&self, x: f64, y: f64) -> Option<(usize, usize)> {
         if let Some(renderer) = &self.renderer {

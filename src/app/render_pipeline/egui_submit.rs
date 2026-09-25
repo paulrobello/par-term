@@ -254,6 +254,23 @@ impl WindowState {
         // after the block ends.
         let mut pane_rename_submit: Option<(crate::pane::PaneId, String)> = None;
 
+        // IME preedit overlay inputs, captured before the egui closure: the
+        // composing text and the focused cursor's rect in logical points.
+        let ime_preedit = self.overlay_state.ime_preedit.clone();
+        let ime_cursor_logical = self.focused_cursor_pixel_rect().map(|(x, y, w, h)| {
+            let scale = self
+                .window
+                .as_ref()
+                .map(|w| w.scale_factor() as f32)
+                .unwrap_or(1.0);
+            (
+                x as f32 / scale,
+                y as f32 / scale,
+                w as f32 / scale,
+                h as f32 / scale,
+            )
+        });
+
         let result = if let Some(window) = self.window.as_ref() {
             if let (Some(egui_ctx), Some(egui_state)) = (&self.egui.ctx, &mut self.egui.state) {
                 let mut raw_input = egui_state.take_egui_input(window);
@@ -314,6 +331,13 @@ impl WindowState {
                     egui_overlays::render_toast_overlay(
                         ctx,
                         self.overlay_state.toast_message.as_deref(),
+                    );
+
+                    // IME preedit (composing) text at the terminal cursor
+                    egui_overlays::render_ime_preedit_overlay(
+                        ctx,
+                        ime_preedit.as_deref(),
+                        ime_cursor_logical,
                     );
 
                     // Demote pick-mode overlays (toast hints + direction-choice dialog)

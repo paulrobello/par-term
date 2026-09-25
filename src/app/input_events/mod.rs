@@ -13,6 +13,8 @@
 //!   shader toggles (`toggle_background_shader`, `toggle_cursor_shader`).
 //! - `snippet_actions`: snippet execution (`execute_snippet`) and custom action
 //!   execution (`execute_custom_action`).
+//! - `ime`: `WindowEvent::Ime` handling — IME commit routing, preedit state,
+//!   candidate-window positioning.
 //!
 //! `keybinding_actions` and `keybinding_display_actions` dispatch through
 //! static tables rather than `match` ladders; `dispatch_tests` carries the
@@ -21,6 +23,7 @@
 
 #[cfg(test)]
 mod dispatch_tests;
+mod ime;
 mod key_handler;
 pub(crate) mod keybinding_actions;
 pub(crate) mod keybinding_display_actions;
