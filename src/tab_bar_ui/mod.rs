@@ -87,6 +87,9 @@ impl TabBarUI {
     }
 
     /// Render the tab bar and return any action triggered
+    ///
+    /// `mux_attached` marks the window's par-mux attach state so its tabs can
+    /// show the mux indicator glyph.
     pub fn render(
         &mut self,
         ctx: &mut egui::Ui,
@@ -94,6 +97,7 @@ impl TabBarUI {
         config: &Config,
         profiles: &crate::profile::ProfileManager,
         right_reserved_width: f32,
+        mux_attached: bool,
     ) -> TabBarAction {
         let tab_count = tabs.visible_tab_count();
 
@@ -108,8 +112,15 @@ impl TabBarUI {
         }
 
         match config.tabs.tab_bar_position {
-            TabBarPosition::Left => self.render_vertical(ctx, tabs, config, profiles),
-            _ => self.render_horizontal(ctx, tabs, config, profiles, right_reserved_width),
+            TabBarPosition::Left => self.render_vertical(ctx, tabs, config, profiles, mux_attached),
+            _ => self.render_horizontal(
+                ctx,
+                tabs,
+                config,
+                profiles,
+                right_reserved_width,
+                mux_attached,
+            ),
         }
     }
 
@@ -120,6 +131,7 @@ impl TabBarUI {
         tabs: &TabManager,
         config: &Config,
         profiles: &crate::profile::ProfileManager,
+        mux_attached: bool,
     ) -> TabBarAction {
         let tab_count = tabs.visible_tab_count();
         let visible_tabs = tabs.visible_tabs();
@@ -220,6 +232,7 @@ impl TabBarUI {
                                         is_active,
                                         has_activity: tab.activity.has_activity,
                                         is_bell_active,
+                                        mux_attached,
                                         custom_color: tab.custom_color,
                                         config,
                                         tab_size: tab_height,

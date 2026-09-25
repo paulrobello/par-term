@@ -31,6 +31,8 @@ pub(super) struct TabRenderParams<'a> {
     pub is_active: bool,
     pub has_activity: bool,
     pub is_bell_active: bool,
+    /// Tab's window is attached to a par-mux session (all its tabs are mux tabs)
+    pub mux_attached: bool,
     pub custom_color: Option<[u8; 3]>,
     pub config: &'a Config,
     /// Tab height (vertical layout) or tab width (horizontal layout).
@@ -116,6 +118,7 @@ impl TabBarUI {
             is_active,
             has_activity,
             is_bell_active,
+            mux_attached,
             custom_color,
             config,
             tab_size: tab_height,
@@ -223,14 +226,26 @@ impl TabBarUI {
                     egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
                 };
 
+                // par-mux attach indicator: every tab in an attached window is
+                // a mux tab, so the glyph marks them apart from local tabs
+                let mux_width = if mux_attached {
+                    ui.label(egui::RichText::new("🔗").color(text_color))
+                        .on_hover_text("Attached to a par-mux session");
+                    ui.add_space(2.0);
+                    18.0
+                } else {
+                    0.0
+                };
+
                 // Truncate title to fit available width
                 let close_width = if config.tabs.tab_show_close_button {
                     TAB_CLOSE_BTN_SIZE_H + TAB_CLOSE_BTN_MARGIN
                 } else {
                     0.0
                 };
-                let available = (full_width - TAB_CONTENT_PAD_X * 2.0 - icon_width - close_width)
-                    .max(TAB_CONTENT_PAD_X * 2.0 + TAB_CLOSE_BTN_MARGIN);
+                let available =
+                    (full_width - TAB_CONTENT_PAD_X * 2.0 - icon_width - mux_width - close_width)
+                        .max(TAB_CONTENT_PAD_X * 2.0 + TAB_CLOSE_BTN_MARGIN);
                 let base_font_id = ui.style().text_styles[&egui::TextStyle::Button].clone();
                 let max_chars = estimate_max_chars(ui, &base_font_id, available);
                 let safe_title = sanitize_egui_title_text(title);

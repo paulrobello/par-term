@@ -22,6 +22,7 @@ impl TabBarUI {
         config: &Config,
         profiles: &crate::profile::ProfileManager,
         right_reserved_width: f32,
+        mux_attached: bool,
     ) -> TabBarAction {
         let tab_count = tabs.visible_tab_count();
         let visible_tabs = tabs.visible_tabs();
@@ -193,6 +194,7 @@ impl TabBarUI {
                                     is_active,
                                     has_activity: tab.activity.has_activity,
                                     is_bell_active,
+                                    mux_attached,
                                     custom_color: tab.custom_color,
                                     config,
                                     tab_size: tab_width,
@@ -247,6 +249,7 @@ impl TabBarUI {
                                     is_active,
                                     has_activity: tab.activity.has_activity,
                                     is_bell_active,
+                                    mux_attached,
                                     custom_color: tab.custom_color,
                                     config,
                                     tab_size: tab_width,

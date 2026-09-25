@@ -421,6 +421,7 @@ impl WindowState {
                         &self.config.load(),
                         &self.overlay_ui.profile_manager,
                         tab_bar_right_reserved,
+                        self.tmux_state.transport.is_some(),
                     );
 
                     // Render tmux status bar if connected
