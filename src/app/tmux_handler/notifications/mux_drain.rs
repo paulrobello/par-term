@@ -110,10 +110,14 @@ impl WindowState {
             let _ = self.tmux_state.transport.take();
             self.tmux_state.mux_focused_pane = None;
         }
+        // A delayed mux paste sends its due chunk here — before the
+        // empty-drain early return below, or a quiet daemon would stall
+        // the paste mid-line.
+        let paste_sent = self.tick_pending_mux_paste();
         if core_notifications.is_empty() && !disconnected {
             self.apply_pending_mux_screen_seeds();
             self.apply_pending_mux_pane_titles();
-            return false;
+            return paste_sent;
         }
 
         // The roster push and the daemon pane-title push are core variants
@@ -159,7 +163,8 @@ impl WindowState {
 
         crate::debug_info!("MUX", "Processing {} notifications", notifications.len());
 
-        let mut needs_redraw = self.apply_agent_pushes(agent_pushes);
+        let mut needs_redraw = paste_sent;
+        needs_redraw |= self.apply_agent_pushes(agent_pushes);
         needs_redraw |= self.apply_pane_title_pushes(title_pushes);
 
         // Same bucket split as polling.rs — direct handlers TmuxSync cannot

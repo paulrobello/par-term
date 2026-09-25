@@ -280,11 +280,7 @@ impl WindowState {
         if let Some(transport) = &self.tmux_state.transport
             && let Some(pane) = self.focused_mux_pane_from_native()
         {
-            return super::notifications::mux::route_literal_bytes(
-                &**transport,
-                Some(pane),
-                text.as_bytes(),
-            );
+            return self.paste_via_mux_pane(&**transport, pane, text);
         }
 
         if !self.config.load().tmux.tmux_enabled || !self.is_tmux_connected() {
@@ -309,6 +305,138 @@ impl WindowState {
         }
 
         false
+    }
+
+    /// Paste into a daemon pane with the same semantics the local PTY
+    /// paths apply: the focused mirror's mode-2004 state (tracked from
+    /// the daemon pane's own output) decides the bracketed wrapping,
+    /// newlines become carriage returns, and a multi-line paste under a
+    /// configured `paste_delay_ms` is fed line-by-line — one chunk per
+    /// poll tick — instead of one burst (card 01a0d9b551c57243b9888e1ac3be6b55).
+    #[cfg(feature = "mux")]
+    fn paste_via_mux_pane(
+        &self,
+        transport: &dyn super::tmux_state::TmuxTransport,
+        pane: crate::tmux::TmuxPaneId,
+        text: &str,
+    ) -> bool {
+        let text = text.replace('\n', "\r");
+        if text.is_empty() {
+            return true; // consumed; matches the local paste no-op
+        }
+        let (start, end) = self.focused_mirror_bracketed_sequences();
+        let delay_ms = self.config.load().selection.paste_delay_ms;
+
+        if delay_ms == 0 || !text.contains('\r') {
+            // One burst: start + content + end, the wire equivalent of the
+            // three writes `TerminalManager::paste` makes.
+            let mut bytes = start;
+            bytes.extend_from_slice(text.as_bytes());
+            bytes.extend_from_slice(&end);
+            if !bytes.is_empty() {
+                super::notifications::mux::route_literal_bytes(transport, Some(pane), &bytes);
+            }
+            return true;
+        }
+
+        // Line-by-line under the delay, mirroring `paste_with_delay`: the
+        // start sequence leads the first line, every non-final line carries
+        // its own `\r`, and the end sequence trails the last line. The
+        // lead chunk goes out now so the first line shows immediately.
+        let lines: Vec<&str> = text.split('\r').collect();
+        let mut lead = start;
+        lead.extend_from_slice(lines[0].as_bytes());
+        lead.push(b'\r');
+        if !lead.is_empty() {
+            super::notifications::mux::route_literal_bytes(transport, Some(pane), &lead);
+        }
+        let mut chunks: std::collections::VecDeque<Vec<u8>> = std::collections::VecDeque::new();
+        for (i, line) in lines.iter().enumerate().skip(1) {
+            let mut chunk = Vec::from(line.as_bytes());
+            if i < lines.len() - 1 {
+                chunk.push(b'\r');
+            } else {
+                chunk.extend_from_slice(&end);
+            }
+            if !chunk.is_empty() {
+                chunks.push_back(chunk);
+            }
+        }
+        if chunks.is_empty() {
+            return true;
+        }
+        let delay = std::time::Duration::from_millis(delay_ms);
+        let mut pending = self.tmux_state.pending_mux_paste.borrow_mut();
+        if pending.is_some() {
+            crate::debug_info!("MUX", "delayed paste replaced an unfinished one");
+        }
+        *pending = Some(super::tmux_state::PendingMuxPaste {
+            pane,
+            chunks,
+            delay,
+            next_due: std::time::Instant::now() + delay,
+        });
+        drop(pending);
+        // The event loop sleeps when idle (`ControlFlow::Wait`); wake it so
+        // the first delayed chunk is not parked until an unrelated event.
+        self.request_redraw();
+        true
+    }
+
+    /// The focused mux pane's mirror-terminal bracketed-paste sequences —
+    /// empty (paste unwrapped) when the pane cannot be resolved or its
+    /// terminal lock is contended, rather than blocking the event loop.
+    #[cfg(feature = "mux")]
+    fn focused_mirror_bracketed_sequences(&self) -> (Vec<u8>, Vec<u8>) {
+        let Some(tab) = self.tab_manager.active_tab() else {
+            return (Vec::new(), Vec::new());
+        };
+        let Some(pane) = tab.pane_manager().and_then(|pm| pm.focused_pane()) else {
+            return (Vec::new(), Vec::new());
+        };
+        match pane.terminal.try_read() {
+            Ok(term) => term.bracketed_paste_sequences(),
+            Err(_) => (Vec::new(), Vec::new()),
+        }
+    }
+
+    /// Send the due chunk of a delayed mux paste, if any. Returns whether
+    /// a chunk went out (a visual change — the daemon echoes it). A queue
+    /// whose daemon died is dropped with the transport.
+    #[cfg(feature = "mux")]
+    pub(crate) fn tick_pending_mux_paste(&mut self) -> bool {
+        let Some(transport) = self.tmux_state.transport.as_deref() else {
+            self.tmux_state.pending_mux_paste.borrow_mut().take();
+            return false;
+        };
+        let (pane, chunk, delay, drained) = {
+            let mut pending = self.tmux_state.pending_mux_paste.borrow_mut();
+            let Some(p) = pending.as_mut() else {
+                return false;
+            };
+            if std::time::Instant::now() < p.next_due {
+                return false;
+            }
+            match p.chunks.pop_front() {
+                Some(chunk) => (p.pane, chunk, p.delay, p.chunks.is_empty()),
+                None => {
+                    pending.take();
+                    return false;
+                }
+            }
+        };
+        super::notifications::mux::route_literal_bytes(transport, Some(pane), &chunk);
+        if drained {
+            self.tmux_state.pending_mux_paste.borrow_mut().take();
+        } else if let Some(p) = self.tmux_state.pending_mux_paste.borrow_mut().as_mut() {
+            p.next_due = std::time::Instant::now() + delay;
+        }
+        // More chunks remain: re-arm the sleeping event loop for the tick
+        // that sends the next one.
+        if self.tmux_state.pending_mux_paste.borrow().is_some() {
+            self.request_redraw();
+        }
+        true
     }
 
     /// Handle tmux prefix key mode

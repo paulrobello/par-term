@@ -330,6 +330,22 @@ impl TerminalManager {
 
         Ok(())
     }
+
+    /// The bracketed-paste wrap sequences the pane's application has
+    /// enabled (DECSET 2004) — `(start, end)`, both empty when bracketed
+    /// paste is off. The mux paste path wraps daemon-bound content with
+    /// these so a paste into a daemon pane behaves like the local
+    /// [`Self::paste`]; the mirror terminal tracks the mode from the
+    /// daemon pane's own output.
+    pub fn bracketed_paste_sequences(&self) -> (Vec<u8>, Vec<u8>) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.write();
+        (
+            term.bracketed_paste_start().to_vec(),
+            term.bracketed_paste_end().to_vec(),
+        )
+    }
 }
 
 // ========================================================================

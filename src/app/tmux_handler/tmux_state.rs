@@ -30,6 +30,18 @@ pub(crate) trait TmuxTransport {
     fn send_command(&self, command: &str) -> std::io::Result<Vec<String>>;
 }
 
+/// A delayed mux paste in flight: the chunks still to send (each line
+/// already ends in `\r`; the bracketed end sequence trails the last
+/// chunk), the per-chunk delay, and when the next chunk is due. The
+/// daemon-side analogue of `TerminalManager::paste_with_delay`.
+#[cfg(feature = "mux")]
+pub(crate) struct PendingMuxPaste {
+    pub(crate) pane: TmuxPaneId,
+    pub(crate) chunks: std::collections::VecDeque<Vec<u8>>,
+    pub(crate) delay: std::time::Duration,
+    pub(crate) next_due: std::time::Instant,
+}
+
 /// tmux integration state.
 pub(crate) struct TmuxState {
     /// tmux control mode session (if connected)
@@ -80,6 +92,12 @@ pub(crate) struct TmuxState {
     /// feature like the transport types it carries.
     #[cfg(feature = "mux")]
     pub(crate) mux_attach_pending: Option<super::notifications::mux::MuxAttachPending>,
+    /// A mux paste being fed to the daemon line-by-line under the
+    /// configured `paste_delay_ms` (see `paste_via_tmux`). Interior
+    /// mutability because the paste entry takes `&WindowState` while the
+    /// drain that empties the queue takes `&mut`.
+    #[cfg(feature = "mux")]
+    pub(crate) pending_mux_paste: std::cell::RefCell<Option<PendingMuxPaste>>,
     /// Mapping from tmux pane IDs to native pane IDs for output routing
     pub(crate) tmux_pane_to_native_pane: std::collections::HashMap<TmuxPaneId, PaneId>,
     /// Reverse mapping from native pane IDs to tmux pane IDs for input routing
@@ -104,6 +122,8 @@ impl TmuxState {
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),
             #[cfg(feature = "mux")]
             mux_attach_pending: None,
+            #[cfg(feature = "mux")]
+            pending_mux_paste: std::cell::RefCell::new(None),
             tmux_pane_to_native_pane: std::collections::HashMap::new(),
             native_pane_to_tmux_pane: std::collections::HashMap::new(),
         }

@@ -2252,8 +2252,216 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Attach a WindowState to a fresh daemon, pump until pane %0 has its
+    /// native mirror, then arm bracketed paste and run `cat -v` in the
+    /// daemon pane: `cat -v` renders the pane's raw input bytes in caret
+    /// notation (ESC → `^[`, CR → `^M`), so the exact wire form of a paste
+    /// is assertable from `capture-pane`.
+    fn paste_byte_mirror_state(
+        tag: &str,
+    ) -> (crate::app::window_state::WindowState, std::path::PathBuf) {
+        let path = socket_path(tag);
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, tag, Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
+        let mut ws = manners_state();
+        let mut existing_windows = attach.existing_windows.clone();
+        if existing_windows.is_empty() {
+            existing_windows = vec![0];
+        }
+        for window_id in &existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some(tag.to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until the layout consumer creates the native pane — the
+        // paste router resolves its target from the focused native pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0)
+                || ws.tmux_state.tmux_sync.get_native_pane(0).is_some()
+            {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the pane"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // Run the byte mirror in the daemon pane: the printf emits
+        // DECSET 2004 so the client mirror arms bracketed paste
+        // deterministically (no reliance on the shell's own init); `stty
+        // raw -echo` takes the pane's tty out of canonical mode so input
+        // is neither echoed nor CR-mangled (ICRNL) before `cat -v` renders
+        // it — the screen then shows exactly the bytes the paste sent,
+        // in caret notation (ESC → `^[`, CR → `^M`).
+        let line = b"printf '\\033[?2004h'; stty raw -echo; cat -v";
+        let hex = line
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command(&format!("send-keys -t %0 -H {hex}"))
+            .expect("type byte-mirror command");
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command("send-keys -t %0 Enter")
+            .expect("run byte-mirror command");
+
+        // Wait for the mirror to see the mode: its bracketed sequences
+        // turn non-empty only after the daemon pane's %output carries the
+        // escape sequence back.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if focused_mirror_bracketed(&ws).is_some_and(|(start, _)| !start.is_empty()) {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the mirror never armed bracketed paste"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        // The mode escape only proves printf ran; give the shell's `cat -v`
+        // a beat to become the foreground reader before any paste lands
+        // (a paste that races the exec lands on the shell's prompt
+        // instead, and the assertions read noise).
+        std::thread::sleep(Duration::from_millis(150));
+        (ws, path)
+    }
+
+    /// Pane %0's mirror-terminal bracketed-paste sequences, if the mirror
+    /// is resolvable and unlocked.
+    fn focused_mirror_bracketed(
+        ws: &crate::app::window_state::WindowState,
+    ) -> Option<(Vec<u8>, Vec<u8>)> {
+        let native = *ws.tmux_state.tmux_pane_to_native_pane.get(&0)?;
+        for tab in ws.tab_manager.tabs() {
+            if let Some(pane) = tab.pane_manager().and_then(|pm| pm.get_pane(native))
+                && let Ok(term) = pane.terminal.try_read()
+            {
+                return Some(term.bracketed_paste_sequences());
+            }
+        }
+        None
+    }
+
+    /// Card 01a0d9b551c57243b9888e1ac3be6b55, criterion 1: a paste into a
+    /// mux pane whose mirror has bracketed paste enabled must reach the
+    /// daemon pane wrapped in the bracketed-paste sequences with `\n`
+    /// converted to `\r` — asserted on the raw bytes the daemon pane
+    /// receives (`cat -v` caret notation), not the rendered screen.
+    #[test]
+    fn mux_paste_wraps_bracketed_paste_and_converts_newlines() {
+        let (ws, path) = paste_byte_mirror_state("ws-paste-bp");
+
+        assert!(
+            ws.paste_via_tmux("L1\nL2"),
+            "a focused mux pane must take the paste"
+        );
+        let transport = ws.tmux_state.transport.as_ref().unwrap();
+        let view = capture_until(&**transport, 0, "^[[201~");
+        assert!(
+            view.contains("^[[200~L1^ML2^[[201~"),
+            "the daemon pane must receive the bracketed, CR-converted paste: {view:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Card 01a0d9b551c57243b9888e1ac3be6b55, criterion 2: a multi-line
+    /// mux paste under a configured `paste_delay_ms` is paced — the second
+    /// line is NOT in the daemon pane when the first arrives, and lands
+    /// once the delay elapses (the test drives the same poll tick the app
+    /// loop would).
+    #[test]
+    fn mux_paste_honors_paste_delay_ms() {
+        let (mut ws, path) = paste_byte_mirror_state("ws-paste-delay");
+
+        let mut cfg = crate::config::Config::default();
+        cfg.selection.paste_delay_ms = 400;
+        ws.config.store(std::sync::Arc::new(cfg));
+
+        assert!(
+            ws.paste_via_tmux("D1\nD2"),
+            "a focused mux pane must take the paste"
+        );
+
+        // First line goes out immediately; the second must wait out the
+        // 400ms delay.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut early = String::new();
+        while Instant::now() < deadline {
+            ws.check_mux_notifications();
+            early = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_command("capture-pane -t %0 -p")
+                .expect("capture")
+                .join("|");
+            if early.contains("D1^M") {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(
+            early.contains("D1^M"),
+            "the first line must arrive: {early:?}"
+        );
+        assert!(
+            !early.contains("D2"),
+            "the second line must wait out paste_delay_ms: {early:?}"
+        );
+
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let mut late = early.clone();
+        while Instant::now() < deadline && !late.contains("D2") {
+            ws.check_mux_notifications();
+            late = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_command("capture-pane -t %0 -p")
+                .expect("capture")
+                .join("|");
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(
+            late.contains("D2"),
+            "the second line must land after the delay: {late:?}"
+        );
+        assert!(
+            late.contains("^[[201~"),
+            "the bracketed end must follow the last line: {late:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Poll `capture-pane` on `%pane` until `needle` shows up (or 10s).
-    fn capture_until(transport: &MuxTransport, pane: u64, needle: &str) -> String {
+    fn capture_until(
+        transport: &dyn crate::app::tmux_handler::tmux_state::TmuxTransport,
+        pane: u64,
+        needle: &str,
+    ) -> String {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             let view = transport
