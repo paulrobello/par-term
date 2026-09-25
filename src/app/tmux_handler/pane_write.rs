@@ -46,7 +46,7 @@ impl WindowState {
 }
 
 #[cfg(all(test, feature = "mux"))]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::app::tmux_handler::notifications::mux::{MuxAttachPending, tests as mux_tests};
     use crate::app::tmux_handler::tmux_state::TmuxTransport;
@@ -110,7 +110,7 @@ mod tests {
     /// Attach to a fresh daemon, create window @0, pump until its pane is
     /// mapped, then swap in the recording transport. Returns the state
     /// ready for a write, the recorder handle, and the owning (tab, pane).
-    fn mux_state_with_recorder(
+    pub(crate) fn mux_state_with_recorder(
         tag: &str,
         config: Config,
     ) -> (WindowState, Arc<Mutex<Vec<String>>>, TabId, PaneId) {
@@ -169,6 +169,20 @@ mod tests {
             "the bytes must go to the daemon as one literal send-keys"
         );
         let _ = pane;
+    }
+
+    #[test]
+    fn ctrl_l_clear_routes_to_the_daemon_pane() {
+        let (ws, sent, tab_id, pane) =
+            mux_state_with_recorder("pane-write-ctrl-l", Config::default());
+        let _ = (tab_id, pane);
+
+        ws.send_clear_screen_sequence();
+        assert_eq!(
+            *sent.lock().unwrap(),
+            vec!["send-keys -t %0 -H 0c".to_string()],
+            "Ctrl+L must clear the daemon pane, not the hidden shell"
+        );
     }
 
     #[test]

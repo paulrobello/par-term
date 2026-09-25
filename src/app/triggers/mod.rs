@@ -630,6 +630,13 @@ impl WindowState {
             text
         );
         if let Some(tab) = self.tab_manager.active_tab() {
+            // A mux tab's `tab.terminal` is a hidden login shell — route
+            // daemon panes first. The transport is boxed and cannot cross
+            // into the delayed thread below, so a daemon target sends now
+            // rather than after `delay_ms`; a local target is unaffected.
+            if self.route_mux_tab_write(tab, text.as_bytes()) {
+                return;
+            }
             if delay_ms == 0 {
                 // try_lock: intentional — trigger SendText in sync event loop.
                 // On miss: the triggered text is not sent this frame. Low risk:
@@ -818,5 +825,49 @@ impl WindowState {
             .entry(trigger_id)
             .or_default()
             .push((row, label, color));
+    }
+}
+
+#[cfg(all(test, feature = "mux"))]
+mod write_routing_tests {
+    use super::*;
+    use crate::app::tmux_handler::pane_write::tests::mux_state_with_recorder;
+    use crate::config::Config;
+    use std::collections::{HashMap, HashSet};
+
+    /// The SendText write goes to the daemon pane behind the focused
+    /// mirror, never to the mux tab's hidden login shell. Proven red
+    /// against the tab-terminal write before the routing swap.
+    #[test]
+    fn trigger_send_text_routes_to_the_daemon_pane() {
+        let (mut ws, sent, tab_id, pane) =
+            mux_state_with_recorder("trigger-send-text", Config::default());
+        let _ = (tab_id, pane);
+
+        let prompt_off: HashMap<u64, bool> = HashMap::from([(7, false)]);
+        let approved = HashSet::new();
+        let names: HashMap<u64, String> = HashMap::new();
+        let percents: HashMap<u64, u8> = HashMap::new();
+        let allowed: HashMap<u64, Vec<String>> = HashMap::new();
+        let ctx = DispatchContext {
+            trigger_prompt_before_run: &prompt_off,
+            approved_this_frame: &approved,
+            trigger_names: &names,
+            trigger_split_percent: &percents,
+            trigger_allowed_commands: &allowed,
+        };
+
+        ws.handle_send_text_action(7, "trigger-needle".to_string(), 0, &ctx);
+
+        let hex: String = b"trigger-needle"
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert_eq!(
+            *sent.lock().unwrap(),
+            vec![format!("send-keys -t %0 -H {hex}")],
+            "trigger SendText must reach the daemon pane, not the hidden shell"
+        );
     }
 }

@@ -80,33 +80,7 @@ impl WindowState {
             && !shift
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "l" || c.as_str() == "L")
         {
-            if let Some(tab) = self.tab_manager.active_tab() {
-                // Use the focused pane's terminal so Ctrl+L clears the correct
-                // pane in split-pane mode, falling back to the tab's root terminal.
-                let terminal_clone = if let Some(ref pm) = tab.pane_manager {
-                    if let Some(focused_pane) = pm.focused_pane() {
-                        Arc::clone(&focused_pane.terminal)
-                    } else {
-                        Arc::clone(&tab.terminal)
-                    }
-                } else {
-                    Arc::clone(&tab.terminal)
-                };
-                // Send the "clear" command sequence (Ctrl+L)
-                let clear_sequence = vec![0x0C]; // Ctrl+L character
-                self.runtime.spawn(async move {
-                    // try_lock: intentional — spawned async task uses try_lock to avoid
-                    // blocking the tokio worker. On miss: the Ctrl+L clear is silently dropped.
-                    // User can press the shortcut again.
-                    if let Ok(term) = terminal_clone.try_read() {
-                        if let Err(e) = term.write(&clear_sequence) {
-                            crate::debug_error!("INPUT", "PTY write failed (clear screen): {e}");
-                        } else {
-                            log::debug!("Sent clear screen sequence (Ctrl+L)");
-                        }
-                    }
-                });
-            }
+            self.send_clear_screen_sequence();
             return true;
         }
 
@@ -223,5 +197,45 @@ impl WindowState {
         }
 
         false
+    }
+
+    /// Send the Ctrl+L clear-screen byte (0x0C) to the focused pane.
+    ///
+    /// Extracted from the Ctrl+L key branch so tests can drive it without
+    /// fabricating a winit `KeyEvent` (which has a private field and no
+    /// public constructor). In a mux tab the focused pane is a daemon
+    /// mirror, so the byte routes to the daemon — `tab.terminal` there is
+    /// the hidden login shell the clear must never reach.
+    pub(crate) fn send_clear_screen_sequence(&self) {
+        let Some(tab) = self.tab_manager.active_tab() else {
+            return;
+        };
+        let clear_sequence = vec![0x0C]; // Ctrl+L character
+        if self.route_mux_tab_write(tab, &clear_sequence) {
+            return;
+        }
+        // Use the focused pane's terminal so Ctrl+L clears the correct
+        // pane in split-pane mode, falling back to the tab's root terminal.
+        let terminal_clone = if let Some(ref pm) = tab.pane_manager {
+            if let Some(focused_pane) = pm.focused_pane() {
+                Arc::clone(&focused_pane.terminal)
+            } else {
+                Arc::clone(&tab.terminal)
+            }
+        } else {
+            Arc::clone(&tab.terminal)
+        };
+        self.runtime.spawn(async move {
+            // try_lock: intentional — spawned async task uses try_lock to avoid
+            // blocking the tokio worker. On miss: the Ctrl+L clear is silently dropped.
+            // User can press the shortcut again.
+            if let Ok(term) = terminal_clone.try_read() {
+                if let Err(e) = term.write(&clear_sequence) {
+                    crate::debug_error!("INPUT", "PTY write failed (clear screen): {e}");
+                } else {
+                    log::debug!("Sent clear screen sequence (Ctrl+L)");
+                }
+            }
+        });
     }
 }

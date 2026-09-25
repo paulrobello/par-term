@@ -14,7 +14,7 @@ mod gateway;
 mod gateway_input;
 mod gateway_profile;
 mod notifications;
-mod pane_write;
+pub(crate) mod pane_write;
 pub(crate) mod tmux_state;
 
 /// Columns reserved at the window's right edge for the scrollbar in a
