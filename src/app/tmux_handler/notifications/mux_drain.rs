@@ -122,6 +122,20 @@ impl WindowState {
     /// structure before layout before output. Called from the shared poll
     /// loop while a transport is installed.
     pub(crate) fn check_mux_notifications(&mut self) -> bool {
+        // Daemon liveness first: while a send waits on a hung daemon the
+        // drain below comes back empty, so this transition toast is the
+        // only feedback the UI gets that input is queuing, not landing.
+        // Extracted by value — `show_toast` needs `&mut self` while the
+        // transport is borrowed behind it.
+        let health_event = self
+            .tmux_state
+            .transport
+            .as_ref()
+            .and_then(|transport| transport.daemon_health_event());
+        if let Some(message) = health_event {
+            crate::debug_info!("MUX", "daemon health: {message}");
+            self.show_toast(message);
+        }
         let (core_notifications, disconnected) = match &self.tmux_state.transport {
             Some(transport) => transport.drain(),
             None => return false,

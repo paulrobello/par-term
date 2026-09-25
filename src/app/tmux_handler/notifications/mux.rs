@@ -21,17 +21,57 @@ use par_term_mux::{
     AgentEntry, AttachOutcome, MuxSessionClient, VersionCheck, check_daemon_version,
 };
 use par_term_tmux::{TmuxPaneId, TmuxWindowId};
-use std::cell::{RefCell, RefMut};
 use std::io;
+use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
+
+/// How long an in-flight fire-and-forget send may stay unanswered before
+/// the poll loop reports the daemon unresponsive. Must stay comfortably
+/// under the toast deadline the hung-daemon card requires (1 s) and well
+/// under the core client's 10 s reply timeout it exists to pre-empt.
+const DAEMON_UNRESPONSIVE_AFTER: Duration = Duration::from_millis(800);
+
+/// How long a reply-needing `send_command` waits for the send worker to
+/// release the client before failing fast. A worker that holds the client
+/// this long is itself stuck on a daemon reply — queueing behind it would
+/// freeze the caller for the worker's remaining timeout.
+const SEND_LOCK_WAIT: Duration = Duration::from_millis(250);
+
+/// The fire-and-forget outbox depth. Bounded so a wedged daemon cannot
+/// accrue an unbounded backlog (typing and paste chunks enqueue far faster
+/// than a 10 s reply timeout drains); overflow drops commands and counts
+/// them for the health event.
+const OUTBOX_CAPACITY: usize = 512;
 
 /// The daemon transport: a par-mux client behind the [`TmuxTransport`]
 /// seam. Interior mutability because the routing hooks that reach it
 /// (`send_input_via_tmux`, `notify_tmux_of_resize`) hold `&WindowState`.
+///
+/// Sends split by need: commands whose reply nobody reads (keystrokes,
+/// size pushes, pastes) are queued to the send worker, which alone waits
+/// on daemon replies — the event loop never does. Reply-needing commands
+/// still run inline under a bounded lock, and the worker shares the
+/// client behind the same mutex, so replies stay strictly ordered.
 pub(crate) struct MuxTransport {
-    client: RefCell<MuxSessionClient>,
+    client: Arc<Mutex<MuxSessionClient>>,
+    outbox: SyncSender<String>,
+    health: Arc<MuxHealth>,
 }
 
 impl MuxTransport {
+    fn new(client: MuxSessionClient) -> Self {
+        let client = Arc::new(Mutex::new(client));
+        let health = Arc::new(MuxHealth::default());
+        let (outbox, inbox) = sync_channel::<String>(OUTBOX_CAPACITY);
+        spawn_send_worker(Arc::clone(&client), inbox, Arc::clone(&health));
+        Self {
+            client,
+            outbox,
+            health,
+        }
+    }
+
     /// Connect to a daemon at `path`, spawning one when no live server
     /// owns it (losing the spawn race talks to the winner's daemon).
     /// Test entry: the app runtime reaches the daemon through
@@ -39,16 +79,137 @@ impl MuxTransport {
     /// an in-process server at an explicit path.
     #[cfg(test)]
     pub(crate) fn connect_or_spawn_at(path: &std::path::Path) -> io::Result<Self> {
-        Ok(Self {
-            client: RefCell::new(MuxSessionClient::connect_or_spawn_at(path)?),
-        })
+        Ok(Self::new(MuxSessionClient::connect_or_spawn_at(path)?))
     }
 
-    /// The wrapped client. Borrows are short-lived and single-threaded
-    /// (the event loop owns `WindowState`); never held across another
-    /// borrow.
-    pub(crate) fn client(&self) -> RefMut<'_, MuxSessionClient> {
-        self.client.borrow_mut()
+    /// The wrapped client, locked. Callers run short command sequences
+    /// (attach, resync, probes); the send worker interleaves between
+    /// calls, never inside one, because each call releases its guard
+    /// before the next borrows.
+    pub(crate) fn client(&self) -> MutexGuard<'_, MuxSessionClient> {
+        self.client
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Lock the client for an inline reply-needing send, giving up (and
+    /// failing fast) once the send worker has held it past
+    /// [`SEND_LOCK_WAIT`] — the queue-behind-a-hung-worker freeze guard.
+    fn lock_for_send(&self) -> io::Result<MutexGuard<'_, MuxSessionClient>> {
+        let deadline = Instant::now() + SEND_LOCK_WAIT;
+        loop {
+            match self.client.try_lock() {
+                Ok(guard) => return Ok(guard),
+                Err(std::sync::TryLockError::Poisoned(poisoned)) => {
+                    return Ok(poisoned.into_inner());
+                }
+                Err(std::sync::TryLockError::WouldBlock) => {
+                    if Instant::now() >= deadline {
+                        return Err(io::Error::other(
+                            "mux send worker still holds the client — daemon unresponsive?",
+                        ));
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }
+        }
+    }
+}
+
+/// The send worker: the only thread that waits on a daemon reply for
+/// fire-and-forget commands. Each queued command still runs the full
+/// `send` (write + reply wait), so reply blocks stay consumed and paired
+/// in order — the queue changes WHERE the 10 s wait happens, never the
+/// protocol. Exits when the transport drops and closes the outbox.
+fn spawn_send_worker(
+    client: Arc<Mutex<MuxSessionClient>>,
+    inbox: Receiver<String>,
+    health: Arc<MuxHealth>,
+) {
+    std::thread::spawn(move || {
+        while let Ok(command) = inbox.recv() {
+            let mut client = client.lock().unwrap_or_else(|p| p.into_inner());
+            health.send_started();
+            let result = client.send(&command);
+            health.send_finished(&result);
+        }
+    });
+}
+
+/// Daemon liveness as the poll loop needs it: whether the send currently
+/// in flight has gone unanswered past the threshold (or the worker saw a
+/// reply timeout), with per-episode toast dedup so the signal fires once
+/// per hang and once per recovery — never per frame.
+#[derive(Default)]
+pub(crate) struct MuxHealth {
+    state: Mutex<MuxHealthState>,
+}
+
+#[derive(Default)]
+struct MuxHealthState {
+    /// When the worker started the send still in flight, if one is.
+    started: Option<Instant>,
+    /// The last finished send timed out (any success clears it).
+    timed_out: bool,
+    /// A toast is already on screen for this episode.
+    toast_shown: bool,
+    /// Commands dropped because the outbox was full.
+    dropped: u64,
+}
+
+/// The transition [`MuxHealth::poll_event`] reports.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum DaemonHealthSignal {
+    Unresponsive,
+    Recovered,
+}
+
+impl MuxHealth {
+    /// Worker hook: a send just left the event loop toward the daemon.
+    pub(crate) fn send_started(&self) {
+        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        state.started = Some(Instant::now());
+    }
+
+    /// Worker hook: the send completed. A timeout marks the daemon
+    /// unresponsive until some later send succeeds; anything else (reply
+    /// or non-timeout error) proves liveness.
+    pub(crate) fn send_finished(&self, result: &io::Result<Vec<String>>) {
+        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        state.started = None;
+        state.timed_out = matches!(
+            result,
+            Err(e) if e.kind() == io::ErrorKind::TimedOut
+        );
+    }
+
+    /// Outbox overflow bookkeeping for the unresponsive toast.
+    pub(crate) fn count_dropped(&self) {
+        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        state.dropped += 1;
+    }
+
+    /// The poll-loop view: `Some(Unresponsive)` on the first frame a send
+    /// has been unanswered past `threshold` (or a timeout was observed),
+    /// `Some(Recovered)` on the first frame a flagged daemon answers
+    /// again, `None` otherwise.
+    pub(crate) fn poll_event(&self, threshold: Duration) -> Option<DaemonHealthSignal> {
+        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        let hung = state.timed_out
+            || state
+                .started
+                .is_some_and(|started| started.elapsed() >= threshold);
+        match (hung, state.toast_shown) {
+            (true, false) => {
+                state.toast_shown = true;
+                Some(DaemonHealthSignal::Unresponsive)
+            }
+            (false, true) => {
+                state.toast_shown = false;
+                Some(DaemonHealthSignal::Recovered)
+            }
+            _ => None,
+        }
     }
 }
 
@@ -59,11 +220,56 @@ impl TmuxTransport for MuxTransport {
         Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
         bool,
     ) {
-        self.client().drain_core_notifications()
+        // A worker send mid-reply-wait holds the lock; that is exactly the
+        // hung case, where no notifications exist to drain anyway. Skip
+        // the poll rather than queue behind it on the event loop.
+        let Ok(mut client) = self.client.try_lock() else {
+            return (Vec::new(), false);
+        };
+        client.drain_core_notifications()
     }
 
     fn send_command(&self, command: &str) -> io::Result<Vec<String>> {
-        self.client().send(command)
+        let mut client = self.lock_for_send()?;
+        client.send(command)
+    }
+
+    fn send_command_no_wait(&self, command: &str) -> io::Result<()> {
+        match self.outbox.try_send(command.to_string()) {
+            Ok(()) => Ok(()),
+            // A full outbox means the daemon wedged while input kept
+            // arriving: drop the command (the unresponsive toast says why)
+            // rather than block the event loop or grow without bound.
+            Err(TrySendError::Full(_)) => {
+                self.health.count_dropped();
+                Ok(())
+            }
+            // Worker gone (transport being dropped): fall back inline.
+            Err(TrySendError::Disconnected(_)) => self.send_command(command).map(|_| ()),
+        }
+    }
+
+    fn daemon_health_event(&self) -> Option<String> {
+        let dropped = self
+            .health
+            .state
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .dropped;
+        self.health
+            .poll_event(DAEMON_UNRESPONSIVE_AFTER)
+            .map(|signal| match signal {
+                DaemonHealthSignal::Unresponsive => {
+                    if dropped > 0 {
+                        format!(
+                            "par-mux daemon not responding — input dropped ({dropped} commands)"
+                        )
+                    } else {
+                        "par-mux daemon not responding — input queued until it recovers".into()
+                    }
+                }
+                DaemonHealthSignal::Recovered => "par-mux daemon responding again".into(),
+            })
     }
 }
 
@@ -94,7 +300,9 @@ pub(crate) fn push_client_size(
         );
         return;
     };
-    if let Err(e) = transport.send_command(&format!("refresh-client -t %{pane} -C {cols}x{rows}")) {
+    if let Err(e) =
+        transport.send_command_no_wait(&format!("refresh-client -t %{pane} -C {cols}x{rows}"))
+    {
         crate::debug_error!("MUX", "client size push failed: {e}");
     }
 }
@@ -117,7 +325,7 @@ pub(crate) fn route_input(
     };
     let escaped = escape_keys_for_tmux(data);
     let command = format!("send-keys -t %{pane} {escaped}");
-    if let Err(e) = transport.send_command(&command) {
+    if let Err(e) = transport.send_command_no_wait(&command) {
         crate::debug_error!("MUX", "send-keys failed: {e}");
     }
     true
@@ -139,7 +347,7 @@ pub(crate) fn route_literal_bytes(
         .map(|b| format!("{b:02x}"))
         .collect::<Vec<_>>()
         .join(" ");
-    if let Err(e) = transport.send_command(&format!("send-keys -t %{pane} -H {hex}")) {
+    if let Err(e) = transport.send_command_no_wait(&format!("send-keys -t %{pane} -H {hex}")) {
         crate::debug_error!("MUX", "send-keys -H failed: {e}");
     }
     true
@@ -538,9 +746,7 @@ impl WindowState {
                 ));
             }
             Ok(Ok(client)) => {
-                let transport = MuxTransport {
-                    client: RefCell::new(MuxSessionClient::from_core(client)),
-                };
+                let transport = MuxTransport::new(MuxSessionClient::from_core(client));
                 if let Err(e) = self.install_mux_transport(&pending.name, transport) {
                     log::error!("par-mux attach to '{}' failed: {e}", pending.name);
                     self.show_toast(format!(
@@ -1145,9 +1351,7 @@ pub(crate) mod tests {
         // The install path recorded the session id, so the split stamped
         // its own ITERM_SESSION_ID (card 01a0d93b1c03 criterion 2).
         assert!(ws.tmux_state.mux_session_id.is_some());
-        let transport = MuxTransport {
-            client: RefCell::new(probe),
-        };
+        let transport = MuxTransport::new(probe);
         #[cfg(unix)]
         assert_ne!(
             pane_var(&transport, 0, "ITERM_SESSION_ID"),
@@ -3628,5 +3832,155 @@ out.flush()
             "the second open must name the attached session, got {toast:?}"
         );
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// A daemon that accepts but never answers — the SIGSTOP shape,
+    /// in-process: the socket stays open (no `SessionEnded`) while every
+    /// reply wait runs out its full timeout. Serves exactly one
+    /// connection; the stream is read to completion so client writes
+    /// never fill kernel buffers mid-test.
+    fn spawn_silent_daemon(path: &Path) {
+        use par_term_emu_core_rust::mux::{accept_connection, bind_local_listener};
+        use std::io::Read;
+        let listener = bind_local_listener(path).expect("silent daemon binds");
+        std::thread::spawn(move || {
+            let Ok((mut stream, _abort)) = accept_connection(&listener) else {
+                return;
+            };
+            let mut sink = [0u8; 4096];
+            loop {
+                match stream.read(&mut sink) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {}
+                }
+            }
+        });
+    }
+
+    /// The hung-daemon card's freeze repro, inverted: with the daemon
+    /// silent, fire-and-forget sends (the per-keystroke seam) must return
+    /// immediately instead of each burning the core client's 10 s reply
+    /// timeout on the event loop.
+    #[test]
+    fn fire_and_forget_sends_never_block_on_a_silent_daemon() {
+        let path = socket_path("silent-no-block");
+        spawn_silent_daemon(&path);
+        let transport = connect(&path);
+
+        let started = Instant::now();
+        for _ in 0..20 {
+            transport
+                .send_command_no_wait("send-keys -t %0 x")
+                .expect("queueing must not block or fail");
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "20 queued sends took {:?} — the event loop would freeze",
+            started.elapsed()
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The hung-daemon card's toast criterion: a keystroke queued to a
+    /// silent daemon must surface the unresponsive toast through the real
+    /// per-frame drain (`check_mux_notifications`) within the 1 s
+    /// deadline — health check to `show_toast`, not a unit shortcut.
+    #[test]
+    fn silent_daemon_surfaces_unresponsive_toast_within_1s() {
+        let path = socket_path("silent-toast");
+        spawn_silent_daemon(&path);
+        let transport = connect(&path);
+
+        let mut ws = manners_state();
+        ws.tmux_state.transport = Some(Box::new(transport));
+
+        // The user's first keystroke into the mux pane.
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command_no_wait("send-keys -t %0 x")
+            .expect("queueing must not block");
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let mut toast_seen = None;
+        while Instant::now() < deadline {
+            ws.check_mux_notifications();
+            if let Some(message) = ws.overlay_state.toast_message.clone() {
+                toast_seen = Some(message);
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        let message = toast_seen.expect("unresponsive toast within 1 s");
+        assert!(
+            message.contains("not responding"),
+            "toast must say the daemon is not responding, got: {message}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A healthy daemon never trips the health toast: the in-flight
+    /// window closes in milliseconds and `poll_event` stays `None`.
+    #[test]
+    fn healthy_daemon_reports_no_health_events() {
+        let path = socket_path("healthy-quiet");
+        spawn_daemon(&path);
+        let transport = connect(&path);
+
+        transport
+            .send_command_no_wait("send-keys -t %0 x")
+            .expect("queue");
+        // Long enough that a lingering in-flight send would have tripped
+        // the 800 ms threshold if the reply never came.
+        std::thread::sleep(Duration::from_millis(1200));
+        for _ in 0..3 {
+            assert_eq!(
+                transport.daemon_health_event(),
+                None,
+                "a daemon that answers must not be flagged unresponsive"
+            );
+        }
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The health state machine's transitions, driven directly: threshold
+    /// crossing fires once (not per poll), success clears the episode,
+    /// and an observed reply timeout flags without needing a second send.
+    #[test]
+    fn mux_health_fires_once_per_episode_and_recovers() {
+        let health = MuxHealth::default();
+        let threshold = Duration::from_millis(50);
+
+        health.send_started();
+        assert_eq!(health.poll_event(threshold), None, "under threshold");
+        std::thread::sleep(Duration::from_millis(60));
+        assert_eq!(
+            health.poll_event(threshold),
+            Some(DaemonHealthSignal::Unresponsive)
+        );
+        assert_eq!(
+            health.poll_event(threshold),
+            None,
+            "the toast must not re-fire every poll"
+        );
+
+        health.send_finished(&Ok(Vec::new()));
+        assert_eq!(
+            health.poll_event(threshold),
+            Some(DaemonHealthSignal::Recovered)
+        );
+        assert_eq!(health.poll_event(threshold), None);
+
+        let timeout = io::Error::new(io::ErrorKind::TimedOut, "no reply block within 10s");
+        health.send_finished(&Err(timeout));
+        assert_eq!(
+            health.poll_event(threshold),
+            Some(DaemonHealthSignal::Unresponsive),
+            "an observed reply timeout flags without a new send"
+        );
     }
 }

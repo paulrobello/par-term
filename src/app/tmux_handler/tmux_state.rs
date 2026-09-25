@@ -28,6 +28,21 @@ pub(crate) trait TmuxTransport {
     );
     /// Run one control-mode command, returning the reply block body.
     fn send_command(&self, command: &str) -> std::io::Result<Vec<String>>;
+    /// Fire-and-forget form of [`TmuxTransport::send_command`] for
+    /// commands whose reply the caller never reads (keystrokes, size
+    /// pushes, pastes). The default runs the synchronous call; the par-mux
+    /// transport queues on its send worker so a hung daemon cannot stall
+    /// the event loop waiting for a reply.
+    fn send_command_no_wait(&self, command: &str) -> std::io::Result<()> {
+        self.send_command(command).map(|_| ())
+    }
+    /// A daemon-liveness transition to surface as a toast: `Some(message)`
+    /// when the daemon just became unresponsive (or just recovered);
+    /// `None` every other frame, and always for transports without a
+    /// daemon behind them.
+    fn daemon_health_event(&self) -> Option<String> {
+        None
+    }
 }
 
 /// A delayed mux paste in flight: the chunks still to send (each line
