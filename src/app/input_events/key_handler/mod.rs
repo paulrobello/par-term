@@ -391,6 +391,8 @@ impl WindowState {
                         log::error!("Failed to copy to clipboard: {}", e);
                     } else {
                         log::debug!("Copied {} chars via keyboard copy", selected_text.len());
+                        // Sync to tmux paste buffer if connected
+                        self.sync_clipboard_to_tmux(&selected_text);
                     }
                 }
                 return;

@@ -260,6 +260,8 @@ impl WindowState {
             let auto_exit = self.config.load().copy_mode.copy_mode_auto_exit_on_yank;
             match self.input_handler.copy_to_clipboard(&text) {
                 Ok(()) => {
+                    // Sync to tmux paste buffer if connected
+                    self.sync_clipboard_to_tmux(&text);
                     let line_count = text.lines().count();
                     let msg = if line_count > 1 {
                         format!("{} lines yanked", line_count)
