@@ -34,6 +34,12 @@ use std::time::{Duration, Instant};
 /// A minimal fake pi runtime: records `pi.on(...)` handlers so the test can
 /// fire the lifecycle events the real host would fire. `events.on`
 /// subscriptions (the herdr:blocked listener) are accepted and ignored.
+///
+/// The session_start/agent_start pair fires `BURSTS` times: the asset's
+/// sends must serialize (the daemon orders reports by ARRIVAL against the
+/// per-source monotonic seq), and the repeat turns a one-in-N interleaving
+/// race into a deterministic regression — a serialized asset emits an
+/// exact broadcast count, any overtake drops below it.
 const DRIVER: &str = r#"
 const target = process.argv[2];
 const mod = await import(target);
@@ -52,14 +58,30 @@ const ctx = {
     getSessionId: () => "e2e-session-1",
   },
 };
-for (const cb of handlers["session_start"] ?? []) await cb({ reason: "startup" }, ctx);
-for (const cb of handlers["agent_start"] ?? []) await cb({}, ctx);
+const bursts = Number(process.argv[3] ?? 1);
+for (let i = 0; i < bursts; i++) {
+  for (const cb of handlers["session_start"] ?? []) await cb({ reason: "startup" }, ctx);
+  for (const cb of handlers["agent_start"] ?? []) await cb({}, ctx);
+}
 await new Promise((resolve) => setTimeout(resolve, 1500));
 // A quit must release the pane's claim (pane.release_agent): the shutdown
 // handler awaits the send, so the release is on the wire before exit.
 for (const cb of handlers["session_shutdown"] ?? []) await cb({ type: "session_shutdown", reason: "quit" });
 await new Promise((resolve) => setTimeout(resolve, 1500));
 "#;
+
+/// Burst count for the interleaving regression (see `DRIVER`): 25 rounds of
+/// the racing pair. Serialized, each burst yields a fixed, per-asset
+/// broadcast count; a send that overtakes its predecessor lands
+/// stale-dropped and the count falls short.
+const BURSTS: usize = 25;
+/// pi fires a session report on BOTH session_start and agent_start: burst 1
+/// gives two broadcasts (its first session report precedes any state),
+/// later bursts three (the session_start report rebroadcasts the prior
+/// burst's surviving state).
+const PI_EXPECTED: usize = 3 * BURSTS - 1;
+/// omp reports a session only on agent_start: exactly two per burst.
+const OMP_EXPECTED: usize = 2 * BURSTS;
 
 fn bun_available() -> bool {
     match Command::new("bun").arg("--version").output() {
@@ -102,6 +124,7 @@ fn connect(path: &Path) -> MuxSessionClient {
 /// assert the report lands as an accepted broadcast.
 fn installed_extension_drives_the_daemon(
     agent: &str,
+    expected: usize,
     install: impl FnOnce(&Path) -> std::io::Result<PathBuf>,
 ) {
     if !bun_available() {
@@ -134,6 +157,7 @@ fn installed_extension_drives_the_daemon(
     let run = Command::new("bun")
         .arg(&driver)
         .arg(&installed)
+        .arg(BURSTS.to_string())
         .env("PAR_MUX_ENV", "1")
         .env("PAR_MUX_SOCKET", &socket)
         .env("PAR_MUX_PANE_ID", "%0")
@@ -149,16 +173,17 @@ fn installed_extension_drives_the_daemon(
     );
 
     // 20s, not 10s: under full-`cargo test --workspace` load the daemon
-    // spawn + bun driver + report can outlive a 10s budget outright (saw 0
+    // spawn + bun driver + reports can outlive a 10s budget outright (saw 0
     // broadcasts in 10s, 5/5 green in isolation — the same flake class the
     // agent-usage watcher tolerance was widened for at f36db8a9).
     let deadline = Instant::now() + Duration::from_secs(20);
-    // TWO broadcasts are the acceptance proof: the first is the state
-    // report's own push; the second can only be the REBROADCAST an
-    // ACCEPTED session report produces (the asset fires one on
-    // session_start and another on agent_start, the latter after the
-    // state landed). An error-replied session report — the id-required
-    // contract the pi/omp path-only shape used to hit — sends nothing.
+    // The acceptance proof, exactly countable because the asset serializes
+    // its sends: the state report's own push, plus the REBROADCAST only an
+    // ACCEPTED session report produces, per the per-asset `expected`. A
+    // send that overtakes its predecessor arrives with a LOWER seq than
+    // the pane already recorded and is stale-dropped silently (the flake
+    // this count exists to catch); an error-replied session report sends
+    // nothing either. Either way the count falls short.
     let mut broadcasts = 0usize;
     let mut released = false;
     while Instant::now() < deadline {
@@ -189,7 +214,7 @@ fn installed_extension_drives_the_daemon(
                 } if pane_id == "%0" && released_agent == agent
             )
         });
-        if broadcasts >= 2 && released {
+        if broadcasts >= expected && released {
             // A2b task 1 live leg: the report the broadcast announced must
             // also read back through the roster query, with the hook
             // provenance the endpoint records — and after the shutdown
@@ -200,21 +225,25 @@ fn installed_extension_drives_the_daemon(
                 roster.iter().all(|entry| entry.pane != 0),
                 "pane %0 must leave the roster after session_shutdown(quit): {roster:?}"
             );
+            assert_eq!(
+                broadcasts, expected,
+                "serialized sends broadcast exactly once per accepted report"
+            );
             let _ = std::fs::remove_file(&socket);
             return;
         }
         std::thread::sleep(Duration::from_millis(50));
     }
     panic!(
-        "{agent} extension: expected the state broadcast, the session-report \
-         rebroadcast, AND the quit release, saw {broadcasts} broadcasts and \
-         released={released} in 20s"
+        "{agent} extension: expected {expected} broadcasts (state pushes + \
+         accepted-session rebroadcasts) AND the quit release, saw {broadcasts} \
+         broadcasts and released={released} in 20s"
     );
 }
 
 #[test]
 fn pi_extension_drives_a_live_daemon() {
-    installed_extension_drives_the_daemon("pi", |root| {
+    installed_extension_drives_the_daemon("pi", PI_EXPECTED, |root| {
         let pi_home = root.join("pi-home");
         std::fs::create_dir_all(&pi_home).expect("agent home");
         mux_extension_installer::install_pi_extension_into(&pi_home.join("extensions"))
@@ -223,7 +252,7 @@ fn pi_extension_drives_a_live_daemon() {
 
 #[test]
 fn omp_extension_drives_a_live_daemon() {
-    installed_extension_drives_the_daemon("omp", |root| {
+    installed_extension_drives_the_daemon("omp", OMP_EXPECTED, |root| {
         let omp_agent_root = root.join("omp-home").join("agent");
         std::fs::create_dir_all(&omp_agent_root).expect("agent home");
         mux_extension_installer::install_omp_extension_into(

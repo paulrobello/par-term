@@ -49,11 +49,29 @@ function sendRequestAttempt(request: unknown, timeoutMs: number): Promise<boolea
   });
 }
 
-async function sendRequest(request: unknown): Promise<void> {
+// All sends serialize through one queue: reports carry a per-source
+// monotonic seq the daemon orders by ARRIVAL, so two concurrent sends
+// (agent_start's session report racing the state report queued by
+// session_start) can arrive swapped — the higher seq lands first and the
+// state report is then stale-dropped silently, losing the broadcast
+// outright (measured on the e2e wire: agent_start's session report
+// overtook the state report by 23us on a second connection). The omp
+// asset's queue, back-ported.
+let requestQueue = Promise.resolve();
+
+async function sendRequestNow(request: unknown): Promise<void> {
   if (await sendRequestAttempt(request, 500)) {
     return;
   }
   await sendRequestAttempt(request, 1500);
+}
+
+function sendRequest(request: unknown): Promise<void> {
+  requestQueue = requestQueue.then(
+    () => sendRequestNow(request),
+    () => sendRequestNow(request),
+  );
+  return requestQueue;
 }
 
 type AgentState = "working" | "blocked" | "idle";
