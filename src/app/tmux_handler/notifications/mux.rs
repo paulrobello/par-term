@@ -438,9 +438,12 @@ impl WindowState {
         let ok = result.as_ref().map(|body| body.is_empty()).unwrap_or(false);
         match result {
             // kill-pane's success reply is an empty body; the daemon
-            // rejects bad targets (a window's last pane) with an %error
-            // block, which also arrives as an Ok body — non-empty IS the
-            // failure signal, same shape as the split path.
+            // rejects a bad TARGET with an %error block, which also
+            // arrives as an Ok body — non-empty IS the failure signal,
+            // same shape as the split path. A valid target is always
+            // killed, including a window's last pane (which closes the
+            // window — the last-pane guard in `close_focused_pane` keeps
+            // par-term from sending that).
             Ok(body) if !ok => {
                 let text = body.join("\n");
                 log::error!("par-mux kill-pane rejected: {text}");
@@ -2197,11 +2200,11 @@ out.flush()
         let attach = attach_sequence(&transport, "wspaste", Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         let mut ws = manners_state();
-        let mut existing_windows = attach.existing_windows.clone();
-        if existing_windows.is_empty() {
-            existing_windows = vec![0];
-        }
-        for window_id in &existing_windows {
+        // Reported (reattached) windows get their tabs directly; a CREATED
+        // session's tab arrives as the daemon's own %window-add push on the
+        // first pump — synthesizing one here as well would double-create it
+        // and leave an unmapped tab behind after any close.
+        for window_id in &attach.existing_windows {
             ws.handle_tmux_window_add(*window_id);
         }
         ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
@@ -2267,11 +2270,11 @@ out.flush()
         let attach = attach_sequence(&transport, tag, Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         let mut ws = manners_state();
-        let mut existing_windows = attach.existing_windows.clone();
-        if existing_windows.is_empty() {
-            existing_windows = vec![0];
-        }
-        for window_id in &existing_windows {
+        // Reported (reattached) windows get their tabs directly; a CREATED
+        // session's tab arrives as the daemon's own %window-add push on the
+        // first pump — synthesizing one here as well would double-create it
+        // and leave an unmapped tab behind after any close.
+        for window_id in &attach.existing_windows {
             ws.handle_tmux_window_add(*window_id);
         }
         ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
@@ -2451,6 +2454,110 @@ out.flush()
         assert!(
             late.contains("^[[201~"),
             "the bracketed end must follow the last line: {late:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Attach a WindowState to a fresh single-window daemon session and
+    /// pump until the layout consumer has created the tab and pane %0 —
+    /// the shared prefix of the close-last-pane tests.
+    fn attached_single_pane_state(
+        tag: &str,
+    ) -> (crate::app::window_state::WindowState, std::path::PathBuf) {
+        let path = socket_path(tag);
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, tag, Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
+        let mut ws = manners_state();
+        // Reported (reattached) windows get their tabs directly; a CREATED
+        // session's tab arrives as the daemon's own %window-add push on the
+        // first pump — synthesizing one here as well would double-create it
+        // and leave an unmapped tab behind after any close.
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some(tag.to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0)
+                || ws.tmux_state.tmux_sync.get_native_pane(0).is_some()
+            {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the pane"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        (ws, path)
+    }
+
+    /// Card 01a0d9b5568175c084eb7f9d70c0ec4f, criterion 1 (recorded
+    /// decision: the detach-like option): closing a mux tab's last pane
+    /// closes the TAB — the Cmd+W shape — instead of kill-pane, so the
+    /// daemon window and session survive.
+    #[test]
+    fn closing_a_mux_tabs_last_pane_closes_the_tab_and_keeps_the_window() {
+        let (mut ws, path) = attached_single_pane_state("ws-lastpane");
+
+        ws.close_focused_pane();
+
+        // The tab closed locally, synchronously.
+        assert!(
+            ws.tab_manager.tabs().is_empty(),
+            "closing the last pane must close the tab"
+        );
+        // The daemon window SURVIVED — no kill-pane went out.
+        let windows = ws
+            .tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command("list-windows")
+            .expect("list-windows")
+            .join("|");
+        assert!(
+            windows.contains("@0"),
+            "the daemon window must survive a last-pane close: {windows:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Card 01a0d9b5568175c084eb7f9d70c0ec4f, criterion 2: when the
+    /// daemon DOES kill the window (here kill-pane from a second client,
+    /// as the CLI would send), par-term receives %window-close and closes
+    /// the tab instead of leaving it dead.
+    #[test]
+    fn a_daemon_side_kill_of_the_last_pane_closes_the_tab() {
+        let (mut ws, path) = attached_single_pane_state("ws-winclose");
+
+        // Bypass par-term's guard: kill the pane straight from the
+        // transport, the way another client would.
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command("kill-pane -t %0")
+            .expect("kill-pane");
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tab_manager.tabs().is_empty() && Instant::now() < deadline {
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(
+            ws.tab_manager.tabs().is_empty(),
+            "%window-close must close the dead window's tab"
         );
 
         let _ = std::fs::remove_file(&path);

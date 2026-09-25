@@ -181,10 +181,31 @@ impl WindowState {
         // real one; a native close here would delete the local pane and
         // dangle the tmux→native mapping while the daemon pane lives on.
         #[cfg(feature = "mux")]
-        if self.close_pane_via_mux() {
-            // Consumed: the daemon's %layout-change drives the local
-            // removal, so the window-close answer is "not yet".
-            return false;
+        {
+            // A mux tab's LAST pane must not be kill-pane'd: the daemon's
+            // kill-pane on a window's only pane CLOSES the window (and an
+            // emptied session) — destroying the session without warning
+            // while the tab sat dead. Close the TAB instead, the Cmd+W
+            // shape: the daemon window keeps running (recorded decision,
+            // card 01a0d9b5568175c084eb7f9d70c0ec4f — the alternative,
+            // confirming before a kill, is the heavier UX for the same
+            // safety).
+            if self.tmux_state.transport.is_some()
+                && self.focused_mux_pane_from_native().is_some()
+                && !self
+                    .tab_manager
+                    .active_tab()
+                    .is_some_and(|tab| tab.has_multiple_panes())
+            {
+                crate::debug_info!("MUX", "close of a mux tab's last pane — closing the tab");
+                self.show_toast("par-mux: closed tab — window survives in the daemon");
+                return self.close_current_tab_immediately();
+            }
+            if self.close_pane_via_mux() {
+                // Consumed: the daemon's %layout-change drives the local
+                // removal, so the window-close answer is "not yet".
+                return false;
+            }
         }
         if self.is_tmux_connected() {
             // Display tabs show tmux window content but are not the gateway.  Closing
