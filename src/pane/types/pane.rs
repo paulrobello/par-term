@@ -295,6 +295,12 @@ impl Pane {
         // Apply common terminal configuration (theme, clipboard limits, cursor style, unicode)
         configure_terminal_from_config(&mut terminal, config);
 
+        // Mirrors are created after `Tab::new_internal`'s one-shot trigger
+        // sync (a layout change can arrive at any time), and daemon output
+        // is scanned on this terminal — without installing the registry
+        // here, mux panes match against an empty trigger set forever.
+        terminal.sync_triggers(&config.automation.triggers);
+
         // Don't spawn any shell - tmux provides the output
         // Create shared session logger
         let session_logger = create_shared_logger();

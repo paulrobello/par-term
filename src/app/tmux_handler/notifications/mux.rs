@@ -2869,6 +2869,119 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Triggers are scanned by the PTY reader thread — which a mux mirror
+    /// pane does not have. Output routed into a mirror via
+    /// `handle_tmux_output` used to reach the grid but never the trigger
+    /// registry, and `check_trigger_actions` polled only `tab.terminal`
+    /// (the hidden shell), so a pattern printed in a mux pane fired
+    /// nothing (card 01a0d9b559487e42a651a18e93dfce93, criterion 1).
+    ///
+    /// Proves the whole chain through the real routing and dispatch paths:
+    /// attach installs mirror panes carrying the config's trigger registry,
+    /// a `%output` chunk seeded through `handle_tmux_output` is scanned on
+    /// the mirror terminal, and `check_trigger_actions` polls every pane of
+    /// the active tab — the RunCommand lands in the confirmation queue
+    /// (prompt_before_run keeps it side-effect-free for the test).
+    #[test]
+    fn triggers_fire_on_mux_pane_output() {
+        let path = socket_path("ws-triggers");
+        spawn_daemon(&path);
+
+        // A config carrying one trigger whose pattern only this test
+        // prints. RunCommand + prompt_before_run queues a dialog action
+        // instead of spawning a process.
+        let mut config = crate::config::Config::default();
+        config.automation.triggers = vec![par_term_config::TriggerConfig {
+            name: "mux-wiring-trigger".to_string(),
+            pattern: "TRIGGER-PATTERN-FIRED".to_string(),
+            enabled: true,
+            actions: vec![par_term_config::TriggerActionConfig::RunCommand {
+                command: "echo".to_string(),
+                args: vec!["mux-trigger-ran".to_string()],
+            }],
+            prompt_before_run: true,
+            i_accept_the_risk: false,
+            allowed_commands: Vec::new(),
+        }];
+
+        // Created-session attach (the paste-test pattern): the daemon
+        // pushes the window on the first pump, the layout consumer
+        // creates the native mirror pane carrying the trigger registry.
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "wstrig", Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws = crate::app::window_state::WindowState::new(config, runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("wstrig".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until the layout consumer created the native mirror pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let native = loop {
+            ws.check_mux_notifications();
+            if let Some(&(tab_id, native)) = ws.tmux_state.tmux_pane_owners.get(&0) {
+                ws.tab_manager.switch_to(tab_id);
+                break native;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the native pane: {:?}",
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        };
+
+        // The mirror terminal must carry the trigger registry — mirrors are
+        // created after Tab::new_internal's one-shot sync, so creation and
+        // config propagation both have to install triggers into panes.
+        {
+            let tab = ws.tab_manager.active_tab().expect("mux tab active");
+            let pane = tab
+                .pane_manager()
+                .and_then(|pm| pm.get_pane(native))
+                .expect("mirror pane exists");
+            let term = pane.terminal.try_read().expect("pane terminal free");
+            assert!(
+                term.trigger_names()
+                    .values()
+                    .any(|n| n == "mux-wiring-trigger"),
+                "mirror pane must have the trigger installed: {:?}",
+                term.trigger_names()
+            );
+        }
+
+        // Seed pattern text through the production routing path — the
+        // daemon pane's %output — and run the per-frame trigger dispatch.
+        ws.handle_tmux_output(0, b"TRIGGER-PATTERN-FIRED\r\n");
+        ws.check_trigger_actions();
+
+        let queued: Vec<&par_term_emu_core_rust::terminal::ActionResult> = ws
+            .trigger_state
+            .pending_trigger_actions
+            .iter()
+            .map(|p| &p.action)
+            .collect();
+        assert!(
+            queued
+                .iter()
+                .any(|a| matches!(a, par_term_emu_core_rust::terminal::ActionResult::RunCommand { command, args, .. }
+                    if command == "echo" && args.first().is_some_and(|a| a == "mux-trigger-ran"))),
+            "the mux pane's trigger must fire through poll+dispatch: {queued:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Paste is the one input stream that never got a mux branch: keyboard
     /// input goes through `send_input_via_tmux`'s transport check, mouse
     /// reports through `route_mouse_report_to_mux`, but the shared paste

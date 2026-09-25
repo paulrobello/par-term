@@ -71,7 +71,7 @@ impl WindowState {
                 && let Ok(term) = pane.terminal.try_read()
             {
                 // Route the data to this pane's terminal
-                term.process_data(data);
+                term.process_mux_output(data);
                 crate::debug_trace!(
                     "TMUX",
                     "Routed {} bytes to pane {} (tmux %{})",
@@ -92,7 +92,7 @@ impl WindowState {
                     && let Some(pane) = pane_manager.get_pane_mut(native_pane_id)
                     && let Ok(term) = pane.terminal.try_read()
                 {
-                    term.process_data(data);
+                    term.process_mux_output(data);
                     crate::debug_trace!(
                         "TMUX",
                         "Routed {} bytes to pane {} (tmux %{}, sync fallback)",
@@ -114,7 +114,7 @@ impl WindowState {
             if tab.tmux.tmux_pane_id == Some(pane_id)
                 && let Ok(term) = tab.terminal.try_read()
             {
-                term.process_data(data);
+                term.process_mux_output(data);
                 crate::debug_trace!(
                     "TMUX",
                     "Routed {} bytes to tab terminal (tmux %{})",
@@ -143,7 +143,7 @@ impl WindowState {
                 && !tab.tmux.tmux_gateway_active
                 && let Ok(term) = tab.terminal.try_read()
             {
-                term.process_data(data);
+                term.process_mux_output(data);
                 crate::debug_trace!(
                     "TMUX",
                     "Routed {} bytes from pane %{} to existing tmux tab (pane %{:?})",
@@ -212,7 +212,7 @@ impl WindowState {
                             // extremely unlikely. On miss: the very first chunk of pane output
                             // is dropped; subsequent output arrives normally.
                             if let Ok(term) = tab.terminal.try_read() {
-                                term.process_data(data);
+                                term.process_mux_output(data);
                             }
                         }
 

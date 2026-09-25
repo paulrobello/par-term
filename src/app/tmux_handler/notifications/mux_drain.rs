@@ -472,7 +472,7 @@ impl WindowState {
                 && let Some(pane_obj) = pane_manager.get_pane_mut(native)
                 && let Ok(term) = pane_obj.terminal.try_read()
             {
-                term.process_data(&data);
+                term.process_mux_output(&data);
                 self.tmux_state.mux_screen_seeds.remove(&tmux_pane);
                 crate::debug_info!(
                     "MUX",
@@ -493,7 +493,7 @@ impl WindowState {
                 && let Some(pane_obj) = pane_manager.get_pane_mut(native)
                 && let Ok(term) = pane_obj.terminal.try_read()
             {
-                term.process_data(&data);
+                term.process_mux_output(&data);
                 self.tmux_state.mux_screen_seeds.remove(&tmux_pane);
                 crate::debug_info!(
                     "MUX",

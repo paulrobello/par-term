@@ -240,11 +240,22 @@ impl WindowManager {
                 }
             }
 
-            // Resync triggers from config into core registry for all tabs
+            // Resync triggers from config into the core registry of every
+            // terminal that scans output: the tab terminal AND each pane
+            // terminal. Mux mirrors are created after tab construction and
+            // scan daemon output against their own registry — skipping them
+            // leaves panes matching the pre-change trigger set.
             for tab in window_state.tab_manager.tabs_mut() {
                 if let Ok(term) = tab.terminal.try_read() {
                     tab.scripting.trigger_prompt_before_run =
                         term.sync_triggers(&config.automation.triggers);
+                }
+                if let Some(pm) = tab.pane_manager() {
+                    for pane in pm.all_panes() {
+                        if let Ok(term) = pane.terminal.try_read() {
+                            term.sync_triggers(&config.automation.triggers);
+                        }
+                    }
                 }
             }
 

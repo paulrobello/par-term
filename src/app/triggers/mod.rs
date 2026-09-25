@@ -99,20 +99,33 @@ impl WindowState {
             return;
         };
 
-        // Poll action results and custom session variables from core terminal.
-        // Also grab the current scrollback_len so our absolute line calculations
-        // are consistent with the row values the trigger system produced.
+        // Poll action results and custom session variables from the core
+        // terminal — from EVERY terminal of the active tab. Mux mirror panes
+        // have no PTY reader thread; the daemon-output seam scans them and
+        // queues their results on the pane terminal, so polling only
+        // `tab.terminal` (the hidden shell in a mux tab) never drains them.
+        // Each source keeps its own scrollback_len: the mark-line dispatch
+        // math converts grid rows to absolute scrollback lines using the
+        // scrollback of the terminal that produced the result.
         // try_lock: intentional — trigger polling in about_to_wait (sync event loop).
-        // On miss: triggers are not processed this frame; they will be on the next poll.
-        let (mut action_results, current_scrollback_len, custom_vars) =
-            if let Ok(term) = tab.terminal.try_read() {
-                let ar = term.poll_action_results();
-                let sl = term.scrollback_len();
-                let cv = term.custom_session_variables();
-                (ar, sl, cv)
-            } else {
-                return;
-            };
+        // On miss: that source is not processed this frame; it will be on the next poll.
+        let mut polls: Vec<(Vec<ActionResult>, usize)> = Vec::new();
+        let mut custom_vars: HashMap<String, String> = HashMap::new();
+        if let Ok(term) = tab.terminal.try_read() {
+            custom_vars.extend(term.custom_session_variables());
+            polls.push((term.poll_action_results(), term.scrollback_len()));
+        }
+        if let Some(pm) = tab.pane_manager() {
+            for pane in pm.all_panes() {
+                // Pane 1 of a non-mux tab shares tab.terminal's Arc — polling
+                // it again drains an already-empty queue (poll is destructive),
+                // so the overlap is harmless.
+                if let Ok(term) = pane.terminal.try_read() {
+                    custom_vars.extend(term.custom_session_variables());
+                    polls.push((term.poll_action_results(), term.scrollback_len()));
+                }
+            }
+        }
 
         // Sync custom session variables from core (set by SetVariable triggers)
         // to the frontend badge state. Values are trimmed because the core
@@ -156,12 +169,19 @@ impl WindowState {
                     approved_this_frame.insert(id);
                 }
             }
-            // Prepend pre-approved to action_results so they execute this frame
-            pre_approved.extend(action_results);
-            action_results = pre_approved;
+            // Prepend pre-approved to this frame's results so they execute
+            // now. The tab terminal is source 0; with no contended-and-lost
+            // tab poll there is always a source to prepend into.
+            match polls.first_mut() {
+                Some((results, _)) => {
+                    pre_approved.append(results);
+                    *results = pre_approved;
+                }
+                None => polls.push((pre_approved, 0)),
+            }
         }
 
-        if action_results.is_empty() {
+        if polls.iter().all(|(results, _)| results.is_empty()) {
             return;
         }
 
@@ -225,13 +245,6 @@ impl WindowState {
             })
             .collect();
 
-        // Collect MarkLine events for batch deduplication (processed after the loop).
-        // Between frames, the core may fire the same trigger multiple times for the
-        // same physical line (once per PTY read). Each scan records a different grid
-        // row because scrollback grows between scans, but we only get the scrollback_len
-        // at poll time. Batch dedup clusters these into one mark per physical line.
-        let mut pending_marks: HashMap<u64, Vec<MarkLineEntry>> = HashMap::new();
-
         let ctx = DispatchContext {
             trigger_prompt_before_run: &trigger_prompt_before_run,
             approved_this_frame: &approved_this_frame,
@@ -240,18 +253,26 @@ impl WindowState {
             trigger_allowed_commands: &trigger_allowed_commands,
         };
 
-        for action in action_results {
-            self.dispatch_trigger_action(action, &ctx, &mut pending_marks);
+        // Dispatch each source's results with that source's scrollback:
+        // MarkLine rows are relative to the terminal that produced them, and
+        // the batch dedup clusters rescans of the same physical line (once
+        // per output chunk) into one mark per line, per source.
+        for (action_results, source_scrollback_len) in polls {
+            if action_results.is_empty() {
+                continue;
+            }
+            let mut pending_marks: HashMap<u64, Vec<MarkLineEntry>> = HashMap::new();
+            for action in action_results {
+                self.dispatch_trigger_action(action, &ctx, &mut pending_marks);
+            }
+            if !pending_marks.is_empty() {
+                self.apply_mark_line_results(pending_marks, source_scrollback_len);
+            }
         }
 
         // Periodically clean up stale rate limiter entries (every ~60 seconds of entries)
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             tab.scripting.trigger_rate_limiter.cleanup(60);
-        }
-
-        // Process collected MarkLine events with deduplication.
-        if !pending_marks.is_empty() {
-            self.apply_mark_line_results(pending_marks, current_scrollback_len);
         }
     }
 

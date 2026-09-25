@@ -216,6 +216,35 @@ impl TerminalManager {
         }
     }
 
+    /// Process daemon-fed output with the per-chunk pipeline the PTY reader
+    /// thread runs (core `pty_session.rs`): parse, record output for session
+    /// logging, scan dirty rows for triggers, and deliver observer events —
+    /// which `process_data`'s bare `process()` never does, so mirrors got no
+    /// triggers, no logging bytes, and no bell/cwd/command observers.
+    ///
+    /// No PTY master exists behind a mux mirror, so device-query responses
+    /// generated while parsing are drained and discarded (the daemon owns
+    /// the real child and answers its own queries) rather than written back.
+    pub fn process_mux_output(&self, data: &[u8]) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let dispatch_batch = {
+            let mut term = terminal.write();
+            let batch = term.process_deferred(data);
+            term.record_output(data);
+            term.process_trigger_scans();
+            if term.has_pending_responses() {
+                let _ = term.drain_responses();
+            }
+            batch
+        };
+        // Deliver observers with the write guard released (ARC-001: slow or
+        // re-entrant observers must not stall concurrent readers).
+        dispatch_batch.deliver();
+        #[cfg(feature = "mux")]
+        pty.mark_updated();
+    }
+
     /// Paste text to the terminal with proper bracketed paste handling.
     ///
     /// Newlines are converted to carriage returns. When the application has

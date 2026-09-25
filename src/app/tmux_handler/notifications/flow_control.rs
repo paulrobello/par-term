@@ -84,7 +84,7 @@ impl WindowState {
                             // the tmux %continue state means output has resumed and fresh
                             // data will arrive shortly to fill in any gap.
                             if let Ok(term) = pane.terminal.try_read() {
-                                term.process_data(&data);
+                                term.process_mux_output(&data);
                             }
                             break;
                         }
@@ -156,7 +156,7 @@ impl WindowState {
                             && let Some(pane) = pane_manager.get_pane_mut(pane_id)
                             && let Ok(term) = pane.terminal.try_read()
                         {
-                            term.process_data(&data);
+                            term.process_mux_output(&data);
                             break;
                         }
                     }
