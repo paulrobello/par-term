@@ -190,6 +190,13 @@ impl WindowState {
             }
         }
 
+        // Panes born from a layout change must carry the session-logging
+        // attachment when logging is active (mirrors fire their output
+        // callback from `process_mux_output`).
+        if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+            tab.attach_session_logging_to_panes();
+        }
+
         self.request_pane_refresh(panes_to_add);
 
         crate::debug_info!(
@@ -256,6 +263,8 @@ impl WindowState {
                     if !pane_ids.is_empty() && tab.tmux.tmux_pane_id.is_none() {
                         tab.tmux.tmux_pane_id = Some(pane_ids[0]);
                     }
+
+                    tab.attach_session_logging_to_panes();
 
                     self.request_pane_refresh(pane_ids);
                     self.focus_state.needs_redraw = true;

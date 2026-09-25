@@ -102,6 +102,13 @@ impl Tab {
             }
 
             *logger_guard = Some(logger);
+            drop(logger_guard);
+
+            // In a mux tab the panes are mirrors fed through
+            // `process_mux_output`, which fires the per-terminal output
+            // callback — they need the same attachment or their output
+            // never reaches the log.
+            self.attach_session_logging_to_panes();
             log::info!("Session logging created and started via hotkey");
             Ok(true)
         }
@@ -113,6 +120,38 @@ impl Tab {
             logger.is_active()
         } else {
             false
+        }
+    }
+
+    /// Attach the tab's session-logger output callback to every pane
+    /// terminal of a tmux/mux tab.
+    ///
+    /// Mirror panes receive daemon output through `process_mux_output`,
+    /// which fires the per-terminal output callback; the toggle/auto-log
+    /// paths attach only on `tab.terminal`, which in a mux tab is the
+    /// hidden shell whose output is not what the user sees. Called when
+    /// logging starts and whenever a tmux layout change creates panes, so
+    /// mirrors born mid-session log too. The callback captures the shared
+    /// logger slot, so one attached before a later toggle still picks up
+    /// the logger stored into it.
+    pub(crate) fn attach_session_logging_to_panes(&self) {
+        if self.session_logger.lock().is_none() {
+            return;
+        }
+        if !(self.tmux.tmux_gateway_active || self.tmux.tmux_pane_id.is_some()) {
+            return;
+        }
+        if let Some(pm) = self.pane_manager() {
+            for pane in pm.all_panes() {
+                let logger_clone = Arc::clone(&self.session_logger);
+                if let Ok(term) = pane.terminal.try_read() {
+                    term.set_output_callback(move |data: &[u8]| {
+                        if let Some(ref mut logger) = *logger_clone.lock() {
+                            logger.record_output(data);
+                        }
+                    });
+                }
+            }
         }
     }
 }

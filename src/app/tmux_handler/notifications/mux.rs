@@ -2982,6 +2982,121 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Session logging hooks the PTY output callback on `tab.terminal` —
+    /// in a mux tab that terminal is the hidden shell, and the mirror
+    /// panes that render daemon output have no PTY reader thread to fire
+    /// the callback. Output seeded through `handle_tmux_output` must
+    /// reach the tab's session log, including for a pane created by a
+    /// later layout change while logging is active (card
+    /// 01a0d9b559487e42a651a18e93dfce93, criterion 2).
+    #[test]
+    fn session_logging_captures_mux_pane_output() {
+        let path = socket_path("ws-sessionlog");
+        spawn_daemon(&path);
+
+        // Plain-format session log in an isolated directory.
+        let logs = tempfile::tempdir().expect("tempdir");
+        let mut config = crate::config::Config::default();
+        config.session_log.session_log_directory = logs.path().display().to_string();
+        config.session_log.session_log_format = crate::config::SessionLogFormat::Plain;
+
+        // Created-session attach (the triggers-test pattern): the daemon
+        // pushes the window on the first pump, the layout consumer
+        // creates the native mirror pane.
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "wssesslog", Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws = crate::app::window_state::WindowState::new(config, runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("wssesslog".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until the layout consumer created the native mirror pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let tab_id = loop {
+            ws.check_mux_notifications();
+            if let Some(&(tab_id, _)) = ws.tmux_state.tmux_pane_owners.get(&0) {
+                break tab_id;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the pane: {:?}",
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        };
+        ws.tab_manager.switch_to(tab_id);
+
+        // Toggle logging on through the production entry (the hotkey path).
+        {
+            let tab = ws.tab_manager.get_tab_mut(tab_id).expect("mux tab");
+            let started = tab.toggle_session_logging(&ws.config.load());
+            assert!(
+                matches!(started, Ok(true)),
+                "session logging must start: {started:?}"
+            );
+        }
+
+        // Seed output through the production routing path — the daemon
+        // pane's %output.
+        ws.handle_tmux_output(0, b"SESSION-LOG-MUX-MARKER-1\r\n");
+
+        // Split while logging is active — a pane born from a later layout
+        // change must log too (the re-attachment path).
+        ws.split_pane_vertical();
+        let mut split_landed = false;
+        while Instant::now() < deadline && !split_landed {
+            ws.check_mux_notifications();
+            split_landed = ws.tmux_state.tmux_pane_owners.contains_key(&1);
+            if !split_landed {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        }
+        assert!(
+            split_landed,
+            "the daemon-side split must create the second pane: {:?}",
+            ws.tmux_state.tmux_pane_owners
+        );
+        ws.handle_tmux_output(1, b"SESSION-LOG-MUX-MARKER-2\r\n");
+
+        // Stop (which flushes) and read the log back.
+        {
+            let tab = ws.tab_manager.get_tab_mut(tab_id).expect("mux tab");
+            let stopped = tab.toggle_session_logging(&ws.config.load());
+            assert!(
+                matches!(stopped, Ok(false)),
+                "session logging must stop: {stopped:?}"
+            );
+        }
+        let mut logged = String::new();
+        for entry in std::fs::read_dir(logs.path()).expect("log dir readable") {
+            let entry = entry.expect("dir entry");
+            if entry.path().is_file() {
+                logged.push_str(&std::fs::read_to_string(entry.path()).unwrap_or_default());
+            }
+        }
+        assert!(
+            logged.contains("SESSION-LOG-MUX-MARKER-1"),
+            "mux pane output must reach the session log: {logged:?}"
+        );
+        assert!(
+            logged.contains("SESSION-LOG-MUX-MARKER-2"),
+            "output of a pane created while logging is active must reach the log: {logged:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Paste is the one input stream that never got a mux branch: keyboard
     /// input goes through `send_input_via_tmux`'s transport check, mouse
     /// reports through `route_mouse_report_to_mux`, but the shared paste

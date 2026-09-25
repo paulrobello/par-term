@@ -114,6 +114,8 @@ impl WindowState {
                                     tab.tmux.tmux_pane_id = Some(pane_ids[0]);
                                 }
 
+                                tab.attach_session_logging_to_panes();
+
                                 self.request_pane_refresh(pane_ids);
                                 self.focus_state.needs_redraw = true;
                             }

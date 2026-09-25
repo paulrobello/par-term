@@ -227,6 +227,12 @@ impl TerminalManager {
     /// the real child and answers its own queries) rather than written back.
     pub fn process_mux_output(&self, data: &[u8]) {
         let pty = self.pty_session.lock();
+        // Fire the PTY output callback first, as the reader thread does —
+        // session logging attaches there (`set_output_callback`), and the
+        // mirror's daemon-fed bytes must flow through it exactly like
+        // reader-fed bytes (term.record_output below feeds the core's own
+        // recording buffer, a different consumer).
+        pty.fire_output_callback(data);
         let terminal = pty.terminal();
         let dispatch_batch = {
             let mut term = terminal.write();
