@@ -8,6 +8,7 @@
 mod action_editor;
 mod action_forms;
 mod action_list;
+mod agent_commands_section;
 mod state;
 
 pub use state::ActionsTabState;
@@ -17,6 +18,7 @@ use crate::section::section_matches;
 use std::collections::HashSet;
 
 use action_list::show_actions_section;
+use agent_commands_section::show_agent_commands_section;
 
 /// Show the actions tab content.
 pub fn show(
@@ -50,6 +52,22 @@ pub fn show(
         ],
     ) {
         show_actions_section(ui, settings, changes_this_frame, collapsed);
+    }
+
+    if section_matches(
+        &query,
+        "Agent Commands",
+        &[
+            "agent",
+            "command",
+            "agent-cmd",
+            "script",
+            "macro",
+            "mcp",
+            "delete",
+        ],
+    ) {
+        show_agent_commands_section(ui, settings, collapsed);
     }
 }
 
@@ -87,5 +105,10 @@ pub fn keywords() -> &'static [&'static str] {
         "capture_output",
         "exit code",
         "step",
+        // Agent commands
+        "agent command",
+        "agent-cmd",
+        "command file",
+        "delete command",
     ]
 }

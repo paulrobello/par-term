@@ -41,6 +41,11 @@ fields. Validation on load: id charset (`[a-z0-9-]+`, ≤64 bytes) and
 - **CLI** — `par-term <id> [args...]` (external-subcommand fallthrough; real
   subcommands always win). Extra args append to a script's stored args;
   macros refuse with a pointer at the palette.
+- **Settings → Actions → Agent Commands** — lists every valid command file
+  (id, title, script/macro, author) and deletes one behind a two-step
+  confirm. Deleting here acts with the user's authority, so it removes
+  user-authored files too, and it prunes the id's confirmation-ledger entry.
+  The list refreshes on first display and on **Refresh**; editing is by hand.
 
 ## Trust model (D4b/D4c)
 
@@ -85,10 +90,11 @@ MCP server descriptor (`build_mcp_server_descriptor`).
 | First-run confirmation dialog | `src/app/render_pipeline/egui_overlays.rs` |
 | MCP tools | `par-term-mcp/src/tools/agent_commands.rs` |
 | CLI fallthrough | `src/cli/mod.rs` (`Commands::External`) |
+| Settings list + delete | `par-term-settings-ui/src/actions_tab/agent_commands_section.rs` |
 
 ## Out of scope (filed as follow-ups on the board)
 
-- Settings UI for browsing/editing commands (v1 is files + palette)
+- Editing commands in Settings (list + delete shipped; edit is by hand)
 - User-approval flow for agent-modify-of-user-command (v1 refuses)
 - Command parameters / prompts beyond the first-run gate
 - Per-project command scope (global per D4c)

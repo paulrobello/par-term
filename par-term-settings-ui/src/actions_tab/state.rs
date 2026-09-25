@@ -82,6 +82,12 @@ pub struct ActionsTabState {
     pub temp_action_capture_output: bool,
     /// Temporary keybinding_enabled flag for action edit form
     pub temp_action_keybinding_enabled: bool,
+    /// Agent command files snapshot (None = not loaded yet this session)
+    pub agent_commands: Option<Vec<par_term_config::agent_commands::LoadedCommand>>,
+    /// Command id awaiting the second (confirm) click of a delete
+    pub agent_command_pending_delete: Option<String>,
+    /// Last agent-command delete error, shown until the next attempt
+    pub agent_command_error: Option<String>,
 }
 
 impl Default for ActionsTabState {
@@ -125,6 +131,9 @@ impl Default for ActionsTabState {
             temp_action_stop_on_failure: false,
             temp_action_capture_output: false,
             temp_action_keybinding_enabled: true,
+            agent_commands: None,
+            agent_command_pending_delete: None,
+            agent_command_error: None,
         }
     }
 }
