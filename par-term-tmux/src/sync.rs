@@ -72,6 +72,13 @@ impl TmuxSync {
         self.window.get_window(tab_id)
     }
 
+    /// Whether any tmux/par-mux window is still mapped to a tab. Every
+    /// window close unmaps, so false once the session's windows have all
+    /// closed — the attach then has nothing live to persist.
+    pub fn has_windows(&self) -> bool {
+        !self.window.is_empty()
+    }
+
     // =========================================================================
     // Pane mapping delegation
     // =========================================================================

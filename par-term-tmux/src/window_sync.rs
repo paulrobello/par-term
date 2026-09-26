@@ -44,6 +44,12 @@ impl WindowSyncState {
         self.tab_to_window.get(&tab_id).copied()
     }
 
+    /// Whether no tmux window is mapped — every mapped window has closed
+    /// (each close unmaps), so the session has no live windows to show.
+    pub fn is_empty(&self) -> bool {
+        self.window_to_tab.is_empty()
+    }
+
     /// Clear all window mappings.
     pub fn clear(&mut self) {
         self.window_to_tab.clear();

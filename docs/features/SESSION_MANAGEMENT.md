@@ -151,7 +151,7 @@ A window attached to a par-mux session at save time persists `mux_session_name` 
 2. `begin_mux_session_attach(name)` reconnects (create-or-attach) on a worker thread.
 3. The daemon's windows arrive as tabs via `%window-add`; the first one closes the placeholder, so the restored window holds only daemon tabs.
 
-If the attach fails, the placeholder stays and the window works as a normal local-shell window.
+If the attach fails, the placeholder stays and the window works as a normal local-shell window. An emptied session is not persisted: when every daemon window has closed (exiting each shell), the save drops `mux_session_name` so relaunch does not reattach to a session the user deliberately ended. A window quit while daemon panes are live still reattaches.
 
 ### Restore Behavior
 

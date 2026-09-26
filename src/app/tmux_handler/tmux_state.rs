@@ -161,7 +161,19 @@ impl TmuxState {
     /// session of the same name instead of reattaching to the daemon.
     pub(crate) fn persisted_session_names(&self) -> (Option<String>, Option<String>) {
         match (&self.tmux_session_name, self.transport.is_some()) {
-            (Some(name), true) => (None, Some(name.clone())),
+            (Some(name), true) => {
+                // An emptied session must not come back on restore:
+                // exiting every daemon shell closes and unmaps each
+                // window, so an empty sync table at save time means the
+                // session's contents ended. Persisting the name would
+                // make the next launch create-or-attach to the emptied
+                // session and hand back a fresh window the user
+                // deliberately closed (observed live 2026-09-26).
+                if !self.tmux_sync.has_windows() {
+                    return (None, None);
+                }
+                (None, Some(name.clone()))
+            }
             (name, false) => (name.clone(), None),
             (None, true) => (None, None),
         }

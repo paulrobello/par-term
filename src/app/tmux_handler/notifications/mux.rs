@@ -4031,7 +4031,8 @@ out.flush()
     /// tmux-tagged name through the tmux gateway, which spawned a real
     /// `tmux -CC new-session -A` of the same name (measured live
     /// 2026-09-23: single pane, then a blank window, on successive
-    /// reopens).
+    /// reopens). The session must have a live mapped window — that is the
+    /// quit-with-panes shape worth reattaching to on relaunch.
     #[test]
     fn an_attached_mux_session_persists_as_mux_not_tmux() {
         let path = socket_path("persist-kind");
@@ -4042,10 +4043,109 @@ out.flush()
         let mut ws = manners_state();
         ws.tmux_state.transport = Some(Box::new(transport));
         ws.tmux_state.tmux_session_name = Some("kind".to_string());
+        ws.handle_tmux_window_add(0);
         assert_eq!(
             ws.tmux_state.persisted_session_names(),
             (None, Some("kind".to_string())),
-            "a transport-attached name is a mux name"
+            "a transport-attached name over live windows is a mux name"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The save-time shape of the emptied-session bug: the attach recorded
+    /// the name and the transport is still installed, but every daemon
+    /// window has closed (each close unmaps). Persisting the name made the
+    /// next launch create-or-attach to the emptied session and hand back a
+    /// fresh window the user had deliberately closed (observed live
+    /// 2026-09-26) — an emptied session persists nothing.
+    #[test]
+    fn an_emptied_mux_session_does_not_persist_its_name() {
+        let path = socket_path("persist-emptied");
+        spawn_daemon(&path);
+        let transport = connect(&path);
+        attach_test(&transport, "gone", None, &Default::default()).expect("attach");
+
+        let mut ws = manners_state();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("gone".to_string());
+        assert_eq!(
+            ws.tmux_state.persisted_session_names(),
+            (None, None),
+            "a session with no live windows must not persist its name"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// End to end: the real roads the user's shells take. A created
+    /// session's window arrives via %window-add and the live session
+    /// persists its name (the quit-with-panes case); killing that last
+    /// window — what a shell exit in the pane does — closes and unmaps the
+    /// tab, and the emptied session persists nothing.
+    #[test]
+    fn exiting_every_mux_window_stops_the_session_name_persisting() {
+        let path = socket_path("persist-e2e");
+        spawn_daemon(&path);
+
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(pending_with_client("emptyme", &path));
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while (ws.tab_manager.tabs().is_empty() || ws.tmux_state.tmux_pane_owners.is_empty())
+            && Instant::now() < deadline
+        {
+            // The layout pump from the recorder pattern: force the daemon
+            // to broadcast %layout-change so the pane (and the tab's
+            // tmux_pane_id) exists — the shape a live pane has before the
+            // user exits its shell.
+            let _ = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(
+            !ws.tab_manager.tabs().is_empty() && !ws.tmux_state.tmux_pane_owners.is_empty(),
+            "the created session's window and pane must arrive"
+        );
+
+        assert_eq!(
+            ws.tmux_state.persisted_session_names(),
+            (None, Some("emptyme".to_string())),
+            "a live session with a mapped window persists its name"
+        );
+
+        let tab_id = ws.tab_manager.tabs()[0].id;
+        let window = ws
+            .tmux_state
+            .tmux_sync
+            .get_window(tab_id)
+            .expect("daemon window mapped");
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command(&format!("kill-window -t @{window}"))
+            .expect("kill-window");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tab_manager.tabs().is_empty() && Instant::now() < deadline {
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(
+            ws.tab_manager.tabs().is_empty(),
+            "the killed window's tab must close"
+        );
+        assert_eq!(
+            ws.tmux_state.persisted_session_names(),
+            (None, None),
+            "the emptied session must not persist its name"
         );
 
         let _ = std::fs::remove_file(&path);
