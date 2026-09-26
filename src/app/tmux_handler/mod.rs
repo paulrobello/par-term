@@ -17,6 +17,11 @@ mod notifications;
 pub(crate) mod pane_write;
 pub(crate) mod tmux_state;
 
+/// What [`crate::app::window_state::WindowState::launch_agent_via_mux`]
+/// did with a launch attempt (NotMux / Launched / Failed).
+#[cfg(feature = "mux")]
+pub(crate) use notifications::mux::MuxLaunchOutcome;
+
 /// Columns reserved at the window's right edge for the scrollbar in a
 /// par-mux tab. The daemon's layout knows nothing about par-term's
 /// scrollbar, so the width pushed to it excludes this strip and the native

@@ -10,6 +10,7 @@
 
 use crate::app::input_events::keybinding_actions::ACTION_HANDLERS;
 use crate::app::input_events::keybinding_display_actions::DISPLAY_ACTION_HANDLERS;
+use par_term_config::agent_launcher::AgentLaunchConfig;
 use par_term_scripting::plugin_manager::PluginActionRow;
 use par_term_settings_ui::input_tab::actions_table::AVAILABLE_ACTIONS;
 
@@ -101,6 +102,46 @@ pub(crate) fn plugin_palette_entries(rows: &[PluginActionRow]) -> Vec<PaletteEnt
     entries
 }
 
+/// Palette entries for configured launchable agents (the `agents:` config
+/// list). Config order is preserved — the user's own ordering is the
+/// ordering — and the merged view re-sorts by label on open anyway.
+///
+/// Every agent gets a plain "Launch <name>" row; an `autonomy_args` entry
+/// additionally gets the labelled "(autonomous)" row — the explicit
+/// consent surface for autonomy flags, which are never part of a plain
+/// launch. A `default: true` entry adds the "Launch Default Agent" row.
+pub(crate) fn agent_palette_entries(agents: &[AgentLaunchConfig]) -> Vec<PaletteEntry> {
+    let mut entries: Vec<PaletteEntry> = agents
+        .iter()
+        .flat_map(|agent| {
+            let mut rows = vec![PaletteEntry {
+                action_id: format!("launch-agent:{}", agent.id),
+                label: format!("Launch {}", agent.name),
+                chord: None,
+                priority: 0,
+            }];
+            if !agent.autonomy_args.trim().is_empty() {
+                rows.push(PaletteEntry {
+                    action_id: format!("launch-agent-autonomous:{}", agent.id),
+                    label: format!("Launch {} (autonomous)", agent.name),
+                    chord: None,
+                    priority: 0,
+                });
+            }
+            rows
+        })
+        .collect();
+    if let Some(default) = par_term_config::agent_launcher::default_agent(agents) {
+        entries.push(PaletteEntry {
+            action_id: "launch-default-agent".to_string(),
+            label: format!("Launch Default Agent ({})", default.name),
+            chord: None,
+            priority: 0,
+        });
+    }
+    entries
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,6 +159,43 @@ mod tests {
             build_catalog().len() > 50,
             "par-term dispatches 70+ actions; a near-empty catalog means the join failed"
         );
+    }
+
+    fn launch_agent(id: &str, autonomy: &str, default: bool) -> AgentLaunchConfig {
+        AgentLaunchConfig {
+            id: id.to_string(),
+            name: id.to_string(),
+            command: id.to_string(),
+            autonomy_args: autonomy.to_string(),
+            default,
+        }
+    }
+
+    #[test]
+    fn agent_entries_offering_autonomy_only_when_configured() {
+        let entries = agent_palette_entries(&[
+            launch_agent("claude", "--permission-mode auto", true),
+            launch_agent("codex", "", false),
+        ]);
+        let ids: Vec<&str> = entries.iter().map(|e| e.action_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "launch-agent:claude",
+                "launch-agent-autonomous:claude",
+                "launch-agent:codex",
+                "launch-default-agent",
+            ]
+        );
+        let autonomous = &entries[1];
+        assert_eq!(autonomous.label, "Launch claude (autonomous)");
+        let default = entries.last().unwrap();
+        assert_eq!(default.label, "Launch Default Agent (claude)");
+    }
+
+    #[test]
+    fn agent_entries_empty_when_unconfigured() {
+        assert!(agent_palette_entries(&[]).is_empty());
     }
 
     #[test]

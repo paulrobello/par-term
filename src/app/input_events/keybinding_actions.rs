@@ -111,6 +111,11 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         // Agent-authored commands join as runtime rows, hot-reloaded by the
         // commands-dir watcher (design 2026-09-24).
         plugin_rows.extend(s.agent_commands.palette_rows());
+        // Configured launchable agents join the same way (the `agents:`
+        // config list — config data, not a dispatch-table built-in).
+        plugin_rows.extend(crate::command_palette::catalog::agent_palette_entries(
+            &s.config.load().agents,
+        ));
         // Rostered agents join the palette at open time (A2b task 3): the
         // rows are runtime data from the cache, like the plugin rows —
         // scoped to panes the app maps, so every offered row is focusable.
@@ -624,6 +629,12 @@ impl WindowState {
             }
         } else if let Some(cmd_id) = action.strip_prefix("agent-cmd:") {
             self.execute_agent_command(cmd_id, &[])
+        } else if let Some(agent_id) = action.strip_prefix("launch-agent-autonomous:") {
+            self.launch_agent_by_id(agent_id, true)
+        } else if let Some(agent_id) = action.strip_prefix("launch-agent:") {
+            self.launch_agent_by_id(agent_id, false)
+        } else if action == "launch-default-agent" {
+            self.launch_default_agent()
         } else if let Some(pane_id) = parse_agent_roster_focus_id(action) {
             if self.focus_agent_roster_pane(pane_id) {
                 log::info!("Focused agent roster pane {} via palette", pane_id);

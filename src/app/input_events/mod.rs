@@ -21,6 +21,7 @@
 //! coverage, uniqueness, and precedence guards that replace what the compiler
 //! checked before.
 
+mod agent_launch;
 #[cfg(test)]
 mod dispatch_tests;
 mod ime;

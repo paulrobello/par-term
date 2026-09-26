@@ -511,6 +511,13 @@ impl WindowState {
                             // Agent-authored commands join the palette the
                             // same way (runtime rows from the store).
                             plugin_rows.extend(self.agent_commands.palette_rows());
+                            // Configured launchable agents (`agents:` config
+                            // list) — same runtime-rows pattern.
+                            plugin_rows.extend(
+                                crate::command_palette::catalog::agent_palette_entries(
+                                    &self.config.load().agents,
+                                ),
+                            );
                             // The attached par-mux session's detach row —
                             // same runtime-rows pattern as the roster.
                             #[cfg(feature = "mux")]

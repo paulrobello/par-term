@@ -622,6 +622,19 @@ pub(crate) struct MuxAttachPending {
     pub(crate) rx: std::sync::mpsc::Receiver<io::Result<par_term_emu_core_rust::mux::MuxClient>>,
 }
 
+/// What [`WindowState::launch_agent_via_mux`] did with a launch attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MuxLaunchOutcome {
+    /// No transport attached / no daemon pane resolvable — the caller
+    /// falls through to the local launch path.
+    NotMux,
+    /// The agent command was typed into a fresh daemon pane.
+    Launched,
+    /// A daemon target resolved but a wire step failed (toast shown) —
+    /// consumed, never fall through to a local tab beside the daemon.
+    Failed,
+}
+
 impl WindowState {
     /// Split the focused par-mux pane daemon-side: targeted `split-window`
     /// via the transport (the command the tmux gateway writes to its PTY),
@@ -724,6 +737,83 @@ impl WindowState {
                 true
             }
         }
+    }
+
+    /// Launch a configured agent into a new daemon-side pane (the
+    /// agent-launcher palette's mux arm). Splits the resolved mux pane,
+    /// then types the command line into the new pane's shell: the daemon
+    /// spawns shells on `split-window` (no command argument exists on the
+    /// wire), so typing is the launch mechanism, and the pane lands in the
+    /// current daemon window where the agent roster's hooks report it.
+    ///
+    /// The split's reply must carry the new pane id before any keys are
+    /// sent — `mux_focused_pane` may hold a stale id from an earlier
+    /// interaction, so it is never trusted as the send target here.
+    pub(crate) fn launch_agent_via_mux(&mut self, command_line: &str) -> MuxLaunchOutcome {
+        let Some(transport) = &self.tmux_state.transport else {
+            return MuxLaunchOutcome::NotMux;
+        };
+        let Some(target) = self.any_mux_pane() else {
+            crate::debug_trace!("MUX", "agent launch skipped — no daemon pane resolvable");
+            return MuxLaunchOutcome::NotMux;
+        };
+        stamp_pane_session_id(transport.as_ref(), self.tmux_state.mux_session_id);
+        let reply = match transport.send_command(&format!("split-window -h -t %{target}")) {
+            Ok(reply) => reply,
+            Err(e) => {
+                log::error!("par-mux agent-launch split failed: {e}");
+                self.show_toast(format!("par-mux: launch failed — {e}"));
+                return MuxLaunchOutcome::Failed;
+            }
+        };
+        let Some(pane) = reply.iter().find_map(|line| {
+            line.trim()
+                .strip_prefix('%')
+                .and_then(|s| s.parse::<u64>().ok())
+        }) else {
+            // An %error block arrives as an Ok reply body with no pane id —
+            // the same failure signal as the split path. The daemon target
+            // resolved, so this is consumed-failed, never fall-through.
+            let body = reply.join("\n");
+            log::error!("par-mux agent-launch split rejected: {body}");
+            self.show_toast(format!("par-mux: launch failed — {body}"));
+            return MuxLaunchOutcome::Failed;
+        };
+        let keys = [
+            format!(
+                "send-keys -t %{pane} -l {}",
+                par_term_mux::quote_env_value(command_line)
+            ),
+            format!("send-keys -t %{pane} Enter"),
+        ];
+        for cmd in keys {
+            if let Err(e) = transport.send_command(&cmd) {
+                log::error!("par-mux agent-launch {cmd:?} failed: {e}");
+                self.show_toast(format!("par-mux: launch failed — {e}"));
+                return MuxLaunchOutcome::Failed;
+            }
+        }
+        log::info!("MUX: agent launched in %{pane}");
+        MuxLaunchOutcome::Launched
+    }
+
+    /// Resolve any daemon pane to act as a launch anchor: the explicit mux
+    /// focus, then the focused native pane's mapping (input routing's
+    /// resolution), then the first mux tab's focused pane in tab order —
+    /// so launching from a local tab while attached still lands daemon-side
+    /// where the roster sees it, instead of a local tab whose command write
+    /// would miss the daemon pane.
+    fn any_mux_pane(&self) -> Option<u64> {
+        if let Some(pane) = self.tmux_state.mux_focused_pane {
+            return Some(pane);
+        }
+        if let Some(pane) = self.focused_mux_pane_from_native() {
+            return Some(pane);
+        }
+        self.tab_manager.tabs().iter().find_map(|tab| {
+            let pane_id = tab.pane_manager()?.focused_pane()?.id;
+            self.tmux_state.tmux_pane_in_tab(tab.id, pane_id)
+        })
     }
 
     /// Begin the profile-open attach for `name` WITHOUT blocking the event
@@ -4951,6 +5041,96 @@ out.flush()
             ws.tmux_state.tmux_sync.get_tab(new_window).is_some(),
             "the new tab maps to the new daemon window"
         );
+    }
+
+    // =========================================================================
+    // Agent launcher mux arm (card 01a0d8da6ec47b)
+    // =========================================================================
+
+    /// The daemon pane ids `%N` from a `list-panes` reply.
+    fn listed_panes(probe: &mut MuxSessionClient) -> Vec<u64> {
+        probe
+            .send("list-panes")
+            .expect("list-panes")
+            .iter()
+            .filter_map(|line| {
+                line.trim()
+                    .strip_prefix('%')
+                    .and_then(|s| s.parse::<u64>().ok())
+            })
+            .collect()
+    }
+
+    /// A launch splits the resolved daemon pane and TYPES the command line
+    /// into the new pane's shell (the daemon spawns shells — typing IS the
+    /// launch), and the new pane is a daemon pane mapped client-side, the
+    /// eligibility the roster's pickers and hooks need.
+    #[test]
+    fn launch_agent_via_mux_types_into_a_fresh_daemon_pane() {
+        let (mut ws, mut probe) = attached_state("agent-launch", "agent-launch");
+        // A background window's layout is not pushed on its own — the
+        // refresh-client -C pump forces the %layout-change that maps the
+        // panes (the detach-fast pattern).
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while ws.tmux_state.tmux_pane_owners.is_empty() {
+            assert!(Instant::now() < deadline, "no daemon pane ever mapped");
+            for pane in listed_panes(&mut probe) {
+                let _ = probe.send(&format!("refresh-client -t %{pane} -C 80x24"));
+            }
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        let before = listed_panes(&mut probe);
+
+        let outcome = ws.launch_agent_via_mux("echo PAR_TERM_AGENT_LAUNCHED");
+        assert_eq!(outcome, MuxLaunchOutcome::Launched);
+
+        // A new daemon pane exists; its shell ran the typed command.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let new_pane = loop {
+            let fresh = listed_panes(&mut probe);
+            if let Some(id) = fresh.iter().find(|id| !before.contains(id)) {
+                break *id;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "launch created no daemon pane; before={before:?} now={fresh:?}"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        };
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let view = loop {
+            let captured = probe
+                .send(&format!("capture-pane -t %{new_pane} -p"))
+                .expect("capture-pane")
+                .join("|");
+            if captured.contains("PAR_TERM_AGENT_LAUNCHED") || Instant::now() >= deadline {
+                break captured;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        assert!(
+            view.contains("PAR_TERM_AGENT_LAUNCHED"),
+            "typed command never ran in %{new_pane}: {view:?}"
+        );
+        // Client-side mapping (roster rows scope to mapped panes).
+        pump_until(
+            &mut ws,
+            |ws| ws.tmux_state.tmux_pane_owners.contains_key(&new_pane),
+            "the launched pane's client mapping",
+        );
+    }
+
+    /// Dispatch guards: an unknown agent id and a missing default no-op
+    /// (toast + false) instead of launching anything.
+    #[test]
+    fn launch_dispatch_rejects_unknown_agent_and_missing_default() {
+        let mut ws = manners_state();
+        assert!(!ws.launch_agent_by_id("bogus", false));
+        assert!(!ws.launch_default_agent());
+        // And the action-name spellings reach them through the dispatcher.
+        assert!(!ws.execute_keybinding_action("launch-agent:bogus"));
+        assert!(!ws.execute_keybinding_action("launch-default-agent"));
     }
 
     /// Closing a mux tab kills the daemon window; the tab tears down via
