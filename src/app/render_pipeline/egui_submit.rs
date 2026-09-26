@@ -340,96 +340,12 @@ impl WindowState {
                     );
 
                     // Demote pick-mode overlays (toast hints + direction-choice dialog)
-                    match demote_snapshot {
-                        super::types::DemoteSnapshot::PickTab => {
-                            egui_overlays::render_toast_overlay(
-                                ctx,
-                                Some("Click a tab to merge into (Esc to cancel)"),
-                            );
-                        }
-                        super::types::DemoteSnapshot::PickPane => {
-                            egui_overlays::render_toast_overlay(
-                                ctx,
-                                Some("Click a pane to merge into (Esc to cancel)"),
-                            );
-                        }
-                        // QA-004: destructure ChooseDirection ONCE here so the click
-                        // handlers below can reference the bound IDs directly. The outer
-                        // match guarantees the variant, so there is no failing variant
-                        // check inside the closures — a wrong variant skips this arm
-                        // entirely (falling through to PickTab/PickPane/Idle) instead
-                        // of panicking mid-frame via `unreachable!()`.
-                        super::types::DemoteSnapshot::ChooseDirection {
-                            source_tab_id,
-                            target_tab_id,
-                            target_pane_id,
-                        } => {
-                            if let Some(bounds) = demote_pane_bounds {
-                                let center_x = bounds.x + bounds.width / 2.0;
-                                let center_y = bounds.y + bounds.height / 2.0;
-
-                                egui::Area::new(egui::Id::new("demote_direction_overlay"))
-                                    .fixed_pos(egui::pos2(center_x - 100.0, center_y - 30.0))
-                                    .order(egui::Order::Foreground)
-                                    .show(ctx, |ui| {
-                                        egui::Frame::NONE
-                                            .fill(egui::Color32::from_rgba_unmultiplied(
-                                                30, 30, 30, 240,
-                                            ))
-                                            .inner_margin(egui::Margin::symmetric(16, 10))
-                                            .corner_radius(8.0)
-                                            .stroke(egui::Stroke::new(
-                                                1.0,
-                                                egui::Color32::from_rgb(80, 80, 80),
-                                            ))
-                                            .show(ui, |ui| {
-                                                ui.style_mut().visuals.override_text_color =
-                                                    Some(egui::Color32::from_rgb(255, 255, 255));
-                                                ui.vertical_centered(|ui| {
-                                                    ui.label(
-                                                        egui::RichText::new("Split direction:")
-                                                            .size(14.0),
-                                                    );
-                                                    ui.add_space(4.0);
-                                                    ui.horizontal(|ui| {
-                                                        if ui
-                                                            .button(
-                                                                egui::RichText::new("Horizontal")
-                                                                    .size(14.0),
-                                                            )
-                                                            .clicked()
-                                                        {
-                                                            actions.demote =
-                                                                super::types::DemoteAction::Execute {
-                                                                    source_tab_id,
-                                                                    target_tab_id,
-                                                                    target_pane_id,
-                                                                    direction: crate::pane::SplitDirection::Horizontal,
-                                                                };
-                                                        }
-                                                        if ui
-                                                            .button(
-                                                                egui::RichText::new("Vertical")
-                                                                    .size(14.0),
-                                                            )
-                                                            .clicked()
-                                                        {
-                                                            actions.demote =
-                                                                super::types::DemoteAction::Execute {
-                                                                    source_tab_id,
-                                                                    target_tab_id,
-                                                                    target_pane_id,
-                                                                    direction: crate::pane::SplitDirection::Vertical,
-                                                                };
-                                                        }
-                                                    });
-                                                });
-                                            });
-                                    });
-                            }
-                        }
-                        super::types::DemoteSnapshot::Idle => {}
-                    }
+                    super::egui_dialogs::render_demote_overlays(
+                        ctx,
+                        demote_snapshot,
+                        demote_pane_bounds,
+                        actions,
+                    );
 
                     // Scrollbar mark tooltip (near mouse pointer)
                     egui_overlays::render_scrollbar_mark_tooltip(ctx, hovered_mark.as_ref());
@@ -489,43 +405,16 @@ impl WindowState {
                             == Some(crate::status_bar::StatusBarAction::OpenAgentPalette)
                         {
                             // The palette is the roster's list surface (A2b
-                            // task 3); opened the same way the
-                            // toggle_command_palette keybinding opens it, with
-                            // the rostered agents joined as runtime rows —
-                            // blocked agents lead the empty-query view.
-                            // The `mut` serves only the mux arm's extend below.
-                            #[cfg_attr(not(feature = "mux"), allow(unused_mut))]
-                            let mut plugin_rows =
-                                crate::command_palette::catalog::plugin_palette_entries(
-                                    &self.status_bar_ui.plugin_host().palette_actions(),
-                                );
-                            #[cfg(feature = "mux")]
-                            {
-                                let map = &self.tmux_state.tmux_pane_owners;
-                                plugin_rows.extend(
-                                    self.tmux_state
-                                        .agent_roster
-                                        .palette_rows(&|pane| map.contains_key(&pane)),
-                                );
-                            }
-                            // Agent-authored commands join the palette the
-                            // same way (runtime rows from the store).
-                            plugin_rows.extend(self.agent_commands.palette_rows());
-                            // Configured launchable agents (`agents:` config
-                            // list) — same runtime-rows pattern.
-                            plugin_rows.extend(
-                                crate::command_palette::catalog::agent_palette_entries(
-                                    &self.config.load().agents,
-                                ),
+                            // task 3) — runtime rows joined at open time.
+                            super::egui_dialogs::open_command_palette_with_runtime_rows(
+                                &self.status_bar_ui,
+                                &self.agent_commands,
+                                &mut self.crash_triage,
+                                &self.config,
+                                &mut self.overlay_ui.command_palette,
+                                #[cfg(feature = "mux")]
+                                &self.tmux_state,
                             );
-                            // Captured crashes — the triage consent surface
-                            // (crash_triage module).
-                            plugin_rows.extend(self.crash_triage.palette_entries());
-                            // The attached par-mux session's detach row —
-                            // same runtime-rows pattern as the roster.
-                            #[cfg(feature = "mux")]
-                            plugin_rows.extend(self.tmux_state.mux_palette_rows());
-                            self.overlay_ui.command_palette.open(plugin_rows);
                         }
                     }
 
@@ -600,81 +489,13 @@ impl WindowState {
                     actions.ssh_connect = self.overlay_ui.ssh_connect_ui.show(ctx);
 
                     // Render update dialog overlay
-                    if self.update_state.show_dialog {
-                        // Poll for update install completion
-                        if let Some(ref rx) = self.update_state.install_receiver
-                            && let Ok(result) = rx.try_recv()
-                        {
-                            match result {
-                                Ok(update_result) => {
-                                    self.update_state.install_status = Some(format!(
-                                        "Updated to v{}! Restart par-term to use the new version.",
-                                        update_result.new_version
-                                    ));
-                                    self.update_state.installing = false;
-                                    self.status_bar_ui.update_available_version = None;
-                                }
-                                Err(e) => {
-                                    self.update_state.install_status =
-                                        Some(format!("Update failed: {}", e));
-                                    self.update_state.installing = false;
-                                }
-                            }
-                            self.update_state.install_receiver = None;
-                        }
-
-                        if let Some(ref update_result) = self.update_state.last_result {
-                            let dialog_action = crate::update_dialog::render(
-                                ctx,
-                                update_result,
-                                env!("CARGO_PKG_VERSION"),
-                                self.update_state.installation_type,
-                                self.update_state.installing,
-                                self.update_state.install_status.as_deref(),
-                            );
-                            match dialog_action {
-                                crate::update_dialog::UpdateDialogAction::Dismiss => {
-                                    if !self.update_state.installing {
-                                        self.update_state.show_dialog = false;
-                                        self.update_state.install_status = None;
-                                    }
-                                }
-                                crate::update_dialog::UpdateDialogAction::SkipVersion(v) => {
-                                    self.config.rcu(|old| {
-                                        let mut new = (**old).clone();
-                                        new.updates.skipped_version = Some(v.clone());
-                                        std::sync::Arc::new(new)
-                                    });
-                                    self.update_state.show_dialog = false;
-                                    self.status_bar_ui.update_available_version = None;
-                                    self.update_state.install_status = None;
-                                    actions.save_config = true;
-                                }
-                                crate::update_dialog::UpdateDialogAction::InstallUpdate(v) => {
-                                    if !self.update_state.installing {
-                                        self.update_state.installing = true;
-                                        self.update_state.install_status =
-                                            Some("Downloading update...".to_string());
-                                        let (tx, rx) = std::sync::mpsc::channel();
-                                        self.update_state.install_receiver = Some(rx);
-                                        let version = v.clone();
-                                        let current_version = crate::VERSION.to_string();
-                                        std::thread::spawn(move || {
-                                            let result = par_term_update::self_updater::perform_update(
-                                                &version,
-                                                &current_version,
-                                            );
-                                            let _ = tx.send(result);
-                                        });
-                                    }
-                                    // Don't close dialog while installing
-                                }
-                                crate::update_dialog::UpdateDialogAction::None => {}
-                            }
-                        } else {
-                            self.update_state.show_dialog = false;
-                        }
-                    }
+                    super::egui_dialogs::render_update_dialog(
+                        ctx,
+                        &mut self.update_state,
+                        &mut self.status_bar_ui,
+                        &self.config,
+                        actions,
+                    );
 
                     // Render profile drawer (right side panel).
                     // Pass the custom status bar height as a bottom margin so the
@@ -699,11 +520,12 @@ impl WindowState {
                     if let (Some(snap), Some(size)) = (progress_snapshot, window_size_for_badge) {
                         let tab_count = self.tab_manager.visible_tab_count();
                         let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config.load());
-                        let (top_inset, bottom_inset) = match self.config.load().tabs.tab_bar_position {
-                            par_term_config::TabBarPosition::Top => (tb_height, 0.0),
-                            par_term_config::TabBarPosition::Bottom => (0.0, tb_height),
-                            par_term_config::TabBarPosition::Left => (0.0, 0.0),
-                        };
+                        let (top_inset, bottom_inset) =
+                            match self.config.load().tabs.tab_bar_position {
+                                par_term_config::TabBarPosition::Top => (tb_height, 0.0),
+                                par_term_config::TabBarPosition::Bottom => (0.0, tb_height),
+                                par_term_config::TabBarPosition::Left => (0.0, 0.0),
+                            };
                         render_progress_bars(
                             ctx,
                             snap,
