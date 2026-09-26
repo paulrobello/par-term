@@ -60,10 +60,7 @@ mod tests {
     fn command_line_appends_autonomy_only_when_asked() {
         let a = agent("claude", "--permission-mode auto", false);
         assert_eq!(a.command_line(false), "claude");
-        assert_eq!(
-            a.command_line(true),
-            "claude --permission-mode auto"
-        );
+        assert_eq!(a.command_line(true), "claude --permission-mode auto");
     }
 
     #[test]
@@ -92,7 +89,10 @@ mod tests {
         let yaml = "- id: claude\n  name: Claude\n  command: claude\n  autonomy_args: --permission-mode auto\n  default: true\n";
         let agents: Vec<AgentLaunchConfig> = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(agents.len(), 1);
-        assert_eq!(agents[0].command_line(true), "claude --permission-mode auto");
+        assert_eq!(
+            agents[0].command_line(true),
+            "claude --permission-mode auto"
+        );
         assert!(agents[0].default);
         // Absent optional fields default.
         let minimal: Vec<AgentLaunchConfig> =
