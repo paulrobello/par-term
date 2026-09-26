@@ -232,6 +232,7 @@ impl WindowState {
         drop(config);
 
         let mut toasts: Vec<String> = Vec::new();
+        let mut respawned: Vec<(u64, u64)> = Vec::new();
         for tab in self.tab_manager.tabs() {
             if tab.tmux.tmux_gateway_active || tab.tmux.tmux_pane_id.is_some() {
                 continue;
@@ -241,6 +242,9 @@ impl WindowState {
             };
             for pane in pm.all_panes() {
                 if pane.is_running() {
+                    // A running pane with a captured key was respawned — its
+                    // next death is a new crash episode.
+                    respawned.push((tab.id, pane.id));
                     continue;
                 }
                 let key = (tab.id, pane.id);
@@ -272,5 +276,6 @@ impl WindowState {
         for toast in toasts {
             self.show_toast(toast);
         }
+        self.crash_triage.clear_captured(&respawned);
     }
 }

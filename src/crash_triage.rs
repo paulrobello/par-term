@@ -112,6 +112,15 @@ impl CrashTriageState {
         self.captured.retain(|(tab_id, _)| live.contains(tab_id));
     }
 
+    /// Drop the dedupe keys of panes observed running again: a respawned
+    /// pane keeps its id and terminal, so without this its next crash would
+    /// be swallowed by the key from the previous episode.
+    pub(crate) fn clear_captured(&mut self, keys: &[(TabId, PaneId)]) {
+        for key in keys {
+            self.captured.remove(key);
+        }
+    }
+
     /// Consume an offer on activation (`triage-crash:<id>` dispatch).
     pub(crate) fn take(&mut self, id: u64) -> Option<CrashOffer> {
         let index = self.offers.iter().position(|offer| offer.id == id)?;
@@ -300,6 +309,18 @@ mod tests {
     }
 
     #[test]
+    fn clear_captured_lets_a_respawned_pane_offer_again() {
+        let mut state = CrashTriageState::default();
+        let k = key(1, 1);
+        state.record(k, "t".into(), 9, "sh", "x").unwrap();
+        assert!(state.record(k, "t".into(), 9, "sh", "x").is_none());
+        // The pane restarted and is running again.
+        state.clear_captured(&[k]);
+        assert!(state.record(k, "t".into(), 9, "sh", "x").is_some());
+        assert_eq!(state.live_offers().len(), 2);
+    }
+
+    #[test]
     fn forget_tabs_except_prunes_dedupe_keys() {
         let mut state = CrashTriageState::default();
         state.record(key(1, 1), "t".into(), 1, "sh", "x");
@@ -388,8 +409,7 @@ mod tests {
             let running = ws
                 .tab_manager
                 .get_tab(victim)
-                .map(|tab| tab.try_with_read_terminal(|term| term.is_running()))
-                .flatten()
+                .and_then(|tab| tab.try_with_read_terminal(|term| term.is_running()))
                 .unwrap_or(false);
             if !running {
                 break;
