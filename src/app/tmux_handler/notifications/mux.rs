@@ -4252,6 +4252,49 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// The converse of the stale-focus test: ON a mapped mux pane the
+    /// literal-bytes path must route (Shift+Enter's raw LF reaches the
+    /// daemon as send-keys -H). Before the fix, the tmux-connected gate
+    /// refused first — a mux window has no tmux_session — so the branch
+    /// below it was dead code and the LF fell onto the hidden local shell.
+    #[test]
+    fn literal_bytes_route_to_the_daemon_on_a_mapped_mux_pane() {
+        let path = socket_path("literal-route");
+        spawn_daemon(&path);
+        let transport = connect(&path);
+        attach_sequence(&transport, "litroute", None, &Default::default()).expect("attach");
+
+        let mut ws = manners_state();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        // A local tab whose focused pane mirrors daemon pane %0 — the
+        // minimum mapping focused_mux_pane_from_native needs.
+        let grid = None;
+        let tab_id = ws
+            .tab_manager
+            .new_tab(
+                &ws.config.load(),
+                std::sync::Arc::clone(&ws.runtime),
+                false,
+                grid,
+            )
+            .expect("local tab");
+        ws.tab_manager.switch_to(tab_id);
+        let pane_id = ws
+            .tab_manager
+            .active_tab()
+            .and_then(|tab| tab.focused_pane_id())
+            .expect("focused pane");
+        ws.tmux_state
+            .set_tab_pane_mappings(tab_id, &[(0, pane_id)].into_iter().collect());
+
+        assert!(
+            ws.send_literal_bytes_via_tmux(b"\n"),
+            "Shift+Enter's literal LF must route through the daemon"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// A `WindowState` with no window, renderer, or tabs — the same seam
     /// `dispatch_tests::test_window_state` uses — so the manners test can
     /// hold the real `apply_agent_pushes` receiver without a live daemon.

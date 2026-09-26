@@ -94,6 +94,22 @@ impl WindowState {
     /// modifyOtherKeys-mode-2 encoder then delivers `\x1b[27;5;106~` instead of
     /// the literal newline the application expects.
     pub fn send_literal_bytes_via_tmux(&self, bytes: &[u8]) -> bool {
+        // par-mux first: a mux-attached window has no tmux_session at all,
+        // so the tmux_enabled/is_tmux_connected gate below would refuse and
+        // the caller would drop the bytes onto the hidden local shell.
+        #[cfg(feature = "mux")]
+        if let Some(transport) = &self.tmux_state.transport {
+            return match self.focused_mux_pane_from_native() {
+                Some(focused) => super::notifications::mux::route_literal_bytes(
+                    &**transport,
+                    Some(focused),
+                    bytes,
+                ),
+                // Not on a mux pane: local PTY input.
+                None => false,
+            };
+        }
+
         if !self.config.load().tmux.tmux_enabled || !self.is_tmux_connected() {
             crate::debug_info!(
                 "SHIFTENTER",
@@ -107,23 +123,6 @@ impl WindowState {
         let session = match &self.tmux_state.tmux_session {
             Some(s) => s,
             None => {
-                // par-mux transport: the literal form routes through the
-                // daemon client too (send-keys -H).
-                #[cfg(feature = "mux")]
-                {
-                    if let Some(transport) = &self.tmux_state.transport {
-                        let focused = self.focused_mux_pane_from_native();
-                        return match focused {
-                            Some(focused) => super::notifications::mux::route_literal_bytes(
-                                &**transport,
-                                Some(focused),
-                                bytes,
-                            ),
-                            // Not on a mux pane: local PTY input.
-                            None => false,
-                        };
-                    }
-                }
                 crate::debug_info!("SHIFTENTER", "send_literal_bytes_via_tmux: no tmux_session");
                 return false;
             }

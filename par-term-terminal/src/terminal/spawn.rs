@@ -459,3 +459,49 @@ impl TerminalManager {
         pty.read_coprocess_errors(id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::TerminalManager;
+
+    /// A mux mirror has no PTY master, so device-query responses generated
+    /// while parsing daemon-fed output must be drained and discarded — the
+    /// daemon owns the real child and answers its own queries. The bare
+    /// `process_data` path keeps them (the reader thread owns draining
+    /// there), which doubles as this test's positive control: the
+    /// measurement CAN see a non-empty response buffer.
+    #[test]
+    fn mux_output_discards_query_responses_instead_of_buffering_them() {
+        let manager = TerminalManager::new(80, 24).unwrap();
+
+        // Positive control: the bare path leaves CPR replies pending.
+        for _ in 0..8 {
+            manager.process_data(b"\x1b[6n");
+        }
+        assert!(
+            manager
+                .pty_session
+                .lock()
+                .terminal()
+                .read()
+                .has_pending_responses(),
+            "control: bare process_data leaves query replies pending"
+        );
+
+        // A fresh mirror fed the same query stream through the mux
+        // pipeline stays empty — every reply drained and discarded.
+        let mirror = TerminalManager::new(80, 24).unwrap();
+        for _ in 0..64 {
+            mirror.process_mux_output(b"\x1b[6n");
+        }
+        assert!(
+            !mirror
+                .pty_session
+                .lock()
+                .terminal()
+                .read()
+                .has_pending_responses(),
+            "mirror query replies must not accumulate"
+        );
+    }
+}
