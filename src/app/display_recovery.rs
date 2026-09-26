@@ -83,6 +83,56 @@ impl DisplayChangeGate {
     }
 }
 
+/// Per-window gate for `WindowEvent::Moved`, answering "did this move put the
+/// window on a monitor it was not on before?".
+///
+/// winit delivers `Moved` for every position update during a window drag —
+/// dozens per second — and the handler must not treat each one as a display
+/// change: a same-config `Surface::configure` heals nothing (see
+/// `CellRenderer::reconfigure_after_display_change` in par-term-render) while
+/// being a compositor-class disturbance under wgpu 30, so a per-move
+/// configure storm is pure cost and a strobe candidate. Only an actual
+/// monitor crossing warrants recovery, and this gate detects it
+/// edge-triggered.
+///
+/// Like [`DisplayChangeGate`], deliberately free of platform dependencies so
+/// its semantics are unit-testable everywhere; the caller feeds it
+/// `window.current_monitor()` and reacts only to `true`.
+#[derive(Debug, Default)]
+pub(crate) struct WindowMoveGate<M> {
+    /// The monitor the window was last known to be on. `None` until the
+    /// first observation (and never returned to once set — a transient
+    /// `current_monitor() == None` keeps the baseline rather than erasing it).
+    last: Option<M>,
+}
+
+impl<M: PartialEq> WindowMoveGate<M> {
+    pub(crate) const fn new() -> Self {
+        Self { last: None }
+    }
+
+    /// Record the window's current monitor and report whether it differs
+    /// from the previously recorded one.
+    ///
+    /// - The first observation establishes the baseline and returns `false`.
+    /// - `None` (monitor transiently unknown) returns `false` and keeps the
+    ///   baseline.
+    /// - A change from one known monitor to another returns `true` once.
+    pub(crate) fn observe(&mut self, current: Option<M>) -> bool {
+        let Some(current) = current else {
+            return false;
+        };
+        match &self.last {
+            Some(last) if *last == current => false,
+            _ => {
+                let changed = self.last.is_some();
+                self.last = Some(current);
+                changed
+            }
+        }
+    }
+}
+
 /// Process-wide display-change gate, shared between the macOS notification
 /// observer (AppKit main-thread callback) and the winit event loop
 /// (`ApplicationHandler::user_event`).
@@ -287,5 +337,59 @@ mod tests {
     fn fresh_gate_is_not_pending() {
         let gate = DisplayChangeGate::default();
         assert!(!gate.is_pending());
+    }
+
+    #[test]
+    fn move_gate_first_observation_records_without_firing() {
+        let mut gate = WindowMoveGate::new();
+        assert!(
+            !gate.observe(Some("monitor-a")),
+            "the first Moved event only establishes the baseline"
+        );
+    }
+
+    #[test]
+    fn move_gate_same_monitor_never_fires() {
+        let mut gate = WindowMoveGate::new();
+        gate.observe(Some("monitor-a"));
+        for _ in 0..50 {
+            assert!(
+                !gate.observe(Some("monitor-a")),
+                "moving within one monitor must not fire"
+            );
+        }
+    }
+
+    #[test]
+    fn move_gate_fires_once_per_monitor_crossing() {
+        let mut gate = WindowMoveGate::new();
+        gate.observe(Some("monitor-a"));
+        assert!(
+            gate.observe(Some("monitor-b")),
+            "crossing to another monitor must fire exactly once"
+        );
+        assert!(!gate.observe(Some("monitor-b")));
+        assert!(gate.observe(Some("monitor-a")));
+    }
+
+    #[test]
+    fn move_gate_transient_unknown_monitor_keeps_baseline() {
+        // current_monitor() can briefly return None (window off-screen,
+        // display tearing down). That must neither fire a recovery nor
+        // forget which monitor the window was on: returning to the SAME
+        // monitor stays silent, while the preserved baseline means a move
+        // to a different one still fires.
+        let mut gate = WindowMoveGate::new();
+        gate.observe(Some("monitor-a"));
+        assert!(!gate.observe(None));
+        assert!(!gate.observe(Some("monitor-a")));
+        assert!(gate.observe(Some("monitor-b")));
+    }
+
+    #[test]
+    fn move_gate_baseline_from_none_via_none_is_inert() {
+        let mut gate = WindowMoveGate::new();
+        assert!(!gate.observe(None));
+        assert!(!gate.observe(Some("monitor-a")), "still just a baseline");
     }
 }

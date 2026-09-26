@@ -160,6 +160,15 @@ pub fn refresh_config_after_display_change(
 
 impl CellRenderer {
     pub fn reconfigure_surface(&mut self) {
+        // Every configure path must be attributable from the debug log: a
+        // silent same-config configure is exactly how the wgpu-30 strobe
+        // hid (the Moved handler stormed here invisibly at default level).
+        log::info!(
+            "Plain surface reconfigure (same config, {}x{}, {:?})",
+            self.config.width,
+            self.config.height,
+            self.config.present_mode
+        );
         self.surface.configure(&self.device, &self.config);
     }
 

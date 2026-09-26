@@ -93,6 +93,8 @@ impl WindowState {
 
             focus_state: FocusState::default(),
 
+            window_move_gate: crate::app::display_recovery::WindowMoveGate::new(),
+
             render_loop: RenderLoopState::default(),
 
             watcher_state: WatcherState::default(),

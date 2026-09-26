@@ -109,9 +109,11 @@ impl WindowState {
                     let size = window.inner_size();
                     let (cols, rows) = renderer.handle_scale_factor_change(scale_factor, size);
 
-                    // Reconfigure surface after scale factor change.
-                    // This is important when the physical extent is unchanged.
-                    renderer.reconfigure_surface();
+                    // A scale-factor change is a display change, and a
+                    // same-config reconfigure heals nothing (measured
+                    // 2026-09-21) — recover through the present-mode-cycling
+                    // path instead, which also covers an unchanged extent.
+                    renderer.reconfigure_after_display_change(size.width, size.height);
                     // Calculate pixel dimensions
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();
@@ -155,18 +157,27 @@ impl WindowState {
                 }
             }
 
-            // Handle window moved - surface may become invalid when moving between monitors
+            // Handle window moved to a different monitor. winit delivers
+            // `Moved` for every position update during a drag, so this must
+            // be edge-triggered on an actual monitor crossing: a same-config
+            // `Surface::configure` heals nothing while being a
+            // compositor-class disturbance under wgpu 30, and one per move
+            // event is a configure storm (a strobe candidate — see
+            // `display_recovery::WindowMoveGate`).
             WindowEvent::Moved(_) => {
-                if let (Some(renderer), Some(window)) = (&mut self.renderer, &self.window) {
-                    log::debug!(
-                        "Window moved - reconfiguring surface for potential display change"
-                    );
+                let crossed_monitors = match self.window.as_deref() {
+                    Some(window) => self.window_move_gate.observe(window.current_monitor()),
+                    None => false,
+                };
+                if crossed_monitors
+                    && let (Some(renderer), Some(window)) = (&mut self.renderer, &self.window)
+                {
+                    log::info!("Window moved to a different monitor — healing reconfigure");
 
-                    // Reconfigure surface to handle potential display changes
-                    // This catches cases where displays have same DPI but different surface properties
-                    renderer.reconfigure_surface();
+                    let size = window.inner_size();
+                    renderer.reconfigure_after_display_change(size.width, size.height);
 
-                    // On macOS, reconfigure the Metal layer for the potentially new display
+                    // On macOS, reconfigure the Metal layer for the new display
                     #[cfg(target_os = "macos")]
                     {
                         if let Err(e) =

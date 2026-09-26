@@ -154,6 +154,10 @@ pub struct WindowState {
     pub(crate) window: Option<Arc<Window>>,
     /// GPU renderer
     pub(crate) renderer: Option<Renderer>,
+    /// Edge-triggered monitor-crossing detector for `WindowEvent::Moved`
+    /// (see `display_recovery::WindowMoveGate`)
+    pub(crate) window_move_gate:
+        crate::app::display_recovery::WindowMoveGate<winit::monitor::MonitorHandle>,
     /// Keyboard and mouse input handler
     pub(crate) input_handler: InputHandler,
     /// Tokio runtime shared with async PTY tasks
