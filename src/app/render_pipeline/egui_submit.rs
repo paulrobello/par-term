@@ -79,6 +79,20 @@ impl WindowState {
         // hidden (same rule as agent usage above).
         self.status_bar_ui.update_plugins(&self.config.load());
 
+        // A plugin whose supervisor gave up (crash-loop past the restart
+        // cap) is a triage offer, same consent surface as a crashed pane.
+        for cap in self.status_bar_ui.drain_plugin_crash_caps() {
+            let label = self
+                .crash_triage
+                .record_plugin_crash_cap(&cap)
+                .map(|offer| offer.label.clone());
+            if let Some(label) = label {
+                self.show_toast(format!(
+                    "Crash captured ({label}) — Triage in the command palette"
+                ));
+            }
+        }
+
         // Capture session variables for status bar rendering (skip if bar is hidden)
         let status_bar_session_vars = if self.config.load().status_bar.status_bar_enabled
             && !self

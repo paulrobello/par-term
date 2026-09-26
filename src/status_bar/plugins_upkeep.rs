@@ -237,3 +237,14 @@ impl StatusBarUI {
         serde_json::to_string(&settings).unwrap_or_else(|_| "{}".to_string())
     }
 }
+
+impl StatusBarUI {
+    /// Drain plugin crash-cap events (a supervisor gave up on a crash
+    /// looping entry) for the window layer to surface as crash-triage
+    /// offers — same consent surface as a crashed pane.
+    pub(crate) fn drain_plugin_crash_caps(
+        &mut self,
+    ) -> Vec<par_term_scripting::plugin_manager::PluginCrashCap> {
+        self.plugins.drain_crash_caps()
+    }
+}

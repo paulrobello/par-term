@@ -177,6 +177,24 @@ impl CrashTriageState {
         Some(self.offers.remove(index))
     }
 
+    /// Record a plugin crash-cap (the supervisor gave up on a crash-looping
+    /// entry) as a triage offer — the same palette row a crashed pane gets.
+    pub(crate) fn record_plugin_crash_cap(
+        &mut self,
+        cap: &par_term_scripting::plugin_manager::PluginCrashCap,
+    ) -> Option<&CrashOffer> {
+        let label = format!("plugin '{}' ({} entry)", cap.plugin_id, cap.kind);
+        let facts = format!(
+            "- Source: plugin crash-loop ({} restart attempts, supervisor gave up)\n\
+             - Entry: {}\n- Restart policy: {}",
+            par_term_scripting::restart::MAX_RESTART_ATTEMPTS,
+            cap.entry,
+            cap.restart_mode,
+        );
+        let tail = cap.stderr_tail.join("\n");
+        self.record_external(label, 1, &facts, &tail)
+    }
+
     /// Adopt the stashed startup crash, if any (first caller wins).
     pub(crate) fn adopt_startup_crash(&mut self) {
         let stash = STARTUP_CRASH
@@ -424,6 +442,38 @@ mod tests {
         state.forget_tabs_except(&live);
         assert!(!state.already_captured(key(1, 1)));
         assert!(state.already_captured(key(2, 1)));
+    }
+
+    /// The plugin crash-cap trigger, unit-level: the supervisor's give-up
+    /// event becomes the same palette row a crashed pane gets.
+    #[test]
+    fn plugin_crash_cap_surfaces_the_same_triage_row() {
+        use par_term_scripting::plugin_manager::PluginCrashCap;
+        let cap = PluginCrashCap {
+            plugin_id: "com.example.clock".to_string(),
+            kind: "widget",
+            entry: "/plugins/com.example.clock/widget.py".to_string(),
+            restart_mode: "Always".to_string(),
+            stderr_tail: vec!["Traceback (most recent call last):".to_string()],
+        };
+        let mut state = CrashTriageState::default();
+        let offer = state.record_plugin_crash_cap(&cap).unwrap().clone();
+        assert_eq!(offer.label, "plugin 'com.example.clock' (widget entry)");
+        let rows = state.palette_entries();
+        assert_eq!(rows.len(), 1, "the crash-cap surfaces a palette row");
+        assert!(
+            rows[0]
+                .label
+                .contains("Triage crash: plugin 'com.example.clock'"),
+            "{}",
+            rows[0].label
+        );
+        let body = std::fs::read_to_string(&offer.payload_path).unwrap();
+        assert!(body.contains("supervisor gave up"), "payload: {body}");
+        assert!(body.contains("Restart policy"));
+        assert!(body.contains("Traceback"), "stderr tail kept: {body}");
+        let prompt = triage_prompt(&offer);
+        assert!(prompt.contains("plugin 'com.example.clock'"));
     }
 
     #[test]
