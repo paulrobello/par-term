@@ -224,6 +224,10 @@ pub struct WindowState {
     /// first-run confirmation queue (design 2026-09-24, card
     /// 01a0d1cbcb3276c19983cdc9d7bc097c)
     pub(crate) agent_commands: crate::agent_commands_store::AgentCommandStore,
+    /// Captured pane crashes pending triage (`crash_triage` module; the
+    /// palette row is the consent surface — nothing reaches an agent
+    /// without the user's click)
+    pub(crate) crash_triage: crate::crash_triage::CrashTriageState,
     /// Pending OSC 99 notification click-to-action registry (per-window; see
     /// `notifications::NotificationClickState` docs for why)
     pub(crate) notification_click_state: NotificationClickState,

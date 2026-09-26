@@ -14,6 +14,8 @@ impl WindowState {
         use crate::config::ShellExitAction;
         use crate::pane::RestartState;
 
+        self.capture_crash_offers();
+
         match self.config.load().shell.shell_exit_action {
             ShellExitAction::Keep => {
                 // Do nothing - keep dead shells showing
@@ -202,5 +204,73 @@ impl WindowState {
         }
 
         false // Window stays open
+    }
+
+    /// One crash-triage capture pass: every dead pane of a non-mux tab not
+    /// yet processed is recorded — clean exits are deduped inside `record`.
+    /// Runs before the shell-exit actions so the pane's terminal text still
+    /// exists when the payload is written (the Close action destroys the
+    /// pane in the same frame).
+    fn capture_crash_offers(&mut self) {
+        let live_tabs: std::collections::HashSet<u64> =
+            self.tab_manager.tabs().iter().map(|tab| tab.id).collect();
+        self.crash_triage.forget_tabs_except(&live_tabs);
+
+        let config = self.config.load();
+        let shell_line = match &config.shell.custom_shell {
+            Some(cmd) => {
+                let args = config
+                    .shell
+                    .shell_args
+                    .as_ref()
+                    .map(|args| args.join(" "))
+                    .unwrap_or_default();
+                format!("{cmd} {args}")
+            }
+            None => "user default shell".to_string(),
+        };
+        drop(config);
+
+        let mut toasts: Vec<String> = Vec::new();
+        for tab in self.tab_manager.tabs() {
+            if tab.tmux.tmux_gateway_active || tab.tmux.tmux_pane_id.is_some() {
+                continue;
+            }
+            let Some(pm) = tab.pane_manager() else {
+                continue;
+            };
+            for pane in pm.all_panes() {
+                if pane.is_running() {
+                    continue;
+                }
+                let key = (tab.id, pane.id);
+                if self.crash_triage.already_captured(key) {
+                    continue;
+                }
+                // A crash capture must not be dropped on lock contention: the
+                // pane is about to be destroyed by the Close action below.
+                let terminal = pane.terminal.blocking_read();
+                let Some(exit_code) = terminal.exit_code_if_dead() else {
+                    // Dead by the reader flag but not yet reaped; a later
+                    // pass picks it up.
+                    continue;
+                };
+                let tail = terminal.export_text();
+                drop(terminal);
+                let label = format!("'{}' pane {}", tab.title, pane.id);
+                if self
+                    .crash_triage
+                    .record(key, label.clone(), exit_code, &shell_line, &tail)
+                    .is_some()
+                {
+                    toasts.push(format!(
+                        "Crash captured ({label}, exit {exit_code}) — Triage in the command palette"
+                    ));
+                }
+            }
+        }
+        for toast in toasts {
+            self.show_toast(toast);
+        }
     }
 }

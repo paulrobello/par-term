@@ -518,6 +518,9 @@ impl WindowState {
                                     &self.config.load().agents,
                                 ),
                             );
+                            // Captured crashes — the triage consent surface
+                            // (crash_triage module).
+                            plugin_rows.extend(self.crash_triage.palette_entries());
                             // The attached par-mux session's detach row —
                             // same runtime-rows pattern as the roster.
                             #[cfg(feature = "mux")]

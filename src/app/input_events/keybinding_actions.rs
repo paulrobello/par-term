@@ -116,6 +116,9 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         plugin_rows.extend(crate::command_palette::catalog::agent_palette_entries(
             &s.config.load().agents,
         ));
+        // Captured crashes join as runtime rows too — the triage consent
+        // surface (crash_triage module).
+        plugin_rows.extend(s.crash_triage.palette_entries());
         // Rostered agents join the palette at open time (A2b task 3): the
         // rows are runtime data from the cache, like the plugin rows —
         // scoped to panes the app maps, so every offered row is focusable.
@@ -635,6 +638,8 @@ impl WindowState {
             self.launch_agent_by_id(agent_id, false)
         } else if action == "launch-default-agent" {
             self.launch_default_agent()
+        } else if let Some(offer_id) = action.strip_prefix("triage-crash:") {
+            self.triage_crash_by_id(offer_id)
         } else if let Some(pane_id) = parse_agent_roster_focus_id(action) {
             if self.focus_agent_roster_pane(pane_id) {
                 log::info!("Focused agent roster pane {} via palette", pane_id);
@@ -732,5 +737,44 @@ impl WindowState {
         self.status_bar_ui
             .plugin_host_mut()
             .invoke_action(plugin_id, action_id)
+    }
+
+    /// Dispatch a `triage-crash:<id>` palette activation: consume the offer
+    /// and hand its facts to the default agent. This is the consent point —
+    /// nothing reaches an agent until here.
+    pub(crate) fn triage_crash_by_id(&mut self, id: &str) -> bool {
+        let Ok(id) = id.parse::<u64>() else {
+            log::warn!("triage-crash: malformed offer id '{id}'");
+            return false;
+        };
+        let Some(offer) = self.crash_triage.take(id) else {
+            log::warn!("triage-crash: no live offer {id} (expired or consumed)");
+            self.show_toast("That crash offer is no longer available".to_string());
+            return false;
+        };
+        let Some(agent) =
+            par_term_config::agent_launcher::default_agent(&self.config.load().agents).cloned()
+        else {
+            log::warn!("triage-crash: no default agent configured");
+            self.show_toast("No default agent configured".to_string());
+            return false;
+        };
+        // Always a plain launch — triage never arms the autonomous variant.
+        let command_line = format!(
+            "{} {}",
+            agent.command,
+            crate::crash_triage::shell_single_quote(&crate::crash_triage::triage_prompt(&offer))
+        );
+        crate::debug_info!("TAB_ACTION", "triage crash offer {id} via palette");
+        #[cfg(feature = "mux")]
+        {
+            use crate::app::tmux_handler::MuxLaunchOutcome;
+            match self.launch_agent_via_mux(&command_line) {
+                MuxLaunchOutcome::NotMux => {}
+                MuxLaunchOutcome::Launched => return true,
+                MuxLaunchOutcome::Failed => return false,
+            }
+        }
+        self.execute_new_tab_action(Some(command_line), agent.name.clone())
     }
 }

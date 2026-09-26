@@ -129,6 +129,8 @@ impl WindowState {
 
             agent_commands: crate::agent_commands_store::AgentCommandStore::new(),
 
+            crash_triage: crate::crash_triage::CrashTriageState::default(),
+
             notification_click_state: super::NotificationClickState::default(),
 
             pending_snap_size: None,
