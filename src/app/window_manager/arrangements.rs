@@ -150,6 +150,13 @@ impl WindowManager {
                 if let Some(ref mux_name) = window_snapshot.mux_session_name
                     && !mux_name.is_empty()
                 {
+                    // The single `vec![None]` tab spawned above is a
+                    // placeholder so a failed attach never leaves the
+                    // window empty; the first daemon window tab closes it
+                    // (handle_tmux_window_add).
+                    if let Some(tab) = window_state.tab_manager.tabs().first() {
+                        window_state.tmux_state.mux_restore_placeholder_tab = Some(tab.id);
+                    }
                     #[cfg(feature = "mux")]
                     window_state.begin_mux_session_attach(mux_name);
                     #[cfg(not(feature = "mux"))]

@@ -94,6 +94,19 @@ impl WindowState {
                         );
                     }
                 }
+
+                // The first daemon window tab displaces a session-restore
+                // placeholder: a restored mux window spawns one local
+                // shell tab only so a failed attach never leaves the
+                // window empty — once a real daemon tab exists that shell
+                // is dead weight beside it, so close it (fast path: PTY
+                // pre-killed) and keep only daemon tabs. No-op unless a
+                // restore marked a placeholder.
+                if let Some(placeholder) = self.tmux_state.mux_restore_placeholder_tab.take()
+                    && self.tab_manager.get_tab(placeholder).is_some()
+                {
+                    let _ = self.tab_manager.close_tab_fast(placeholder);
+                }
             }
             Err(e) => {
                 crate::debug_error!(

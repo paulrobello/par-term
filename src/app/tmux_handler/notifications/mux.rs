@@ -472,6 +472,7 @@ impl WindowState {
         {
             log::error!("par-mux attach to '{name}' refused: {reason}");
             self.show_toast(format!("par-mux: attach to '{name}' refused — {reason}"));
+            self.mux_restore_placeholder_retire();
             return;
         }
         let (tx, rx) = std::sync::mpsc::channel();
@@ -491,8 +492,17 @@ impl WindowState {
             Err(e) => {
                 log::error!("mux attach worker could not start: {e}");
                 self.show_toast("par-mux: attach failed (worker thread unavailable)");
+                self.mux_restore_placeholder_retire();
             }
         }
+    }
+
+    /// The restore placeholder's attach ended without a daemon window.
+    /// The marked tab stops being a placeholder and becomes an ordinary
+    /// tab, so no later window-add (e.g. a manual tmux control session in
+    /// this window) may close it out from under the user.
+    fn mux_restore_placeholder_retire(&mut self) {
+        self.tmux_state.mux_restore_placeholder_tab = None;
     }
 
     /// Finish an in-flight profile-open attach on the main thread. The
@@ -510,6 +520,7 @@ impl WindowState {
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 log::error!("mux attach worker died without reporting a result");
                 self.show_toast("par-mux: attach failed (worker died)");
+                self.mux_restore_placeholder_retire();
             }
             Ok(Err(e)) => {
                 log::error!("par-mux attach to '{}' failed: {e}", pending.name);
@@ -517,6 +528,7 @@ impl WindowState {
                     "par-mux: attach to '{}' failed — {e}",
                     pending.name
                 ));
+                self.mux_restore_placeholder_retire();
             }
             Ok(Ok(client)) => {
                 let transport = MuxTransport::new(MuxSessionClient::from_core(client));
@@ -526,6 +538,7 @@ impl WindowState {
                         "par-mux: attach to '{}' failed — {e}",
                         pending.name
                     ));
+                    self.mux_restore_placeholder_retire();
                 }
             }
         }
@@ -5176,5 +5189,143 @@ out.flush()
             names.contains(&"keeper".to_string()) && !names.contains(&"doomed".to_string()),
             "the daemon kept running with exactly the doomed session removed: {names:?}"
         );
+    }
+
+    /// The session-restore shape for a mux-attached window: restore spawns
+    /// ONE local shell tab (so a failed attach never leaves an empty
+    /// window) and marks it as the placeholder. These tests pin the
+    /// placeholder's lifecycle: closed by the first daemon window tab,
+    /// whichever road that tab arrives by, kept when the attach fails.
+    fn restore_placeholder_state() -> crate::app::window_state::WindowState {
+        let mut ws = manners_state();
+        let placeholder = ws
+            .tab_manager
+            .new_tab(
+                &ws.config.load(),
+                std::sync::Arc::clone(&ws.runtime),
+                false,
+                None,
+            )
+            .expect("placeholder tab");
+        ws.tmux_state.mux_restore_placeholder_tab = Some(placeholder);
+        ws
+    }
+
+    fn pending_with_client(name: &str, path: &std::path::Path) -> MuxAttachPending {
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        MuxAttachPending {
+            name: name.to_string(),
+            rx,
+        }
+    }
+
+    #[test]
+    fn restored_mux_placeholder_closes_when_a_daemon_window_installs() {
+        let path = socket_path("restore-placeholder");
+        spawn_daemon(&path);
+
+        // Seed the session with one live window so the reattach reports it
+        // in existing_windows (a created session reports its window later
+        // via %window-add instead — the sibling test below).
+        {
+            let mut seed = MuxSessionClient::connect(&path).expect("seed client");
+            seed.create_or_attach("restoretest").expect("create");
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut created = false;
+            while Instant::now() < deadline && !created {
+                created = seed
+                    .poll_actions()
+                    .iter()
+                    .any(|a| matches!(a, SyncAction::CreateTab { .. }));
+                if !created {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+            }
+            assert!(created, "seed client never saw the session's window");
+        }
+
+        let mut ws = restore_placeholder_state();
+        let placeholder = ws.tmux_state.mux_restore_placeholder_tab;
+        ws.tmux_state.mux_attach_pending = Some(pending_with_client("restoretest", &path));
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+
+        assert!(
+            ws.tab_manager
+                .get_tab(placeholder.expect("placeholder marked"))
+                .is_none(),
+            "the restore placeholder must close once a daemon window tab exists"
+        );
+        assert_eq!(
+            ws.tab_manager.tabs().len(),
+            1,
+            "exactly the daemon window's tab remains"
+        );
+    }
+
+    #[test]
+    fn restored_mux_placeholder_closes_on_a_late_window_add_too() {
+        let path = socket_path("restore-late-add");
+        spawn_daemon(&path);
+
+        // Fresh daemon: attach CREATES the session, so no existing windows
+        // install — the window arrives later via %window-add.
+        let mut ws = restore_placeholder_state();
+        let placeholder = ws.tmux_state.mux_restore_placeholder_tab;
+        ws.tmux_state.mux_attach_pending = Some(pending_with_client("lateadd", &path));
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        assert!(
+            ws.tab_manager
+                .get_tab(placeholder.expect("placeholder marked"))
+                .is_some(),
+            "no daemon tab yet — the placeholder must stay"
+        );
+
+        ws.handle_tmux_window_add(0);
+        assert!(
+            ws.tmux_state.mux_restore_placeholder_tab.is_none(),
+            "the placeholder mark is consumed either way"
+        );
+        assert!(
+            ws.tab_manager
+                .get_tab(placeholder.expect("placeholder marked"))
+                .is_none(),
+            "the late %window-add must close the placeholder too"
+        );
+        assert_eq!(ws.tab_manager.tabs().len(), 1);
+    }
+
+    #[test]
+    fn restored_mux_placeholder_survives_a_failed_attach() {
+        let mut ws = restore_placeholder_state();
+        let placeholder = ws.tmux_state.mux_restore_placeholder_tab;
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Err(std::io::Error::other("attach boom"))).unwrap();
+        drop(tx);
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "restorefail".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(
+            ws.tmux_state.transport.is_none(),
+            "the attach must have failed"
+        );
+        assert!(
+            ws.tab_manager
+                .get_tab(placeholder.expect("placeholder marked"))
+                .is_some(),
+            "a failed attach must keep the placeholder so the window stays usable"
+        );
+        assert!(
+            ws.tmux_state.mux_restore_placeholder_tab.is_none(),
+            "the mark must retire with the failed attach — the tab is an \
+             ordinary tab now, not closable by a later window-add"
+        );
+        assert_eq!(ws.tab_manager.tabs().len(), 1);
     }
 }

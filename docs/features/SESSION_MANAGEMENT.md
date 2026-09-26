@@ -127,6 +127,7 @@ than the live log — see [Logging](../LOGGING.md#log-file-location).
 - Split pane trees with split ratios
 - Active tab index per window
 - Active tmux control-mode session name per window (if connected)
+- Active par-mux session name per window (if attached)
 
 Hidden tabs (such as the tmux gateway tab when `tmux_hide_gateway_tab` is enabled) are excluded from the saved tab list — they are transient connections, not user tabs.
 
@@ -141,6 +142,16 @@ When a window was connected to a tmux session in control mode at the time of sav
 This avoids duplicate tabs (ghost shells + real tmux windows) that would otherwise appear if saved tab CWDs were restored alongside a live tmux reconnect.
 
 Requires `tmux_enabled: true`. Failures to reconnect are logged as warnings; the window opens normally with the gateway shell tab in that case.
+
+### par-mux Session Restore
+
+A window attached to a par-mux session at save time persists `mux_session_name` and reattaches on restore:
+
+1. A single local placeholder tab is created so a failed attach never leaves the window empty.
+2. `begin_mux_session_attach(name)` reconnects (create-or-attach) on a worker thread.
+3. The daemon's windows arrive as tabs via `%window-add`; the first one closes the placeholder, so the restored window holds only daemon tabs.
+
+If the attach fails, the placeholder stays and the window works as a normal local-shell window.
 
 ### Restore Behavior
 

@@ -107,6 +107,13 @@ pub(crate) struct TmuxState {
     /// feature like the transport types it carries.
     #[cfg(feature = "mux")]
     pub(crate) mux_attach_pending: Option<super::notifications::mux::MuxAttachPending>,
+    /// The session-restore placeholder tab of a mux-attached window.
+    /// Restore spawns one local shell tab (the `vec![None]` shape) so a
+    /// failed attach never leaves an empty window; the first daemon
+    /// window tab created by `handle_tmux_window_add` closes it so the
+    /// restored window holds only daemon tabs. `None` outside the
+    /// restore→attach window — profile-open attaches own no placeholder.
+    pub(crate) mux_restore_placeholder_tab: Option<TabId>,
     /// A mux paste being fed to the daemon line-by-line under the
     /// configured `paste_delay_ms` (see `paste_via_tmux`). Interior
     /// mutability because the paste entry takes `&WindowState` while the
@@ -139,6 +146,7 @@ impl TmuxState {
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),
             #[cfg(feature = "mux")]
             mux_attach_pending: None,
+            mux_restore_placeholder_tab: None,
             #[cfg(feature = "mux")]
             pending_mux_paste: std::cell::RefCell::new(None),
             tmux_pane_owners: std::collections::HashMap::new(),
