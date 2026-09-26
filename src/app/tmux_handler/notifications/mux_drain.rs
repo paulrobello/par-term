@@ -1,8 +1,9 @@
 //! par-mux notification drain: pulls the daemon transport, partitions
 //! agent-roster pushes out for the roster cache, dispatches the rest through
 //! the same grouped `TmuxSync` path as the tmux gateway, and delivers pending
-//! reattach screen seeds. Split from `mux.rs`, which owns the transport and
-//! the attach/detach wiring.
+//! reattach screen seeds. Split from `mux.rs`, which owns the app wiring
+//! (attach/detach lifecycle, input routing); the transport itself lives in
+//! `mux_transport.rs`.
 
 use crate::app::window_state::WindowState;
 use crate::tmux::{ParserBridge, TmuxNotification};

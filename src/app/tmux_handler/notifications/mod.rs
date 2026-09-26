@@ -36,7 +36,11 @@ mod layout_new_tab;
 #[cfg(feature = "mux")]
 pub(crate) mod mux;
 #[cfg(feature = "mux")]
+mod mux_attach;
+#[cfg(feature = "mux")]
 mod mux_drain;
+#[cfg(feature = "mux")]
+mod mux_transport;
 mod output;
 mod polling;
 mod session;
