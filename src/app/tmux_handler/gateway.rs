@@ -284,6 +284,7 @@ impl WindowState {
             self.tmux_state.mux_focused_pane = Some(tmux_pane_id);
             // Focusing a done agent's pane is seeing it — clear the
             // done-unseen mark (roster surfaces render it as done ✓).
+            #[cfg(feature = "mux")]
             self.tmux_state.agent_roster.mark_seen(tmux_pane_id);
         }
     }

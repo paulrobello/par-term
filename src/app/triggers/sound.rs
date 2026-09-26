@@ -84,6 +84,7 @@ impl WindowState {
 
     /// Get the sounds directory path (still useful for path resolution even
     /// when audio playback is disabled).
+    #[cfg_attr(not(feature = "audio"), allow(dead_code))]
     pub(super) fn sounds_dir() -> PathBuf {
         Config::config_dir().join("sounds")
     }

@@ -260,6 +260,7 @@ impl WindowState {
     /// locally and the daemon window KEEPS RUNNING — the detach-like
     /// shape — so the window can come back on reattach. A TAB close (the
     /// public method above) kills the daemon window instead.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) fn close_current_tab_keeping_mux_window(&mut self) -> bool {
         self.close_current_tab_inner(false)
     }
