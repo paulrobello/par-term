@@ -184,6 +184,7 @@ The result of a full security, architecture, quality and documentation audit —
 
 ### Extensibility & Agents
 - **Plugins**: Status-bar widgets, custom actions, and Settings panels contributed by user scripts, with event subscriptions, restart policy, and git-URL distribution (`par-term plugin add|update|remove`; [PLUGINS.md](docs/features/PLUGINS.md)).
+- **Agent Skill**: A shipped SKILL.md that teaches coding agents to configure and extend par-term — config, keybindings, plugins, agent commands, par-mux, and UI verification (`skills/par-term/`; install with `cp -r skills/par-term ~/.claude/skills/`).
 - **Agent Usage Panel**: Status-bar widget and popup summarizing coding-agent token/cost usage ([AGENT_USAGE.md](docs/features/AGENT_USAGE.md)).
 - **Agent Roster**: See at a glance which coding agents are working or blocked across a par-mux session, with a picker to jump to any agent's pane.
 - **par-mux Sessions**: Attach a window to a daemon-owned par-mux session (one tab per session window); sessions survive closing the tab, the window, or par-term itself; reattach anywhere ([MUX.md](docs/features/MUX.md)).

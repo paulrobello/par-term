@@ -13,6 +13,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Mouse Features](features/MOUSE_FEATURES.md) | Text selection, URL handling, cursor positioning, and semantic history via mouse |
 | [Integrations](features/INTEGRATIONS.md) | Shell integration setup, shader collection, and third-party tool support |
 | [Profiles](features/PROFILES.md) | Profile system for saving and launching terminal sessions with custom configurations |
+| [Agent Skill](../skills/par-term/SKILL.md) | SKILL.md teaching coding agents to configure and extend par-term (install: `cp -r skills/par-term ~/.claude/skills/`) |
 
 ## User Guides
 
