@@ -151,9 +151,16 @@ impl WindowState {
             .tabs()
             .iter()
             .filter_map(|tab| {
-                // Close tabs that were displaying tmux content (have tmux_pane_id)
-                // but not the gateway tab itself
-                if tab.tmux.tmux_pane_id.is_some() && Some(tab.id) != gateway_tab_id {
+                // Close tabs that were displaying daemon content: a
+                // layout set their tmux_pane_id, or they are still mapped
+                // to a daemon window. The second test matters for a window
+                // that dies before its first %layout-change — no pane id
+                // was ever set, and without the mapping check its tab
+                // outlived the session as an immortal dead tab.
+                if (tab.tmux.tmux_pane_id.is_some()
+                    || self.tmux_state.tmux_sync.get_window(tab.id).is_some())
+                    && Some(tab.id) != gateway_tab_id
+                {
                     Some(tab.id)
                 } else {
                     None

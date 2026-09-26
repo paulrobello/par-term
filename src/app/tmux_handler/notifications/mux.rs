@@ -5428,4 +5428,63 @@ out.flush()
         );
         assert_eq!(ws.tab_manager.tabs().len(), 1);
     }
+
+    /// A daemon window that dies before its first %layout-change never
+    /// set `tab.tmux.tmux_pane_id`, so the session-ended cleanup's
+    /// pane-id filter skipped its tab — an immortal dead tab after the
+    /// session ended (found while writing the emptied-session E2E test:
+    /// kill-before-layout left tabs=1 with the sync table cleared).
+    /// The sync mapping identifies the tab: every window-add maps,
+    /// layout or not.
+    #[test]
+    fn a_layout_less_mux_tab_closes_when_the_session_ends() {
+        let path = socket_path("zombie-tab");
+        spawn_daemon(&path);
+
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(pending_with_client("zombie", &path));
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+
+        // The window arrives via %window-add, but NO layout is pumped: the
+        // tab has no panes and no tmux_pane_id — the pre-layout shape.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while ws.tab_manager.tabs().is_empty() && Instant::now() < deadline {
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(!ws.tab_manager.tabs().is_empty(), "the window must arrive");
+        assert!(
+            ws.tab_manager
+                .tabs()
+                .iter()
+                .all(|t| t.tmux.tmux_pane_id.is_none()),
+            "precondition: no layout has set tmux_pane_id"
+        );
+
+        let tab_id = ws.tab_manager.tabs()[0].id;
+        let window = ws
+            .tmux_state
+            .tmux_sync
+            .get_window(tab_id)
+            .expect("daemon window mapped");
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command(&format!("kill-window -t @{window}"))
+            .expect("kill-window");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tab_manager.tabs().is_empty() && Instant::now() < deadline {
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(
+            ws.tab_manager.tabs().is_empty(),
+            "the layout-less tab must close with the session"
+        );
+        assert!(ws.tmux_state.tmux_session_name.is_none());
+
+        let _ = std::fs::remove_file(&path);
+    }
 }
