@@ -79,6 +79,12 @@ pub const PLUGIN_ACTION_INVOKED_KIND: &str = "plugin_action_invoked";
 /// widget reported a semantic interaction (click / text_changed / select).
 pub const OVERLAY_EVENT_KIND: &str = "overlay_event";
 
+/// Event kind for [`ScriptEventData::ThemeChanged`]: the window's active
+/// theme changed, or a subscribed plugin is being greeted with the current
+/// one on (re)spawn. App-sourced: delivered by the plugin host's
+/// `sync_theme`, never by a terminal observer.
+pub const THEME_CHANGED_KIND: &str = "theme_changed";
+
 /// An event sent from the terminal to a script subprocess (via stdin).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ScriptEvent {
@@ -200,6 +206,16 @@ pub enum ScriptEventData {
         widget: String,
         /// What happened on the widget.
         event: OverlayWidgetEvent,
+    },
+
+    /// The window's active theme changed, or a subscribed plugin is being
+    /// greeted with the current one on (re)spawn. App-sourced — see
+    /// [`THEME_CHANGED_KIND`].
+    ThemeChanged {
+        /// Resolved theme name (e.g., "Dracula").
+        theme: String,
+        /// Every theme color as `#rrggbb`, keyed by Theme field name.
+        tokens: std::collections::BTreeMap<String, String>,
     },
 }
 

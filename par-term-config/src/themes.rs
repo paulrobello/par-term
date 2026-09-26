@@ -596,10 +596,76 @@ impl Theme {
             "Tango Light",
         ]
     }
+
+    /// The theme's colors as `#rrggbb` hex tokens keyed by field name — the
+    /// wire format of the plugin `theme_changed` event. `BTreeMap` keeps the
+    /// serialized key order stable.
+    pub fn hex_tokens(&self) -> std::collections::BTreeMap<String, String> {
+        self.color_fields()
+            .into_iter()
+            .map(|(name, color)| {
+                (
+                    name.to_string(),
+                    format!("#{:02x}{:02x}{:02x}", color.r, color.g, color.b),
+                )
+            })
+            .collect()
+    }
+
+    /// (field name, color) for every color the theme carries — the single
+    /// list [`Theme::hex_tokens`] iterates, so a new Theme color field must
+    /// be added here (the token test's count assertion catches a miss).
+    fn color_fields(&self) -> Vec<(&'static str, Color)> {
+        vec![
+            ("foreground", self.foreground),
+            ("background", self.background),
+            ("cursor", self.cursor),
+            ("selection_bg", self.selection_bg),
+            ("selection_fg", self.selection_fg),
+            ("black", self.black),
+            ("red", self.red),
+            ("green", self.green),
+            ("yellow", self.yellow),
+            ("blue", self.blue),
+            ("magenta", self.magenta),
+            ("cyan", self.cyan),
+            ("white", self.white),
+            ("bright_black", self.bright_black),
+            ("bright_red", self.bright_red),
+            ("bright_green", self.bright_green),
+            ("bright_yellow", self.bright_yellow),
+            ("bright_blue", self.bright_blue),
+            ("bright_magenta", self.bright_magenta),
+            ("bright_cyan", self.bright_cyan),
+            ("bright_white", self.bright_white),
+        ]
+    }
 }
 
 impl Default for Theme {
     fn default() -> Self {
         Self::default_dark()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_tokens_covers_every_theme_color() {
+        let tokens = Theme::dracula().hex_tokens();
+        assert_eq!(tokens.len(), 21, "every Theme color field, keyed by name");
+        assert_eq!(tokens["background"], "#282a36");
+        assert_eq!(tokens["foreground"], "#f8f8f2");
+        assert!(
+            tokens.values().all(|v| v.len() == 7 && v.starts_with('#')),
+            "all tokens are #rrggbb: {tokens:?}"
+        );
+        // BTreeMap ordering keeps the wire bytes stable for docs and tests.
+        let mut keys: Vec<&str> = tokens.keys().map(String::as_str).collect();
+        let sorted = keys.clone();
+        keys.sort_unstable();
+        assert_eq!(keys, sorted);
     }
 }

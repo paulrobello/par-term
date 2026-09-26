@@ -23,13 +23,16 @@ use super::protocol::{ScriptEvent, ScriptEventData};
 const MAX_BUFFERED_EVENTS: usize = 1024;
 
 /// The complete subscribable event-kind vocabulary: every snake_case kind
-/// name [`ScriptEventForwarder::event_kind_name`] can produce.
+/// name [`ScriptEventForwarder::event_kind_name`] can produce, plus the
+/// app-sourced kinds the host itself delivers (marked below — they never
+/// come from a terminal observer, so the forwarder's filter can never match
+/// them; the plugin host gates them by manifest subscription instead).
 ///
 /// The authority for validating a plugin manifest's `subscriptions` — a
 /// subscription naming anything outside this list can never fire, so
-/// discovery rejects it rather than letting it sit inert. Keep in sync with
-/// `event_kind_name`'s match: a new `TerminalEvent` arm must add its kind
-/// here in the same change.
+/// discovery rejects it rather than letting it sit inert. Keep the
+/// terminal-sourced part in sync with `event_kind_name`'s match: a new
+/// `TerminalEvent` arm must add its kind here in the same change.
 pub const EVENT_KINDS: &[&str] = &[
     "bell_rang",
     "title_changed",
@@ -56,6 +59,8 @@ pub const EVENT_KINDS: &[&str] = &[
     "file_transfer_failed",
     "upload_requested",
     "screen_cleared",
+    // App-sourced (delivered host-side, not by a terminal observer):
+    "theme_changed",
 ];
 
 /// The buffered events plus the once-only overflow latch, behind one lock.

@@ -1146,6 +1146,31 @@ mod tests {
     }
 
     #[test]
+    fn theme_changed_is_a_valid_subscription_kind() {
+        // theme_changed is app-sourced — delivered host-side by
+        // `PluginHost::sync_theme`, never by a terminal observer — but it
+        // subscribes through the same manifest list, so discovery must
+        // accept it or the kind is unreachable.
+        let tmp = TempDir::new().unwrap();
+        let manifest = MINIMAL_MANIFEST.replacen(
+            "\"kinds\": [\"status-bar-widget\"],",
+            concat!(
+                "\"kinds\": [\"status-bar-widget\"], ",
+                "\"subscriptions\": [\"theme_changed\"],"
+            ),
+            1,
+        );
+        write_plugin(tmp.path(), "com.example.test", &manifest, Some("widget.py"));
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(
+            plugins[0].manifest.subscriptions,
+            vec!["theme_changed".to_string()]
+        );
+    }
+
+    #[test]
     fn manifest_without_subscriptions_defaults_to_empty() {
         // The self-scheduled contract: an absent subscriptions block must
         // parse to an empty list, never a delivery of every event.
