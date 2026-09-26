@@ -135,5 +135,11 @@ pub fn keywords() -> &'static [&'static str] {
         "mux",
         "par-mux",
         "mux session",
+        "session name",
+        // Section titles and section keywords
+        "profile management",
+        "display options",
+        "profile indicator",
+        "dynamic profile sources",
     ]
 }

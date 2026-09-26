@@ -507,5 +507,13 @@ pub fn keywords() -> &'static [&'static str] {
         "revert profile",
         "disconnect",
         "scan timeout",
+        // Section titles and section keywords
+        "custom shaders",
+        "custom shader",
+        "glsl",
+        "post-processing",
+        "auto-install",
+        "shell prompt",
+        "remote hostname",
     ]
 }

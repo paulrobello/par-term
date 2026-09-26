@@ -172,5 +172,11 @@ pub fn keywords() -> &'static [&'static str] {
         "wav",
         "ogg",
         "flac",
+        // Section titles and section keywords
+        "alert sounds",
+        "notification behavior",
+        "notification queue",
+        "suppress when focused",
+        "keep alive",
     ]
 }

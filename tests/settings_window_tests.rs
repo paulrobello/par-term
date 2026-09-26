@@ -209,6 +209,43 @@ fn test_tab_matches_search_window_keywords() {
 }
 
 #[test]
+fn test_tab_matches_search_section_titles_and_recent_features() {
+    let cases = [
+        (SettingsTab::Appearance, "font rendering"),
+        (SettingsTab::Window, "split panes"),
+        (SettingsTab::Window, "saved arrangements"),
+        (SettingsTab::Input, "command palette"),
+        (SettingsTab::Input, "rename pane"),
+        (SettingsTab::Input, "modifier remapping"),
+        (SettingsTab::Terminal, "command separators"),
+        (SettingsTab::Effects, "inline images"),
+        (SettingsTab::StatusBar, "poll intervals"),
+        (SettingsTab::Profiles, "dynamic profile sources"),
+        (SettingsTab::Profiles, "session name"),
+        (SettingsTab::Automation, "git url"),
+        (SettingsTab::Notifications, "alert sounds"),
+        (SettingsTab::Integrations, "custom shaders"),
+        (SettingsTab::Automation, "scripts"),
+        (SettingsTab::Snippets, "agent commands"),
+        (SettingsTab::AiInspector, "custom agents"),
+        (SettingsTab::Advanced, "file transfers"),
+    ];
+    for (tab, query) in cases {
+        assert!(
+            tab_matches_search(tab, query),
+            "{tab:?} tab should match '{query}'"
+        );
+    }
+}
+
+#[test]
+fn test_tab_matches_search_ignores_surrounding_whitespace() {
+    // Sections trim the query; the sidebar must too, or a trailing space
+    // dims every tab while the section list still matches.
+    assert!(tab_matches_search(SettingsTab::Appearance, " font "));
+}
+
+#[test]
 fn test_tab_matches_search_no_match() {
     // A query that exists in no tab's name or keywords should return false.
     // "xyzzy_nonexistent_query" is unlikely to appear in any keyword list.

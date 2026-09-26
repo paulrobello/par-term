@@ -173,5 +173,14 @@ pub fn keywords() -> &'static [&'static str] {
         "autonomous",
         "default agent",
         "cli agent",
+        // Section titles and section keywords
+        "quick insert",
+        "variables reference",
+        "built-in",
+        "builtin",
+        "agent commands",
+        "mcp",
+        "palette",
+        "prefix",
     ]
 }

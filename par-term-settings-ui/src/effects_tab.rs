@@ -245,6 +245,11 @@ pub fn keywords() -> &'static [&'static str] {
         // Background as texture
         "background as ichannel",
         "background as texture",
+        // Section titles and section keywords
+        "inline images",
+        "graphics protocol",
+        "nearest neighbor",
+        "glsl",
     ]
 }
 

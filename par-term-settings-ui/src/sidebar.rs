@@ -126,7 +126,7 @@ pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str
         let is_selected = *current_tab == *tab;
 
         // Check if this tab has any matches for the search query
-        let has_matches = search_query.is_empty() || tab_matches_search(*tab, search_query);
+        let has_matches = search_query.trim().is_empty() || tab_matches_search(*tab, search_query);
 
         // Dim tabs that don't match search
         let text_color = if !has_matches {
@@ -174,7 +174,7 @@ pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str
 
 /// Check if a tab matches the search query.
 pub fn tab_matches_search(tab: SettingsTab, query: &str) -> bool {
-    let query = query.to_lowercase();
+    let query = query.trim().to_lowercase();
     let keywords = tab_search_keywords(tab);
 
     // Check tab name

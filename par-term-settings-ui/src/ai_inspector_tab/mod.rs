@@ -123,5 +123,10 @@ pub fn keywords() -> &'static [&'static str] {
         "font size",
         "chat font",
         "text size",
+        // Section titles and section keywords
+        "zones",
+        "auto-context",
+        "max lines",
+        "custom agents",
     ]
 }

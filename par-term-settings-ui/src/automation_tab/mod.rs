@@ -128,5 +128,11 @@ pub fn keywords() -> &'static [&'static str] {
         "forget plugin",
         "update plugin",
         "install plugin",
+        // Section titles and section keywords
+        "scripts",
+        "badge",
+        "output filter",
+        "git url",
+        "check for updates",
     ]
 }

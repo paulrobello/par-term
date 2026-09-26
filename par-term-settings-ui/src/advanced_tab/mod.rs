@@ -289,5 +289,12 @@ pub fn keywords() -> &'static [&'static str] {
         "osc data length",
         "escape sequence limit",
         "memory exhaustion",
+        // Section titles and section keywords
+        "import/export preferences",
+        "yaml",
+        "screenshots",
+        "updates",
+        "update frequency",
+        "file transfers",
     ]
 }

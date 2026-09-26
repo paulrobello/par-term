@@ -200,5 +200,12 @@ pub fn keywords() -> &'static [&'static str] {
         "synced records",
         // Time format
         "strftime",
+        // Section titles and section keywords
+        "styling",
+        "auto-hide",
+        "widget options",
+        "poll intervals",
+        "tokens",
+        "mux",
     ]
 }
