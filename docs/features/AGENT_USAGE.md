@@ -77,10 +77,32 @@ Tolerance rules — a collector change never takes the panel down:
 Merge rules:
 
 - Stats are merged **flat** into the record by the collector (above).
-- `activeDays` across records union their traveling `activeDates` lists and
-  take the widest of that union and either side's bare count — a source that
-  only knows a count still bounds the answer from below. This rule is
-  reserved for v2 cross-device sync; v1 never merges records.
+- Records for the **same agent id** — whether two files in one directory or
+  copies synced from other machines — merge by **widest value**: the fresher
+  `updatedAt` is the base; `activeDays` unions its traveling `activeDates`
+  lists (never summed — a source that only knows a bare count still bounds
+  the answer from below); counts (`totalPrompts`, today's figures) and
+  per-model token maps take the max; recent days union by date keeping each
+  date's larger total; limits keep the side with more live readings and a
+  balance fills in when only one side has one. One account synced from two
+  machines is therefore never double-counted.
+
+## Records from other machines
+
+Configure extra records directories (e.g. a folder your file sync keeps
+current with other machines' records):
+
+```yaml
+agent_usage_extra_records_dirs:
+  - ~/Sync/agent-usage
+```
+
+Each extra directory is watched like the primary one, and every record in
+it merges into the panel under the widest-value rules above. A missing
+extra directory is tolerated (simply empty); one that appears later is
+picked up on the next refresh. A leading `~/` expands to your home
+directory. The same list is editable in Settings → Status Bar → Agent
+Usage ("Extra records dirs").
 
 ## Self-hiding
 
@@ -133,6 +155,7 @@ Top-level YAML keys (all optional):
 | `agent_usage_update_command` | `string` | (none) | Optional refresh command (see below) |
 | `agent_usage_refresh_interval_sec` | `u64` | `300` | Seconds between periodic rescans (clamped to a 30 s floor) |
 | `agent_usage_hidden_agents` | `array` | `[]` | Agent ids to hide from widget and panel |
+| `agent_usage_extra_records_dirs` | `array` | `[]` | Extra records directories merged by widest value (see above) |
 
 ## Keeping records fresh
 

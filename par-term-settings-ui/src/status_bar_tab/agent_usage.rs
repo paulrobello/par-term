@@ -110,6 +110,36 @@ pub fn show_agent_usage_section(
                     *changes_this_frame = true;
                 }
             });
+
+            // Extra records directories (v2 merge: synced machines)
+            let mut extra_dirs = agent_usage.agent_usage_extra_records_dirs.join(", ");
+            ui.horizontal(|ui| {
+                ui.label("Extra records dirs:");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut extra_dirs)
+                            .hint_text("~/Sync/agent-usage (comma-separated paths)")
+                            .desired_width(240.0),
+                    )
+                    .on_hover_text(
+                        "Additional records directories merged into the panel, e.g. a \
+                         synced folder holding other machines' records. Records for the \
+                         same agent merge by widest value — active days union by date, \
+                         never summed — so one account synced from two machines is not \
+                         double-counted. A leading ~/ expands to your home directory.",
+                    )
+                    .changed()
+                {
+                    agent_usage.agent_usage_extra_records_dirs = extra_dirs
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string)
+                        .collect();
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
         },
     );
 }

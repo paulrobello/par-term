@@ -196,6 +196,8 @@ pub fn keywords() -> &'static [&'static str] {
         "codex",
         "collector",
         "update command",
+        "extra records",
+        "synced records",
         // Time format
         "strftime",
     ]
