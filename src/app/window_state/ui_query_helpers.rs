@@ -68,10 +68,11 @@ impl WindowState {
         // If any UI panel is visible, check if egui wants keyboard input
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
         // Note: Profile drawer does NOT block input - only modal dialogs do
-        // Also check ai_inspector (side panel with text input) and tab rename (inline edit)
+        // Also check ai_inspector (side panel with text input) and tab/pane rename (inline edit)
         let any_ui_visible = self.any_modal_ui_visible()
             || self.overlay_ui.ai_inspector.open
             || self.tab_bar_ui.is_renaming()
+            || self.overlay_ui.pane_rename_ui.is_open()
             || self.tab_bar_ui.is_app_menu_open();
         if !any_ui_visible {
             return false;

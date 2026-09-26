@@ -60,6 +60,11 @@ impl PaneRenameUI {
         self.awaiting_open_release = true;
     }
 
+    /// Whether the popup is open (its text field owns the keyboard).
+    pub(crate) fn is_open(&self) -> bool {
+        self.pane_id.is_some()
+    }
+
     fn close(&mut self) {
         self.pane_id = None;
         self.opened_frame = None;
@@ -147,5 +152,6 @@ mod tests {
         ui.open(7, "build box", egui::Pos2::ZERO);
         assert_eq!(ui.pane_id, Some(7));
         assert_eq!(ui.buffer, "build box");
+        assert!(ui.is_open());
     }
 }
