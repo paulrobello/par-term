@@ -29,7 +29,7 @@ repo at <https://github.com/paulrobello/par-term>.
   applies to the running app without a restart. Write atomically
   (temp file + rename) so the watcher only ever sees complete YAML.
 - The full key reference is [CONFIG_REFERENCE.md](../../docs/CONFIG_REFERENCE.md);
-  profiles are [PROFILES.md](../../docs/PROFILES.md) (a profile is a named
+  profiles are [PROFILES.md](../../docs/features/PROFILES.md) (a profile is a named
   config overlay with its own shell, cwd, tmux/par-mux session, and keybinds).
 - Safe-to-edit as an agent: appearance, fonts, keybindings, snippets/actions,
   status bar, plugins state, profiles. Never rewrite the whole file to change

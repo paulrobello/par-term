@@ -42,7 +42,7 @@ opens on your command, so a crash mid-typing interrupts nothing.
 ## Agent handoff
 
 Activating the row launches the **default agent** (the first `agents:` entry
-with `default: true` — see `docs/ASSISTANT_PANEL.md`), typing a prompt that
+with `default: true` — see [Agents (Launcher)](../CONFIG_REFERENCE.md#agents-launcher)), typing a prompt that
 names what crashed and points at the payload file:
 
 ```

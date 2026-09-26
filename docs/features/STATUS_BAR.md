@@ -69,7 +69,7 @@ par-term includes 13 built-in widgets plus custom widgets:
 | **Update Available** | `update_available` | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
 | **Current Command** | `current_command` | Currently executing shell command | Center | Enabled |
 | **Agent Usage** | `agent_usage` | Tightest subscription limit across agents (e.g. "◆ 71%"); self-hides | Right | Disabled |
-| **Agent Roster** | `agent_roster` | par-mux agent roster state summary (e.g. "👥 2 blocked, 1~ working"); self-hides without an attached mux session; hover lists each agent with reported/detected provenance; click opens the command palette; `~` marks scrape-detected counts | Right | Disabled |
+| **Agent Roster** | `agent_roster` | par-mux agent roster state summary (e.g. "👥 2 blocked, 1~ working"); self-hides without an attached mux session; hover lists each agent with reported/detected provenance; click opens the command palette; `~` marks scrape-detected counts; `done` counts agents that finished (working → idle) in a pane you have not focused since | Right | Disabled |
 | **Custom Text** | `custom:<name>` | User-defined text with variable interpolation | Configurable | User-created |
 
 ### Clock

@@ -131,11 +131,14 @@ par-term queries the daemon's build when attaching. If the daemon predates the c
 
 While attached, par-term shows what agents are running in the session:
 
-- **Agent Roster status-bar widget** (`status_bar: agent_roster`, disabled by default): a summary like `👥 2 blocked, 1~ working`, self-hides without an attached session, hover lists each agent with its provenance (reported by the agent itself vs detected), click opens the command palette.
-- **Roster picker in the command palette**: runtime rows, blocked-first, each jumping to that agent's pane.
+- **Agent Roster status-bar widget** (`status_bar: agent_roster`, disabled by default): a summary like `👥 2 blocked, 1 done, 1~ working`, self-hides without an attached session, hover lists each agent with its provenance (reported by the agent itself vs detected), click opens the command palette.
+- **Roster picker in the command palette**: runtime rows, blocked and done-unseen first, each jumping to that agent's pane.
+- **Done, unseen**: when an agent goes from `working` to `idle` in a pane you are not looking at, the roster shows it as `done` (widget), `done (unseen)` (hover), and `done ✓` (palette) until you focus that pane. Focusing the pane clears the mark; an agent that finishes in the pane you are watching is never marked.
+
+States are shown as the agent reports them (`working`, `blocked`, `idle`); `done` is the only state par-term derives. The roster is passive: a state change updates the widget and palette, but par-term sends no desktop notification, toast, or bell for an agent that blocks or finishes. An agent that wants a desktop notification must emit one itself (OSC 9/777/99, see [NOTIFICATIONS.md](NOTIFICATIONS.md)).
 - **Feed the roster honestly**: install the par-mux session hooks for Claude Code, Codex, or Grok (`par-term install-mux-hooks`), or agent-state extensions for pi/omp (`par-term install-mux-extensions`) — see [INTEGRATIONS.md](INTEGRATIONS.md#par-mux-agent-extensions) for details.
 
-Both surfaces are scoped to the attached session. An entry disappears as soon as its pane closes, or when the agent itself exits — the hooks and extensions send `pane.release_agent` on claude `SessionEnd` and pi/omp shutdown, so a quit agent leaves the roster at once instead of showing "working" until the pane dies. The widget and picker never count a closed pane or offer a row they cannot focus.
+Both surfaces are scoped to the attached session. An entry disappears as soon as its pane closes, or when the agent itself exits — the hooks and extensions send `pane.release_agent` on claude `SessionEnd` and pi/omp shutdown (the codex and grok hooks have no release, so those entries stay until the pane closes), so a quit agent leaves the roster at once instead of showing "working" until the pane dies. The widget and picker never count a closed pane or offer a row they cannot focus.
 
 ## Troubleshooting
 
