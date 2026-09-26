@@ -240,6 +240,78 @@ impl WindowState {
         }
     }
 
+    /// Snippet/trigger SplitPane actions' mux arm: split the focused
+    /// daemon pane and type the command into the new pane's shell, the
+    /// same launch mechanism [`Self::launch_agent_via_mux`] uses (the
+    /// daemon wire has no initial-command, split-percent, or focus form —
+    /// the daemon's defaults apply and the new pane becomes focused, as
+    /// in [`Self::split_pane_via_mux`]). Delayed commands send
+    /// immediately: the delay exists to let a local shell start, while
+    /// the daemon buffers `send-keys` for a pane whose shell is not yet
+    /// ready (proven by the agent-launch e2e). Returns false when no
+    /// transport is attached or the focused native pane is not a daemon
+    /// mirror (a local tab), so the caller keeps its local split. Once a
+    /// daemon target has resolved the call is consumed regardless of
+    /// outcome — a native fallback split would strand an unmapped local
+    /// pane inside the mux tab.
+    pub(crate) fn split_pane_with_command_via_mux(
+        &mut self,
+        vertical: bool,
+        command: Option<&str>,
+    ) -> bool {
+        let Some(transport) = &self.tmux_state.transport else {
+            return false;
+        };
+        let Some(target) = self.focused_mux_pane_from_native() else {
+            return false;
+        };
+        stamp_pane_session_id(transport.as_ref(), self.tmux_state.mux_session_id);
+        let flag = if vertical { "-h" } else { "-v" };
+        let split = transport.send_command(&format!("split-window {flag} -t %{target}"));
+        let pane = match &split {
+            Ok(reply) => reply.iter().find_map(|line| {
+                line.trim()
+                    .strip_prefix('%')
+                    .and_then(|s| s.parse::<u64>().ok())
+            }),
+            Err(e) => {
+                log::error!("par-mux split-window failed: {e}");
+                self.show_toast(format!("par-mux: split failed — {e}"));
+                return true;
+            }
+        };
+        let Some(pane) = pane else {
+            // An %error block arrives as an Ok reply body with no pane id.
+            let body = split
+                .as_ref()
+                .ok()
+                .map(|r| r.join("\n"))
+                .unwrap_or_default();
+            log::error!("par-mux split-window rejected: {body}");
+            self.show_toast(format!("par-mux: split failed — {body}"));
+            return true;
+        };
+        self.tmux_state.mux_focused_pane = Some(pane);
+        if let Some(command) = command.filter(|c| !c.is_empty()) {
+            let keys = [
+                format!(
+                    "send-keys -t %{pane} -l {}",
+                    par_term_mux::quote_env_value(command)
+                ),
+                format!("send-keys -t %{pane} Enter"),
+            ];
+            for cmd in keys {
+                if let Err(e) = transport.send_command(&cmd) {
+                    log::error!("par-mux split send-keys failed: {e}");
+                    self.show_toast(format!("par-mux: split command failed — {e}"));
+                    break;
+                }
+            }
+        }
+        log::info!("MUX: split pane %{pane} for a split action");
+        true
+    }
+
     /// Close the focused par-mux pane daemon-side — the mirror of
     /// [`Self::split_pane_via_mux`]: targeted `kill-pane` via the
     /// transport, then the daemon's `%layout-change` broadcast drives the

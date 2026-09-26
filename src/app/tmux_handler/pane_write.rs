@@ -361,4 +361,103 @@ pub(crate) mod tests {
             "no transport attached: the caller must keep its local write"
         );
     }
+
+    /// A recorder that answers `split-window` with the new pane id — the
+    /// plain recorder's empty reply would read as the daemon's %error
+    /// shape and take the split's failure path.
+    pub(crate) struct SplitReplyingTransport {
+        sent: Arc<Mutex<Vec<String>>>,
+        new_pane: u64,
+    }
+
+    impl SplitReplyingTransport {
+        pub(crate) fn new(new_pane: u64) -> (Self, Arc<Mutex<Vec<String>>>) {
+            let sent = Arc::new(Mutex::new(Vec::new()));
+            (
+                Self {
+                    sent: Arc::clone(&sent),
+                    new_pane,
+                },
+                sent,
+            )
+        }
+    }
+
+    impl TmuxTransport for SplitReplyingTransport {
+        fn drain(
+            &self,
+        ) -> (
+            Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
+            bool,
+        ) {
+            (Vec::new(), false)
+        }
+
+        fn send_command(&self, command: &str) -> std::io::Result<Vec<String>> {
+            self.sent.lock().unwrap().push(command.to_string());
+            if command.starts_with("split-window") {
+                Ok(vec![format!("%{}", self.new_pane)])
+            } else {
+                Ok(Vec::new())
+            }
+        }
+    }
+
+    /// A snippet SplitPane action in a mux tab must split daemon-side and
+    /// type its command into the new daemon pane — a native split would
+    /// create a local pane the mux router starves.
+    #[test]
+    fn snippet_split_pane_action_splits_daemon_side() {
+        use crate::config::snippets::ActionSplitDirection;
+        let (mut ws, _plain, tab_id, pane) =
+            mux_state_with_recorder("pane-write-snippet-split", Config::default());
+        let (transport, sent) = SplitReplyingTransport::new(1);
+        ws.tmux_state.transport = Some(Box::new(transport));
+
+        assert!(
+            ws.execute_split_pane_action(
+                ActionSplitDirection::Vertical,
+                Some("echo snippet-split".to_string()),
+                false,
+                true,
+                0,
+                50,
+                "Split test".to_string(),
+            ),
+            "the action must report success"
+        );
+
+        let commands: Vec<String> = sent
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|c| !c.starts_with("set-environment"))
+            .cloned()
+            .collect();
+        assert_eq!(
+            commands,
+            vec![
+                "split-window -h -t %0".to_string(),
+                format!(
+                    "send-keys -t %1 -l {}",
+                    par_term_mux::quote_env_value("echo snippet-split")
+                ),
+                "send-keys -t %1 Enter".to_string(),
+            ],
+            "the split and the command must both land daemon-side"
+        );
+        assert_eq!(
+            ws.tab_manager
+                .get_tab(tab_id)
+                .and_then(|tab| tab.pane_manager().map(|pm| pm.all_panes().len())),
+            Some(1),
+            "no native pane may be created inside the mux tab"
+        );
+        assert_eq!(
+            ws.tmux_state.mux_focused_pane,
+            Some(1),
+            "the new daemon pane must be focused"
+        );
+        let _ = pane;
+    }
 }

@@ -778,6 +778,43 @@ impl WindowState {
             .get(&trigger_id)
             .copied()
             .unwrap_or(66);
+
+        // A mux tab's panes are daemon mirrors: split daemon-side and type
+        // the command into the new daemon pane. A native split here would
+        // create a local pane the mux router starves.
+        #[cfg(feature = "mux")]
+        {
+            let command_line = match &command {
+                Some(par_term_emu_core_rust::terminal::TriggerSplitCommand::SendText {
+                    text,
+                    ..
+                }) => Some(text.clone()),
+                Some(par_term_emu_core_rust::terminal::TriggerSplitCommand::InitialCommand {
+                    command: cmd_name,
+                    args,
+                }) => {
+                    // The daemon wire has no initial-process form; typing
+                    // the command line is the launch mechanism (the same
+                    // fallback the local path uses below).
+                    Some(if args.is_empty() {
+                        cmd_name.clone()
+                    } else {
+                        format!("{cmd_name} {}", args.join(" "))
+                    })
+                }
+                None => None,
+            };
+            if self.split_pane_with_command_via_mux(
+                matches!(
+                    direction,
+                    par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical
+                ),
+                command_line.as_deref(),
+            ) {
+                return;
+            }
+        }
+
         let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane, None, pct);
 
         // After split, optionally send a command to the new pane.
@@ -890,5 +927,80 @@ mod write_routing_tests {
             vec![format!("send-keys -t %0 -H {hex}")],
             "trigger SendText must reach the daemon pane, not the hidden shell"
         );
+    }
+
+    /// A SplitPane trigger in a mux tab must split daemon-side and type
+    /// its command into the new daemon pane — a native split would create
+    /// a local pane the mux router starves.
+    #[test]
+    fn trigger_split_pane_splits_daemon_side_and_types_the_command() {
+        use crate::app::tmux_handler::pane_write::tests::SplitReplyingTransport;
+        use par_term_emu_core_rust::terminal::{
+            TriggerSplitCommand, TriggerSplitDirection, TriggerSplitTarget,
+        };
+
+        let (mut ws, _plain, tab_id, pane) =
+            mux_state_with_recorder("trigger-split-mux", Config::default());
+        let (transport, sent) = SplitReplyingTransport::new(1);
+        ws.tmux_state.transport = Some(Box::new(transport));
+
+        let prompt_off: HashMap<u64, bool> = HashMap::from([(7, false)]);
+        let approved = HashSet::new();
+        let names: HashMap<u64, String> = HashMap::new();
+        let percents: HashMap<u64, u8> = HashMap::new();
+        let allowed: HashMap<u64, Vec<String>> = HashMap::new();
+        let ctx = DispatchContext {
+            trigger_prompt_before_run: &prompt_off,
+            approved_this_frame: &approved,
+            trigger_names: &names,
+            trigger_split_percent: &percents,
+            trigger_allowed_commands: &allowed,
+        };
+
+        ws.handle_split_pane_action(
+            7,
+            TriggerSplitDirection::Vertical,
+            Some(TriggerSplitCommand::SendText {
+                text: "echo trigger-split".to_string(),
+                delay_ms: 0,
+            }),
+            true,
+            TriggerSplitTarget::Active,
+            None,
+            &ctx,
+        );
+
+        let commands: Vec<String> = sent
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|c| !c.starts_with("set-environment"))
+            .cloned()
+            .collect();
+        assert_eq!(
+            commands,
+            vec![
+                "split-window -h -t %0".to_string(),
+                format!(
+                    "send-keys -t %1 -l {}",
+                    par_term_mux::quote_env_value("echo trigger-split")
+                ),
+                "send-keys -t %1 Enter".to_string(),
+            ],
+            "the split and the command must both land daemon-side"
+        );
+        assert_eq!(
+            ws.tab_manager
+                .get_tab(tab_id)
+                .and_then(|tab| tab.pane_manager().map(|pm| pm.all_panes().len())),
+            Some(1),
+            "no native pane may be created inside the mux tab"
+        );
+        assert_eq!(
+            ws.tmux_state.mux_focused_pane,
+            Some(1),
+            "the new daemon pane must be focused"
+        );
+        let _ = pane;
     }
 }

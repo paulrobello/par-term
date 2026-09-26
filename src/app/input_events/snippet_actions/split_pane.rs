@@ -33,6 +33,19 @@ impl WindowState {
             command_is_direct
         );
 
+        // A mux tab's panes are daemon mirrors: split daemon-side and type
+        // the command into the new daemon pane (the wire has no
+        // initial-process form, so direct and shell commands launch the
+        // same way). A native split here would create a local pane the
+        // mux router starves.
+        #[cfg(feature = "mux")]
+        if self.split_pane_with_command_via_mux(
+            pane_direction == crate::pane::SplitDirection::Vertical,
+            command.as_deref(),
+        ) {
+            return true;
+        }
+
         // For direct commands, parse argv and pass as the pane's initial process.
         let initial_command = if command_is_direct {
             command.as_deref().map(|cmd_str| {
