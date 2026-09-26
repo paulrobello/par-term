@@ -88,6 +88,27 @@ impl WindowState {
                 self.request_redraw();
             }
             TabBarAction::RenameTab(id, name) => {
+                // A mux tab's name lives daemon-side: forward the rename so
+                // the daemon window carries it across detach/reattach and
+                // to other attached clients. The local set below still runs
+                // (the daemon's %window-renamed echo would set it too, but
+                // the UI should not wait for the round-trip). The daemon's
+                // rename-window takes the trailing text RAW (no quote
+                // stripping) and rejects an empty name, so a blank revert
+                // stays local — the daemon keeps its name until the next
+                // non-empty rename.
+                if let Some(window_id) = self.mux_window_for_tab(id)
+                    && !name.is_empty()
+                {
+                    let sent =
+                        self.tmux_state.transport.as_ref().map(|t| {
+                            t.send_command(&format!("rename-window -t @{window_id} {name}"))
+                        });
+                    if let Some(Err(e)) = &sent {
+                        log::error!("MUX: rename-window @{window_id} failed: {e}");
+                        self.show_toast(format!("par-mux: rename-window failed — {e}"));
+                    }
+                }
                 if let Some(tab) = self.tab_manager.get_tab_mut(id) {
                     if name.is_empty() {
                         // Blank name: revert to auto title mode
@@ -145,6 +166,17 @@ impl WindowState {
             }
             TabBarAction::None => {}
             TabBarAction::MoveTabToNewWindow(tab_id) => {
+                // A mux tab mirrors a daemon window and carries no transport
+                // of its own — moving it to another par-term window would
+                // strand the mirror. Blocked, not carried.
+                if self.mux_window_for_tab(tab_id).is_some() {
+                    self.show_toast(
+                        "par-mux: tabs attached to a par-mux session can't move between \
+                         windows — detach first",
+                    );
+                    self.request_redraw();
+                    return;
+                }
                 self.overlay_ui.pending_move_tab_request =
                     Some(crate::app::window_manager::MoveTabRequest {
                         tab_id,
@@ -152,6 +184,14 @@ impl WindowState {
                     });
             }
             TabBarAction::MoveTabToExistingWindow(tab_id, dest_id) => {
+                if self.mux_window_for_tab(tab_id).is_some() {
+                    self.show_toast(
+                        "par-mux: tabs attached to a par-mux session can't move between \
+                         windows — detach first",
+                    );
+                    self.request_redraw();
+                    return;
+                }
                 self.overlay_ui.pending_move_tab_request =
                     Some(crate::app::window_manager::MoveTabRequest {
                         tab_id,

@@ -439,6 +439,17 @@ fn move_tab_to_new_window(s: &mut WindowState) -> bool {
         && !s.is_gateway_active()
         && s.has_multiple_tabs()
     {
+        // A mux tab mirrors a daemon window and carries no transport of its
+        // own — moving it to another par-term window would strand the
+        // mirror (input would have nowhere to go). Blocked, not carried.
+        if s.mux_window_for_tab(tab_id).is_some() {
+            s.show_toast(
+                "par-mux: tabs attached to a par-mux session can't move between windows — \
+                 detach first",
+            );
+            s.request_redraw();
+            return true;
+        }
         s.overlay_ui.pending_move_tab_request = Some(crate::app::window_manager::MoveTabRequest {
             tab_id,
             destination: crate::app::window_manager::MoveDestination::NewWindow,

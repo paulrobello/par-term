@@ -382,9 +382,17 @@ pub(crate) fn attach_sequence(
     let daemon_version = transport.client().daemon_version().ok();
     let outcome = transport.client().create_or_attach_with_env(name, env)?;
     let mut existing_windows = Vec::new();
+    let mut window_names = Vec::new();
     if matches!(outcome, AttachOutcome::Attached(_)) {
         for window in transport.client().list_windows()? {
             existing_windows.push(window.id);
+            // Keep the daemon's own names so the display tabs carry them
+            // instead of the placeholder "tmux @N" (handle_tmux_window_add
+            // cannot know them — the %window-add notification carries only
+            // the id).
+            if !window.name.is_empty() {
+                window_names.push((window.id, window.name));
+            }
         }
     }
     // Bind the list before looping: a RefMut in the `for` expression would
@@ -435,6 +443,7 @@ pub(crate) fn attach_sequence(
         daemon_version,
         outcome,
         existing_windows,
+        window_names,
         screens,
         agents,
         titles,
@@ -515,13 +524,15 @@ fn stamp_pane_session_id(transport: &dyn TmuxTransport, session: Option<u64>) {
 
 /// What [`attach_sequence`] learned — the tuple it returned, named: the
 /// daemon's `version` reply (raw; `None` only when the query itself failed
-/// at transport level), the attach outcome, windows needing tabs,
-/// per-pane replayed screens, the roster fill, and per-pane daemon titles
-/// (`(title, is_user)` — the reattach restore of pane renaming).
+/// at transport level), the attach outcome, windows needing tabs, those
+/// windows' daemon names, per-pane replayed screens, the roster fill, and
+/// per-pane daemon titles (`(title, is_user)` — the reattach restore of
+/// pane renaming).
 pub(crate) struct AttachSequence {
     pub(crate) daemon_version: Option<String>,
     pub(crate) outcome: AttachOutcome,
     pub(crate) existing_windows: Vec<TmuxWindowId>,
+    pub(crate) window_names: Vec<(TmuxWindowId, String)>,
     pub(crate) screens: Vec<(TmuxPaneId, Vec<u8>)>,
     pub(crate) agents: Vec<AgentEntry>,
     pub(crate) titles: Vec<(TmuxPaneId, (String, bool))>,
@@ -777,6 +788,7 @@ impl WindowState {
                  daemon_version,
                  outcome,
                  existing_windows,
+                 window_names,
                  screens,
                  agents,
                  titles,
@@ -804,6 +816,16 @@ impl WindowState {
                 for window_id in existing_windows {
                     if self.tmux_state.tmux_sync.get_tab(window_id).is_none() {
                         self.handle_tmux_window_add(window_id);
+                    }
+                }
+                // Swap the placeholder "tmux @N" titles for the daemon's own
+                // window names — same setter the %window-renamed push uses,
+                // so a daemon rename later lands identically.
+                for (window_id, name) in window_names {
+                    if let Some(tab_id) = self.tmux_state.tmux_sync.get_tab(window_id)
+                        && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                    {
+                        tab.set_title(&name);
                     }
                 }
                 // Screens land once the layout consumers create the panes
@@ -4649,5 +4671,243 @@ out.flush()
             Some(DaemonHealthSignal::Unresponsive),
             "an observed reply timeout flags without a new send"
         );
+    }
+
+    // =========================================================================
+    // Tab operations as daemon window operations (card 01a0d9b55e53)
+    // =========================================================================
+
+    /// The shared prefix of the tab-ops tests: a daemon whose session
+    /// exists, and a renderer-less `WindowState` attached through the REAL
+    /// `install_mux_transport`. The probe client answers daemon-side
+    /// queries without touching the app's transport.
+    fn attached_state(
+        tag: &str,
+        session: &str,
+    ) -> (crate::app::window_state::WindowState, MuxSessionClient) {
+        let path = socket_path(tag);
+        spawn_daemon(&path);
+        // Prime the session with a first client so the attach takes the
+        // Attached (reattach) path and list-windows reports its windows.
+        {
+            let mut primer = MuxSessionClient::connect(&path).expect("primer connects");
+            primer.create_or_attach(session).expect("primer creates");
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                if primer
+                    .poll_actions()
+                    .iter()
+                    .any(|a| matches!(a, SyncAction::CreateTab { .. }))
+                {
+                    break;
+                }
+                assert!(Instant::now() < deadline, "primer never saw the window");
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        }
+
+        let transport = connect(&path);
+        let probe = MuxSessionClient::connect(&path).expect("probe connects");
+        let mut ws = manners_state();
+        ws.install_mux_transport(session, transport)
+            .expect("install_mux_transport");
+        (ws, probe)
+    }
+
+    /// Pump the app's notification loop until `cond` holds, panicking with
+    /// the waited-for thing otherwise.
+    fn pump_until(
+        ws: &mut crate::app::window_state::WindowState,
+        mut cond: impl FnMut(&crate::app::window_state::WindowState) -> bool,
+        what: &str,
+    ) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            ws.check_mux_notifications();
+            if cond(ws) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        panic!("timed out waiting for {what}");
+    }
+
+    /// Cmd+T while attached asks the daemon for a new window; the tab
+    /// arrives via %window-add (the shell-exit path in reverse) and is a
+    /// mirror tab, not a local shell tab.
+    #[test]
+    fn new_tab_creates_a_daemon_window() {
+        let (mut ws, mut probe) = attached_state("tabops-new", "tabops-new");
+        let before: Vec<_> = probe
+            .list_windows()
+            .expect("list-windows")
+            .into_iter()
+            .map(|w| w.id)
+            .collect();
+        let tabs_before = ws.tab_manager.tab_count();
+
+        ws.new_tab();
+
+        pump_until(
+            &mut ws,
+            |ws| ws.tab_manager.tab_count() == tabs_before + 1,
+            "the %window-add tab",
+        );
+        let after = probe.list_windows().expect("list-windows");
+        assert_eq!(after.len(), before.len() + 1, "daemon gained a window");
+        let new_window = after
+            .iter()
+            .map(|w| w.id)
+            .find(|id| !before.contains(id))
+            .expect("a new daemon window id");
+        assert!(
+            ws.tmux_state.tmux_sync.get_tab(new_window).is_some(),
+            "the new tab maps to the new daemon window"
+        );
+    }
+
+    /// Closing a mux tab kills the daemon window; the tab tears down via
+    /// %window-close and leaves no stale pane mappings behind.
+    #[test]
+    fn closing_a_tab_kills_the_daemon_window() {
+        let (mut ws, mut probe) = attached_state("tabops-close", "tabops-close");
+        let before = probe.list_windows().expect("list-windows");
+        assert_eq!(before.len(), 1, "one daemon window before the close");
+        let window_id = before[0].id;
+        let tab_id = ws
+            .tmux_state
+            .tmux_sync
+            .get_tab(window_id)
+            .expect("tab mapped to the window");
+        // Background windows' layouts are not pushed on their own — the
+        // refresh-client -C pump forces a %layout-change broadcast so the
+        // layout consumer maps the panes (the detach-fast pattern).
+        for pane in probe.list_panes().expect("list panes") {
+            probe
+                .send(&format!("refresh-client -t %{pane} -C 80x24"))
+                .expect("refresh-client");
+        }
+        // The layout consumer maps the window's panes only once the
+        // %layout-change has been pumped — wait for it so mapping
+        // cleanliness after the close is observable.
+        pump_until(
+            &mut ws,
+            |ws| !ws.tmux_state.tab_tmux_pane_ids(tab_id).is_empty(),
+            "the window's pane mappings",
+        );
+        let panes: Vec<_> = ws
+            .tmux_state
+            .tab_tmux_pane_ids(tab_id)
+            .into_iter()
+            .collect();
+        ws.tab_manager.switch_to(tab_id);
+
+        let was_last = ws.close_current_tab_immediately();
+
+        assert!(!was_last, "the close returns before the notification lands");
+        pump_until(
+            &mut ws,
+            |ws| ws.tmux_state.tmux_sync.get_tab(window_id).is_none(),
+            "the %window-close teardown",
+        );
+        let after = probe.list_windows().expect("list-windows");
+        assert!(after.is_empty(), "daemon window died with the tab");
+        assert!(
+            panes
+                .iter()
+                .all(|p| !ws.tmux_state.tmux_pane_owners.contains_key(p)),
+            "no stale pane mapping for the killed window"
+        );
+    }
+
+    /// Move-tab is blocked for mux tabs at every entry point: the request
+    /// never queues and the user sees why.
+    #[test]
+    fn moving_a_mux_tab_to_another_window_is_blocked() {
+        let (mut ws, mut probe) = attached_state("tabops-move", "tabops-move");
+        // A second daemon window so has_multiple_tabs would allow a move.
+        probe.send("new-window").expect("new-window");
+        pump_until(
+            &mut ws,
+            |ws| ws.tab_manager.tab_count() == 2,
+            "the second daemon window's tab",
+        );
+        let tab_id = ws
+            .tmux_state
+            .tmux_sync
+            .get_tab(0)
+            .expect("tab for window @0");
+        ws.tab_manager.switch_to(tab_id);
+
+        use crate::tab_bar_ui::TabBarAction;
+        ws.handle_tab_bar_action_after_render(TabBarAction::MoveTabToNewWindow(tab_id));
+        assert!(
+            ws.overlay_ui.pending_move_tab_request.is_none(),
+            "no move request queued for a mux tab"
+        );
+        assert!(
+            ws.overlay_state.toast_message.is_some(),
+            "the block is explained to the user"
+        );
+    }
+
+    /// Attach carries the daemon's window names onto the display tabs, and
+    /// renaming a mux tab forwards rename-window to the daemon.
+    #[test]
+    fn attach_carries_window_names_and_rename_reaches_the_daemon() {
+        let path = socket_path("tabops-names");
+        spawn_daemon(&path);
+        {
+            let mut primer = MuxSessionClient::connect(&path).expect("primer connects");
+            primer.create_or_attach("tabops-names").expect("primer");
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                if primer
+                    .poll_actions()
+                    .iter()
+                    .any(|a| matches!(a, SyncAction::CreateTab { .. }))
+                {
+                    break;
+                }
+                assert!(Instant::now() < deadline);
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            primer
+                .send("rename-window -t @0 build")
+                .expect("name the window before attach");
+        }
+
+        let transport = connect(&path);
+        let mut probe = MuxSessionClient::connect(&path).expect("probe connects");
+        let mut ws = manners_state();
+        ws.install_mux_transport("tabops-names", transport)
+            .expect("install_mux_transport");
+
+        let tab_id = ws.tmux_state.tmux_sync.get_tab(0).expect("tab for @0");
+        let title = ws
+            .tab_manager
+            .get_tab(tab_id)
+            .expect("tab exists")
+            .title
+            .clone();
+        assert_eq!(title, "build", "attach carries the daemon window name");
+
+        use crate::tab_bar_ui::TabBarAction;
+        ws.handle_tab_bar_action_after_render(TabBarAction::RenameTab(
+            tab_id,
+            "it's docs".to_string(),
+        ));
+        let named = probe.list_windows().expect("list-windows");
+        assert_eq!(
+            named[0].name, "it's docs",
+            "rename-window reached the daemon, quoting intact"
+        );
+        let title = ws
+            .tab_manager
+            .get_tab(tab_id)
+            .expect("tab exists")
+            .title
+            .clone();
+        assert_eq!(title, "it's docs", "local title follows the rename");
     }
 }

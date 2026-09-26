@@ -199,7 +199,7 @@ impl WindowState {
             {
                 crate::debug_info!("MUX", "close of a mux tab's last pane — closing the tab");
                 self.show_toast("par-mux: closed tab — window survives in the daemon");
-                return self.close_current_tab_immediately();
+                return self.close_current_tab_keeping_mux_window();
             }
             if self.close_pane_via_mux() {
                 // Consumed: the daemon's %layout-change drives the local

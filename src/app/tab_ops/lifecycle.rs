@@ -6,6 +6,8 @@ use std::sync::Arc;
 
 use super::super::window_state::WindowState;
 use super::ClosedTabInfo;
+use crate::tmux::TmuxWindowId;
+use par_term_config::TabId;
 
 impl WindowState {
     /// Create a new tab, or show profile picker if configured and profiles exist
@@ -22,6 +24,14 @@ impl WindowState {
         }
     }
 
+    /// The daemon window `tab_id` mirrors, when a mux transport is
+    /// attached. `None` for local tabs and for every tab while no transport
+    /// is installed (the tmux gateway keeps its own separate state).
+    pub(crate) fn mux_window_for_tab(&self, tab_id: TabId) -> Option<TmuxWindowId> {
+        self.tmux_state.transport.as_ref()?;
+        self.tmux_state.tmux_sync.get_window(tab_id)
+    }
+
     /// Create a new tab
     pub fn new_tab(&mut self) {
         // Check max tabs limit
@@ -32,6 +42,31 @@ impl WindowState {
                 "Cannot create new tab: max_tabs limit ({}) reached",
                 self.config.load().tabs.max_tabs
             );
+            return;
+        }
+
+        // While attached to a par-mux session, a new tab IS a daemon window
+        // (the tmux -CC model): ask the daemon, and its %window-add
+        // notification creates the display tab through the same path as
+        // every other daemon window. No local shell tab is created — the
+        // session outlives this client, so a local tab would be a window
+        // the daemon cannot see or manage.
+        let sent = self
+            .tmux_state
+            .transport
+            .as_ref()
+            .map(|t| t.send_command("new-window"));
+        if let Some(result) = sent {
+            match result {
+                Ok(_) => {
+                    log::info!("MUX: new-window sent; tab arrives via %window-add");
+                }
+                Err(e) => {
+                    log::error!("MUX: new-window failed: {e}");
+                    self.show_toast(format!("par-mux: new-window failed — {e}"));
+                }
+            }
+            self.request_redraw();
             return;
         }
 
@@ -218,6 +253,22 @@ impl WindowState {
     /// Close the current tab immediately without confirmation
     /// Returns true if the window should close (last tab was closed)
     pub fn close_current_tab_immediately(&mut self) -> bool {
+        self.close_current_tab_inner(true)
+    }
+
+    /// The last-pane close of a mux tab (card 01a0d9b5568): the tab closes
+    /// locally and the daemon window KEEPS RUNNING — the detach-like
+    /// shape — so the window can come back on reattach. A TAB close (the
+    /// public method above) kills the daemon window instead.
+    pub(crate) fn close_current_tab_keeping_mux_window(&mut self) -> bool {
+        self.close_current_tab_inner(false)
+    }
+
+    /// The shared close body. `kill_mux_window` decides a mux tab's
+    /// daemon-window fate: `true` for tab closes (kill-window — the
+    /// tmux -CC semantic, no stale mappings), `false` for the last-pane
+    /// close's recorded keep-the-window decision.
+    fn close_current_tab_inner(&mut self, kill_mux_window: bool) -> bool {
         if let Some(tab_id) = self.tab_manager.active_tab_id() {
             // If the tab being closed is the tmux gateway, send detach-client first so
             // that tmux can cleanly detach rather than treating the disconnect as a crash
@@ -228,6 +279,33 @@ impl WindowState {
             if is_tmux_gateway {
                 self.write_to_gateway("detach-client\n");
                 self.disconnect_tmux_session();
+            }
+
+            // A mux tab mirrors a daemon window: closing it kills that
+            // window daemon-side, and the %window-close notification runs
+            // the tab teardown (close_tab_fast + unmap) — the same path as
+            // a shell exiting in the daemon pane. Killing (rather than
+            // detaching one window) matches tmux semantics and leaves no
+            // stale mappings behind; the SESSION survives via detach.
+            if kill_mux_window && let Some(window_id) = self.mux_window_for_tab(tab_id) {
+                let killed = self
+                    .tmux_state
+                    .transport
+                    .as_ref()
+                    .map(|t| t.send_command(&format!("kill-window -t @{window_id}")));
+                if matches!(&killed, Some(Ok(_))) {
+                    log::info!("MUX: kill-window @{} sent for tab {tab_id}", window_id);
+                    // No session-undo capture: a daemon window cannot
+                    // be restored from local metadata — reopening is a
+                    // new-window, not an undo.
+                    return false; // the tab closes when %window-close lands
+                }
+                if let Some(Err(e)) = &killed {
+                    log::error!("MUX: kill-window @{window_id} failed: {e}");
+                    self.show_toast(format!("par-mux: kill-window failed — {e}"));
+                    // Fall through to the local close: the daemon
+                    // window is unreachable from this client either way.
+                }
             }
 
             // Track whether this is a tmux display tab (non-gateway tab that shows tmux window
