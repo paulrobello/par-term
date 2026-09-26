@@ -25,8 +25,12 @@ use super::manifest::{
     KIND_STATUS_BAR_WIDGET, discover_plugins,
 };
 use super::observer::ScriptEventForwarder;
-use super::protocol::{PLUGIN_ACTION_INVOKED_KIND, ScriptEvent, ScriptEventData};
+use super::protocol::{
+    PLUGIN_ACTION_INVOKED_KIND, ScriptEvent, ScriptEventData, THEME_CHANGED_KIND,
+};
 use super::restart::ScriptRestartState;
+
+use par_term_config::themes::Theme;
 
 mod supervision;
 
@@ -253,6 +257,17 @@ pub struct PluginHost {
     /// the frontend's per-frame drain, so the window layer can surface them
     /// as crash-triage offers.
     crash_caps: Vec<PluginCrashCap>,
+    /// Theme name last delivered per plugin subscribed to
+    /// [`THEME_CHANGED_KIND`] — the same-name dedup for
+    /// [`Self::sync_theme`]. Cleared when the plugin fully stops, so a
+    /// disable/enable cycle re-greets.
+    theme_names: HashMap<String, String>,
+    /// Plugins (re)spawned since the last [`Self::sync_theme`] — armed by
+    /// every successful spawn and respawn (supervision), consumed by the
+    /// next sync. A fresh process has never seen a theme, so it is greeted
+    /// with the current one even when the theme *name* is unchanged; the
+    /// remembered name alone would skip delivery.
+    theme_greet_due: HashSet<String>,
 }
 
 /// A plugin whose supervisor gave up: the entry crash-looped past
@@ -512,6 +527,59 @@ impl PluginHost {
         }
         if !write_failed {
             self.warned_event_delivery.clear(plugin_id);
+        }
+    }
+
+    /// Deliver the active theme to every running plugin subscribed to
+    /// [`THEME_CHANGED_KIND`]: the greet after each (re)spawn and every
+    /// change thereafter, deduped by theme name.
+    ///
+    /// App-sourced — nothing here reads a terminal. The status bar calls
+    /// this per frame with the config-resolved theme, which catches every
+    /// theme-application site (system dark/light switch, settings apply,
+    /// config reload) without editing any of them. A same-name sync
+    /// delivers nothing unless the plugin was (re)spawned since (the
+    /// greet-due flag), so a respawned process that has never seen a theme
+    /// still gets one.
+    pub fn sync_theme(&mut self, theme: &Theme) {
+        let name = theme.name.clone();
+        let greet_due = std::mem::take(&mut self.theme_greet_due);
+        let mut ids: HashSet<String> = self
+            .running
+            .keys()
+            .chain(self.action_running.keys())
+            .chain(self.panel_running.keys())
+            .chain(self.overlay_running.keys())
+            .cloned()
+            .collect();
+        ids.extend(greet_due.iter().cloned());
+        if ids.is_empty() {
+            return;
+        }
+        let tokens = theme.hex_tokens();
+        for id in &ids {
+            let subscribed = self.discovered.iter().any(|d| {
+                d.manifest.id == *id
+                    && d.manifest
+                        .subscriptions
+                        .iter()
+                        .any(|kind| kind == THEME_CHANGED_KIND)
+            });
+            if !subscribed {
+                continue;
+            }
+            if !greet_due.contains(id) && self.theme_names.get(id) == Some(&name) {
+                continue;
+            }
+            let event = ScriptEvent {
+                kind: THEME_CHANGED_KIND.to_string(),
+                data: ScriptEventData::ThemeChanged {
+                    theme: name.clone(),
+                    tokens: tokens.clone(),
+                },
+            };
+            self.deliver_events(id, std::slice::from_ref(&event));
+            self.theme_names.insert(id.clone(), name.clone());
         }
     }
 
@@ -2227,6 +2295,164 @@ for line in iter(sys.stdin.readline, ""):
         host.stop_all();
     }
 
+    #[test]
+    fn sync_theme_greets_a_theme_subscribed_plugin_with_tokens() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.theme",
+            &subscribed_manifest_json("com.test.theme", r#""theme_changed""#),
+            &[("widget.py", THEME_ECHO_SCRIPT)],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.theme")]);
+
+        host.sync_theme(&Theme::dracula());
+        let landed = wait_until(&mut host, |h| {
+            h.widget_text("com.test.theme")
+                .is_some_and(|t| t.starts_with("t:Dracula|#282a36|1|"))
+        });
+        assert!(
+            landed,
+            "the theme_changed greet never reached the plugin; widget text: {:?}",
+            host.widget_text("com.test.theme")
+        );
+        host.stop_all();
+    }
+
+    #[test]
+    fn sync_theme_dedups_by_name_and_redelivers_on_change() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.dedup",
+            &subscribed_manifest_json("com.test.dedup", r#""theme_changed""#),
+            &[("widget.py", THEME_ECHO_SCRIPT)],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.dedup")]);
+
+        host.sync_theme(&Theme::dracula());
+        assert!(wait_until(&mut host, |h| h
+            .widget_text("com.test.dedup")
+            .is_some_and(|t| t.starts_with("t:Dracula|#282a36|1|"))));
+
+        // A second sync with the same resolved theme name must deliver
+        // nothing (the counter would show it), and a real change must
+        // redeliver — the final line proves both: new tokens AND counter 2,
+        // where a duplicate greet would have left it at 3.
+        host.sync_theme(&Theme::dracula());
+        host.sync_theme(&Theme::solarized_dark());
+        let landed = wait_until(&mut host, |h| {
+            h.widget_text("com.test.dedup")
+                .is_some_and(|t| t.starts_with("t:Solarized Dark|#002b36|2|"))
+        });
+        assert!(
+            landed,
+            "the theme change never reached the plugin (or the same-name sync double-delivered); widget text: {:?}",
+            host.widget_text("com.test.dedup")
+        );
+        host.stop_all();
+    }
+
+    #[test]
+    fn sync_theme_ignores_a_plugin_subscribed_to_other_kinds() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.other",
+            &subscribed_manifest_json("com.test.other", r#""bell_rang""#),
+            &[("widget.py", THEME_ECHO_SCRIPT)],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.other")]);
+
+        // The fixture writes only on theme_changed; a delivery to a plugin
+        // that did not subscribe to the kind is the bug under test.
+        host.sync_theme(&Theme::dracula());
+        settle(&mut host, 800);
+        assert!(
+            host.widget_text("com.test.other").is_none(),
+            "theme_changed delivered to a bell_rang-only plugin; widget text: {:?}",
+            host.widget_text("com.test.other")
+        );
+        host.stop_all();
+    }
+
+    #[test]
+    fn sync_theme_regreets_a_supervised_respawn_with_the_same_theme() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.regreet",
+            &subscribed_manifest_json("com.test.regreet", r#""theme_changed""#),
+            &[("widget.py", THEME_CRASH_AFTER_GREET_SCRIPT)],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.regreet")]);
+
+        host.sync_theme(&Theme::dracula());
+        let first = {
+            let landed = wait_until(&mut host, |h| {
+                h.widget_text("com.test.regreet")
+                    .is_some_and(|t| t.starts_with("t:Dracula|#282a36|1|"))
+            });
+            assert!(
+                landed,
+                "the initial greet never landed; widget text: {:?}",
+                host.widget_text("com.test.regreet")
+            );
+            host.widget_text("com.test.regreet").unwrap().to_string()
+        };
+
+        // The fixture exited non-zero right after its reply; the on-failure
+        // supervisor respawns it, and the respawned process — which has
+        // never seen a theme — must be re-greeted even though the theme NAME
+        // is unchanged (the remembered name alone would skip delivery).
+        // The reply carries the new process's pid, so a changed line is the
+        // proof; without the respawn greet the fresh process stays silent
+        // forever.
+        let mut regreeted = false;
+        for _ in 0..40 {
+            host.poll();
+            host.sync_theme(&Theme::dracula());
+            if host
+                .widget_text("com.test.regreet")
+                .is_some_and(|t| t != first)
+            {
+                regreeted = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        assert!(
+            regreeted,
+            "the respawned process never received its re-greet; widget text: {:?}",
+            host.widget_text("com.test.regreet")
+        );
+        host.stop_all();
+    }
+
     /// Widget-kind echo that delays its reply. Both kind processes of a
     /// plugin share one last-write-wins widget-text key, so when one poll
     /// drains both echoes the second masks the first before any observer can
@@ -2246,6 +2472,66 @@ for line in iter(sys.stdin.readline, ""):
     time.sleep(0.3)
     emit("w:" + str(event.get("kind", "?")))
 "#;
+
+    /// A widget plugin that reacts only to `theme_changed` events: each one
+    /// replies with `t:<theme>|<background token>|<per-process counter>|<pid>`.
+    /// The counter proves same-name dedup (a duplicate delivery bumps it) and
+    /// the pid proves a fresh process received its own greet after a
+    /// supervised respawn.
+    const THEME_ECHO_SCRIPT: &str = r#"
+import json, sys, os
+def emit(text):
+    print(json.dumps({"type": "SetWidget", "text": text}), flush=True)
+n = 0
+for line in iter(sys.stdin.readline, ""):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    if event.get("kind") != "theme_changed":
+        continue
+    n += 1
+    data = event.get("data", {})
+    tokens = data.get("tokens", {})
+    emit("t:%s|%s|%d|%d" % (data.get("theme", "?"), tokens.get("background", "?"), n, os.getpid()))
+"#;
+
+    /// The theme echo that exits non-zero after its first reply, so the
+    /// on-failure supervisor respawns it — the fixture for re-greet coverage.
+    const THEME_CRASH_AFTER_GREET_SCRIPT: &str = r#"
+import json, sys, os
+def emit(text):
+    print(json.dumps({"type": "SetWidget", "text": text}), flush=True)
+n = 0
+for line in iter(sys.stdin.readline, ""):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    if event.get("kind") != "theme_changed":
+        continue
+    n += 1
+    data = event.get("data", {})
+    tokens = data.get("tokens", {})
+    emit("t:%s|%s|%d|%d" % (data.get("theme", "?"), tokens.get("background", "?"), n, os.getpid()))
+    sys.exit(1)
+"#;
+
+    /// Poll for `ms` without a success condition — a bounded wait for "the
+    /// buggy delivery would have landed by now" negative assertions.
+    fn settle(host: &mut PluginHost, ms: u64) {
+        let deadline = Instant::now() + Duration::from_millis(ms);
+        while Instant::now() < deadline {
+            host.poll();
+            thread::sleep(Duration::from_millis(25));
+        }
+    }
 
     #[test]
     fn both_kinds_processes_receive_subscribed_events() {

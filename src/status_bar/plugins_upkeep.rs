@@ -55,6 +55,11 @@ impl StatusBarUI {
         self.plugin_settings_warned.clear_except(&enabled_ids);
         self.plugins.apply_enabled(&enabled);
         self.plugins.poll();
+        // The theme seam: one call per frame with the config-resolved theme
+        // catches every application site (system dark/light switch, settings
+        // apply, config reload) — plugins subscribed to theme_changed are
+        // greeted on spawn and re-notified on change, deduped by name.
+        self.plugins.sync_theme(&config.load_theme());
     }
 
     /// Reconcile plugin-event observer registrations against the window's

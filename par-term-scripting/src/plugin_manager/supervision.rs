@@ -72,6 +72,9 @@ impl PluginHost {
                         })
                         .on_started(now);
                     self.ensure_subscription_forwarder(id, subscriptions);
+                    // A fresh process has never seen a theme — arm the greet
+                    // so the next `sync_theme` delivers the current one.
+                    self.theme_greet_due.insert(id.to_string());
                     // A successful spawn resolves the fault episodes.
                     self.warned_not_discovered.clear(id);
                     self.warned_spawn_failed.clear(id);
@@ -343,6 +346,8 @@ impl PluginHost {
         self.stop_kind(id, KindSlot::Overlay);
         self.subscription_forwarders.remove(id);
         self.warned_event_delivery.clear(id);
+        self.theme_names.remove(id);
+        self.theme_greet_due.remove(id);
     }
 
     /// The running-process map for one kind. Every per-kind code path
@@ -407,6 +412,10 @@ impl PluginHost {
             self.warned_not_discovered.clear(id);
             self.warned_spawn_failed.clear(id);
             self.warned_action_not_running.clear(id);
+            // A fully stopped plugin keeps no theme memory: re-enabling it
+            // re-greets with the current theme even if it never changed.
+            self.theme_names.remove(id);
+            self.theme_greet_due.remove(id);
         }
     }
 
@@ -463,6 +472,9 @@ impl PluginHost {
         if let Some(state) = self.restart_map(slot).get_mut(id) {
             state.on_started(now);
         }
+        // The respawned process has never seen a theme; re-arm the greet so
+        // `sync_theme` redelivers even when the theme name is unchanged.
+        self.theme_greet_due.insert(id.to_string());
         Ok(new_sid)
     }
 
