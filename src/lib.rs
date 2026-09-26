@@ -68,6 +68,7 @@ pub mod command_palette;
 pub mod config;
 pub mod config_migration;
 pub mod copy_mode;
+pub mod crash_triage;
 pub mod font_metrics;
 pub mod help_ui;
 pub mod http;

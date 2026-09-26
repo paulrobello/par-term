@@ -134,6 +134,15 @@ impl TerminalManager {
         Ok(pty.content())
     }
 
+    /// The child's exit code once it has exited (`None` while running or if
+    /// no process was ever spawned). Signal deaths surface as a non-zero
+    /// code — portable-pty reports 1 for them — so any death this returns
+    /// `Some(non-zero)` for is crash-triage material.
+    pub fn exit_code_if_dead(&self) -> Option<i32> {
+        let mut pty = self.pty_session.lock();
+        pty.try_wait().ok().flatten()
+    }
+
     /// Resize the terminal
     ///
     /// # Errors
