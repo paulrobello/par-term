@@ -282,6 +282,9 @@ impl WindowState {
         } else if self.tmux_state.transport.is_some() {
             // par-mux transport: remember the focused pane for input routing.
             self.tmux_state.mux_focused_pane = Some(tmux_pane_id);
+            // Focusing a done agent's pane is seeing it — clear the
+            // done-unseen mark (roster surfaces render it as done ✓).
+            self.tmux_state.agent_roster.mark_seen(tmux_pane_id);
         }
     }
 

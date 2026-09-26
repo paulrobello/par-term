@@ -33,29 +33,53 @@ use par_term_tmux::TmuxPaneId;
 /// daemon's own reply is pane-sorted).
 pub(crate) struct AgentRoster {
     entries: std::collections::BTreeMap<TmuxPaneId, AgentEntry>,
+    /// Panes whose agent finished (`working` → `idle`) and that the user
+    /// has not focused since — herdr's "Done, unseen" signal. Cleared by
+    /// [`Self::mark_seen`] at the focus seam; every removal path drops it
+    /// with the entry.
+    done_unseen: std::collections::BTreeSet<TmuxPaneId>,
 }
 
 impl AgentRoster {
     pub(crate) fn new() -> Self {
         Self {
             entries: std::collections::BTreeMap::new(),
+            done_unseen: std::collections::BTreeSet::new(),
         }
     }
 
     /// Replace the whole roster from a `list-agents` reply. Wholesale
     /// replacement IS the absent-means-absent rule: a pane that no longer
-    /// reports is not in the reply and therefore not in the roster.
+    /// reports is not in the reply and therefore not in the roster. Viewed
+    /// state is par-term's own (the daemon's reply carries none), so a
+    /// fresh fill starts every pane seen — the reattach view is new.
     pub(crate) fn fill_from_list(&mut self, agents: Vec<AgentEntry>) {
         self.entries.clear();
+        self.done_unseen.clear();
         for entry in agents {
             self.entries.insert(entry.pane, entry);
         }
     }
 
     /// Apply one `%agent-state-changed` push: an upsert, because the push
-    /// is per pane and a later push replaces the earlier state.
+    /// is per pane and a later push replaces the earlier state. A
+    /// `working` → `idle` transition marks the pane done-unseen; the drain
+    /// clears the mark for the pane the user is watching (the watching
+    /// case has no focus event to clear it later).
     pub(crate) fn apply_push(&mut self, entry: AgentEntry) {
+        let finished = self.entries.get(&entry.pane).is_some_and(|prev| {
+            prev.state.eq_ignore_ascii_case("working") && entry.state.eq_ignore_ascii_case("idle")
+        });
+        if finished {
+            self.done_unseen.insert(entry.pane);
+        }
         self.entries.insert(entry.pane, entry);
+    }
+
+    /// The user focused `pane` — a done agent there has been seen. A no-op
+    /// for panes with no unseen mark.
+    pub(crate) fn mark_seen(&mut self, pane: TmuxPaneId) {
+        self.done_unseen.remove(&pane);
     }
 
     /// Apply one `%agent-released` push: the claiming agent announced it is
@@ -71,6 +95,7 @@ impl AgentRoster {
             .is_some_and(|entry| entry.agent == agent)
         {
             self.entries.remove(&pane);
+            self.done_unseen.remove(&pane);
         }
     }
 
@@ -82,6 +107,7 @@ impl AgentRoster {
     pub(crate) fn remove_panes(&mut self, panes: &[TmuxPaneId]) {
         for pane in panes {
             self.entries.remove(pane);
+            self.done_unseen.remove(pane);
         }
     }
 
@@ -89,6 +115,7 @@ impl AgentRoster {
     /// roster that outlives its daemon renders ghosts.
     pub(crate) fn clear(&mut self) {
         self.entries.clear();
+        self.done_unseen.clear();
     }
 
     /// The rostered entries, pane-ordered, for surfaces to render.
@@ -109,7 +136,14 @@ impl AgentRoster {
         let mut groups: std::collections::BTreeMap<&str, (u32, u32)> =
             std::collections::BTreeMap::new();
         for entry in self.iter().filter(|e| visible(e.pane)) {
-            let counts = groups.entry(entry.state.as_str()).or_insert((0, 0));
+            // done-unseen renders as its own group, herdr-style — the
+            // "who owes you a look" count the widget exists for.
+            let state = if self.done_unseen.contains(&entry.pane) {
+                "done"
+            } else {
+                entry.state.as_str()
+            };
+            let counts = groups.entry(state).or_insert((0, 0));
             match entry.source {
                 AgentSource::Hook => counts.0 += 1,
                 AgentSource::Scrape => counts.1 += 1,
@@ -154,9 +188,14 @@ impl AgentRoster {
                     AgentSource::Hook => "reported",
                     AgentSource::Scrape => "detected",
                 };
+                let state = if self.done_unseen.contains(&entry.pane) {
+                    "done (unseen)"
+                } else {
+                    entry.state.as_str()
+                };
                 let mut line = format!(
                     "{} · {} · {} (pane {})",
-                    entry.agent, entry.state, source, entry.pane
+                    entry.agent, state, source, entry.pane
                 );
                 if let Some(reason) = entry.reason.as_ref() {
                     line.push_str(&format!(" — {reason}"));
@@ -180,9 +219,10 @@ impl AgentRoster {
     ///   no message at all).
     /// - action_id — `agent-roster-focus:<pane>`, dispatched by the
     ///   miss-path in `execute_keybinding_action` to focus that pane.
-    /// - priority — 2 for blocked agents, 1 for the rest, so the picker
-    ///   answers "who is waiting" first; pane order is preserved within
-    ///   each tier (stable sort over the pane-ordered cache).
+    /// - priority — 2 for blocked agents and unseen-done finishers, 1 for
+    ///   the rest, so the picker answers "who owes you a look" first; pane
+    ///   order is preserved within each tier (stable sort over the
+    ///   pane-ordered cache). Unseen-done rows read `done ✓`.
     ///
     /// `visible` scopes the rows to the attached session (the module doc's
     /// rule): a row the picker offers must be a pane `focus_agent_roster_pane`
@@ -196,7 +236,12 @@ impl AgentRoster {
             .iter()
             .filter(|e| visible(e.pane))
             .map(|entry| {
-                let mut state = entry.state.clone();
+                let unseen_done = self.done_unseen.contains(&entry.pane);
+                let mut state = if unseen_done {
+                    "done ✓".to_string()
+                } else {
+                    entry.state.clone()
+                };
                 if matches!(entry.source, AgentSource::Scrape) {
                     state.push('~');
                 }
@@ -208,7 +253,9 @@ impl AgentRoster {
                     action_id: format!("agent-roster-focus:{}", entry.pane),
                     label,
                     chord: None,
-                    priority: if entry.state.eq_ignore_ascii_case("blocked") {
+                    // Blocked and unseen-done are the two "owes you a
+                    // look" states; everything else keeps pane order.
+                    priority: if entry.state.eq_ignore_ascii_case("blocked") || unseen_done {
                         2
                     } else {
                         1
@@ -242,6 +289,17 @@ mod tests {
     /// scope. The scoping behavior itself has its own tests below.
     fn all_panes(_: TmuxPaneId) -> bool {
         true
+    }
+
+    /// Whether `pane` renders as done-unseen, read through the tooltip the
+    /// way a user would (the cache keeps no queryable flag — the mark only
+    /// exists to change what the surfaces say).
+    fn marked_done_unseen(roster: &AgentRoster, pane: TmuxPaneId) -> bool {
+        roster.tooltip_text(&all_panes).is_some_and(|text| {
+            text.lines().any(|line| {
+                line.contains(&format!("(pane {pane})")) && line.contains("done (unseen)")
+            })
+        })
     }
 
     #[test]
@@ -489,5 +547,98 @@ mod tests {
         assert_eq!(roster.summary_line(&none_visible), None);
         assert_eq!(roster.tooltip_text(&none_visible), None);
         assert!(roster.palette_rows(&none_visible).is_empty());
+    }
+
+    /// AC of the done-unseen card: a `working` → `idle` transition in a
+    /// pane the user has not focused shows as done/unseen in the widget
+    /// and the picker, and clears when the pane is focused.
+    #[test]
+    fn working_to_idle_shows_done_unseen_until_seen() {
+        let mut roster = AgentRoster::new();
+        roster.apply_push(entry(0, "kimi", "working", AgentSource::Hook));
+        roster.apply_push(entry(1, "omp", "idle", AgentSource::Hook));
+        // The transition: kimi finishes while pane 1 (not kimi's) is focused.
+        roster.apply_push(entry(0, "kimi", "idle", AgentSource::Hook));
+        assert!(
+            marked_done_unseen(&roster, 0),
+            "the unseen finisher is marked"
+        );
+        assert!(
+            !marked_done_unseen(&roster, 1),
+            "plain idle was never working"
+        );
+        assert_eq!(
+            roster.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 1 done, 1 idle"),
+            "the widget groups the unseen finisher as done"
+        );
+        assert_eq!(
+            roster.tooltip_text(&all_panes).as_deref(),
+            Some("kimi · done (unseen) · reported (pane 0)\nomp · idle · reported (pane 1)")
+        );
+        let rows = roster.palette_rows(&all_panes);
+        assert_eq!(
+            rows[0].label, "kimi: done ✓",
+            "the picker leads with the unseen finisher"
+        );
+        assert_eq!(rows[0].action_id, "agent-roster-focus:0");
+        assert_eq!(rows[0].priority, 2, "done-unseen is an attention tier");
+
+        // Focusing the pane is seeing it: every surface back to plain idle.
+        roster.mark_seen(0);
+        assert!(!marked_done_unseen(&roster, 0));
+        assert_eq!(
+            roster.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 2 idle")
+        );
+        assert_eq!(
+            roster.palette_rows(&all_panes)[0].label,
+            "kimi: idle",
+            "pane order resumes once the mark clears (both idle, pane order)"
+        );
+    }
+
+    #[test]
+    fn only_a_real_working_to_idle_transition_marks() {
+        let mut roster = AgentRoster::new();
+        // blocked → idle is a release from attention, not a finish.
+        roster.apply_push(entry(0, "pi", "blocked", AgentSource::Hook));
+        roster.apply_push(entry(0, "pi", "idle", AgentSource::Hook));
+        assert!(!marked_done_unseen(&roster, 0));
+        // A fresh working push after being seen can finish again.
+        roster.apply_push(entry(0, "pi", "working", AgentSource::Hook));
+        roster.apply_push(entry(0, "pi", "idle", AgentSource::Hook));
+        assert!(marked_done_unseen(&roster, 0));
+        // working → blocked is attention, not done.
+        roster.mark_seen(0);
+        roster.apply_push(entry(0, "pi", "working", AgentSource::Hook));
+        roster.apply_push(entry(0, "pi", "blocked", AgentSource::Hook));
+        assert!(!marked_done_unseen(&roster, 0));
+    }
+
+    /// Every removal path drops the mark with the entry — a mark that
+    /// outlived its pane would ghost the next agent on that pane id.
+    #[test]
+    fn removal_paths_drop_the_done_unseen_mark() {
+        let mut roster = AgentRoster::new();
+        roster.apply_push(entry(0, "kimi", "working", AgentSource::Hook));
+        roster.apply_push(entry(0, "kimi", "idle", AgentSource::Hook));
+        roster.remove_panes(&[0]);
+        assert!(!marked_done_unseen(&roster, 0));
+        roster.apply_push(entry(0, "kimi", "working", AgentSource::Hook));
+        roster.apply_push(entry(0, "kimi", "idle", AgentSource::Hook));
+        roster.apply_release(0, "kimi");
+        assert!(!marked_done_unseen(&roster, 0));
+        roster.apply_push(entry(0, "kimi", "working", AgentSource::Hook));
+        roster.apply_push(entry(0, "kimi", "idle", AgentSource::Hook));
+        roster.fill_from_list(vec![entry(0, "kimi", "idle", AgentSource::Hook)]);
+        assert!(
+            !marked_done_unseen(&roster, 0),
+            "a fresh fill starts every pane seen"
+        );
+        roster.apply_push(entry(0, "kimi", "working", AgentSource::Hook));
+        roster.apply_push(entry(0, "kimi", "idle", AgentSource::Hook));
+        roster.clear();
+        assert!(!marked_done_unseen(&roster, 0));
     }
 }

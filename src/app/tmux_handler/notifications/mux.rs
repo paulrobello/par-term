@@ -4490,6 +4490,46 @@ out.flush()
         );
     }
 
+    /// The done-unseen drain wiring (card 01a0d9b392c0): a `working` →
+    /// `idle` push in an unfocused pane marks done-unseen, and the same
+    /// transition in the pane the user is watching never marks — the drain
+    /// clears it at the focused pane because no focus event follows to
+    /// clear it later. Mark-then-see clears through [`AgentRoster::mark_seen`]
+    /// (roster-level tests) and the two focus seams call the same method.
+    #[test]
+    fn agent_finish_marks_done_unseen_unless_the_pane_is_watched() {
+        // Read the mark the way a user would — through the tooltip — since
+        // the cache keeps no queryable flag.
+        fn marked(ws: &crate::app::window_state::WindowState, pane: u64) -> bool {
+            ws.tmux_state
+                .agent_roster
+                .tooltip_text(&|_: u64| true)
+                .is_some_and(|text| {
+                    text.lines().any(|line| {
+                        line.contains(&format!("(pane {pane})")) && line.contains("done (unseen)")
+                    })
+                })
+        }
+        let mut ws = manners_state();
+        // Unwatched: no focused pane at all.
+        assert!(ws.apply_agent_pushes(vec![
+            push("%0", "kimi", "working", "hook"),
+            push("%0", "kimi", "idle", "hook"),
+        ]));
+        assert!(marked(&ws, 0), "an unfocused finisher carries the mark");
+
+        // Watched: the finishing pane IS the focused pane.
+        ws.tmux_state.mux_focused_pane = Some(1);
+        assert!(ws.apply_agent_pushes(vec![
+            push("%1", "omp", "working", "hook"),
+            push("%1", "omp", "idle", "hook"),
+        ]));
+        assert!(
+            !marked(&ws, 1),
+            "a watched finish is seen at the transition — no ghost mark"
+        );
+    }
+
     /// The release push (pane.release_agent, core aed41c2) is the roster's
     /// one removal signal: an agent that quit leaves the cache at once
     /// instead of showing working until the pane dies. Bound by the same

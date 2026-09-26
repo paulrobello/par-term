@@ -47,7 +47,14 @@ impl WindowState {
                             entry.source,
                             entry.reason
                         );
+                        let pane = entry.pane;
                         self.tmux_state.agent_roster.apply_push(entry);
+                        // A working→idle transition on the pane the user is
+                        // watching is seen the moment it lands — no focus
+                        // event will follow to clear the mark.
+                        if self.tmux_state.mux_focused_pane == Some(pane) {
+                            self.tmux_state.agent_roster.mark_seen(pane);
+                        }
                         // Roster surfaces (A2b tasks 2/3) render from this
                         // cache, so a push is a potential visual change.
                         needs_redraw = true;
@@ -323,6 +330,7 @@ impl WindowState {
         // Deferred focus push: every pane this batch created is mapped now.
         if let Some(pane_id) = deferred_focus {
             self.tmux_state.mux_focused_pane = Some(pane_id);
+            self.tmux_state.agent_roster.mark_seen(pane_id);
             self.handle_tmux_pane_focus_changed(pane_id);
         }
 
