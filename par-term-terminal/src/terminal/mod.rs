@@ -552,6 +552,15 @@ impl TerminalManager {
         )
     }
 
+    /// Whether the application enabled focus tracking (DECSET 1004) — the
+    /// gate for focus-in/out delivery, and for routing those sequences to
+    /// a mux pane's daemon instead of a PTY-less mirror.
+    pub fn focus_tracking_enabled(&self) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        terminal.read().focus_tracking()
+    }
+
     /// Send focus event to PTY if the application has enabled focus tracking (DECSET 1004).
     /// Returns true if the event was sent.
     pub fn report_focus_change(&self, focused: bool) -> bool {

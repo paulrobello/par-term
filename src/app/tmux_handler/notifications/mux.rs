@@ -3428,6 +3428,114 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Focus reporting (DECSET 1004) follows the same rule as every other
+    /// mux input: the report bytes belong in the DAEMON pane. The focus
+    /// handler wrote ESC[I / ESC[O into the mirror terminal, which has no
+    /// PTY — an app in a mux pane that enabled focus tracking never heard
+    /// the window focus change (card 01a0d9b55c2273a2be9d87a0718690c3).
+    #[test]
+    fn focus_reports_reach_the_daemon_pane() {
+        let path = socket_path("ws-focus");
+        spawn_daemon(&path);
+
+        // Created-session attach (the triggers-test pattern).
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "wsfocus", Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("wsfocus".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until the layout consumer created the native mirror pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let tab_id = loop {
+            ws.check_mux_notifications();
+            if let Some(&(tab_id, native)) = ws.tmux_state.tmux_pane_owners.get(&0) {
+                ws.tab_manager.switch_to(tab_id);
+                break (tab_id, native);
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the pane: {:?}",
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        };
+
+        // The app in the pane enables focus tracking (DECSET 1004) —
+        // routed through the daemon's %output, so the MIRROR terminal
+        // carries the mode.
+        ws.handle_tmux_output(0, b"\x1b[?1004h");
+        {
+            let tab = ws.tab_manager.get_tab(tab_id.0).expect("mux tab");
+            let pane = tab
+                .pane_manager()
+                .and_then(|pm| pm.get_pane(tab_id.1))
+                .expect("mirror pane");
+            let term = pane.terminal.try_read().expect("pane terminal free");
+            assert!(
+                term.focus_tracking_enabled(),
+                "the mirror must carry the app's focus-tracking mode"
+            );
+        }
+
+        // Make the daemon pane echo its input: `cat -v` renders ESC[I as
+        // `^[[I`, so capture-pane is the oracle for delivery. Typed as
+        // hex bytes — bare words are key names on the daemon's send-keys.
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command("send-keys -t %0 -H 63 61 74 20 2d 76 0d")
+            .expect("start cat -v");
+        std::thread::sleep(Duration::from_millis(300));
+
+        // Window blur then focus through the production entry. The first
+        // call flips state (a fresh window reports focused), so both
+        // ESC[O and ESC[I should be delivered.
+        ws.handle_focus_change(false);
+        ws.handle_focus_change(true);
+
+        // The report bytes must have reached the daemon pane.
+        let mut daemon_view = String::new();
+        let mut saw_focus_out = false;
+        let mut saw_focus_in = false;
+        while Instant::now() < deadline && !(saw_focus_out && saw_focus_in) {
+            daemon_view = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("capture-pane -t %0 -p")
+                .expect("capture")
+                .join("|");
+            saw_focus_out = daemon_view.contains("^[[O");
+            saw_focus_in = daemon_view.contains("^[[I");
+            if !(saw_focus_out && saw_focus_in) {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }
+        assert!(
+            saw_focus_in && saw_focus_out,
+            "the daemon pane must see ESC[O and ESC[I from the focus \
+             changes: {daemon_view:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Paste is the one input stream that never got a mux branch: keyboard
     /// input goes through `send_input_via_tmux`'s transport check, mouse
     /// reports through `route_mouse_report_to_mux`, but the shared paste

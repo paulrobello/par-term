@@ -67,7 +67,9 @@ impl WindowState {
 
         // Forward focus events to all PTYs that have focus tracking enabled (DECSET 1004)
         // This is needed for applications like tmux that rely on focus events
-        for tab in self.tab_manager.tabs_mut() {
+        // (immutable pass — the mux routing below borrows self, so the
+        // refresh-task restarts run in their own mutable loop)
+        for tab in self.tab_manager.tabs() {
             // try_lock: intentional — Focused fires in the sync event loop. On miss: the
             // focus change event is not delivered to this terminal/pane. For most TUI apps
             // this means the focus-change visual update (e.g., tmux pane highlight) is
@@ -82,6 +84,15 @@ impl WindowState {
                 for pane in pm.all_panes() {
                     // try_lock: intentional — same rationale as tab terminal above.
                     if let Ok(term) = pane.terminal.try_read() {
+                        // A mux mirror has no PTY: when the app enabled
+                        // focus reporting (DECSET 1004), the sequence
+                        // must reach the daemon pane, not a local write
+                        // into the mirror.
+                        if term.focus_tracking_enabled()
+                            && self.route_focus_report_to_mux(tab.id, pane.id, focused)
+                        {
+                            continue;
+                        }
                         term.report_focus_change(focused);
                     } else {
                         crate::debug::record_try_lock_failure("focus_event_pane");

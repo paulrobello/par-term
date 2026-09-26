@@ -202,6 +202,31 @@ impl WindowState {
         false
     }
 
+    /// Route a focus report (ESC[I / ESC[O) for one mux mirror pane to its
+    /// daemon pane. Returns `true` when it was sent that way; `false`
+    /// means the pane is not a mux pane and the caller reports locally.
+    ///
+    /// Same class as [`Self::route_mouse_report_to_mux`]: a mirror has no
+    /// PTY, so the focus-in/out sequence an app that enabled focus
+    /// tracking (DECSET 1004) expects must arrive as daemon input, not as
+    /// a local write into the mirror.
+    #[cfg_attr(not(feature = "mux"), allow(unused_variables))]
+    pub(crate) fn route_focus_report_to_mux(
+        &self,
+        tab_id: crate::tab::TabId,
+        pane_id: crate::pane::PaneId,
+        focused: bool,
+    ) -> bool {
+        #[cfg(feature = "mux")]
+        if let Some(transport) = &self.tmux_state.transport
+            && let Some(pane) = self.tmux_state.tmux_pane_in_tab(tab_id, pane_id)
+        {
+            let bytes: &[u8] = if focused { b"\x1b[I" } else { b"\x1b[O" };
+            return super::notifications::mux::route_literal_bytes(&**transport, Some(pane), bytes);
+        }
+        false
+    }
+
     /// Format send-keys command for a specific window (if mapping exists)
     fn format_send_keys_for_window(&self, data: &[u8]) -> Option<String> {
         let active_tab_id = self.tab_manager.active_tab_id()?;
