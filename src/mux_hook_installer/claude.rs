@@ -224,6 +224,8 @@ pub(crate) fn heal_claude_hook_asset_into(
     let command = hook_command_for(hook_path);
     if has_command(&content, settings_path, &command, "SessionStart")? {
         write_hook_asset(hook_path, claude_hook_asset())?;
+        // The deleter is unidentified; this line dates any recurrence in the debug log.
+        log::info!("mux hook heal: restored {}", hook_path.display());
     }
     Ok(())
 }

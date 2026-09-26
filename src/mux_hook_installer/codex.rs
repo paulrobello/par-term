@@ -369,6 +369,8 @@ pub(crate) fn heal_codex_hook_asset_into(codex_dir: &Path, hook_path: &Path) -> 
     let command = codex_hook_command(hook_path);
     if has_command(&content, &hooks_path, &command, "SessionStart")? {
         write_hook_asset(hook_path, codex_hook_asset())?;
+        // The deleter is unidentified; this line dates any recurrence in the debug log.
+        log::info!("mux hook heal: restored {}", hook_path.display());
     }
     Ok(())
 }
