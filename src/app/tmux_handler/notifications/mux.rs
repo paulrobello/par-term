@@ -5133,6 +5133,91 @@ out.flush()
         assert!(!ws.execute_keybinding_action("launch-default-agent"));
     }
 
+    /// The local arm (no transport): dispatching a configured agent opens a
+    /// new tab and the typed command runs in its shell — the snippet NewTab
+    /// path carrying the launcher's command line.
+    #[test]
+    fn launch_agent_local_arm_opens_a_tab_and_runs_the_command() {
+        // A multi-thread runtime: unlike the mirror-terminal tests, this
+        // one pumps a REAL local shell, and the core's PTY reader needs
+        // background task progress a dormant current-thread runtime
+        // never makes.
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        ws.config.store(std::sync::Arc::new(crate::config::Config {
+            agents: vec![par_term_config::agent_launcher::AgentLaunchConfig {
+                id: "probe".to_string(),
+                name: "Probe".to_string(),
+                command: "echo PAR_TERM_LOCAL_LAUNCH".to_string(),
+                autonomy_args: String::new(),
+                default: false,
+            }],
+            ..Default::default()
+        }));
+        assert!(ws.execute_keybinding_action("launch-agent:probe"));
+        assert_eq!(ws.tab_manager.tab_count(), 1, "the launch opened a tab");
+
+        // The delayed write lands after the shell initializes; poll the
+        // tab's screen for the marker (Cmd+F's searchable-lines seam).
+        let tab_id = ws.tab_manager.active_tab().unwrap().id;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let seen = ws.tab_manager.get_tab(tab_id).and_then(|tab| {
+                tab.try_with_read_terminal(|term| {
+                    crate::app::window_state::search_highlight::get_all_searchable_lines(
+                        term,
+                        term.dimensions().1,
+                    )
+                    .any(|(_, line)| line.contains("PAR_TERM_LOCAL_LAUNCH"))
+                })
+            });
+            if seen == Some(true) {
+                return;
+            }
+            if Instant::now() >= deadline {
+                let diag = ws
+                    .tab_manager
+                    .get_tab(tab_id)
+                    .and_then(|tab| {
+                        tab.try_with_read_terminal(|term| {
+                            (
+                                term.dimensions(),
+                                term.is_running(),
+                                term.content().map(|c| c.chars().count()).unwrap_or(0),
+                            )
+                        })
+                    })
+                    .unwrap_or(((0, 0), false, 0));
+                let lines = ws
+                    .tab_manager
+                    .get_tab(tab_id)
+                    .and_then(|tab| {
+                        tab.try_with_read_terminal(|term| {
+                            crate::app::window_state::search_highlight::get_all_searchable_lines(
+                                term,
+                                term.dimensions().1,
+                            )
+                            .map(|(_, line)| line)
+                            .collect::<Vec<_>>()
+                        })
+                    })
+                    .unwrap_or_default();
+                panic!(
+                    "typed command never ran in the local launch tab (dims={}x{} running={} content_chars={}): {lines:?}",
+                    diag.0.0, diag.0.1, diag.1, diag.2
+                );
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     /// Closing a mux tab kills the daemon window; the tab tears down via
     /// %window-close and leaves no stale pane mappings behind.
     #[test]
