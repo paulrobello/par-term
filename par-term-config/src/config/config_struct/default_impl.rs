@@ -85,6 +85,7 @@ impl Default for Config {
             automation: AutomationConfig::default(),
             snippets: Vec::new(),
             actions: Vec::new(),
+            agents: Vec::new(),
             collapsed_settings_sections: Vec::new(),
             dynamic_profile_sources: Vec::new(),
             security: SecurityConfig::default(),

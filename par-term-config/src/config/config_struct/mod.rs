@@ -671,6 +671,10 @@ pub struct Config {
     #[serde(default)]
     pub actions: Vec<CustomActionConfig>,
 
+    /// Launchable CLI agents exposed as "Launch <agent>" palette entries.
+    #[serde(default)]
+    pub agents: Vec<crate::agent_launcher::AgentLaunchConfig>,
+
     // ========================================================================
     // UI State (persisted across sessions)
     // ========================================================================
