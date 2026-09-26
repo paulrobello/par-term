@@ -311,8 +311,22 @@ impl PluginHost {
                             slot.as_str(),
                             error
                         );
-                        if let Some(state) = self.restart_map(slot).get_mut(id) {
-                            state.reschedule(now);
+                        // Honor the cap: reschedule() returns Stop once the
+                        // attempt budget is spent. Dropping it (the old bug)
+                        // left the sticky-exit poll to re-decide, whose
+                        // grace-window reset keeps zeroing the counter — an
+                        // unspawnable entry then retried forever. Give up the
+                        // same way the exit crash-loop does, surfacing the
+                        // spawn error on the crash-cap.
+                        let mut gave_up_policy = None;
+                        if let Some(state) = self.restart_map(slot).get_mut(id)
+                            && state.reschedule(now) == RestartAction::Stop
+                        {
+                            gave_up_policy = Some(state.policy());
+                        }
+                        if let Some(policy) = gave_up_policy {
+                            self.push_crash_cap(id, slot, policy, vec![error]);
+                            self.stop_kind(id, slot);
                         }
                     }
                 }

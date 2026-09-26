@@ -990,6 +990,71 @@ while True:
         assert!(host.drain_crash_caps().is_empty());
     }
 
+    /// A plugin that runs past the restart grace window, then whose entry is
+    /// made unspawnable (exec bit removed) before its crash: the respawn
+    /// attempts must count toward the cap and give up. Pre-fix, the Restart
+    /// branch discarded reschedule()'s Stop and the grace-window reset kept
+    /// zeroing the counter, so the supervisor retried forever and never
+    /// surfaced a crash-cap.
+    #[cfg(unix)]
+    #[test]
+    fn respawn_spawn_failures_are_capped_not_retried_forever() {
+        let root = tempfile::tempdir().unwrap();
+        let manifest = manifest_json("com.test.respawn").replacen(
+            "\"command\":\"widget.py\"",
+            "\"command\":\"widget.sh\"",
+            1,
+        );
+        // Sleeps past RESTART_GRACE (5 s) so the exit cannot reset the
+        // failure counter, then dies like a crash.
+        write_plugin_files(
+            root.path(),
+            "com.test.respawn",
+            &manifest,
+            &[("widget.sh", "#!/bin/sh\nsleep 6\nexit 3\n")],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.respawn")]);
+        assert!(
+            wait_until(&mut host, |h| plugin_running(h, "com.test.respawn")),
+            "fixture never started"
+        );
+
+        // Break the entry while the process still runs: every respawn from
+        // here fails to spawn (EACCES) — the path whose Stop was dropped.
+        let entry = root.path().join("com.test.respawn").join("widget.sh");
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&entry, fs::Permissions::from_mode(0o644)).unwrap();
+        }
+
+        // 6 s grace sleep + 5 rounds × 250 ms delay + spawn overhead. Hard
+        // deadline so a regression fails fast instead of hanging the suite.
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let mut gave_up = false;
+        while Instant::now() < deadline {
+            host.poll();
+            if !plugin_running(&host, "com.test.respawn") && !host.crash_caps.is_empty() {
+                gave_up = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            gave_up,
+            "supervisor never gave up on failing respawns; still running: {:?}",
+            host.running_plugin_ids()
+        );
+        let caps = host.drain_crash_caps();
+        assert_eq!(caps.len(), 1, "exactly one crash-cap event");
+        assert_eq!(caps[0].plugin_id, "com.test.respawn");
+        assert_eq!(caps[0].kind, "widget");
+        assert!(host.running_plugin_ids().is_empty());
+        host.stop_all();
+    }
+
     /// A one-shot plugin: emits one widget line and exits 0.
     const ONE_SHOT_SCRIPT: &str = r#"
 import json

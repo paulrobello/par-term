@@ -10,7 +10,7 @@ on an explicit click. Nothing is sent anywhere until you activate the offer.
 | Trigger | Source |
 |---------|--------|
 | A pane's process exits non-zero | `src/app/handler/window_state_impl/shell_exit.rs` (per-frame capture pass) |
-| A plugin entry crash-loops past the restart cap (5 attempts in the 5 s grace window) | `PluginHost` supervision → `drain_crash_caps` → `egui_submit.rs` |
+| A plugin entry crash-loops or fails to respawn past the restart cap (5 attempts in the 5 s grace window) | `PluginHost` supervision → `drain_crash_caps` → `egui_submit.rs` |
 | The previous run ended in a panic | the crash-session snapshot consumed at session restore (`src/session/crash_guard.rs`), plus the rotated debug log tail where the panic report lives |
 
 Clean exits (`exit 0`), plugin policy stops (a `never` restart policy doing
