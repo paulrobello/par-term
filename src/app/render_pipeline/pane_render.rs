@@ -76,6 +76,7 @@ pub(super) type PaneRenderDataResult = Option<(
 ///   for the scrollbar.  In split-pane mode this is applied to ALL panes so the
 ///   column count never changes on focus switch (preventing layout reflow).
 ///   The scrollbar is shown per-pane based on each pane's scrollback state.
+#[allow(clippy::too_many_arguments)] // Render-pass inputs the caller already holds; a params struct would just restate them
 pub(super) fn gather_pane_render_data(
     tab: &mut crate::tab::Tab,
     config: &Config,
@@ -84,6 +85,7 @@ pub(super) fn gather_pane_render_data(
     cursor_opacity: f32,
     pane_count: usize,
     layout: PaneLayoutOptions,
+    copy_mode: &crate::copy_mode::CopyModeState,
 ) -> PaneRenderDataResult {
     let PaneLayoutOptions {
         scrollbar_inset,
@@ -431,7 +433,11 @@ pub(super) fn gather_pane_render_data(
 
         // Cursor position — only show when viewport is not scrolled away from the live screen.
         // When scroll_offset > 0 the cursor is off-screen (in scrollback), so hide it.
-        let cursor_pos = if scroll_offset == 0 {
+        // Copy mode is the exception: the focused pane draws the copy-mode
+        // cursor (valid in scrollback too), mirroring extract_tab_cells.
+        let cursor_pos = if is_focused && copy_mode.active {
+            copy_mode.screen_cursor_pos(scroll_offset)
+        } else if scroll_offset == 0 {
             if let Ok(term) = pane.terminal.try_read() {
                 if term.is_cursor_visible() {
                     Some(term.cursor_position())
@@ -767,6 +773,7 @@ impl crate::app::window_state::WindowState {
                         scrollbar_inset: sizing.scrollbar_width,
                         mux_attached,
                     },
+                    &self.copy_mode,
                 )
             })
         else {
@@ -787,5 +794,134 @@ impl crate::app::window_state::WindowState {
             |renderer, cap| renderer.take_screenshot(cap),
         )
         .map_err(|e| format!("Renderer screenshot failed: {e}"))
+    }
+}
+
+#[cfg(test)]
+mod copy_mode_cursor_tests {
+    use super::{PaneLayoutOptions, gather_pane_render_data};
+    use crate::config::Config;
+    use crate::copy_mode::CopyModeState;
+    use par_term_terminal::TerminalManager;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+    use winit::dpi::PhysicalSize;
+
+    /// A tab whose focused pane runs a deterministic headless terminal (no
+    /// PTY), so cursor position and scrollback length are exact.
+    ///
+    /// The tab itself is real (`Tab::new` spawns the shell on the tab-level
+    /// terminal), but the pane's terminal is swapped for one fed 30 numbered
+    /// lines — the gather path only ever reads `pane.terminal`.
+    fn tab_with_fed_pane() -> (crate::tab::Tab, usize) {
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let config = Config::default();
+        let mut tab =
+            crate::tab::Tab::new(1, 1, &config, runtime, None, Some((80, 24))).expect("tab");
+
+        let term = TerminalManager::new_with_scrollback(80, 24, 200).expect("terminal");
+        for i in 0..30 {
+            term.process_data(format!("line {i:02}\r\n").as_bytes());
+        }
+        let sb_len = term.scrollback_len();
+
+        let pm = tab.pane_manager.as_mut().expect("pane manager");
+        let pane_id = pm.focused_pane_id().expect("focused pane");
+        let pane = pm.get_pane_mut(pane_id).expect("pane");
+        pane.terminal = Arc::new(RwLock::new(term));
+        (tab, sb_len)
+    }
+
+    fn sizing_80x24() -> super::RendererSizing {
+        super::RendererSizing {
+            size: PhysicalSize::new(640, 384),
+            content_offset_y: 0.0,
+            content_offset_x: 0.0,
+            content_inset_bottom: 0.0,
+            content_inset_right: 0.0,
+            cell_width: 8.0,
+            cell_height: 16.0,
+            padding: 0.0,
+            status_bar_height: 0.0,
+            scale_factor: 1.0,
+            scrollbar_width: 0.0,
+        }
+    }
+
+    fn gather_cursor(
+        tab: &mut crate::tab::Tab,
+        copy_mode: &CopyModeState,
+    ) -> Option<(usize, usize)> {
+        let (pane_data, ..) = gather_pane_render_data(
+            tab,
+            &Config::default(),
+            &sizing_80x24(),
+            0.0,
+            1.0,
+            1,
+            PaneLayoutOptions {
+                scrollbar_inset: 0.0,
+                mux_attached: false,
+            },
+            copy_mode,
+        )
+        .expect("pane data");
+        pane_data[0].cursor_pos
+    }
+
+    /// With copy mode active on the focused pane, the gathered cursor is the
+    /// copy-mode cursor, not the terminal cursor the shell left behind.
+    #[test]
+    fn focused_pane_cursor_follows_copy_mode_on_the_live_view() {
+        let (mut tab, sb_len) = tab_with_fed_pane();
+
+        let mut copy_mode = CopyModeState::new();
+        copy_mode.enter(4, 5, 80, 24, sb_len);
+        copy_mode.move_up();
+        copy_mode.move_up();
+
+        let expected = (4, 3);
+        assert_ne!(
+            tab.pane_manager
+                .as_ref()
+                .and_then(|pm| pm.focused_pane_id())
+                .and_then(|id| pm_get_pane(&tab, id))
+                .and_then(|p| p.terminal.try_read().ok())
+                .map(|t| t.cursor_position()),
+            Some(expected),
+            "precondition: the terminal cursor must differ from the copy-mode cursor"
+        );
+        assert_eq!(copy_mode.screen_cursor_pos(0), Some(expected));
+        assert_eq!(gather_cursor(&mut tab, &copy_mode), Some(expected));
+    }
+
+    /// A copy-mode cursor moved into scrollback stays visible at
+    /// scroll_offset > 0 and tracks further motion (the terminal cursor is
+    /// hidden there, so the old code returned None).
+    #[test]
+    fn focused_pane_copy_mode_cursor_stays_visible_in_scrollback() {
+        let (mut tab, sb_len) = tab_with_fed_pane();
+        tab.active_scroll_state_mut().offset = 3;
+
+        let mut copy_mode = CopyModeState::new();
+        copy_mode.enter(4, 5, 80, 24, sb_len);
+        copy_mode.cursor_absolute_line = sb_len.saturating_sub(3);
+
+        // viewport_top = sb_len - 3 → the cursor sits at screen row 0.
+        assert_eq!(copy_mode.screen_cursor_pos(3), Some((4, 0)));
+        assert_eq!(gather_cursor(&mut tab, &copy_mode), Some((4, 0)));
+
+        // Motion tracks: one line down moves the drawn cursor one row.
+        copy_mode.cursor_absolute_line = sb_len.saturating_sub(2);
+        assert_eq!(gather_cursor(&mut tab, &copy_mode), Some((4, 1)));
+    }
+
+    fn pm_get_pane(tab: &crate::tab::Tab, id: crate::pane::PaneId) -> Option<&crate::pane::Pane> {
+        tab.pane_manager.as_ref()?.get_pane(id)
     }
 }

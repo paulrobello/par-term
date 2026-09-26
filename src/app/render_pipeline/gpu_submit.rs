@@ -314,6 +314,7 @@ impl WindowState {
                             scrollbar_inset: sizing.scrollbar_width,
                             mux_attached,
                         },
+                        &self.copy_mode,
                     )
                 });
 

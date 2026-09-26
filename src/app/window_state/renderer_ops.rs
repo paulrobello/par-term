@@ -348,6 +348,15 @@ impl WindowState {
     /// - 5: Blinking bar
     /// - 6: Steady bar
     pub(crate) fn update_cursor_blink(&mut self) {
+        // Copy mode draws a steady block (extract_tab_cells /
+        // gather_pane_render_data force the style); a blink cycle on a steady
+        // style reads as a randomly fading block, so hold full opacity while
+        // it is active.
+        if self.copy_mode.active {
+            self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
+            return;
+        }
+
         // If cursor style is locked, use the config's blink setting directly
         if self.config.load().cursor.lock_cursor_style {
             if !self.config.load().cursor.cursor_blink {
