@@ -36,13 +36,16 @@ pub(crate) struct UsageSnapshot {
     pub errors: Vec<String>,
 }
 
-/// Watches the records directory and serves the last snapshot.
+/// Watches the records directories and serves the last snapshot.
 pub(crate) struct UsageStore {
-    /// The records directory (may not exist yet).
-    dir: PathBuf,
-    /// Directory watcher; `None` until the directory exists.
+    /// The records directories: the primary plus any configured extra dirs
+    /// (e.g. a synced folder — v2 merge). None may exist yet.
+    dirs: Vec<PathBuf>,
+    /// Directory watcher; `None` until some directory exists.
     watcher: Option<Box<dyn Watcher + Send>>,
-    /// Signals "something in the directory changed" after debouncing.
+    /// Directories already added to the watcher.
+    watched: HashSet<PathBuf>,
+    /// Signals "something in a watched directory changed" after debouncing.
     event_rx: Option<Receiver<()>>,
     /// Debounce state shared with the watcher callbacks.
     last_event: Arc<Mutex<Option<Instant>>>,
@@ -60,17 +63,37 @@ impl UsageStore {
     /// [`UsageStore::tick`]/[`UsageStore::refresh_now`] once it appears.
     pub(crate) fn new(dir: PathBuf) -> Self {
         let mut store = Self {
-            dir,
+            dirs: vec![dir],
             watcher: None,
+            watched: HashSet::new(),
             event_rx: None,
             last_event: Arc::new(Mutex::new(None)),
             snapshot: UsageSnapshot::default(),
             hidden: HashSet::new(),
             last_rescan: None,
         };
-        store.attach_watcher_if_dir_exists();
+        store.attach_watcher_for_new_dirs();
         store.rescan();
         store
+    }
+
+    /// Replace the extra records directories (after the primary). Same-set
+    /// calls are a no-op, like `set_hidden` — this runs every frame with the
+    /// config's list. A change re-arms the watcher and rescans.
+    pub(crate) fn set_extra_dirs(&mut self, extra: Vec<PathBuf>) {
+        let mut dirs = Vec::with_capacity(self.dirs.len().max(extra.len() + 1));
+        dirs.push(self.dirs[0].clone());
+        dirs.extend(extra);
+        if dirs == self.dirs {
+            return;
+        }
+        self.dirs = dirs;
+        // A dropped dir's watch dies with the rebuilt watcher; a kept dir is
+        // re-added below, so the stale `watched` set is simply forgotten.
+        self.watcher = None;
+        self.watched.clear();
+        self.attach_watcher_for_new_dirs();
+        self.rescan();
     }
 
     /// Drain pending watcher events; rescans once if any arrived.
@@ -86,11 +109,11 @@ impl UsageStore {
         changed
     }
 
-    /// Refresh path: attach a late-appearing directory's watcher when needed,
+    /// Refresh path: attach late-appearing directories' watchers when needed,
     /// and rescan when `min_interval` has elapsed since the last one. Returns
     /// whether a rescan ran.
     pub(crate) fn tick(&mut self, min_interval: Duration) -> bool {
-        if self.watcher.is_none() && self.attach_watcher_if_dir_exists() {
+        if self.attach_watcher_for_new_dirs() {
             self.rescan();
             return true;
         }
@@ -109,9 +132,7 @@ impl UsageStore {
     /// now regardless of the interval, attaching the watcher first if the
     /// directory has appeared.
     pub(crate) fn refresh_now(&mut self) -> bool {
-        if self.watcher.is_none() {
-            self.attach_watcher_if_dir_exists();
-        }
+        self.attach_watcher_for_new_dirs();
         self.rescan();
         true
     }
@@ -166,57 +187,106 @@ impl UsageStore {
         self.rescan();
     }
 
-    /// Read every `*.json` in the directory into a fresh snapshot. A missing
-    /// directory clears the snapshot — a deleted records dir hides the
-    /// widget, it does not freeze the last data on screen.
+    /// Read every `*.json` across the records directories into a fresh
+    /// snapshot, merging records that share an agent id (one account synced
+    /// from two machines — widest value, never summed). When no directory
+    /// exists the snapshot clears — a deleted records dir hides the widget,
+    /// it does not freeze the last data on screen.
     fn rescan(&mut self) {
         self.last_rescan = Some(Instant::now());
-        if !self.dir.is_dir() {
+        // (filename, path) across every dir, filename order for
+        // deterministic snapshots and stable first-appearance merge order.
+        let mut entries: Vec<(String, PathBuf)> = Vec::new();
+        let mut any_dir = false;
+        for dir in &self.dirs {
+            if let Ok(iter) = fs::read_dir(dir) {
+                any_dir = true;
+                entries.extend(
+                    iter.filter_map(|e| e.ok().map(|e| e.path()))
+                        .filter(|p| p.extension().is_some_and(|ext| ext == "json"))
+                        .map(|p| {
+                            let filename = p
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            (filename, p)
+                        }),
+                );
+            }
+        }
+        if !any_dir {
             self.snapshot = UsageSnapshot::default();
             return;
         }
-        let mut entries: Vec<PathBuf> = match fs::read_dir(&self.dir) {
-            Ok(iter) => iter
-                .filter_map(|e| e.ok().map(|e| e.path()))
-                .filter(|p| p.extension().is_some_and(|ext| ext == "json"))
-                .collect(),
-            Err(_) => {
-                self.snapshot = UsageSnapshot::default();
-                return;
-            }
-        };
-        // Filename order, so the snapshot is deterministic across rescans.
         entries.sort();
 
-        let mut records = Vec::new();
+        let mut records: Vec<AgentUsageRecord> = Vec::new();
         let mut errors = Vec::new();
-        for path in entries {
-            let filename = path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
+        for (filename, path) in entries {
             match fs::read_to_string(&path)
                 .ok()
                 .and_then(|json| records::parse_record(&json))
             {
-                Some(record) => {
-                    if records::should_display(&record, &self.hidden) {
-                        records.push(record);
+                Some(record) => match records.iter().position(|r| r.id == record.id) {
+                    // Same account seen again (a synced second copy or an
+                    // extra dir): widest-value merge into the first
+                    // appearance.
+                    Some(index) => {
+                        records[index] = records::merge_records(records[index].clone(), record);
                     }
-                }
+                    None => {
+                        if records::should_display(&record, &self.hidden) {
+                            records.push(record);
+                        }
+                    }
+                },
                 None => errors.push(format!("{filename}: parse failed")),
             }
         }
         self.snapshot = UsageSnapshot { records, errors };
     }
 
-    /// Try to watch the directory. Returns whether a watcher is now attached.
-    fn attach_watcher_if_dir_exists(&mut self) -> bool {
-        if self.watcher.is_some() || !self.dir.is_dir() {
-            return self.watcher.is_some();
+    /// Watch every records directory not yet watched, creating the watcher
+    /// on the first. Returns whether anything new was attached (the caller
+    /// rescans then — a dir appearing late means its files were missed).
+    fn attach_watcher_for_new_dirs(&mut self) -> bool {
+        let pending: Vec<PathBuf> = self
+            .dirs
+            .iter()
+            .filter(|d| d.is_dir() && !self.watched.contains(*d))
+            .cloned()
+            .collect();
+        if pending.is_empty() {
+            return false;
         }
+        let mut attached_any = false;
+        for dir in pending {
+            if self.watcher.is_none() && !self.create_watcher() {
+                // No backend at all — retrying per dir cannot help.
+                return false;
+            }
+            let Some(watcher) = self.watcher.as_mut() else {
+                return false;
+            };
+            match watcher.watch(&dir, RecursiveMode::NonRecursive) {
+                Ok(()) => {
+                    self.watched.insert(dir);
+                    attached_any = true;
+                }
+                Err(e) => {
+                    log::warn!("agent-usage watcher: cannot watch {}: {e}", dir.display());
+                }
+            }
+        }
+        attached_any
+    }
+
+    /// Build the watcher backend (native, poll fallback). Returns whether a
+    /// watcher now exists; the event channel is installed either way so a
+    /// later `poll()` drains harmlessly.
+    fn create_watcher(&mut self) -> bool {
         let (tx, rx) = channel::<()>();
-        let mut watcher: Box<dyn Watcher + Send> = {
+        let watcher: Box<dyn Watcher + Send> = {
             let handler = make_event_handler(tx.clone(), Arc::clone(&self.last_event));
             match notify::recommended_watcher(handler) {
                 Ok(w) => Box::new(w),
@@ -240,14 +310,6 @@ impl UsageStore {
                 }
             }
         };
-        if let Err(e) = watcher.watch(&self.dir, RecursiveMode::NonRecursive) {
-            log::warn!(
-                "agent-usage watcher: cannot watch {}: {e}",
-                self.dir.display()
-            );
-            self.event_rx = Some(rx);
-            return false;
-        }
         self.watcher = Some(watcher);
         self.event_rx = Some(rx);
         true
@@ -329,6 +391,88 @@ mod tests {
             }
             std::thread::sleep(Duration::from_millis(50));
         }
+    }
+
+    /// One account synced from two machines: the primary dir and a synced
+    /// extra dir each hold a `claude.json`; the snapshot carries ONE merged
+    /// record (dates union by date, counts widen, limits keep the wider
+    /// set), and dropping the extra dir drops back to the primary alone.
+    #[test]
+    fn extra_dirs_merge_one_account_synced_from_two_machines() {
+        let dir = TempDir::new().expect("tempdir");
+        write(
+            &dir,
+            "claude.json",
+            r#"{"id":"claude","ready":true,"updatedAt":"2026-09-20T18:00:00Z",
+                "limits":[{"label":"Weekly","percent":70.0}],
+                "activeDays":2,"activeDates":["2026-09-18","2026-09-19"],
+                "totalPrompts":900}"#,
+        );
+        let synced = TempDir::new().expect("tempdir");
+        write(
+            &synced,
+            "claude.json",
+            r#"{"id":"claude","ready":true,"updatedAt":"2026-09-20T17:00:00Z",
+                "limits":[{"label":"Weekly","percent":70.0},
+                           {"label":"Session (5-hour)","percent":12.0}],
+                "activeDays":2,"activeDates":["2026-09-19","2026-09-20"],
+                "totalPrompts":1200}"#,
+        );
+        let mut store = UsageStore::new(dir.path().to_path_buf());
+        assert_eq!(store.snapshot().records.len(), 1, "primary alone");
+
+        store.set_extra_dirs(vec![synced.path().to_path_buf()]);
+        let records = &store.snapshot().records;
+        assert_eq!(records.len(), 1, "the synced copy merges, not duplicates");
+        let merged = &records[0];
+        assert_eq!(merged.active_days, Some(3), "18, 19, 20 — union, never sum");
+        assert_eq!(merged.total_prompts, Some(1200), "widest count wins");
+        assert_eq!(merged.limits.len(), 2, "the wider limit set survives");
+
+        // Dropping the extra dir returns to the primary's record alone.
+        store.set_extra_dirs(vec![]);
+        let records = &store.snapshot().records;
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].active_days, Some(2));
+        assert_eq!(records[0].total_prompts, Some(900));
+    }
+
+    /// A missing extra dir is tolerated (empty, no errors), and one that
+    /// appears later is picked up by `refresh_now`.
+    #[test]
+    fn late_appearing_extra_dir_is_picked_up_by_refresh() {
+        let dir = TempDir::new().expect("tempdir");
+        write(&dir, "claude.json", READY_RECORD);
+        let outer = TempDir::new().expect("tempdir");
+        let synced = outer.path().join("synced");
+        fs::create_dir_all(&synced).expect("create synced root");
+
+        let mut store = UsageStore::new(dir.path().to_path_buf());
+        let missing = outer.path().join("not-yet");
+        store.set_extra_dirs(vec![missing.clone()]);
+        assert_eq!(
+            store.snapshot().records.len(),
+            1,
+            "missing extra dir tolerated"
+        );
+        assert!(
+            store.snapshot().errors.is_empty(),
+            "a missing dir is not an error: {:?}",
+            store.snapshot().errors
+        );
+
+        fs::create_dir_all(&missing).expect("create late dir");
+        fs::write(
+            missing.join("codex.json"),
+            r#"{"id":"codex","ready":true,"updatedAt":"2026-09-20T17:00:00Z"}"#,
+        )
+        .expect("write synced record");
+        store.refresh_now();
+        assert_eq!(
+            store.snapshot().records.len(),
+            2,
+            "late dir's record arrives"
+        );
     }
 
     #[test]

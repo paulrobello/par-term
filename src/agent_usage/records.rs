@@ -182,12 +182,10 @@ pub(crate) fn should_display(record: &AgentUsageRecord, hidden: &HashSet<String>
     record.ready && !hidden.contains(&record.id)
 }
 
-/// Merge rule for `activeDays` across records (reserved for v2 cross-device
-/// sync; specified now so v2 needs no schema change): union the traveling
+/// Merge rule for `activeDays` across records: union the traveling
 /// date lists, then take the widest of that union and either side's bare
 /// count — a source that only knows a count still bounds the answer from
 /// below, exactly as omarchy's `merge_stats` does.
-/// Reserved for v2 cross-device sync (design §2); no caller until then.
 pub(crate) fn union_active_days(a: &AgentUsageRecord, b: &AgentUsageRecord) -> u64 {
     let mut dates: HashSet<&str> = a.active_dates.iter().map(String::as_str).collect();
     dates.extend(b.active_dates.iter().map(String::as_str));
@@ -195,6 +193,94 @@ pub(crate) fn union_active_days(a: &AgentUsageRecord, b: &AgentUsageRecord) -> u
     union_len
         .max(a.active_days.unwrap_or(0))
         .max(b.active_days.unwrap_or(0))
+}
+
+/// Widest-value merge of two records for the same agent id — one account
+/// synced from two machines. The fresher collector run (`updatedAt`) is the
+/// base; every account-scoped field then widens, never sums: limits and
+/// balance keep the better-informed side, [`union_active_days`] unions
+/// activity by date, counts take the max, per-model maps take the per-key
+/// max, and recent days union by date keeping each date's larger total.
+pub(crate) fn merge_records(a: AgentUsageRecord, b: AgentUsageRecord) -> AgentUsageRecord {
+    let days_union = union_active_days(&a, &b);
+    // The fresher run is the base; the merge below only widens it.
+    let (mut m, older) = if b.updated_at > a.updated_at {
+        (b, a)
+    } else {
+        (a, b)
+    };
+
+    m.has_local_stats |= older.has_local_stats;
+    m.ready |= older.ready;
+    m.tier_label = m.tier_label.or(older.tier_label);
+    m.usage_status_text = m.usage_status_text.or(older.usage_status_text);
+    m.auth_help_text = m.auth_help_text.or(older.auth_help_text);
+    m.total_prompts = m.total_prompts.max(older.total_prompts);
+    m.total_sessions = m.total_sessions.max(older.total_sessions);
+    m.today_prompts = m.today_prompts.max(older.today_prompts);
+    m.today_sessions = m.today_sessions.max(older.today_sessions);
+    // f64 is not Ord, so Option::max is unavailable; widen by comparison.
+    m.today_total_tokens = match (m.today_total_tokens, older.today_total_tokens) {
+        (Some(a), Some(b)) => Some(a.max(b)),
+        (one, None) | (None, one) => one,
+    };
+
+    let mut dates: HashSet<String> = older.active_dates.iter().cloned().collect();
+    dates.extend(m.active_dates.iter().cloned());
+    if dates.is_empty() {
+        // No traveling dates on either side: the bare counts still bound
+        // each other (widest wins), but there is nothing to union.
+        m.active_days = m.active_days.max(older.active_days);
+    } else {
+        m.active_days = Some(days_union);
+        let mut sorted = dates.into_iter().collect::<Vec<_>>();
+        sorted.sort();
+        m.active_dates = sorted;
+    }
+
+    // Limits keep the side with more live readings — the fresher run can
+    // lose a meter it failed to read, and the account still knows it.
+    // Counted and settled before the map loops below partially move `older`.
+    let live = |limits: &[UsageLimit]| limits.iter().filter(|l| l.percent.is_some()).count();
+    if live(&older.limits) > live(&m.limits) {
+        m.limits = older.limits;
+    }
+    m.balance = m.balance.or(older.balance);
+
+    for (model, older_usage) in older.model_usage {
+        let entry = m.model_usage.entry(model).or_default();
+        entry.input_tokens = entry.input_tokens.max(older_usage.input_tokens);
+        entry.output_tokens = entry.output_tokens.max(older_usage.output_tokens);
+        entry.cache_read_input_tokens = entry
+            .cache_read_input_tokens
+            .max(older_usage.cache_read_input_tokens);
+        entry.cache_creation_input_tokens = entry
+            .cache_creation_input_tokens
+            .max(older_usage.cache_creation_input_tokens);
+    }
+    for (model, older_tokens) in older.today_tokens_by_model {
+        m.today_tokens_by_model
+            .entry(model)
+            .and_modify(|tokens| *tokens = (*tokens).max(older_tokens))
+            .or_insert(older_tokens);
+    }
+
+    let mut by_date: std::collections::BTreeMap<String, f64> = older
+        .recent_days
+        .into_iter()
+        .map(|day| (day.date, day.tokens))
+        .collect();
+    for day in m.recent_days.drain(..) {
+        by_date
+            .entry(day.date)
+            .and_modify(|tokens| *tokens = (*tokens).max(day.tokens))
+            .or_insert(day.tokens);
+    }
+    m.recent_days = by_date
+        .into_iter()
+        .map(|(date, tokens)| DayUsage { date, tokens })
+        .collect();
+    m
 }
 
 // ============================================================================
@@ -383,5 +469,93 @@ mod tests {
             .expect("a parses");
         let b = parse_record(r#"{"id":"b"}"#).expect("b parses");
         assert_eq!(union_active_days(&a, &b), 5);
+    }
+
+    /// The v2 account merge: one `claude` account synced from two machines.
+    /// Every field widens, nothing sums, and the fresher run is the base.
+    #[test]
+    fn merge_records_unions_dates_and_widens_one_account_from_two_machines() {
+        // Machine A: fresher run, one live limit, local stats, dates 18–19.
+        let a = parse_record(
+            r#"{"id":"claude","ready":true,"updatedAt":"2026-09-20T18:00:00Z",
+                "limits":[{"label":"Weekly","percent":70.0}],
+                "hasLocalStats":true,
+                "activeDays":2,"activeDates":["2026-09-18","2026-09-19"],
+                "totalPrompts":900,
+                "recentDays":[{"date":"2026-09-19","messageCount":40}]}"#,
+        )
+        .expect("a parses");
+        // Machine B: older run, a second live limit A's collector missed, a
+        // balance A has none of, dates 19–20, and its own counts.
+        let b = parse_record(
+            r#"{"id":"claude","ready":true,"updatedAt":"2026-09-20T17:00:00Z",
+                "limits":[
+                    {"label":"Weekly","percent":70.0},
+                    {"label":"Session (5-hour)","percent":12.0}
+                ],
+                "balance":{"remaining":12.5,"funded":50.0,"spent":37.5,
+                            "currency":"USD","estimated":false},
+                "activeDays":2,"activeDates":["2026-09-19","2026-09-20"],
+                "totalPrompts":1200,
+                "recentDays":[{"date":"2026-09-20","messageCount":80},
+                               {"date":"2026-09-19","messageCount":55}]}"#,
+        )
+        .expect("b parses");
+
+        let merged = merge_records(a, b);
+
+        // Active days union by date (18, 19, 20 = 3), never summed (2+2).
+        assert_eq!(merged.active_days, Some(3));
+        assert_eq!(
+            merged.active_dates,
+            vec!["2026-09-18", "2026-09-19", "2026-09-20"]
+        );
+        // Counts widen, never sum.
+        assert_eq!(merged.total_prompts, Some(1200));
+        // The fresher run is the base; the older run's extra live limit and
+        // balance widen it.
+        assert_eq!(merged.limits.len(), 2, "limits keep the wider set");
+        assert_eq!(merged.balance.as_ref().map(|b| b.remaining), Some(12.5));
+        assert!(merged.has_local_stats);
+        // Recent days union by date, keeping each date's larger total.
+        let days: Vec<(&str, f64)> = merged
+            .recent_days
+            .iter()
+            .map(|d| (d.date.as_str(), d.tokens))
+            .collect();
+        assert_eq!(
+            days,
+            vec![("2026-09-19", 55.0), ("2026-09-20", 80.0)],
+            "19 keeps machine B's larger total; 20 arrives from B"
+        );
+    }
+
+    #[test]
+    fn merge_records_fresher_base_wins_ties_and_bare_counts_bound() {
+        // Neither side carries dates: bare counts bound each other instead.
+        let a = parse_record(
+            r#"{"id":"claude","updatedAt":"2026-09-20T18:00:00Z",
+                "activeDays":40,"tierLabel":"Max 20x"}"#,
+        )
+        .expect("a parses");
+        let b = parse_record(r#"{"id":"claude","updatedAt":"2026-09-20T17:00:00Z"}"#)
+            .expect("b parses");
+        let merged = merge_records(a, b);
+        assert_eq!(merged.active_days, Some(40));
+        // The fresher run is the base, so its tier label survives; the older
+        // side's absent label adds nothing.
+        assert_eq!(merged.tier_label.as_deref(), Some("Max 20x"));
+
+        // Merge order must not matter: swap the arguments, same outcome.
+        let a =
+            parse_record(r#"{"id":"claude","updatedAt":"2026-09-20T18:00:00Z","activeDays":40}"#)
+                .expect("a parses");
+        let b =
+            parse_record(r#"{"id":"claude","updatedAt":"2026-09-20T17:00:00Z","activeDays":40}"#)
+                .expect("b parses");
+        assert_eq!(
+            merge_records(a.clone(), b.clone()).active_days,
+            merge_records(b, a).active_days
+        );
     }
 }
