@@ -41,13 +41,16 @@ pub mod plugins_upkeep;
 pub mod system_monitor;
 pub mod widgets;
 
+#[cfg(test)]
+mod widget_click_tests;
+
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use crate::agent_usage::store::UsageStore;
 use crate::agent_usage::update::UpdateRunner;
 use crate::badge::SessionVariables;
-use crate::config::{Config, StatusBarPosition, StatusBarSection};
+use crate::config::{Config, StatusBarPosition, StatusBarSection, StatusBarWidgetConfig};
 use disk_monitor::DiskMonitor;
 use git_poller::GitBranchPoller;
 use par_term_scripting::plugin_manager::{PluginHost, WarnOnce};
@@ -97,7 +100,7 @@ pub struct StatusBarUI {
     /// Agent-usage records store (watched directory + snapshot). Lives here
     /// with the other background-data pollers; the popup panel reads it via
     /// [`StatusBarUI::usage_snapshot`].
-    usage: UsageStore,
+    pub(crate) usage: UsageStore,
     /// Optional agent-usage update command, run on the refresh interval.
     usage_update: UpdateRunner,
     /// Window-scoped plugin host: discovery cache, supervised processes,
@@ -389,6 +392,43 @@ impl StatusBarUI {
                 .monospace()
         };
 
+        // Widgets that open something on click get the same treatment in
+        // every section; all other widgets render as plain labels.
+        let roster_tooltip = self.agent_roster_tooltip.clone();
+        let render_widget = |ui: &mut egui::Ui,
+                             w: &StatusBarWidgetConfig,
+                             text: &str|
+         -> Option<StatusBarAction> {
+            use crate::config::WidgetId;
+            let (rich, action) = match w.id {
+                WidgetId::UpdateAvailable => (
+                    egui::RichText::new(text)
+                        .color(egui::Color32::from_rgb(255, 200, 50))
+                        .size(font_size)
+                        .monospace(),
+                    StatusBarAction::ShowUpdateDialog,
+                ),
+                WidgetId::AgentUsage => {
+                    (make_rich_text(text), StatusBarAction::OpenAgentUsagePanel)
+                }
+                WidgetId::AgentRoster => (make_rich_text(text), StatusBarAction::OpenAgentPalette),
+                _ => {
+                    ui.label(make_rich_text(text));
+                    return None;
+                }
+            };
+            let response = ui.add(egui::Label::new(rich).sense(egui::Sense::click()));
+            // The roster's hover carries the per-agent provenance detail the
+            // bar text cannot fit.
+            if w.id == WidgetId::AgentRoster
+                && let Some(tooltip) = roster_tooltip.as_deref()
+                && !tooltip.is_empty()
+            {
+                return response.on_hover_text(tooltip).clicked().then_some(action);
+            }
+            response.clicked().then_some(action)
+        };
+
         let mut action: Option<StatusBarAction> = None;
 
         egui::Area::new(egui::Id::new("status_bar"))
@@ -425,7 +465,9 @@ impl StatusBarUI {
                                 ui.label(make_sep(separator));
                             }
                             first = false;
-                            ui.label(make_rich_text(&text));
+                            if let Some(a) = render_widget(ui, w, &text) {
+                                action = Some(a);
+                            }
                         }
 
                         // === Center section ===
@@ -448,7 +490,9 @@ impl StatusBarUI {
                                             ui.label(make_sep(separator));
                                         }
                                         first = false;
-                                        ui.label(make_rich_text(&text));
+                                        if let Some(a) = render_widget(ui, w, &text) {
+                                            action = Some(a);
+                                        }
                                     }
                                 },
                             );
@@ -474,61 +518,8 @@ impl StatusBarUI {
                                             ui.label(make_sep(separator));
                                         }
                                         first = false;
-                                        if w.id == crate::config::WidgetId::UpdateAvailable {
-                                            let update_text = egui::RichText::new(&text)
-                                                .color(egui::Color32::from_rgb(255, 200, 50))
-                                                .size(font_size)
-                                                .monospace();
-                                            if ui
-                                                .add(
-                                                    egui::Label::new(update_text)
-                                                        .sense(egui::Sense::click()),
-                                                )
-                                                .clicked()
-                                            {
-                                                action = Some(StatusBarAction::ShowUpdateDialog);
-                                            }
-                                        } else if w.id == crate::config::WidgetId::AgentUsage {
-                                            // Same clickable treatment as the update widget;
-                                            // v1 is right-section-only (documented limitation).
-                                            let usage_text = egui::RichText::new(&text)
-                                                .color(fg_color)
-                                                .size(font_size)
-                                                .monospace();
-                                            if ui
-                                                .add(
-                                                    egui::Label::new(usage_text)
-                                                        .sense(egui::Sense::click()),
-                                                )
-                                                .clicked()
-                                            {
-                                                action = Some(StatusBarAction::OpenAgentUsagePanel);
-                                            }
-                                        } else if w.id == crate::config::WidgetId::AgentRoster {
-                                            // Same clickable treatment as the
-                                            // usage widget; hover carries the
-                                            // per-agent provenance detail the
-                                            // bar text cannot fit.
-                                            let roster_text = egui::RichText::new(&text)
-                                                .color(fg_color)
-                                                .size(font_size)
-                                                .monospace();
-                                            let response = ui.add(
-                                                egui::Label::new(roster_text)
-                                                    .sense(egui::Sense::click()),
-                                            );
-                                            let response =
-                                                match self.agent_roster_tooltip.as_deref() {
-                                                    Some(tooltip) if !tooltip.is_empty() => {
-                                                        response.on_hover_text(tooltip)
-                                                    }
-                                                    _ => response,
-                                                };
-                                            if response.clicked() {
-                                                action = Some(StatusBarAction::OpenAgentPalette);
-                                            }
-                                        } else {
-                                            ui.label(make_rich_text(&text));
+                                        if let Some(a) = render_widget(ui, w, &text) {
+                                            action = Some(a);
                                         }
                                     }
                                 },

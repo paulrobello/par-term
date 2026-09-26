@@ -93,7 +93,7 @@ never freezes stale data on screen.
 
 ## Status-bar widget
 
-The `agent_usage` widget (Right section, **disabled by default**) shows one
+The `agent_usage` widget (**disabled by default**) shows one
 line:
 
 | Line | When |
@@ -103,8 +103,7 @@ line:
 | `◆ 12.50 EUR` | Prepaid balance in another currency |
 | `◆ active` | Ready agents with neither limits nor balance |
 
-Clicking the widget opens the panel. v1 limitation: the widget is clickable
-in the Right section only.
+Clicking the widget opens the panel (works in every bar section).
 
 ## Popup panel
 
