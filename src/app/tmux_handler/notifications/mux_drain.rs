@@ -184,6 +184,24 @@ impl WindowState {
                 )
             });
 
+        // `%sessions-changed` is also a ParserBridge drop (a named arm there
+        // cannot compile against the published pin): the session SET moved
+        // — a session was created or destroyed anywhere on the daemon. The
+        // only fact par-term needs from it is whether ITS OWN attached
+        // session survived; the window/tab fallout of a kill arrives as
+        // `%window-close` pushes the sync path already handles.
+        let (session_set_changes, core_notifications): (Vec<_>, Vec<_>) =
+            core_notifications.into_iter().partition(|n| {
+                matches!(
+                    n,
+                    par_term_emu_core_rust::tmux_control::TmuxNotification::SessionsChanged
+                )
+            });
+        if !session_set_changes.is_empty() && self.attached_mux_session_is_gone() {
+            self.end_mux_view_for_gone_session();
+            return true;
+        }
+
         let mut notifications = ParserBridge::convert_all(core_notifications);
         if disconnected
             && !notifications
@@ -333,6 +351,43 @@ impl WindowState {
         self.apply_pending_mux_pane_titles();
 
         needs_redraw
+    }
+
+    /// Whether `%sessions-changed` proved the attached session gone: the
+    /// re-query is the evidence, the push alone is not (another session may
+    /// be the one that changed). A failed or malformed query proves nothing
+    /// — daemon death is the disconnect path's job, not this one. `false`
+    /// without an attach (no transport, no session id) keeps the drain a
+    /// no-op.
+    fn attached_mux_session_is_gone(&self) -> bool {
+        let Some(session_id) = self.tmux_state.mux_session_id else {
+            return false;
+        };
+        let Some(transport) = &self.tmux_state.transport else {
+            return false;
+        };
+        let Ok(lines) = transport.send_command("list-sessions") else {
+            return false;
+        };
+        // `$N: name` lines (the daemon's fixed wire contract). Any
+        // non-empty line that is not that shape is a daemon reply gone
+        // wrong — treat the whole query as unproven rather than guessing.
+        let mut ids = Vec::with_capacity(lines.len());
+        for line in lines {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let Some(id) = line
+                .strip_prefix('$')
+                .and_then(|rest| rest.split_once(": "))
+                .and_then(|(id, _)| id.parse::<u64>().ok())
+            else {
+                crate::debug_log!("MUX", "sessions-changed re-query got a bad line: {line:?}");
+                return false;
+            };
+            ids.push(id);
+        }
+        !ids.contains(&session_id)
     }
 
     /// Feed replayed screens to panes once their mappings exist — panes are

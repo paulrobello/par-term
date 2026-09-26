@@ -5177,4 +5177,73 @@ out.flush()
 
         let _ = std::fs::remove_file(&path);
     }
+
+    /// `%sessions-changed` ends the view when the attached session is what
+    /// died: killing the session's last window from a second client makes
+    /// the next drain re-query `list-sessions`, find the session gone, and
+    /// run the full end-of-view teardown (transport dropped, identity
+    /// cleared, toast naming the daemon-side end) — while the daemon
+    /// itself keeps running.
+    #[test]
+    fn sessions_changed_ends_views_whose_session_is_gone() {
+        // Capture the path once: `socket_path` UNLINKS on every call (it
+        // is a spawn helper, not a getter), so re-calling it after
+        // `attached_state` bound the daemon would delete the live socket.
+        let path = socket_path("gone-session");
+        let (mut ws, mut probe) = attached_state("gone-session", "doomed");
+        assert!(
+            ws.tmux_state.transport.is_some() && ws.tmux_state.mux_session_id.is_some(),
+            "precondition: the view is attached"
+        );
+        // The doomed session's only window, captured before the keeper
+        // exists — list-windows is global, so this ordering is what names
+        // it unambiguously.
+        let window = probe
+            .list_windows()
+            .expect("probe lists windows")
+            .first()
+            .expect("the doomed session holds a window")
+            .id;
+        // A second session keeps the daemon non-empty: an emptied daemon
+        // exits after its grace (EXIT_EMPTY_GRACE), and that exit is the
+        // DISCONNECT path's scenario, not this one — here the daemon must
+        // outlive the killed session.
+        probe
+            .create_or_attach("keeper")
+            .expect("keeper session exists");
+        probe
+            .send(&format!("kill-window -t @{window}"))
+            .expect("kill-window removes the session's last window");
+
+        let redrawn = ws.check_mux_notifications();
+        assert!(redrawn, "the ended view must request a redraw");
+        assert!(
+            ws.tmux_state.transport.is_none(),
+            "the view ended — the transport is dropped"
+        );
+        assert!(ws.tmux_state.mux_session_id.is_none());
+        assert!(ws.tmux_state.tmux_session_name.is_none());
+        let toast = ws
+            .overlay_state
+            .toast_message
+            .as_deref()
+            .unwrap_or_default();
+        assert!(
+            toast.contains("session ended on the daemon"),
+            "the toast names the daemon-side end, got: {toast}"
+        );
+        // The daemon survives the view: a fresh client still connects, the
+        // keeper session remains, the doomed one is gone.
+        let mut late = MuxSessionClient::connect(&path).expect("daemon lives");
+        let names: Vec<String> = late
+            .list_sessions()
+            .expect("list after teardown")
+            .into_iter()
+            .map(|s| s.name)
+            .collect();
+        assert!(
+            names.contains(&"keeper".to_string()) && !names.contains(&"doomed".to_string()),
+            "the daemon kept running with exactly the doomed session removed: {names:?}"
+        );
+    }
 }
