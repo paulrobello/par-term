@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "com.example.theme-swatch",
+  "name": "Theme Swatch",
+  "version": "0.1.0",
+  "author": "par-term example",
+  "license": "MIT",
+  "description": "Example status-bar widget that follows the active theme: subscribes to theme_changed, greets with the current theme on startup, and re-renders on every switch (including light/dark auto-switch).",
+  "kinds": ["status-bar-widget"],
+  "activation": "manual",
+  "entryPoints": { "statusBarWidget": { "command": "theme_swatch.py", "args": [] } },
+  "subscriptions": ["theme_changed"],
+  "statusBarWidget": {
+    "displayName": "Theme Swatch",
+    "section": "right",
+    "defaults": { "showTokens": true },
+    "schema": [
+      { "key": "showTokens", "type": "boolean", "label": "Show bg/fg hex tokens", "defaultValue": true }
+    ]
+  }
+}

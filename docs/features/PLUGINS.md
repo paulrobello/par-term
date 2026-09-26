@@ -439,7 +439,8 @@ the same event shape tab scripts receive (payload details per kind in
 {"kind": "cwd_changed", "data": {"data_type": "CwdChanged", "cwd": "/home/user/project"}}
 ```
 
-**The vocabulary** is the script event vocabulary, validated at discovery —
+**The vocabulary** is the script event vocabulary — the terminal-sourced
+kinds below plus the app-sourced `theme_changed` — validated at discovery:
 a subscription naming an unknown or duplicate kind skips the whole plugin
 with a warning, so a typo'd subscription can never silently never-fire:
 
@@ -450,7 +451,7 @@ with a warning, so a typo'd subscription can never silently never-fire:
 `zone_scrolled_out` · `environment_changed` · `remote_host_transition` ·
 `sub_shell_detected` · `file_transfer_started` · `file_transfer_progress` ·
 `file_transfer_completed` · `file_transfer_failed` · `upload_requested` ·
-`screen_cleared`
+`screen_cleared` · `theme_changed`
 
 Semantics worth knowing before declaring one:
 
@@ -490,7 +491,25 @@ Semantics worth knowing before declaring one:
   A plugin with no subscriptions renders no subscription line at all — the
   no-gate decision above rests on the user reading this before enabling.
 
-## Settings
+### theme_changed (app-sourced)
+
+`theme_changed` is the one app-sourced kind: it comes from par-term itself,
+not from a terminal, so it never depends on tab activity. A subscribed
+plugin receives the current theme immediately on spawn (and again after a
+supervised respawn or a disable/enable cycle — a fresh process has never
+seen a theme), and one event per actual switch, including the light/dark
+auto-switch. Delivery is deduped by theme name: re-applying the same theme
+sends nothing.
+
+```json
+{"kind": "theme_changed", "data": {"data_type": "ThemeChanged", "theme": "Dracula", "tokens": {"background": "#282a36", "cursor": "#f8f8f0", "foreground": "#f8f8f2", "red": "#ff5555", ...}}}
+```
+
+`tokens` carries every theme color — `foreground`, `background`, `cursor`,
+`selection_bg`, `selection_fg`, and the 16 ANSI names (`black` …
+`bright_white`) — each a lowercase `#rrggbb` string keyed by the theme field
+name. See the [theme-swatch example](#the-example-theme-swatch-plugin) for
+a working consumer.
 
 ## Settings
 
@@ -584,6 +603,23 @@ time once per second and exits cleanly when par-term stops it.
 
 The source (`scripts/examples/plugins/com.example.clock/`) is the reference
 for the manifest shape, the settings argv, and the `SetWidget` loop.
+
+## The example theme-swatch plugin
+
+A dependency-free Python theme follower ships in the repository:
+
+```bash
+cp -r scripts/examples/plugins/com.example.theme-swatch \
+    ~/.config/par-term/plugins/
+```
+
+Then Settings → Automation → Plugins → enable **Theme Swatch**. A 🎨 widget
+shows the active theme's name and (with "Show bg/fg hex tokens" on, the
+default) its background/foreground tokens, and re-renders the moment the
+theme changes — try switching themes in Settings, or let the light/dark
+auto-switch fire. It is the reference for the app-sourced
+[`theme_changed`](#theme_changed-app-sourced) subscription: pure
+event-driven, no self-scheduling loop, initial greet on startup.
 
 ## Agent ui-test recipe
 

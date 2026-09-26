@@ -689,7 +689,8 @@ The terminal sends events to the script's stdin. Each event has a `kind` field (
 
 Other core events — `mode_changed`, `graphics_added`, `hyperlink_added`, `dirty_region`, `progress_bar_changed`, `remote_host_transition`, `sub_shell_detected`, `screen_cleared`, `upload_requested`, and the `file_transfer_started` / `file_transfer_progress` / `file_transfer_completed` / `file_transfer_failed` family — are also forwarded, with a `Generic` payload whose `fields.debug` string carries the core event's debug representation.
 
-#### Commands (stdout)
+All kinds above are terminal-sourced. The one app-sourced kind, `theme_changed` (active theme name plus `#rrggbb` color tokens), is delivered to *plugins* only — see [PLUGINS.md](PLUGINS.md#theme_changed-app-sourced); a tab script cannot subscribe to it.
+
 #### Commands (stdout)
 
 Scripts write JSON commands to stdout to control the terminal. Each command has a `type` field that identifies the command:
