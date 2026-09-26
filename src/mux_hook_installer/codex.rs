@@ -10,8 +10,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use super::{
-    home_dir, hook_asset_path as asset_path_for, hook_command_with_action, merge_hook_event,
-    remove_marked_file, save_settings, unmerge_hook_entries, write_hook_asset,
+    has_command, home_dir, hook_asset_path as asset_path_for, hook_command_with_action,
+    merge_hook_event, remove_marked_file, save_settings, unmerge_hook_entries, write_hook_asset,
 };
 
 const CODEX_HOOK_ASSET_POSIX: &str = include_str!("../../mux_hooks/par-mux-codex-session-hook.sh");
@@ -341,6 +341,38 @@ fn toml_comment_start(value: &str) -> Option<&str> {
     None
 }
 
+/// Startup self-heal: rewrite the script asset when hooks.json still carries
+/// our entry but the script is gone — the hooks directory has repeatedly
+/// been deleted out from under live registrations while the entries in the
+/// agent's own config survived.
+pub fn heal_codex_hook_asset() {
+    let Ok(codex_dir) = codex_config_dir() else {
+        return; // no home to resolve against — nothing to heal
+    };
+    if let Err(err) = heal_codex_hook_asset_into(&codex_dir, &hook_asset_path()) {
+        log::warn!("codex mux-hook heal skipped: {err}");
+    }
+}
+
+/// Heal with explicit paths (test seam). `Ok(())` in every skip case:
+/// script present, agent not installed, or our entry not registered. A
+/// malformed hooks.json surfaces as an error with nothing written. Neither
+/// hooks.json nor config.toml is ever touched.
+pub(crate) fn heal_codex_hook_asset_into(codex_dir: &Path, hook_path: &Path) -> io::Result<()> {
+    if hook_path.exists() {
+        return Ok(());
+    }
+    let hooks_path = codex_dir.join(CODEX_HOOKS_FILE_NAME);
+    let Ok(content) = fs::read_to_string(&hooks_path) else {
+        return Ok(()); // agent not installed — nothing registers the script
+    };
+    let command = codex_hook_command(hook_path);
+    if has_command(&content, &hooks_path, &command, "SessionStart")? {
+        write_hook_asset(hook_path, codex_hook_asset())?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,6 +384,45 @@ mod tests {
 
     fn temp_root() -> tempfile::TempDir {
         tempfile::tempdir().expect("temp dir")
+    }
+
+    #[test]
+    fn heal_rewrites_a_deleted_script_and_leaves_agent_files_untouched() {
+        let root = temp_root();
+        let codex_dir = root.path().join(".codex");
+        fs::create_dir_all(&codex_dir).unwrap();
+        fs::write(codex_dir.join("config.toml"), REAL_WORLD_CONFIG).unwrap();
+        fs::write(codex_dir.join("hooks.json"), REAL_WORLD_HOOKS).unwrap();
+        let hook = root.path().join("par-mux-codex-session-hook.sh");
+        install_codex_hook_into(&codex_dir, &hook).unwrap();
+        let hooks_after_install = fs::read_to_string(codex_dir.join("hooks.json")).unwrap();
+        let config_after_install = fs::read_to_string(codex_dir.join("config.toml")).unwrap();
+        fs::remove_file(&hook).unwrap();
+
+        heal_codex_hook_asset_into(&codex_dir, &hook).unwrap();
+
+        assert_eq!(fs::read_to_string(&hook).unwrap(), codex_hook_asset());
+        assert_eq!(
+            fs::read_to_string(codex_dir.join("hooks.json")).unwrap(),
+            hooks_after_install
+        );
+        assert_eq!(
+            fs::read_to_string(codex_dir.join("config.toml")).unwrap(),
+            config_after_install
+        );
+    }
+
+    #[test]
+    fn heal_does_not_create_a_script_without_registration() {
+        let root = temp_root();
+        let codex_dir = root.path().join(".codex");
+        fs::create_dir_all(&codex_dir).unwrap();
+        fs::write(codex_dir.join("hooks.json"), REAL_WORLD_HOOKS).unwrap();
+        let hook = root.path().join("par-mux-codex-session-hook.sh");
+
+        heal_codex_hook_asset_into(&codex_dir, &hook).unwrap();
+
+        assert!(!hook.exists());
     }
 
     /// A realistic codex config.toml: comments, nested tables — including a

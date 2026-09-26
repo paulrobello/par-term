@@ -63,6 +63,12 @@ fn main() -> Result<()> {
     // canonical XDG location. No-op on plain Linux/Windows and after first run.
     par_term::config_migration::migrate_legacy_config_dir();
 
+    // Rewrite mux agent-hook scripts whose registrations outlived them: the
+    // hooks directory in par-term's config tree has been deleted externally
+    // (twice) while the entries in the agents' own settings survived. Only
+    // par-term's own script assets are rewritten, never the settings files.
+    par_term::mux_hook_installer::heal_hook_assets();
+
     // Create Tokio runtime for async operations (PTY, etc.)
     let runtime = Arc::new(Runtime::new()?);
 

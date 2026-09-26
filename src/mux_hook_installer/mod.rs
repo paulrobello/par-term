@@ -42,17 +42,29 @@ mod grok;
 
 pub use claude::{
     CLAUDE_HOOK_MARKER, ClaudeHookInstall, ClaudeHookUninstall, claude_settings_path,
-    install_claude_hook, install_claude_hook_into, uninstall_claude_hook,
+    heal_claude_hook_asset, install_claude_hook, install_claude_hook_into, uninstall_claude_hook,
     uninstall_claude_hook_into,
 };
 pub use codex::{
-    CODEX_HOOK_MARKER, CodexHookInstall, CodexHookUninstall, codex_config_dir, install_codex_hook,
-    install_codex_hook_into, uninstall_codex_hook, uninstall_codex_hook_into,
+    CODEX_HOOK_MARKER, CodexHookInstall, CodexHookUninstall, codex_config_dir,
+    heal_codex_hook_asset, install_codex_hook, install_codex_hook_into, uninstall_codex_hook,
+    uninstall_codex_hook_into,
 };
 pub use grok::{
     GROK_HOOK_MARKER, GrokHookInstall, GrokHookUninstall, grok_config_dir, install_grok_hook,
     install_grok_hook_into, uninstall_grok_hook, uninstall_grok_hook_into,
 };
+
+/// Startup self-heal for the agent-hook script assets under par-term's own
+/// config directory: rewrite a script whose registration in the agent's
+/// config survived it. That directory has twice been deleted externally
+/// while the settings entries lived on, leaving every agent session start
+/// running a missing script. Best-effort, and only par-term's own assets
+/// are ever written — the agents' config files are never touched.
+pub fn heal_hook_assets() {
+    claude::heal_claude_hook_asset();
+    codex::heal_codex_hook_asset();
+}
 
 use jsonc_parser::ast::{
     Array as AstArray, Object as AstObject, ObjectPropName, Value as AstValue,

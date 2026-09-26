@@ -6,8 +6,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use super::{
-    home_dir, hook_asset_path as asset_path_for, hook_command_for, hook_command_with_action,
-    merge_hook_event, remove_marked_file, save_settings, unmerge_hook_entries, write_hook_asset,
+    has_command, home_dir, hook_asset_path as asset_path_for, hook_command_for,
+    hook_command_with_action, merge_hook_event, remove_marked_file, save_settings,
+    unmerge_hook_entries, write_hook_asset,
 };
 
 const CLAUDE_HOOK_ASSET_POSIX: &str =
@@ -191,6 +192,40 @@ pub fn uninstall_claude_hook_into(
         settings_changed,
         hook_removed,
     })
+}
+
+/// Startup self-heal: rewrite the script asset when the settings file still
+/// carries our entry but the script is gone — the hooks directory has
+/// repeatedly been deleted out from under live registrations while the
+/// entries in the agent's own config survived.
+pub fn heal_claude_hook_asset() {
+    let Ok(settings_path) = claude_settings_path() else {
+        return; // no home to resolve against — nothing to heal
+    };
+    if let Err(err) = heal_claude_hook_asset_into(&settings_path, &hook_asset_path()) {
+        log::warn!("claude mux-hook heal skipped: {err}");
+    }
+}
+
+/// Heal with explicit paths (test seam). `Ok(())` in every skip case:
+/// script present, agent settings absent, or our entry not registered. A
+/// malformed settings file surfaces as an error with nothing written. The
+/// settings file itself is never touched.
+pub(crate) fn heal_claude_hook_asset_into(
+    settings_path: &Path,
+    hook_path: &Path,
+) -> io::Result<()> {
+    if hook_path.exists() {
+        return Ok(());
+    }
+    let Ok(content) = fs::read_to_string(settings_path) else {
+        return Ok(()); // agent not installed — nothing registers the script
+    };
+    let command = hook_command_for(hook_path);
+    if has_command(&content, settings_path, &command, "SessionStart")? {
+        write_hook_asset(hook_path, claude_hook_asset())?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -434,6 +469,35 @@ mod tests {
             err.contains("install claude first"),
             "error must say what to do: {err}"
         );
+    }
+
+    #[test]
+    fn heal_rewrites_a_deleted_script_and_leaves_settings_untouched() {
+        let root = temp_root();
+        let settings = root.path().join("settings.json");
+        let hook = root.path().join("par-mux-claude-session-hook.sh");
+        fs::write(&settings, REAL_WORLD_SETTINGS).unwrap();
+        install_claude_hook_into(&settings, &hook).unwrap();
+        let after_install = fs::read_to_string(&settings).unwrap();
+        fs::remove_file(&hook).unwrap();
+
+        heal_claude_hook_asset_into(&settings, &hook).unwrap();
+
+        assert_eq!(fs::read_to_string(&hook).unwrap(), claude_hook_asset());
+        assert_eq!(fs::read_to_string(&settings).unwrap(), after_install);
+    }
+
+    #[test]
+    fn heal_neither_creates_a_script_nor_touches_settings_without_registration() {
+        let root = temp_root();
+        let settings = root.path().join("settings.json");
+        let hook = root.path().join("par-mux-claude-session-hook.sh");
+        fs::write(&settings, REAL_WORLD_SETTINGS).unwrap();
+
+        heal_claude_hook_asset_into(&settings, &hook).unwrap();
+
+        assert!(!hook.exists());
+        assert_eq!(fs::read_to_string(&settings).unwrap(), REAL_WORLD_SETTINGS);
     }
 
     #[test]
