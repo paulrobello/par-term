@@ -180,6 +180,16 @@ impl StatusBarUI {
         }
         self.usage.poll();
         self.usage.set_hidden(config.agent_usage.hidden_set());
+        // Extra records dirs (synced from other machines) merge into the
+        // snapshot; same-set calls are a no-op inside the store.
+        self.usage.set_extra_dirs(
+            config
+                .agent_usage
+                .agent_usage_extra_records_dirs
+                .iter()
+                .map(|p| crate::agent_usage::expand_tilde(p))
+                .collect(),
+        );
         self.usage_update
             .configure(config.agent_usage.agent_usage_update_command.clone());
         let interval = Duration::from_secs(

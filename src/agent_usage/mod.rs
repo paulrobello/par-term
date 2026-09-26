@@ -52,6 +52,18 @@ pub(crate) fn default_records_dir() -> PathBuf {
     }
 }
 
+/// Expand a leading `~/` to the user's home directory, for configured extra
+/// records directories (a synced-folder path is naturally written with `~`).
+pub(crate) fn expand_tilde(path: &str) -> PathBuf {
+    match path.strip_prefix("~/") {
+        Some(rest) => match dirs::home_dir() {
+            Some(home) => home.join(rest),
+            None => PathBuf::from(path),
+        },
+        None => PathBuf::from(path),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

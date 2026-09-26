@@ -34,6 +34,13 @@ pub struct AgentUsageConfig {
     /// the design's default-true per-agent enable map).
     #[serde(default)]
     pub agent_usage_hidden_agents: Vec<String>,
+
+    /// Extra records directories merged into the panel (e.g. a synced
+    /// folder holding other machines' records). Records for the same agent
+    /// id merge by widest value — active days union by date, never summed —
+    /// so one account synced from two machines is not double-counted.
+    #[serde(default)]
+    pub agent_usage_extra_records_dirs: Vec<String>,
 }
 
 fn default_agent_usage_enabled() -> bool {
@@ -51,6 +58,7 @@ impl Default for AgentUsageConfig {
             agent_usage_update_command: None,
             agent_usage_refresh_interval_sec: default_agent_usage_refresh_interval_sec(),
             agent_usage_hidden_agents: Vec::new(),
+            agent_usage_extra_records_dirs: Vec::new(),
         }
     }
 }
@@ -91,6 +99,8 @@ agent_usage_refresh_interval_sec: 60
 agent_usage_hidden_agents:
   - claude
   - codex
+agent_usage_extra_records_dirs:
+  - ~/Sync/agent-usage
 "#;
         let parsed: AgentUsageConfig = serde_yaml_ng::from_str(yaml).expect("keys parse");
         assert!(!parsed.agent_usage_enabled);
@@ -101,5 +111,9 @@ agent_usage_hidden_agents:
         assert_eq!(parsed.agent_usage_refresh_interval_sec, 60);
         assert_eq!(parsed.agent_usage_hidden_agents, vec!["claude", "codex"]);
         assert!(parsed.hidden_set().contains("claude"));
+        assert_eq!(
+            parsed.agent_usage_extra_records_dirs,
+            vec!["~/Sync/agent-usage"]
+        );
     }
 }
