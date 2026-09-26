@@ -117,7 +117,9 @@ impl WindowState {
                     crate::debug_info!("TMUX", "Sync: Close tab {}", tab_id);
                     // Note: TmuxSync already called unmap_window when producing this action,
                     // so we only need to close the tab and handle the last-tab case.
-                    let was_last = self.tab_manager.close_tab(tab_id);
+                    // Fast path: a daemon tab's teardown must not drop its
+                    // hidden shell's TerminalManager on the UI thread.
+                    let was_last = self.tab_manager.close_tab_fast(tab_id);
                     if was_last {
                         self.handle_tmux_session_ended();
                     }

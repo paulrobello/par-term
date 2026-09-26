@@ -2409,6 +2409,83 @@ pub(crate) mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Detach and daemon death tear down every mux tab at once.
+    /// `close_tab` drops each tab inline: with the last TerminalManager
+    /// Arc gone, `PtySession::drop` polls the reader thread up to 2 s per
+    /// tab, all on the UI thread (card 01a0d9e6e8b17db09952d8c90884910c)
+    /// — with four mux tabs that is a multi-second freeze.
+    #[test]
+    fn detach_with_four_mux_tabs_completes_under_100ms() {
+        let path = socket_path("detach-fast");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "detfast", Some((80, 24)), &Default::default())
+            .expect("attach_sequence");
+        // Four windows = four mux tabs (a CREATED session reports its
+        // first window via the daemon's own %window-add push).
+        for _ in 0..3 {
+            transport.send_command("new-window").expect("new-window");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        // Background windows' layouts are not pushed on their own — the
+        // refresh-client -C pump forces a %layout-change broadcast for
+        // every pane so the layout consumer creates each mirror.
+        for pane in transport.client().list_panes().expect("list panes") {
+            transport
+                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
+                .expect("refresh-client");
+        }
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("detfast".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until all four daemon windows became tabs with mirror
+        // panes — each carrying a live hidden-shell PTY behind
+        // `tab.terminal`, exactly what stalls an inline teardown.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() >= 4 && ws.tmux_state.tmux_pane_owners.len() >= 4 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created 4 tabs: {} tabs, panes {:?}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // Detach must tear all four tabs down without dropping a live
+        // TerminalManager inline — PtySession::drop's reader-thread wait
+        // belongs off the UI thread.
+        let t0 = Instant::now();
+        assert!(ws.detach_mux_session(), "detach runs");
+        let elapsed = t0.elapsed();
+        assert_eq!(ws.tab_manager.tab_count(), 0, "every mux tab is torn down");
+        assert!(
+            elapsed < Duration::from_millis(100),
+            "detach of 4 mux tabs must stay under 100 ms: took {elapsed:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
     fn a_fresh_daemon_yields_an_empty_roster() {
         let path = socket_path("roster");

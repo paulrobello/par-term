@@ -189,6 +189,68 @@ impl TabManager {
         self.tabs.is_empty()
     }
 
+    /// Close one tab through the fast-shutdown path.
+    ///
+    /// The tab and its panes are marked `shutdown_fast` and their PTYs
+    /// pre-killed, so the inline drop is immediate, and the terminal
+    /// `Arc`s plus session loggers are released on background threads:
+    /// the LAST Arc's drop runs `TerminalManager::drop` →
+    /// `PtySession::drop`, which waits on the reader thread (up to its
+    /// 2 s timeout per session) — unbounded blocking work that must
+    /// never run on the UI thread. Mux teardown calls this because
+    /// detach and daemon death close every mux tab at once, multiplying
+    /// that wait. Same return contract as [`Self::close_tab`].
+    pub fn close_tab_fast(&mut self, id: TabId) -> bool {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
+            tab.stop_refresh_task();
+            let mut terminal_arcs = vec![Arc::clone(&tab.terminal)];
+            let mut session_loggers = vec![Arc::clone(&tab.session_logger)];
+            if let Some(ref mut pm) = tab.pane_manager {
+                for pane in pm.all_panes_mut() {
+                    pane.stop_refresh_task();
+                    session_loggers.push(Arc::clone(&pane.session_logger));
+                    terminal_arcs.push(Arc::clone(&pane.terminal));
+                    pane.shutdown_fast = true;
+                }
+            }
+            tab.shutdown_fast = true;
+
+            // Pre-kill the PTYs (SIGKILL, non-blocking) so the background
+            // drops finish quickly.
+            for arc in &terminal_arcs {
+                if let Ok(mut term) = arc.try_write()
+                    && term.is_running()
+                {
+                    let _ = term.kill();
+                }
+            }
+
+            // Fire-and-forget cleanup, exactly like the window-close fast
+            // path (`WindowState::perform_shutdown`): logger stop flushes
+            // buffered I/O and the Arc drops may wait on reader threads —
+            // both belong off the UI thread, in parallel per session.
+            let _ = std::thread::Builder::new()
+                .name("mux-logger-cleanup".into())
+                .spawn(move || {
+                    for logger_arc in session_loggers {
+                        if let Some(ref mut logger) = *logger_arc.lock() {
+                            let _ = logger.stop();
+                        }
+                    }
+                });
+            for (i, arc) in terminal_arcs.into_iter().enumerate() {
+                let _ = std::thread::Builder::new()
+                    .name(format!("mux-pty-cleanup-{i}"))
+                    .spawn(move || drop(arc));
+            }
+        }
+
+        // The tab drops inline below with `shutdown_fast` set — Tab::drop
+        // returns immediately; active-tab switching and renumbering are
+        // close_tab's.
+        self.close_tab(id)
+    }
+
     /// Remove a tab by ID without dropping it, returning the live Tab.
     ///
     /// Handles active tab switching and renumbering just like `close_tab`,

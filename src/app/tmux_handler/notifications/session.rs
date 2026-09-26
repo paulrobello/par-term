@@ -159,10 +159,13 @@ impl WindowState {
             })
             .collect();
 
-        // Close tmux display tabs
+        // Close tmux display tabs. The fast path pre-kills the hidden
+        // shells and releases their terminal Arcs on background threads —
+        // dropping them inline waits on each reader thread (up to 2 s per
+        // tab) on the UI thread.
         for tab_id in tmux_tabs_to_close {
             crate::debug_info!("TMUX", "Closing tmux display tab {}", tab_id);
-            let _ = self.tab_manager.close_tab(tab_id);
+            let _ = self.tab_manager.close_tab_fast(tab_id);
         }
 
         // Disable tmux control mode on the gateway tab and clear auto-applied profile
