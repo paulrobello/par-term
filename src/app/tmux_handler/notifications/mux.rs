@@ -5196,19 +5196,23 @@ out.flush()
             .expect("send metric query");
         transport.client().send_keys(0, b"\r").expect("enter");
 
+        // The replies are written to the pane's pty INPUT and only become
+        // visible when the tty echoes them, which can land after the marker
+        // line. Poll for the replies themselves, not just the marker.
         let deadline = Instant::now() + Duration::from_secs(15);
         let screen = loop {
             let screen = transport.client().refresh_pane(0).expect("replay");
             let screen = screen.join("\n");
-            if screen.contains("METRICDONE") {
+            let replied = screen.contains("6;24;12t") && screen.contains("rgb:1212/1212/1212");
+            if (screen.contains("METRICDONE") && replied) || Instant::now() >= deadline {
                 break screen;
             }
-            assert!(
-                Instant::now() < deadline,
-                "the metric program never printed: {screen:?}"
-            );
             std::thread::sleep(Duration::from_millis(50));
         };
+        assert!(
+            screen.contains("METRICDONE"),
+            "the metric program never printed: {screen:?}"
+        );
         assert!(
             // xterm's XTWINOPS replies are height-first: 6;height;width.
             screen.contains("6;24;12t"),
