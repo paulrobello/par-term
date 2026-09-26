@@ -325,4 +325,131 @@ mod tests {
         let quoted = shell_single_quote(&prompt);
         assert!(!quoted.contains('\\'));
     }
+
+    /// End-to-end through the real shell paths (no mux): a pane whose
+    /// process exits non-zero is captured by `handle_shell_exit`, its
+    /// payload keeps the tail, and activating the palette row launches the
+    /// default agent with the exit status and payload path typed after its
+    /// command.
+    #[test]
+    fn crashed_pane_is_captured_and_triaged_into_the_default_agent() {
+        use std::time::{Duration, Instant};
+
+        // A multi-thread runtime: this test pumps real local shells, and the
+        // core's PTY reader needs background task progress a dormant
+        // current-thread runtime never makes.
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+
+        fn agent_config() -> crate::config::Config {
+            crate::config::Config {
+                agents: vec![par_term_config::agent_launcher::AgentLaunchConfig {
+                    id: "probe".to_string(),
+                    name: "Probe".to_string(),
+                    command: "echo PAR_TERM_TRIAGE_RAN".to_string(),
+                    autonomy_args: String::new(),
+                    default: true,
+                }],
+                ..Default::default()
+            }
+        }
+
+        let mut ws = crate::app::window_state::WindowState::new(agent_config(), runtime.clone());
+        // A spare tab so the victim's close does not end the "window".
+        let cfg = ws.config.load();
+        ws.tab_manager
+            .new_tab(&cfg, runtime.clone(), false, Some((80, 24)))
+            .expect("spare tab");
+        drop(cfg);
+
+        // The victim: a custom shell that prints a marker and exits 42.
+        let mut crash_cfg = agent_config();
+        crash_cfg.shell.custom_shell = Some("/bin/sh".to_string());
+        crash_cfg.shell.shell_args = Some(vec![
+            "-c".to_string(),
+            "echo PAR_TERM_CRASH_TAIL; exit 42".to_string(),
+        ]);
+        ws.config.store(std::sync::Arc::new(crash_cfg));
+        let cfg = ws.config.load();
+        let victim = ws
+            .tab_manager
+            .new_tab(&cfg, runtime.clone(), false, Some((80, 24)))
+            .expect("victim tab");
+        drop(cfg);
+
+        // Wait for the victim's process to die.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let running = ws
+                .tab_manager
+                .get_tab(victim)
+                .map(|tab| tab.try_with_read_terminal(|term| term.is_running()))
+                .flatten()
+                .unwrap_or(false);
+            if !running {
+                break;
+            }
+            assert!(Instant::now() < deadline, "victim pane never exited");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        // The production close path: capture runs inside, then the tab closes.
+        assert!(!ws.handle_shell_exit());
+        assert_eq!(ws.tab_manager.tab_count(), 1, "victim tab closed");
+
+        let offers = ws.crash_triage.live_offers().to_vec();
+        assert_eq!(offers.len(), 1, "exactly one crash offer");
+        assert_eq!(offers[0].exit_code, 42);
+        let payload = std::fs::read_to_string(&offers[0].payload_path).unwrap();
+        assert!(payload.contains("Exit status: 42"), "payload: {payload}");
+        assert!(
+            payload.contains("PAR_TERM_CRASH_TAIL"),
+            "payload keeps the tail: {payload}"
+        );
+
+        // Back to a real shell so the agent tab lives to run its command.
+        ws.config.store(std::sync::Arc::new(agent_config()));
+        let action = format!("triage-crash:{}", offers[0].id);
+        assert!(ws.execute_keybinding_action(&action));
+        assert_eq!(
+            ws.tab_manager.tab_count(),
+            2,
+            "the triage launch opened a tab"
+        );
+        assert!(ws.crash_triage.live_offers().is_empty(), "offer consumed");
+
+        // The typed line = agent command + quoted prompt naming the exit
+        // status; both render once the echo runs.
+        let tab_id = ws.tab_manager.active_tab().unwrap().id;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let seen = ws.tab_manager.get_tab(tab_id).and_then(|tab| {
+                tab.try_with_read_terminal(|term| {
+                    crate::app::window_state::search_highlight::get_all_searchable_lines(
+                        term,
+                        term.dimensions().1,
+                    )
+                    .map(|(_, line)| line)
+                    .collect::<Vec<_>>()
+                })
+            });
+            if let Some(lines) = seen {
+                let text = lines.join("\n");
+                if text.contains("PAR_TERM_TRIAGE_RAN") && text.contains("status 42") {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    panic!("triage command never ran or lost the status: {text:?}");
+                }
+            } else if Instant::now() >= deadline {
+                panic!("agent tab never produced readable output");
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
 }
