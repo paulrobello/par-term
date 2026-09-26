@@ -284,14 +284,35 @@ pub(crate) fn mux_client_grid(renderer: &par_term_render::renderer::Renderer) ->
     (cols.saturating_sub(reserved).max(1) as u16, rows as u16)
 }
 
-/// Push the renderer's grid size so the daemon re-fits the window holding
-/// `pane` — `refresh-client -t %N -C` broadcasts `%layout-change` with the
-/// new geometry (core T4.C; the `-t` target is required by the server).
+/// The per-cell pixel size pushed beside the grid (`refresh-client -p`):
+/// the one renderer metric every daemon pane shares, so CSI 14t/16t answers
+/// and image cell-span math match the client's font. Rounded to nearest —
+/// the wire requires a positive integer, and sub-pixel cell metrics only
+/// exist before DPI rounding.
+pub(crate) fn mux_client_cell_px(renderer: &par_term_render::renderer::Renderer) -> (u16, u16) {
+    let px = |v: f32| v.round().max(1.0) as u16;
+    (px(renderer.cell_width()), px(renderer.cell_height()))
+}
+
+/// The theme fg/bg as `rrggbb` (no leading `#` — the control wire is
+/// whitespace-split and a `#` would read as a comment in shells clients
+/// paste from; core `parse_hex_color` enforces the shape).
+pub(crate) fn mux_client_colors_hex(config: &crate::config::Config) -> (String, String) {
+    let theme = config.load_theme();
+    let hex = |c: crate::config::Color| format!("{:02x}{:02x}{:02x}", c.r, c.g, c.b);
+    (hex(theme.foreground), hex(theme.background))
+}
+
+/// Push the renderer's grid and cell size so the daemon re-fits the window
+/// holding `pane` — `refresh-client -t %N -C -p` broadcasts
+/// `%layout-change` with the new geometry (core T4.C; the `-t` target is
+/// required by the server) and re-derives every pane's pixel metrics.
 pub(crate) fn push_client_size(
     transport: &dyn TmuxTransport,
     pane: Option<TmuxPaneId>,
     cols: u16,
     rows: u16,
+    cell_px: (u16, u16),
 ) {
     let Some(pane) = pane else {
         crate::debug_trace!(
@@ -300,10 +321,21 @@ pub(crate) fn push_client_size(
         );
         return;
     };
-    if let Err(e) =
-        transport.send_command_no_wait(&format!("refresh-client -t %{pane} -C {cols}x{rows}"))
-    {
+    if let Err(e) = transport.send_command_no_wait(&format!(
+        "refresh-client -t %{pane} -C {cols}x{rows} -p {}x{}",
+        cell_px.0, cell_px.1
+    )) {
         crate::debug_error!("MUX", "client size push failed: {e}");
+    }
+}
+
+/// Push the client's theme colors (`set-client-colors -f/-b rrggbb`) so
+/// pane OSC 10/11 answers reflect the client's actual dark/light theme.
+/// Fire-and-forget like the size push: a daemon predating the command
+/// answers an error block nobody reads, which is the correct degradation.
+pub(crate) fn push_client_colors(transport: &dyn TmuxTransport, fg: &str, bg: &str) {
+    if let Err(e) = transport.send_command_no_wait(&format!("set-client-colors -f {fg} -b {bg}")) {
+        crate::debug_error!("MUX", "client colors push failed: {e}");
     }
 }
 
@@ -360,11 +392,12 @@ pub(crate) fn route_literal_bytes(
 /// explanation for everything downstream misbehaving), create-or-attach,
 /// report existing windows (the caller allocates tabs for them — a created
 /// session gets its tab from the `%window-add` push), push the client size
-/// (the first pane names the window the server resizes), collect each
-/// pane's replayed screen for seeding (`refresh-client -t` replies carry
-/// the screen; they are NOT `%output` pushes), and read the agent roster
-/// for the initial fill (A2b task 1: `list-agents` on attach and
-/// reattach — the single call site of the roster query in app code).
+/// and cell pixels (the first pane names the window the server resizes)
+/// plus the client theme colors, collect each pane's replayed screen for
+/// seeding (`refresh-client -t` replies carry the screen; they are NOT
+/// `%output` pushes), and read the agent roster for the initial fill (A2b
+/// task 1: `list-agents` on attach and reattach — the single call site of
+/// the roster query in app code).
 ///
 /// `env` is par-term's shell environment (`build_shell_env`), handed to
 /// the daemon as the session environment so mux panes match local tabs:
@@ -374,6 +407,8 @@ pub(crate) fn attach_sequence(
     transport: &MuxTransport,
     name: &str,
     size: Option<(u16, u16)>,
+    cell_px: Option<(u16, u16)>,
+    colors: &(String, String),
     env: &std::collections::HashMap<String, String>,
 ) -> io::Result<AttachSequence> {
     // Degrade to None rather than failing the attach: the version query is
@@ -399,7 +434,20 @@ pub(crate) fn attach_sequence(
     // live through the body, where the next command borrows again.
     let panes = transport.client().list_panes()?;
     if let (Some((cols, rows)), Some(first)) = (size, panes.first()) {
-        transport.client().set_client_size(*first, cols, rows)?;
+        // Cell pixels default to a sane floor when the renderer is not up
+        // yet (attach before first frame): the daemon re-derives from the
+        // next resize push, which always carries the real metrics.
+        let cell_px = cell_px.unwrap_or((10, 20));
+        transport
+            .client()
+            .set_client_size(*first, cols, rows, cell_px)?;
+    }
+    // Theme colors: re-reported on every attach (the daemon does not
+    // persist them), so pane OSC 10/11 answers match the client theme from
+    // the first frame. A stale daemon answers an error block, which `send`
+    // returns as a body — the attach proceeds.
+    if let Err(e) = transport.client().set_client_colors(&colors.0, &colors.1) {
+        crate::debug_error!("MUX", "set-client-colors on attach failed: {e}");
     }
     let mut screens = Vec::new();
     for pane in panes {
@@ -781,9 +829,11 @@ impl WindowState {
         // `handle_tmux_window_add` can borrow the window state freely;
         // boxing into tmux_state happens only once attached.
         let size = self.renderer.as_ref().map(mux_client_grid);
+        let cell_px = self.renderer.as_ref().map(mux_client_cell_px);
+        let colors = mux_client_colors_hex(&self.config.load());
         let env = crate::tab::build_shell_env(self.config.load().shell.shell_env.as_ref())
             .unwrap_or_default();
-        let attach = attach_sequence(&transport, name, size, &env).map(
+        let attach = attach_sequence(&transport, name, size, cell_px, &colors, &env).map(
             |AttachSequence {
                  daemon_version,
                  outcome,
@@ -890,6 +940,40 @@ impl WindowState {
         true
     }
 
+    /// Push the current theme colors to the daemon — the theme-change hook
+    /// (config propagation) and nothing else calls this; attach reports the
+    /// colors inside [`attach_sequence`]. No-op without a transport.
+    pub(crate) fn push_mux_client_colors(&mut self) {
+        let Some(transport) = &self.tmux_state.transport else {
+            return;
+        };
+        let (fg, bg) = mux_client_colors_hex(&self.config.load());
+        push_client_colors(&**transport, &fg, &bg);
+    }
+
+    /// End the mux view because the attached session no longer exists on
+    /// the daemon (`%sessions-changed` re-query proved it gone — killed by
+    /// another client or `kill-session`, while the daemon itself lives).
+    /// The teardown mirrors [`Self::detach_mux_session`]: drop the
+    /// transport, clear mux-only state, run the shared session-ended
+    /// cleanup. The toast names what actually happened, unlike the shared
+    /// cleanup's generic "tmux: Session ended".
+    pub(super) fn end_mux_view_for_gone_session(&mut self) {
+        crate::debug_info!(
+            "MUX",
+            "session gone from the daemon — ending the view (daemon keeps running)"
+        );
+        self.tmux_state.transport.take();
+        self.tmux_state.mux_focused_pane = None;
+        self.tmux_state.mux_screen_seeds.clear();
+        self.tmux_state.mux_pane_titles.clear();
+        self.tmux_state.agent_roster.clear();
+        self.handle_tmux_session_ended();
+        self.show_toast("par-mux: session ended on the daemon");
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
+    }
+
     /// The adapted session-started wiring: no gateway tab to retitle and
     /// no `set-option window-size` (the daemon's policy is
     /// latest-report-wins, core T4.C) — just the name, the title, and the
@@ -903,11 +987,13 @@ impl WindowState {
             && let Some(transport) = &self.tmux_state.transport
         {
             let (cols, rows) = mux_client_grid(renderer);
+            let cell_px = mux_client_cell_px(renderer);
             push_client_size(
                 &**transport,
                 self.focused_mux_pane_from_native(),
                 cols,
                 rows,
+                cell_px,
             );
         }
     }
@@ -937,6 +1023,26 @@ pub(crate) mod tests {
     /// Marker echoed inside a pane before detach; the reattach screen
     /// replay must carry it back as `PaneOutput`.
     const MARKER: &str = "par-term-mux-wiring-marker";
+
+    /// [`attach_sequence`] with the metrics a headless test cannot know:
+    /// no renderer exists to measure cells, no config to theme from. The
+    /// color pair is a real shape (`rrggbb`), not zeros, so a daemon-side
+    /// rejection would be visible in the attach assertions.
+    fn attach_test(
+        transport: &MuxTransport,
+        name: &str,
+        size: Option<(u16, u16)>,
+        env: &std::collections::HashMap<String, String>,
+    ) -> io::Result<AttachSequence> {
+        attach_sequence(
+            transport,
+            name,
+            size,
+            None,
+            &("c0c0c0".to_string(), "121212".to_string()),
+            env,
+        )
+    }
 
     pub(crate) fn socket_path(tag: &str) -> PathBuf {
         let mut path = std::env::temp_dir();
@@ -1061,7 +1167,7 @@ pub(crate) mod tests {
         // runs short of tab allocation. The size differs from the daemon's
         // 80x24 default so the `-C` refit genuinely broadcasts a layout.
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "wiring", Some((120, 40)), &Default::default())
+        let attach = attach_test(&transport, "wiring", Some((120, 40)), &Default::default())
             .expect("attach_sequence");
         assert!(
             matches!(attach.outcome, AttachOutcome::Attached(ref s) if s.name == "wiring"),
@@ -1110,7 +1216,7 @@ pub(crate) mod tests {
         spawn_daemon(&path);
 
         let transport = connect(&path);
-        let attach = attach_sequence(
+        let attach = attach_test(
             &transport,
             "version-check",
             Some((80, 24)),
@@ -1138,14 +1244,14 @@ pub(crate) mod tests {
 
         {
             let transport = connect(&path);
-            let attach = attach_sequence(&transport, "keep", Some((80, 24)), &Default::default())
+            let attach = attach_test(&transport, "keep", Some((80, 24)), &Default::default())
                 .expect("attach");
             assert!(matches!(attach.outcome, AttachOutcome::Created(_)));
             // Dropping the transport drops the socket — detach, D5.
         }
 
         let second = connect(&path);
-        let attach = attach_sequence(&second, "keep", None, &Default::default()).expect("reattach");
+        let attach = attach_test(&second, "keep", None, &Default::default()).expect("reattach");
         assert!(
             matches!(attach.outcome, AttachOutcome::Attached(ref s) if s.name == "keep"),
             "the daemon and session survived the dropped socket: {:?}",
@@ -2170,7 +2276,7 @@ pub(crate) mod tests {
         spawn_daemon(&path);
 
         let transport = connect(&path);
-        attach_sequence(&transport, "probe", None, &Default::default()).expect("attach");
+        attach_test(&transport, "probe", None, &Default::default()).expect("attach");
         // User-rename %0; give %1 (split) a program OSC title.
         transport
             .send_command("split-window -h -t %0")
@@ -2202,8 +2308,7 @@ pub(crate) mod tests {
         // user title as user (and restore it daemon-side) and the OSC
         // title as plain.
         let second = connect(&path);
-        let attach =
-            attach_sequence(&second, "probe", None, &Default::default()).expect("reattach");
+        let attach = attach_test(&second, "probe", None, &Default::default()).expect("reattach");
         let find = |pane: u64| {
             attach
                 .titles
@@ -2349,8 +2454,8 @@ pub(crate) mod tests {
         let path = socket_path("palette-row");
         spawn_daemon(&path);
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "rows", Some((80, 24)), &Default::default())
-            .expect("attach");
+        let attach =
+            attach_test(&transport, "rows", Some((80, 24)), &Default::default()).expect("attach");
         assert!(matches!(attach.outcome, AttachOutcome::Created(_)));
         ws.tmux_state.transport = Some(Box::new(transport));
         ws.tmux_state.tmux_session_name = Some("rows".to_string());
@@ -2386,8 +2491,8 @@ pub(crate) mod tests {
         );
 
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "det", Some((80, 24)), &Default::default())
-            .expect("attach");
+        let attach =
+            attach_test(&transport, "det", Some((80, 24)), &Default::default()).expect("attach");
         assert!(matches!(attach.outcome, AttachOutcome::Created(_)));
         ws.tmux_state.transport = Some(Box::new(transport));
         ws.tmux_state.tmux_session_name = Some("det".to_string());
@@ -2420,8 +2525,7 @@ pub(crate) mod tests {
         // D5 through the app's own detach: the daemon outlives the dropped
         // socket and a fresh client reattaches to the same session.
         let second = connect(&path);
-        let reattach =
-            attach_sequence(&second, "det", None, &Default::default()).expect("reattach");
+        let reattach = attach_test(&second, "det", None, &Default::default()).expect("reattach");
         assert!(
             matches!(reattach.outcome, AttachOutcome::Attached(ref s) if s.name == "det"),
             "the daemon survived the explicit detach: {:?}",
@@ -2442,7 +2546,7 @@ pub(crate) mod tests {
         spawn_daemon(&path);
 
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "detfast", Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, "detfast", Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         // Four windows = four mux tabs (a CREATED session reports its
         // first window via the daemon's own %window-add push).
@@ -2514,8 +2618,8 @@ pub(crate) mod tests {
         spawn_daemon(&path);
 
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "roster", Some((80, 24)), &Default::default())
-            .expect("attach");
+        let attach =
+            attach_test(&transport, "roster", Some((80, 24)), &Default::default()).expect("attach");
         // Absent means absent: a daemon whose panes have no agent reports
         // rostered nothing — the fill is empty, not idle-populated.
         assert!(
@@ -2602,7 +2706,7 @@ out.flush()
 
         // The app's exact attach: create-or-attach, size push, per-pane replay.
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "tui", Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, "tui", Some((80, 24)), &Default::default())
             .expect("attach_sequence");
 
         let seed = attach
@@ -2746,7 +2850,7 @@ out.flush()
         // a real (renderer-less) WindowState — the same steps
         // `install_mux_transport` performs minus the renderer-derived size.
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "wstui", Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, "wstui", Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         assert!(
             attach
@@ -3007,7 +3111,7 @@ out.flush()
         // pushes the window on the first pump, the layout consumer
         // creates the native mirror pane carrying the trigger registry.
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "wstrig", Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, "wstrig", Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -3103,7 +3207,7 @@ out.flush()
         // pushes the window on the first pump, the layout consumer
         // creates the native mirror pane.
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "wssesslog", Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, "wssesslog", Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -3245,7 +3349,7 @@ out.flush()
         // pushes the window on the first pump, the layout consumer
         // creates the native mirror pane.
         let transport = connect(&path);
-        let attach = attach_sequence(
+        let attach = attach_test(
             &transport,
             "wsplugbell",
             Some((80, 24)),
@@ -3344,7 +3448,7 @@ out.flush()
 
         // Created-session attach (the triggers-test pattern).
         let transport = connect(&path);
-        let attach = attach_sequence(
+        let attach = attach_test(
             &transport,
             "wsscriptbell",
             Some((80, 24)),
@@ -3462,7 +3566,7 @@ out.flush()
 
         // Created-session attach (the triggers-test pattern).
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "wsfocus", Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, "wsfocus", Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -3573,7 +3677,7 @@ out.flush()
         // Attach + install into a renderer-less WindowState — the same
         // steps `install_mux_transport` performs (the reattach pattern).
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "wspaste", Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, "wspaste", Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         let mut ws = manners_state();
         // Reported (reattached) windows get their tabs directly; a CREATED
@@ -3644,7 +3748,7 @@ out.flush()
         // Attach + install into a renderer-less WindowState — the same
         // steps `install_mux_transport` performs (the reattach pattern).
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "wsime", Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, "wsime", Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         let mut ws = manners_state();
         for window_id in &attach.existing_windows {
@@ -3707,7 +3811,7 @@ out.flush()
         spawn_daemon(&path);
 
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, tag, Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, tag, Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         let mut ws = manners_state();
         // Reported (reattached) windows get their tabs directly; a CREATED
@@ -3909,7 +4013,7 @@ out.flush()
         spawn_daemon(&path);
 
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, tag, Some((80, 24)), &Default::default())
+        let attach = attach_test(&transport, tag, Some((80, 24)), &Default::default())
             .expect("attach_sequence");
         let mut ws = manners_state();
         // Reported (reattached) windows get their tabs directly; a CREATED
@@ -4094,7 +4198,7 @@ out.flush()
         .collect();
 
         let transport = connect(&path);
-        let attach = attach_sequence(&transport, "envs", None, &env).expect("attach");
+        let attach = attach_test(&transport, "envs", None, &env).expect("attach");
         let AttachOutcome::Created(session) = attach.outcome else {
             panic!("expected a created session");
         };
@@ -4127,7 +4231,7 @@ out.flush()
         let mut changed = env.clone();
         changed.insert("PAR_TERM_ENV_PROBE".to_string(), "it's changed".to_string());
         let second = connect(&path);
-        let reattach = attach_sequence(&second, "envs", None, &changed).expect("reattach");
+        let reattach = attach_test(&second, "envs", None, &changed).expect("reattach");
         assert!(matches!(reattach.outcome, AttachOutcome::Attached(_)));
         second
             .send_command("split-window -v -t %1")
@@ -4157,7 +4261,7 @@ out.flush()
         let mut sent = local.clone();
         sent.insert("PAR_TERM_PATH_PROBE".to_string(), local["PATH"].clone());
         let transport = connect(&path);
-        attach_sequence(&transport, "parity", None, &sent).expect("attach");
+        attach_test(&transport, "parity", None, &sent).expect("attach");
         for key in [
             "TERM_PROGRAM",
             "TERM_PROGRAM_VERSION",
@@ -4204,7 +4308,7 @@ out.flush()
         let path = socket_path("persist-kind");
         spawn_daemon(&path);
         let transport = connect(&path);
-        attach_sequence(&transport, "kind", None, &Default::default()).expect("attach");
+        attach_test(&transport, "kind", None, &Default::default()).expect("attach");
 
         let mut ws = manners_state();
         ws.tmux_state.transport = Some(Box::new(transport));
@@ -4229,7 +4333,7 @@ out.flush()
         let path = socket_path("stale-focus");
         spawn_daemon(&path);
         let transport = connect(&path);
-        attach_sequence(&transport, "stale", None, &Default::default()).expect("attach");
+        attach_test(&transport, "stale", None, &Default::default()).expect("attach");
 
         let mut ws = manners_state();
         ws.tmux_state.transport = Some(Box::new(transport));
@@ -4262,7 +4366,7 @@ out.flush()
         let path = socket_path("literal-route");
         spawn_daemon(&path);
         let transport = connect(&path);
-        attach_sequence(&transport, "litroute", None, &Default::default()).expect("attach");
+        attach_test(&transport, "litroute", None, &Default::default()).expect("attach");
 
         let mut ws = manners_state();
         ws.tmux_state.transport = Some(Box::new(transport));
@@ -4952,5 +5056,125 @@ out.flush()
             .title
             .clone();
         assert_eq!(title, "it's docs", "local title follows the rename");
+    }
+
+    // =========================================================================
+    // Client metric reports: -p cell pixels, set-client-colors (card
+    // 01a0db77d7a2)
+    // =========================================================================
+
+    /// A transport that records every command and answers nothing — the
+    /// wire-shape oracle for the fire-and-forget pushes.
+    #[derive(Default)]
+    struct RecordingTransport {
+        commands: std::cell::RefCell<Vec<String>>,
+    }
+
+    impl TmuxTransport for RecordingTransport {
+        fn drain(
+            &self,
+        ) -> (
+            Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
+            bool,
+        ) {
+            (Vec::new(), false)
+        }
+
+        fn send_command(&self, command: &str) -> io::Result<Vec<String>> {
+            self.commands.borrow_mut().push(command.to_string());
+            Ok(Vec::new())
+        }
+
+        fn send_command_no_wait(&self, command: &str) -> io::Result<()> {
+            self.commands.borrow_mut().push(command.to_string());
+            Ok(())
+        }
+    }
+
+    /// The resize/font pushes carry the cell pixels beside the grid
+    /// (`-C WxH -p WxH` in one command), the theme push carries both
+    /// halves of the color pair, and the theme hex the app derives is the
+    /// configured theme's fg/bg as lowercase `rrggbb`.
+    #[test]
+    fn client_metric_pushes_carry_cells_and_colors() {
+        let transport = RecordingTransport::default();
+        push_client_size(&transport, Some(7), 80, 24, (12, 24));
+        // No target pane: the push is dropped, not sent untargeted.
+        push_client_size(&transport, None, 80, 24, (12, 24));
+        push_client_colors(&transport, "c0c0c0", "1e1e2e");
+        let commands = transport.commands.borrow();
+        assert_eq!(
+            &*commands,
+            &[
+                "refresh-client -t %7 -C 80x24 -p 12x24".to_string(),
+                "set-client-colors -f c0c0c0 -b 1e1e2e".to_string(),
+            ],
+            "one -C/-p command per size push, one set-client-colors per \
+             theme push, and nothing for a targetless push"
+        );
+
+        let config = crate::config::Config::default();
+        let (fg, bg) = mux_client_colors_hex(&config);
+        let theme = config.load_theme();
+        let hex = |c: crate::config::Color| format!("{:02x}{:02x}{:02x}", c.r, c.g, c.b);
+        assert_eq!(fg, hex(theme.foreground), "fg is the theme foreground");
+        assert_eq!(bg, hex(theme.background), "bg is the theme background");
+    }
+
+    /// The attach reports reach the daemon and land in the pane terminal:
+    /// after an attach carrying `-p 12x24` and bg `121212`, a CSI 16t
+    /// query in the pane answers `6;12;24t` (not the 10x20 construction
+    /// default) and an OSC 11 query answers the client bg. The pane's own
+    /// program proves the reports live daemon-side, not just on the wire.
+    #[test]
+    fn attach_reports_cells_and_theme_to_the_daemon() {
+        let path = socket_path("attach-metrics");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        attach_sequence(
+            &transport,
+            "metrics",
+            Some((90, 30)),
+            Some((12, 24)),
+            &("c0c0c0".to_string(), "121212".to_string()),
+            &Default::default(),
+        )
+        .expect("attach with metrics");
+        transport
+            .client()
+            // The marker is quote-split so the ECHOED command text never
+            // matches it — only the executed echo's output does.
+            .send_keys_literal(
+                0,
+                "printf \"\\033[16t\\033]11;?\\007\"; echo MET\"RIC\"DONE",
+            )
+            .expect("send metric query");
+        transport.client().send_keys(0, b"\r").expect("enter");
+
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let screen = loop {
+            let screen = transport.client().refresh_pane(0).expect("replay");
+            let screen = screen.join("\n");
+            if screen.contains("METRICDONE") {
+                break screen;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the metric program never printed: {screen:?}"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        assert!(
+            // xterm's XTWINOPS replies are height-first: 6;height;width.
+            screen.contains("6;24;12t"),
+            "CSI 16t answers with the reported 12x24 cells, not the default: {screen:?}"
+        );
+        assert!(
+            screen.contains("rgb:1212/1212/1212"),
+            "OSC 11 answers with the client bg, not the core theme: {screen:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
     }
 }

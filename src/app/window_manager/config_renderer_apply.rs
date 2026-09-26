@@ -252,6 +252,11 @@ pub(super) fn apply_renderer_config(
 
     // Apply theme changes to all tabs and all pane terminals
     if changes.theme {
+        // par-mux panes answer OSC 10/11 from the daemon's copy of the
+        // client theme — push the new colors or apps in mux panes keep
+        // misdetecting dark/light mode after a theme switch.
+        #[cfg(feature = "mux")]
+        window_state.push_mux_client_colors();
         let theme = config.load_theme();
         for tab in window_state.tab_manager.tabs_mut() {
             // Set theme on tab's primary terminal

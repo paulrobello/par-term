@@ -84,19 +84,21 @@ impl WindowState {
     /// Called when the window is resized to keep tmux in sync with par-term's size.
     /// This sends `refresh-client -C cols,rows` to tmux in gateway mode.
     pub fn notify_tmux_of_resize(&self) {
-        // par-mux transport: push the new grid size through the daemon
-        // client; the gateway path below writes to the gateway PTY.
+        // par-mux transport: push the new grid size and cell pixels through
+        // the daemon client; the gateway path below writes to the gateway
+        // PTY.
         #[cfg(feature = "mux")]
         if let Some(transport) = &self.tmux_state.transport
             && let Some(renderer) = &self.renderer
         {
             let (cols, rows) = super::mux::mux_client_grid(renderer);
+            let cell_px = super::mux::mux_client_cell_px(renderer);
             // mux_focused_pane is unset after a fresh attach until a click
             // or focus push — resolve the focused pane the same way input
             // routing does, or every resize is silently skipped and daemon
             // panes keep the old geometry (broken wrapping after resize).
             let focused = self.focused_mux_pane_from_native();
-            super::mux::push_client_size(&**transport, focused, cols, rows);
+            super::mux::push_client_size(&**transport, focused, cols, rows, cell_px);
             return;
         }
 

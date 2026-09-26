@@ -111,6 +111,13 @@ impl WindowState {
         self.init_egui(&window, true);
         self.request_redraw();
 
+        // A font change re-derives cell pixels and (usually) grid size —
+        // the daemon must hear both or mux panes keep sizing images and
+        // CSI 14t/16t answers off the old font until the next window
+        // resize. No Resized event fires for a font change, so this push
+        // is the only reporter.
+        self.notify_tmux_of_resize();
+
         Ok(())
     }
 

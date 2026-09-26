@@ -177,18 +177,35 @@ impl MuxSessionClient {
         self.send(&command)
     }
 
-    /// Push the client's grid size for the window holding `pane`; the
-    /// daemon re-fits that window and broadcasts `%layout-change` carrying
-    /// the new geometry. The `-t` target is required by the server — the
-    /// pane names the window whose size is being reported (latest report
-    /// wins, core T4.C).
+    /// Push the client's grid size and per-cell pixel size for the window
+    /// holding `pane`; the daemon re-fits that window and broadcasts
+    /// `%layout-change` carrying the new geometry, and holds the cell size
+    /// daemon-wide so pane CSI 14t/16t answers and image sizing match the
+    /// client's font (latest-wins, re-reported on every resize and font
+    /// change). The `-t` target is required by the server — the pane names
+    /// the window whose size is being reported (latest report wins, core
+    /// T4.C).
     pub fn set_client_size(
         &mut self,
         pane: TmuxPaneId,
         cols: u16,
         rows: u16,
+        cell_px: (u16, u16),
     ) -> io::Result<Vec<String>> {
-        self.send(&format!("refresh-client -t %{pane} -C {cols}x{rows}"))
+        self.send(&format!(
+            "refresh-client -t %{pane} -C {cols}x{rows} -p {}x{}",
+            cell_px.0, cell_px.1
+        ))
+    }
+
+    /// Report the client's theme colors (`set-client-colors -f/-b rrggbb`,
+    /// no leading `#`) so pane OSC 10/11 queries answer with what the user
+    /// actually sees — apps detect dark/light mode from those answers. Held
+    /// daemon-wide with the same latest-wins policy as `-C`/`-p`; a daemon
+    /// predating the command answers an error block, which degrades to a
+    /// no-op rather than failing the caller.
+    pub fn set_client_colors(&mut self, fg: &str, bg: &str) -> io::Result<Vec<String>> {
+        self.send(&format!("set-client-colors -f {fg} -b {bg}"))
     }
 
     /// The sync state, for window/pane ↔ tab/pane mapping on the app side.
