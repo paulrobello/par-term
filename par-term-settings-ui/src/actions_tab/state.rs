@@ -90,6 +90,24 @@ pub struct ActionsTabState {
     pub agent_command_error: Option<String>,
     /// Open command editor: (command id, YAML text being edited)
     pub agent_command_editing: Option<(String, String)>,
+    /// Index in `config.agents` being edited (None = not editing)
+    pub agent_launch_editing: Option<usize>,
+    /// Whether the add-new-agent form is active
+    pub agent_launch_adding: bool,
+    /// Agent id awaiting the second (confirm) click of a remove
+    pub agent_launch_pending_delete: Option<String>,
+    /// Last agent-editor validation error, shown until the next attempt
+    pub agent_launch_error: Option<String>,
+    /// Temporary agent id for the add/edit form
+    pub temp_agent_launch_id: String,
+    /// Temporary agent name for the add/edit form
+    pub temp_agent_launch_name: String,
+    /// Temporary agent command for the add/edit form
+    pub temp_agent_launch_command: String,
+    /// Temporary agent autonomy args for the add/edit form
+    pub temp_agent_launch_autonomy_args: String,
+    /// Temporary agent default flag for the add/edit form
+    pub temp_agent_launch_default: bool,
 }
 
 impl Default for ActionsTabState {
@@ -137,6 +155,15 @@ impl Default for ActionsTabState {
             agent_command_pending_delete: None,
             agent_command_error: None,
             agent_command_editing: None,
+            agent_launch_editing: None,
+            agent_launch_adding: false,
+            agent_launch_pending_delete: None,
+            agent_launch_error: None,
+            temp_agent_launch_id: String::new(),
+            temp_agent_launch_name: String::new(),
+            temp_agent_launch_command: String::new(),
+            temp_agent_launch_autonomy_args: String::new(),
+            temp_agent_launch_default: false,
         }
     }
 }

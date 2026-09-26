@@ -9,6 +9,7 @@ mod action_editor;
 mod action_forms;
 mod action_list;
 mod agent_commands_section;
+mod agents_section;
 mod state;
 
 pub use state::ActionsTabState;
@@ -19,6 +20,7 @@ use std::collections::HashSet;
 
 use action_list::show_actions_section;
 use agent_commands_section::show_agent_commands_section;
+use agents_section::show_agents_section;
 
 /// Show the actions tab content.
 pub fn show(
@@ -69,6 +71,24 @@ pub fn show(
     ) {
         show_agent_commands_section(ui, settings, collapsed);
     }
+
+    if section_matches(
+        &query,
+        "Agents",
+        &[
+            "agent",
+            "agents",
+            "launcher",
+            "launch",
+            "palette",
+            "autonomy",
+            "autonomous",
+            "default agent",
+            "cli",
+        ],
+    ) {
+        show_agents_section(ui, settings, changes_this_frame, collapsed);
+    }
 }
 
 /// Search keywords for the Actions settings tab.
@@ -110,5 +130,14 @@ pub fn keywords() -> &'static [&'static str] {
         "agent-cmd",
         "command file",
         "delete command",
+        // Agent launcher
+        "agents",
+        "agent launcher",
+        "launch agent",
+        "launch default agent",
+        "autonomy",
+        "autonomous",
+        "default agent",
+        "cli agent",
     ]
 }

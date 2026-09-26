@@ -39,6 +39,7 @@ field uses its documented default value.
 - [Search](#search)
 - [Status Bar](#status-bar)
 - [Agent Usage](#agent-usage)
+- [Agents (Launcher)](#agents-launcher)
 - [Progress Bar](#progress-bar)
 - [Badge (Session Label)](#badge-session-label)
 - [Automation & Scripting](#automation--scripting)
@@ -547,6 +548,39 @@ directory written by external collectors — see
 | `agent_usage_update_command` | `string` | (none) | Optional command run through `sh -c` on the refresh interval and manual refresh, expected to rewrite the records directory; absent = pure watch mode |
 | `agent_usage_refresh_interval_sec` | `u64` | `300` | Seconds between periodic rescans (clamped to a 30 s floor) |
 | `agent_usage_hidden_agents` | `array` | `[]` | Agent ids to hide from the widget and panel |
+
+---
+
+## Agents (Launcher)
+
+Top-level `agents:` list — CLI coding agents exposed as command-palette
+"Launch" rows. Managed under Settings → Actions → Agents.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | `string` | required | Stable slug used in `launch-agent:<id>` / `launch-agent-autonomous:<id>` action names and keybindings; must be unique |
+| `name` | `string` | required | Human-readable palette label (`Launch <name>`) |
+| `command` | `string` | required | The command line typed into the new pane's shell |
+| `autonomy_args` | `string` | `""` | Arguments appended for the `(autonomous)` palette row. Empty/absent means no autonomous variant is offered |
+| `default` | `bool` | `false` | Whether "Launch Default Agent" resolves here. Multiple `default: true` entries are legal; the first wins |
+
+```yaml
+agents:
+  - id: claude
+    name: Claude
+    command: claude
+    autonomy_args: --permission-mode auto
+    default: true
+  - id: omp
+    name: Oh My Pi
+    command: omp
+```
+
+Palette rows: every entry gets `Launch <name>`; a non-empty `autonomy_args`
+additionally gets the labelled `Launch <name> (autonomous)` row — autonomy is
+offered, never defaulted. The first `default: true` entry adds
+`Launch Default Agent (<name>)`. In a par-mux tab a launch splits daemon-side
+and types the command into the new daemon pane.
 
 ---
 

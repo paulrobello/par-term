@@ -145,5 +145,14 @@ pub fn keywords() -> &'static [&'static str] {
         "shortcut",
         "binding",
         "arguments",
+        // Agent launcher (absorbed from actions_tab)
+        "agents",
+        "agent launcher",
+        "launch agent",
+        "launch default agent",
+        "autonomy",
+        "autonomous",
+        "default agent",
+        "cli agent",
     ]
 }
