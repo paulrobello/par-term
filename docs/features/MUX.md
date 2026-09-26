@@ -1,6 +1,6 @@
 # par-mux Integration
 
-par-term can attach to [par-mux](https://github.com/paulrobello/par-mux) sessions: a par-term window becomes a client of a session owned by the par-mux daemon, with one tab per session window, so your windows, panes, and running programs keep running when you close the tab, the window, or par-term itself. Reattach later — even after a crash — and every pane is reseeded with its live screen before new output arrives.
+par-term can attach to [par-mux](https://github.com/paulrobello/par-mux) sessions: a par-term window becomes a client of a session owned by the par-mux daemon, with one tab per session window, so your windows, panes, and running programs keep running when you close the window, detach, or quit par-term itself. Reattach later — even after a crash — and every pane is reseeded with its live screen before new output arrives. Closing a **tab** closes its session window (the tmux semantic — the session itself survives while any window or the daemon lives); closing a tab's last **pane** instead closes just the tab and leaves the session window running for reattach.
 
 On top of sessions, par-mux carries an **agent roster**: what coding agents (Claude Code, Codex, Grok, pi, omp, …) are running inside the session's panes and whether each is working, blocked, or idle. par-term surfaces that roster in a status-bar widget and a command-palette picker.
 
@@ -40,7 +40,7 @@ par-mux has three levels, session → window → pane (tmux's model, with ids `$
 | window `@N` | a **tab** in that window |
 | pane `%N` | a split pane in that tab |
 
-Opening a profile with `mux_session_name` in a window starts the attach; every window in the session then gets its own tab in that par-term window, and new session windows arrive as new tabs.
+Opening a profile with `mux_session_name` in a window starts the attach; every window in the session then gets its own tab in that par-term window, and new session windows arrive as new tabs. While attached, tab operations map onto daemon windows: **Cmd+T / New Tab** asks the daemon for a `new-window` (the tab arrives as the daemon's `%window-add`), a tab's title carries the daemon window's name (renaming a tab sends `rename-window`, so names survive detach), and **Move Tab to Another Window** is blocked for mux tabs — the tab is a mirror with no transport of its own, so moving it would strand the mirror (detach first).
 
 A par-term window holds one par-mux session at a time. Opening a second mux profile in a window that is already attached (or still attaching) explains itself with a toast naming the attached (or attaching) session; open it in a new par-term window instead. There is no workspace or tab level above the session — to keep separate groups of sessions apart, run separate daemons (`par-mux <name>` gives each its own socket).
 
