@@ -247,6 +247,15 @@ impl Tab {
         self.terminal.try_read().ok().map(|guard| f(&guard))
     }
 
+    /// Whether this tab renders daemon-fed mirror panes (an attached mux
+    /// session or a real-tmux gateway): `terminal` is then a hidden shell
+    /// and the pane terminals carry the visible output, so anything that
+    /// must observe the user-visible stream (session logging, script and
+    /// plugin event subscriptions) attaches to the pane terminals too.
+    pub(crate) fn is_mux_tab(&self) -> bool {
+        self.tmux.tmux_gateway_active || self.tmux.tmux_pane_id.is_some()
+    }
+
     /// Non-blocking read access to the terminal to READ screen state from
     /// (search UI, copy mode): the focused pane's terminal when the tab has
     /// panes — in a mux tab that is the mirror of the daemon pane on screen,

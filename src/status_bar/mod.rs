@@ -110,12 +110,15 @@ pub struct StatusBarUI {
     /// every render frame; a steady fault must not warn per frame).
     plugin_settings_warned: WarnOnce,
     /// Terminal-observer registrations for plugin event forwarders, keyed by
-    /// (plugin id, tab id). Reconciled every sweep by
-    /// [`StatusBarUI::pump_plugin_events`]; an entry for a closed tab is
-    /// dropped with the map entry alone — its terminal, and the observer
-    /// registry inside it, is gone with the tab.
-    plugin_observer_ids:
-        HashMap<(String, crate::tab::TabId), par_term_emu_core_rust::observer::ObserverId>,
+    /// (plugin id, tab id, terminal slot): `None` names the tab terminal,
+    /// `Some(pane id)` a pane terminal of a mux tab. Reconciled every sweep
+    /// by [`StatusBarUI::pump_plugin_events`]; an entry for a closed tab or
+    /// pane is dropped with the map entry alone — its terminal, and the
+    /// observer registry inside it, is gone with it.
+    plugin_observer_ids: HashMap<
+        (String, crate::tab::TabId, Option<crate::pane::PaneId>),
+        par_term_emu_core_rust::observer::ObserverId,
+    >,
 }
 
 impl StatusBarUI {

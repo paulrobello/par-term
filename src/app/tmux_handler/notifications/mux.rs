@@ -3097,6 +3097,260 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Plugin event subscriptions are wired by `pump_plugin_events`,
+    /// which registered each subscribed plugin's forwarder on
+    /// `tab.terminal` only — in a mux tab that is the hidden shell, so a
+    /// bell rung in a mux pane (daemon `%output` through
+    /// `handle_tmux_output`) never reached the plugin (card
+    /// 01a0d9b559487e42a651a18e93dfce93, criterion 3).
+    #[test]
+    fn plugin_receives_bell_from_mux_pane() {
+        if par_term_scripting::manager::python_interpreter().is_none() {
+            eprintln!("skipping: no Python interpreter on PATH");
+            return;
+        }
+        let path = socket_path("ws-pluginbell");
+        spawn_daemon(&path);
+
+        // A subscribed plugin fixture: status-bar-widget kind subscribed
+        // to bell_rang, whose entry stays alive without speaking the
+        // protocol (the forwarder exists from spawn; the process never
+        // needs to answer).
+        let plugins = tempfile::tempdir().expect("tempdir");
+        let dir = plugins.path().join("com.example.belltest");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("manifest.json"),
+            concat!(
+                r#"{"schemaVersion":1,"id":"com.example.belltest","name":"Bell test","version":"0.1.0","#,
+                r#""kinds":["status-bar-widget"],"activation":"manual","#,
+                r#""entryPoints":{"statusBarWidget":{"command":"widget.py","args":[]}},"#,
+                r#""statusBarWidget":{"displayName":"Bell test","section":"right","defaults":{},"#,
+                r#""schema":[{"key":"on","type":"boolean","label":"On","defaultValue":true}]},"#,
+                r#""subscriptions":["bell_rang"]}"#
+            ),
+        )
+        .unwrap();
+        std::fs::write(dir.join("widget.py"), "import time\ntime.sleep(60)\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(
+                dir.join("widget.py"),
+                std::fs::Permissions::from_mode(0o755),
+            )
+            .unwrap();
+        }
+
+        // Created-session attach (the triggers-test pattern): the daemon
+        // pushes the window on the first pump, the layout consumer
+        // creates the native mirror pane.
+        let transport = connect(&path);
+        let attach = attach_sequence(
+            &transport,
+            "wsplugbell",
+            Some((80, 24)),
+            &Default::default(),
+        )
+        .expect("attach_sequence");
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("wsplugbell".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until the layout consumer created the native mirror pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if let Some(&(tab_id, _)) = ws.tmux_state.tmux_pane_owners.get(&0) {
+                ws.tab_manager.switch_to(tab_id);
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the pane: {:?}",
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // Enable the plugin through the host API (the Settings toggle's
+        // path) and run the per-frame registration sweep — the event
+        // loop's entry for plugin event wiring.
+        {
+            let host = ws.status_bar_ui.plugin_host_mut();
+            let (found, warnings) = par_term_scripting::manifest::discover_plugins(plugins.path());
+            assert!(
+                found.len() == 1,
+                "fixture plugin must pass discovery: {warnings:?}"
+            );
+            host.refresh_discovery(plugins.path());
+            host.apply_enabled(&[par_term_scripting::plugin_manager::EnabledPlugin {
+                id: "com.example.belltest".to_string(),
+                settings_json: "{}".to_string(),
+            }]);
+            host.poll();
+        }
+        let forwarder = ws
+            .status_bar_ui
+            .plugin_host()
+            .subscription_forwarders()
+            .get("com.example.belltest")
+            .expect("subscribed plugin has a forwarder")
+            .clone();
+        ws.status_bar_ui.pump_plugin_events(&ws.tab_manager);
+
+        // Ring the bell in the daemon pane — the production routing path.
+        ws.handle_tmux_output(0, b"\x07");
+
+        let events = forwarder.drain_events();
+        assert!(
+            events.iter().any(|e| e.kind == "bell_rang"),
+            "the mux pane's bell must reach the subscribed plugin: {events:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Tab-script event subscriptions attach their forwarder on
+    /// `tab.terminal` only (`start_script_at`) — in a mux tab that is the
+    /// hidden shell, so a bell rung in a mux pane never reached a
+    /// subscribed script (card 01a0d9b559487e42a651a18e93dfce93,
+    /// criterion 3).
+    #[test]
+    fn tab_script_receives_bell_from_mux_pane() {
+        if par_term_scripting::manager::python_interpreter().is_none() {
+            eprintln!("skipping: no Python interpreter on PATH");
+            return;
+        }
+        let path = socket_path("ws-scriptbell");
+        spawn_daemon(&path);
+
+        // A stay-alive script entry; the forwarder is created at spawn and
+        // the process itself never needs to speak the protocol.
+        let scripts = tempfile::tempdir().expect("tempdir");
+        let entry = scripts.path().join("bell_script.py");
+        std::fs::write(&entry, "import time\ntime.sleep(60)\n").unwrap();
+
+        // Created-session attach (the triggers-test pattern).
+        let transport = connect(&path);
+        let attach = attach_sequence(
+            &transport,
+            "wsscriptbell",
+            Some((80, 24)),
+            &Default::default(),
+        )
+        .expect("attach_sequence");
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("wsscriptbell".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until the layout consumer created the native mirror pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let tab_id = loop {
+            ws.check_mux_notifications();
+            if let Some(&(tab_id, _)) = ws.tmux_state.tmux_pane_owners.get(&0) {
+                ws.tab_manager.switch_to(tab_id);
+                break tab_id;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the pane: {:?}",
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        };
+
+        // Start a subscribed tab script on the mux tab (the Settings
+        // start button shares `start_script_at`).
+        let script_config = par_term_config::ScriptConfig {
+            name: "mux-bell-script".to_string(),
+            enabled: true,
+            script_path: entry.display().to_string(),
+            args: Vec::new(),
+            auto_start: false,
+            restart_policy: par_term_config::automation::RestartPolicy::Never,
+            restart_delay_ms: 0,
+            subscriptions: vec!["bell_rang".to_string()],
+            env_vars: std::collections::HashMap::new(),
+            allow_write_text: false,
+            prompt_before_write_text: true,
+            allow_run_command: false,
+            allow_change_config: false,
+            write_text_rate_limit: 0,
+            run_command_rate_limit: 0,
+        };
+        {
+            let tab = ws.tab_manager.get_tab_mut(tab_id).expect("mux tab");
+            let terminal = tab.terminal.clone();
+            let term = terminal.try_read().expect("tab terminal free");
+            tab.scripting
+                .start_script_at(&term, 0, &script_config)
+                .expect("script starts");
+        }
+
+        // The per-frame pane-attachment reconcile — the same call the
+        // event loop's script sweep runs for every tab with scripts.
+        let pane_terminals: Vec<(
+            crate::pane::PaneId,
+            std::sync::Arc<tokio::sync::RwLock<par_term_terminal::TerminalManager>>,
+        )> = {
+            let tab = ws.tab_manager.get_tab(tab_id).expect("mux tab");
+            tab.pane_manager()
+                .map(|pm| {
+                    pm.all_panes()
+                        .into_iter()
+                        .map(|p| (p.id, std::sync::Arc::clone(&p.terminal)))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        {
+            let tab = ws.tab_manager.get_tab_mut(tab_id).expect("mux tab");
+            tab.scripting.reconcile_pane_observers(&pane_terminals);
+        }
+
+        // Ring the bell in the daemon pane — the production routing path.
+        ws.handle_tmux_output(0, b"\x07");
+
+        let forwarder = {
+            let tab = ws.tab_manager.get_tab(tab_id).expect("mux tab");
+            tab.scripting.script_forwarders[0]
+                .clone()
+                .expect("forwarder stored at start")
+        };
+        let events = forwarder.drain_events();
+        assert!(
+            events.iter().any(|e| e.kind == "bell_rang"),
+            "the mux pane's bell must reach the subscribed tab script: {events:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Paste is the one input stream that never got a mux branch: keyboard
     /// input goes through `send_input_via_tmux`'s transport check, mouse
     /// reports through `route_mouse_report_to_mux`, but the shared paste

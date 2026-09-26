@@ -129,9 +129,35 @@ impl WindowManager {
             for tab in ws.tab_manager.tabs_mut() {
                 // A tab that never started a script has an empty `script_ids`,
                 // and one whose scripts were all stopped has all-`None` slots.
-                if tab.scripting.script_ids.iter().all(Option::is_none) {
+                // Pane registrations outlive their slot by at most a frame, so
+                // a tab holding only stale pane entries still gets serviced.
+                if tab.scripting.script_ids.iter().all(Option::is_none)
+                    && tab.scripting.script_pane_observer_ids.is_empty()
+                {
                     continue;
                 }
+
+                // In a mux tab the daemon's output flows through the pane
+                // terminals, not `tab.terminal` — keep each live script's
+                // forwarder attached to the mirror panes. A non-mux tab
+                // passes an empty list: its pane 0 shares `tab.terminal`,
+                // where the forwarder is already attached.
+                let pane_terminals: Vec<(
+                    crate::pane::PaneId,
+                    std::sync::Arc<tokio::sync::RwLock<par_term_terminal::TerminalManager>>,
+                )> = if tab.is_mux_tab() {
+                    tab.pane_manager()
+                        .map(|pm| {
+                            pm.all_panes()
+                                .into_iter()
+                                .map(|p| (p.id, std::sync::Arc::clone(&p.terminal)))
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                tab.scripting.reconcile_pane_observers(&pane_terminals);
 
                 let tab_id = tab.id;
                 // Only one panel can be shown per script, so the tab the user is

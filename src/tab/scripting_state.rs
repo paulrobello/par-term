@@ -9,6 +9,7 @@ use par_term_config::ScriptConfig;
 use par_term_scripting::manager::ScriptId;
 use par_term_scripting::{RestartAction, ScriptRestartState};
 use par_term_terminal::TerminalManager;
+use tokio::sync::RwLock;
 
 /// Scripting, coprocess, and trigger state for a terminal tab.
 pub(crate) struct TabScriptingState {
@@ -21,6 +22,15 @@ pub(crate) struct TabScriptingState {
     /// Event forwarders (shared with observer registration)
     pub(crate) script_forwarders:
         Vec<Option<std::sync::Arc<par_term_scripting::observer::ScriptEventForwarder>>>,
+    /// Pane-terminal observer registrations for the forwarders above,
+    /// keyed by (config index, pane id). In a mux tab the daemon's output
+    /// flows through the pane terminals, not `tab.terminal`, so each live
+    /// forwarder is also attached to every mirror pane; reconciled per
+    /// sweep against the live pane set.
+    pub(crate) script_pane_observer_ids: std::collections::HashMap<
+        (usize, crate::pane::PaneId),
+        par_term_emu_core_rust::observer::ObserverId,
+    >,
     /// Per-config-index restart supervisor. Lazily populated; preserved across
     /// automatic restarts so the attempt cap accumulates, and reset by the grace
     /// window once a run survives long enough.
@@ -187,6 +197,79 @@ impl TabScriptingState {
         }
     }
 
+    /// Reconcile pane-terminal observer registrations for this tab's
+    /// script forwarders against `panes`, the tab's live pane list:
+    /// register every live forwarder on every pane terminal it is not yet
+    /// attached to, and unregister registrations whose pane or forwarder
+    /// is gone.
+    ///
+    /// In a mux tab the panes are mirrors fed through
+    /// `process_mux_output`, which fires observer delivery — without a
+    /// pane attachment a subscribed script never sees daemon-fed events.
+    /// An empty `panes` unregisters everything (a non-mux tab passes
+    /// exactly that: its pane 0 shares `tab.terminal`, where the forwarder
+    /// is already attached, and a second attachment there would duplicate
+    /// every event).
+    pub(crate) fn reconcile_pane_observers(
+        &mut self,
+        panes: &[(crate::pane::PaneId, std::sync::Arc<RwLock<TerminalManager>>)],
+    ) {
+        // The desired registration set: every live forwarder on every pane.
+        // An empty `panes` yields an empty set, which unregisters any
+        // leftovers (the non-mux case, or a tab whose panes all closed).
+        let mut desired: std::collections::HashSet<(usize, crate::pane::PaneId)> =
+            std::collections::HashSet::new();
+        for (index, slot) in self.script_forwarders.iter().enumerate() {
+            if slot.is_some() {
+                for (pane_id, _) in panes {
+                    desired.insert((index, *pane_id));
+                }
+            }
+        }
+
+        // Register anything desired but missing. A miss on a contended
+        // pane-terminal lock retries on the next sweep.
+        for key in &desired {
+            if self.script_pane_observer_ids.contains_key(key) {
+                continue;
+            }
+            let Some(forwarder) = self
+                .script_forwarders
+                .get(key.0)
+                .and_then(|slot| slot.as_ref())
+            else {
+                continue;
+            };
+            let Some((_, terminal)) = panes.iter().find(|(pane_id, _)| *pane_id == key.1) else {
+                continue;
+            };
+            let Ok(term) = terminal.try_read() else {
+                continue;
+            };
+            let observer_id = term.add_observer(forwarder.clone());
+            self.script_pane_observer_ids.insert(*key, observer_id);
+        }
+
+        // Unregister anything registered but no longer desired. A pane
+        // that is already gone took its terminal (and the observer
+        // registry inside it) with it — dropping the map entry is the
+        // whole cleanup there.
+        let stale: Vec<(usize, crate::pane::PaneId)> = self
+            .script_pane_observer_ids
+            .keys()
+            .filter(|key| !desired.contains(*key))
+            .copied()
+            .collect();
+        for key in stale {
+            if let Some(observer_id) = self.script_pane_observer_ids.remove(&key)
+                && let Some((_, terminal)) = panes.iter().find(|(pane_id, _)| *pane_id == key.1)
+                && let Ok(term) = terminal.try_read()
+            {
+                term.remove_observer(observer_id);
+            }
+        }
+    }
+
     /// Get or create the restart supervisor for `config_index`, syncing it to
     /// the current config so edits to policy/delay take effect.
     fn restart_state_for(
@@ -212,6 +295,7 @@ impl Default for TabScriptingState {
             script_ids: Vec::new(),
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
+            script_pane_observer_ids: std::collections::HashMap::new(),
             restart_state: Vec::new(),
             coprocess_ids: Vec::new(),
             trigger_marks: Vec::new(),

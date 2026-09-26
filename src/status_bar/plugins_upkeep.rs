@@ -12,6 +12,7 @@ use par_term_scripting::observer::ScriptEventForwarder;
 use par_term_scripting::plugin_manager::{EnabledPlugin, PluginHost};
 
 use crate::config::Config;
+use crate::pane::PaneId;
 use crate::tab::{TabId, TabManager};
 
 use super::StatusBarUI;
@@ -62,11 +63,13 @@ impl StatusBarUI {
     /// Called once per event-loop wake beside the tab-script sweep — NOT
     /// from [`StatusBarUI::update_plugins`], which runs on the render path
     /// and never sees the tab list. Each subscribed plugin's forwarder is
-    /// registered as an observer on every tab terminal of this window:
-    /// delivery is window-wide (each event originates at exactly one
-    /// terminal, so nothing is duplicated; events carry no tab attribution
-    /// in v1). A registration that misses on a contended terminal lock
-    /// retries on the next wake.
+    /// registered as an observer on every tab terminal of this window, and
+    /// on every pane terminal of a mux tab (whose panes, not `terminal`,
+    /// carry the daemon-fed output the user sees): delivery is
+    /// window-wide (each event originates at exactly one terminal, so
+    /// nothing is duplicated; events carry no tab attribution in v1). A
+    /// registration that misses on a contended terminal lock retries on
+    /// the next wake.
     pub(crate) fn pump_plugin_events(&mut self, tabs: &TabManager) {
         // The common case — no subscribed plugins, nothing registered —
         // exits before touching the tab list.
@@ -76,12 +79,19 @@ impl StatusBarUI {
         }
 
         // Pass A — the desired registration set: every live forwarder on
-        // every live tab.
-        let tab_ids: Vec<TabId> = tabs.tabs().iter().map(|tab| tab.id).collect();
-        let mut desired: HashSet<(String, TabId)> = HashSet::new();
+        // every live tab's terminal and, for a mux tab, on every mirror
+        // pane terminal. `None` names the tab terminal; `Some(id)` a pane.
+        let mut desired: HashSet<(String, TabId, Option<PaneId>)> = HashSet::new();
         for plugin_id in self.plugins.subscription_forwarders().keys() {
-            for tab_id in &tab_ids {
-                desired.insert((plugin_id.clone(), *tab_id));
+            for tab in tabs.tabs() {
+                desired.insert((plugin_id.clone(), tab.id, None));
+                if tab.is_mux_tab()
+                    && let Some(pm) = tab.pane_manager()
+                {
+                    for pane in pm.all_panes() {
+                        desired.insert((plugin_id.clone(), tab.id, Some(pane.id)));
+                    }
+                }
             }
         }
 
@@ -96,7 +106,17 @@ impl StatusBarUI {
             let Some(forwarder) = self.plugins.subscription_forwarders().get(&key.0) else {
                 continue;
             };
-            let Ok(terminal) = tab.terminal.try_read() else {
+            let terminal = match key.2 {
+                // A pane registration targets that pane's terminal — the
+                // pane may be gone already (the reconcile is per-frame);
+                // a missing pane simply retries or is dropped as stale.
+                None => &tab.terminal,
+                Some(pane_id) => match tab.pane_manager().and_then(|pm| pm.get_pane(pane_id)) {
+                    Some(pane) => &pane.terminal,
+                    None => continue,
+                },
+            };
+            let Ok(terminal) = terminal.try_read() else {
                 continue;
             };
             let observer_id = terminal.add_observer(forwarder.clone());
@@ -104,7 +124,7 @@ impl StatusBarUI {
         }
 
         // Unregister anything registered but no longer desired.
-        let stale: Vec<(String, TabId)> = self
+        let stale: Vec<(String, TabId, Option<PaneId>)> = self
             .plugin_observer_ids
             .keys()
             .filter(|key| !desired.contains(*key))
@@ -114,12 +134,22 @@ impl StatusBarUI {
             if let Some(observer_id) = self.plugin_observer_ids.remove(&key) {
                 // A closed tab's terminal (and the observer registry inside
                 // it) is gone with the tab — dropping the map entry is the
-                // whole cleanup there. Only a live tab needs an explicit
-                // unregister.
-                if let Some(tab) = tabs.tabs().iter().find(|tab| tab.id == key.1)
-                    && let Ok(terminal) = tab.terminal.try_read()
-                {
-                    terminal.remove_observer(observer_id);
+                // whole cleanup there, and a closed pane is gone with its
+                // terminal the same way. Only a live terminal needs an
+                // explicit unregister.
+                if let Some(tab) = tabs.tabs().iter().find(|tab| tab.id == key.1) {
+                    let terminal = match key.2 {
+                        None => Some(tab.terminal.clone()),
+                        Some(pane_id) => tab
+                            .pane_manager()
+                            .and_then(|pm| pm.get_pane(pane_id))
+                            .map(|pane| pane.terminal.clone()),
+                    };
+                    if let Some(terminal) = terminal
+                        && let Ok(term) = terminal.try_read()
+                    {
+                        term.remove_observer(observer_id);
+                    }
                 }
             }
         }
