@@ -517,37 +517,28 @@ mod tests {
         );
     }
 
-    /// The startup stash, end to end: a stashed panic becomes a live offer
-    /// in the first real `WindowState` (the `impl_init` adoption path) with
-    /// the same palette row shape as a pane crash, and a second state adopts
-    /// nothing. One test because the stash is process-global — parallel
-    /// stash/adopt tests would race for it.
+    /// The startup stash, state-level: session restore stashes the previous
+    /// run's panic and the first restored window adopts it —
+    /// `adopt_startup_crash` is called from `restore_session`, not from
+    /// `WindowState::new`, so ordinary window construction in other tests
+    /// can never steal it. One test because the stash is process-global.
     #[test]
     fn stashed_startup_crash_becomes_a_live_offer_in_the_first_window() {
-        use std::sync::Arc;
-
         stash_startup_crash(
             "previous par-term run".into(),
             101,
             "- Source: the previous run ended in a panic (snapshot: 2 windows)".to_string(),
             "thread 'main' panicked at 'boom'".to_string(),
         );
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(2)
-                .enable_all()
-                .build()
-                .expect("build test runtime"),
-        );
-        let mut ws =
-            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
-        let offers = ws.crash_triage.live_offers().to_vec();
+        let mut first = CrashTriageState::default();
+        first.adopt_startup_crash();
+        let offers = first.live_offers().to_vec();
         assert_eq!(offers.len(), 1, "the first window adopts the stash");
         assert_eq!(offers[0].exit_code, 101);
         assert_eq!(offers[0].label, "previous par-term run");
         let body = std::fs::read_to_string(&offers[0].payload_path).unwrap();
         assert!(body.contains("panicked at 'boom'"), "payload: {body}");
-        let rows = ws.crash_triage.palette_entries();
+        let rows = first.palette_entries();
         assert_eq!(rows.len(), 1);
         assert!(
             rows[0]

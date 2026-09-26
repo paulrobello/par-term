@@ -310,6 +310,7 @@ Everything below lives under `docs/` except where the path says otherwise.
 | Self-update | `docs/features/SELF_UPDATE.md` |
 | Mouse features | `docs/features/MOUSE_FEATURES.md` |
 | Notifications (OSC 9/777/99) | `docs/features/NOTIFICATIONS.md` |
+| Crash triage | `docs/features/CRASH_TRIAGE.md` |
 | Copy mode | `docs/features/COPY_MODE.md` |
 | Search | `docs/features/SEARCH.md` |
 | Status bar | `docs/features/STATUS_BAR.md` |

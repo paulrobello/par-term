@@ -129,14 +129,7 @@ impl WindowState {
 
             agent_commands: crate::agent_commands_store::AgentCommandStore::new(),
 
-            crash_triage: {
-                let mut state = crate::crash_triage::CrashTriageState::default();
-                // A panic snapshot from the previous run (stashed by session
-                // restore) becomes this window's first triage offer; only the
-                // first window adopts it.
-                state.adopt_startup_crash();
-                state
-            },
+            crash_triage: crate::crash_triage::CrashTriageState::default(),
 
             notification_click_state: super::NotificationClickState::default(),
 

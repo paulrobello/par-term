@@ -162,6 +162,7 @@ impl WindowManager {
             session.saved_at
         );
 
+        let mut first_restored_window = true;
         for session_window in &session.windows {
             // When a tmux session is saved, the visible tabs are tmux display tabs that
             // will be re-created by the tmux session on reconnect.  Pass only a single
@@ -193,6 +194,13 @@ impl WindowManager {
             if let Some(window_id) = created_window_id
                 && let Some(window_state) = self.windows.get_mut(&window_id)
             {
+                if first_restored_window {
+                    // The stashed previous-run panic becomes this window's
+                    // first triage offer; only the first restored window
+                    // adopts it.
+                    window_state.crash_triage.adopt_startup_crash();
+                    first_restored_window = false;
+                }
                 // Reattach a par-mux session if one was attached at save time.
                 // Checked BEFORE the tmux branch and never routed through it:
                 // a mux name handed to the tmux gateway spawns a real
