@@ -21,10 +21,10 @@ use crate::manager::{ScriptId, ScriptManager};
 use crate::observer::ScriptEventForwarder;
 use crate::process::ScriptStatus;
 use crate::protocol::ScriptCommand;
-use crate::restart::{RestartAction, ScriptRestartState};
+use crate::restart::{MAX_RESTART_ATTEMPTS, RestartAction, ScriptRestartState};
 
 use super::{
-    KindSlot, PLUGIN_RESTART_DELAY_MS, PluginHost, SETTINGS_ARG, action_entry_args,
+    KindSlot, PLUGIN_RESTART_DELAY_MS, PluginCrashCap, PluginHost, SETTINGS_ARG, action_entry_args,
     overlay_entry_args, panel_entry_args, widget_entry_args,
 };
 
@@ -125,7 +125,66 @@ impl PluginHost {
         };
         if gave_up {
             self.restart_map(slot).remove(id);
+            self.push_crash_cap(id, slot, policy, Vec::new());
         }
+    }
+
+    /// Queue a supervisor give-up event for the frontend to surface as a
+    /// crash-triage offer. `stderr_tail` is whatever the dying process left.
+    fn push_crash_cap(
+        &mut self,
+        id: &str,
+        slot: KindSlot,
+        policy: RestartPolicy,
+        stderr_tail: Vec<String>,
+    ) {
+        self.crash_caps.push(PluginCrashCap {
+            plugin_id: id.to_string(),
+            kind: slot.as_str(),
+            entry: self.entry_display(id, slot),
+            restart_mode: format!("{policy:?}"),
+            stderr_tail,
+        });
+    }
+
+    /// The display path of a plugin's entry executable for one kind slot.
+    fn entry_display(&self, id: &str, slot: KindSlot) -> String {
+        let entry = self
+            .discovered
+            .iter()
+            .find(|d| d.manifest.id == id)
+            .and_then(|d| match slot {
+                KindSlot::Widget => Some(d.entry_path.clone()),
+                KindSlot::Action => d.action_entry_path.clone(),
+                KindSlot::Panel => d.panel_entry_path.clone(),
+                KindSlot::Overlay => d.overlay_entry_path.clone(),
+            });
+        entry
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "<entry not found>".to_string())
+    }
+
+    /// Queue a crash-cap when a `Stop` decision is a crash-loop give-up
+    /// (attempts exhausted inside the grace window) rather than a policy
+    /// stop or a clean exit — those are not crashes.
+    fn note_exit_crash_cap(&mut self, id: &str, slot: KindSlot, sid: ScriptId, success: bool) {
+        if success {
+            return; // clean exit: the policy said stop, nothing crashed
+        }
+        let exhausted = self
+            .restart_map(slot)
+            .get(id)
+            .is_some_and(|state| state.consecutive_failures() >= MAX_RESTART_ATTEMPTS);
+        if !exhausted {
+            return;
+        }
+        let stderr_tail = self.manager.read_errors(sid);
+        let policy = self
+            .restart_map(slot)
+            .get(id)
+            .map(|state| state.policy())
+            .unwrap_or(RestartPolicy::Never);
+        self.push_crash_cap(id, slot, policy, stderr_tail);
     }
 
     /// Advance one plugin's supervision for one kind: drain commands,
@@ -240,7 +299,10 @@ impl PluginHost {
                 None => RestartAction::Stop,
             };
             match decision {
-                RestartAction::Stop => self.stop_kind(id, slot),
+                RestartAction::Stop => {
+                    self.note_exit_crash_cap(id, slot, sid, success);
+                    self.stop_kind(id, slot);
+                }
                 RestartAction::Restart => {
                     if let Err(error) = self.respawn(id, slot, now) {
                         log::warn!(

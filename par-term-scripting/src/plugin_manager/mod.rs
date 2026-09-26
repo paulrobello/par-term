@@ -249,6 +249,28 @@ pub struct PluginHost {
     /// unknown action, failed write) — a stuck keybinding can retry a
     /// dispatch at frame rate.
     warned_action_not_running: WarnOnce,
+    /// Supervisor give-up events (crash-loop past the restart cap) awaiting
+    /// the frontend's per-frame drain, so the window layer can surface them
+    /// as crash-triage offers.
+    crash_caps: Vec<PluginCrashCap>,
+}
+
+/// A plugin whose supervisor gave up: the entry crash-looped past
+/// [`crate::restart::MAX_RESTART_ATTEMPTS`] inside the grace window (or the
+/// initial-spawn attempts did). Surfaced by the frontend as a crash-triage
+/// offer — same consent surface as a crashed pane.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginCrashCap {
+    /// The manifest id of the plugin that crash-looped.
+    pub plugin_id: String,
+    /// Which kind slot crash-looped (widget / action / panel / overlay).
+    pub kind: &'static str,
+    /// The supervised entry executable, display-formatted.
+    pub entry: String,
+    /// The manifest's restart policy for that entry.
+    pub restart_mode: String,
+    /// Recent stderr lines, when the process produced any before dying.
+    pub stderr_tail: Vec<String>,
 }
 
 impl PluginHost {
@@ -754,6 +776,12 @@ impl PluginHost {
         std::mem::take(&mut self.ignored_lines)
     }
 
+    /// Drain supervisor give-up events (see [`PluginCrashCap`]). Called once
+    /// per frame by the window layer.
+    pub fn drain_crash_caps(&mut self) -> Vec<PluginCrashCap> {
+        std::mem::take(&mut self.crash_caps)
+    }
+
     /// Stop every plugin and drop all supervision state.
     pub fn stop_all(&mut self) {
         self.manager.stop_all();
@@ -937,15 +965,29 @@ while True:
 
         // 5 supervised restarts at a 250 ms delay, plus spawn overhead —
         // generous wall-clock budget, hard deadline so a bug fails fast.
-        let gave_up = wait_until(&mut host, |h| !plugin_running(h, "com.test.crash"));
+        let gave_up = wait_until(&mut host, |h| {
+            !plugin_running(h, "com.test.crash") && !h.crash_caps.is_empty()
+        });
         assert!(
             gave_up,
             "supervisor never gave up; still running: {:?}",
             host.running_plugin_ids()
         );
-        // Polling a given-up slot stays a no-op.
+        // The give-up surfaces as a crash-cap event for the frontend's
+        // triage surface, naming the plugin, kind, and entry.
+        let caps = host.drain_crash_caps();
+        assert_eq!(caps.len(), 1, "exactly one crash-cap event");
+        assert_eq!(caps[0].plugin_id, "com.test.crash");
+        assert_eq!(caps[0].kind, "widget");
+        assert!(
+            caps[0].entry.contains("com.test.crash"),
+            "entry names the plugin dir: {}",
+            caps[0].entry
+        );
+        // Polling a given-up slot stays a no-op — and re-drains nothing.
         host.poll();
         assert!(host.running_plugin_ids().is_empty());
+        assert!(host.drain_crash_caps().is_empty());
     }
 
     /// A one-shot plugin: emits one widget line and exits 0.
@@ -987,6 +1029,11 @@ print(json.dumps({"type": "SetWidget", "text": "once"}), flush=True)
         assert!(
             !host.restart.contains_key("com.test.never"),
             "stop_kind must drop the supervision state"
+        );
+        // A policy stop is not a crash — no triage offer for it.
+        assert!(
+            host.drain_crash_caps().is_empty(),
+            "never-policy stop must not surface a crash-cap"
         );
 
         // Well past the 250 ms restart delay: no respawn may appear.

@@ -129,6 +129,11 @@ impl ScriptRestartState {
         self.consecutive_failures
     }
 
+    /// The configured policy (for diagnostics surfaced on a crash-cap).
+    pub fn policy(&self) -> RestartPolicy {
+        self.policy
+    }
+
     fn schedule(&mut self, now: Instant) -> RestartAction {
         if self.consecutive_failures >= MAX_RESTART_ATTEMPTS {
             self.deadline = None;
