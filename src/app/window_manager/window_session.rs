@@ -104,6 +104,23 @@ impl WindowManager {
     pub fn restore_session(&mut self, event_loop: &ActiveEventLoop) -> bool {
         let recovered_from_crash = crate::session::crash_guard::take_crash_session();
         let restored_after_crash = recovered_from_crash.is_some();
+        if let Some(session) = recovered_from_crash.as_ref() {
+            // The previous run panicked: offer it the same non-blocking
+            // triage row a crashed pane gets. The panic report itself is in
+            // the rotated debug log (see `rotated_log_tail`), not the
+            // snapshot.
+            crate::crash_triage::stash_startup_crash(
+                "previous par-term run".to_string(),
+                101,
+                format!(
+                    "- Source: the previous run ended in a panic (snapshot: {} windows at {})\n\
+                     - Report: the previous run's log tail below",
+                    session.windows.len(),
+                    session.saved_at,
+                ),
+                rotated_log_tail(),
+            );
+        }
 
         let session = match recovered_from_crash {
             Some(session) => {
@@ -461,4 +478,24 @@ impl WindowManager {
             }
         }
     }
+}
+
+/// The tail of the previous run's rotated debug log (`<log>.1`), where the
+/// panic hook's report landed — the live log is truncated on every open, so
+/// the crash report only survives in the rotation. Empty when the rotated
+/// log is missing or unreadable; the triage offer's facts stand without it.
+fn rotated_log_tail() -> String {
+    let mut rolled = crate::debug::log_path().into_os_string();
+    rolled.push(".1");
+    let Ok(body) = std::fs::read_to_string(std::path::PathBuf::from(rolled)) else {
+        return String::new();
+    };
+    body.lines()
+        .rev()
+        .take(40)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join("\n")
 }

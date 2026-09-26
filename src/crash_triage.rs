@@ -23,6 +23,36 @@ use par_term_config::{PaneId, TabId};
 /// shared temp dir.
 static PAYLOAD_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// A crash detected before any window exists (the previous run's panic
+/// snapshot, consumed at session-restore time). Stashed process-globally
+/// because [`CrashTriageState`] is per-window; the first window's state
+/// adopts it.
+struct StashedCrash {
+    label: String,
+    exit_code: i32,
+    facts: String,
+    tail: String,
+}
+
+static STARTUP_CRASH: std::sync::Mutex<Option<StashedCrash>> = std::sync::Mutex::new(None);
+
+/// Stash a pre-window crash for the first [`CrashTriageState`] to adopt.
+pub fn stash_startup_crash(label: String, exit_code: i32, facts: String, tail: String) {
+    let mut slot = STARTUP_CRASH
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // Keep the first: the report from the run that just died outranks
+    // anything a later consumer in the same process might stash.
+    if slot.is_none() {
+        *slot = Some(StashedCrash {
+            label,
+            exit_code,
+            facts,
+            tail,
+        });
+    }
+}
+
 /// Offers older than this stop appearing in the palette (the user moved on;
 /// the payload file stays on disk for manual inspection).
 const OFFER_TTL: Duration = Duration::from_secs(15 * 60);
@@ -82,6 +112,26 @@ impl CrashTriageState {
             return None;
         }
         let payload_path = self.write_payload(&label, exit_code, shell_line, tail_text)?;
+        Some(self.push_offer(label, exit_code, payload_path))
+    }
+
+    /// Record a crash from a source other than a pane exit (plugin
+    /// crash-cap, previous-run panic). Event-driven rather than
+    /// frame-driven, so it never touches the pane dedupe set.
+    pub(crate) fn record_external(
+        &mut self,
+        label: String,
+        exit_code: i32,
+        facts: &str,
+        tail_text: &str,
+    ) -> Option<&CrashOffer> {
+        let payload_path = self.write_external_payload(&label, exit_code, facts, tail_text)?;
+        Some(self.push_offer(label, exit_code, payload_path))
+    }
+
+    /// Bookkeeping shared by every offer source: id, TTL expiry, and the
+    /// live-offer cap.
+    fn push_offer(&mut self, label: String, exit_code: i32, payload_path: PathBuf) -> &CrashOffer {
         self.next_id += 1;
         self.offers.push(CrashOffer {
             id: self.next_id,
@@ -95,7 +145,7 @@ impl CrashTriageState {
         while self.offers.len() > MAX_OFFERS {
             self.offers.remove(0);
         }
-        self.offers.last()
+        self.offers.last().expect("just pushed")
     }
 
     /// Drop offers past their TTL (the palette calls this; expiry is a
@@ -127,10 +177,54 @@ impl CrashTriageState {
         Some(self.offers.remove(index))
     }
 
+    /// Adopt the stashed startup crash, if any (first caller wins).
+    pub(crate) fn adopt_startup_crash(&mut self) {
+        let stash = STARTUP_CRASH
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take();
+        if let Some(crash) = stash {
+            self.record_external(crash.label, crash.exit_code, &crash.facts, &crash.tail);
+        }
+    }
+
     /// The live offers (TTL-pruned), newest first.
     pub(crate) fn live_offers(&mut self) -> &[CrashOffer] {
         self.expire();
         self.offers.as_slice()
+    }
+
+    fn write_external_payload(
+        &mut self,
+        label: &str,
+        exit_code: i32,
+        facts: &str,
+        tail_text: &str,
+    ) -> Option<PathBuf> {
+        let n = PAYLOAD_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("par_term_triage_{}_{n}.md", std::process::id()));
+        let tail: Vec<&str> = tail_text.lines().rev().take(TAIL_LINES).collect::<Vec<_>>();
+        let tail = tail.into_iter().rev().collect::<Vec<_>>();
+        let body = format!(
+            "# Crash triage: {label}\n\n\
+             - Captured: {time}\n\
+             - Exit status: {exit_code}\n\
+             {facts}\n\n\
+             ## Last output\n\n```\n{tail}\n```\n",
+            time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S %Z"),
+            tail = tail.join("\n"),
+        );
+        std::fs::write(&path, body)
+            .map_err(|e| {
+                log::warn!(
+                    "crash triage: could not write payload {}: {e}",
+                    path.display()
+                );
+                e
+            })
+            .ok()?;
+        Some(path)
     }
 
     fn write_payload(
@@ -330,6 +424,95 @@ mod tests {
         state.forget_tabs_except(&live);
         assert!(!state.already_captured(key(1, 1)));
         assert!(state.already_captured(key(2, 1)));
+    }
+
+    #[test]
+    fn record_external_offers_without_a_pane_key() {
+        let mut state = CrashTriageState::default();
+        let offer = state
+            .record_external(
+                "plugin 'clock' (widget entry)".into(),
+                1,
+                "- Source: plugin crash-loop (5 restart attempts in the grace window)\n- Entry: /bin/false",
+                "e1\ne2",
+            )
+            .unwrap()
+            .clone();
+        let rows = state.palette_entries();
+        assert_eq!(
+            rows.len(),
+            1,
+            "external offers surface the same palette row"
+        );
+        assert!(
+            rows[0].label.contains("plugin 'clock'"),
+            "{}",
+            rows[0].label
+        );
+        let body = std::fs::read_to_string(&offer.payload_path).unwrap();
+        assert!(body.contains("5 restart attempts"), "payload: {body}");
+        assert!(body.contains("/bin/false"));
+        assert!(body.contains("e2"), "tail keeps last lines: {body}");
+        // External sources are event-driven: recording again is a new
+        // episode, not a dedupe hit.
+        assert!(
+            state
+                .record_external(
+                    "plugin 'clock' (widget entry)".into(),
+                    1,
+                    "- Source: x",
+                    "y"
+                )
+                .is_some()
+        );
+    }
+
+    /// The startup stash, end to end: a stashed panic becomes a live offer
+    /// in the first real `WindowState` (the `impl_init` adoption path) with
+    /// the same palette row shape as a pane crash, and a second state adopts
+    /// nothing. One test because the stash is process-global — parallel
+    /// stash/adopt tests would race for it.
+    #[test]
+    fn stashed_startup_crash_becomes_a_live_offer_in_the_first_window() {
+        use std::sync::Arc;
+
+        stash_startup_crash(
+            "previous par-term run".into(),
+            101,
+            "- Source: the previous run ended in a panic (snapshot: 2 windows)".to_string(),
+            "thread 'main' panicked at 'boom'".to_string(),
+        );
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        let offers = ws.crash_triage.live_offers().to_vec();
+        assert_eq!(offers.len(), 1, "the first window adopts the stash");
+        assert_eq!(offers[0].exit_code, 101);
+        assert_eq!(offers[0].label, "previous par-term run");
+        let body = std::fs::read_to_string(&offers[0].payload_path).unwrap();
+        assert!(body.contains("panicked at 'boom'"), "payload: {body}");
+        let rows = ws.crash_triage.palette_entries();
+        assert_eq!(rows.len(), 1);
+        assert!(
+            rows[0]
+                .label
+                .contains("Triage crash: previous par-term run"),
+            "{}",
+            rows[0].label
+        );
+
+        let mut second = CrashTriageState::default();
+        second.adopt_startup_crash();
+        assert!(
+            second.live_offers().is_empty(),
+            "only the first window adopts the stash"
+        );
     }
 
     #[test]
