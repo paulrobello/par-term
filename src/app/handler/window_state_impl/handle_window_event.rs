@@ -139,19 +139,6 @@ impl WindowState {
                         }
                     }
 
-                    // Reconfigure macOS Metal layer after display change
-                    #[cfg(target_os = "macos")]
-                    {
-                        if let Err(e) =
-                            crate::macos_metal::configure_metal_layer_for_performance(window)
-                        {
-                            log::warn!(
-                                "Failed to reconfigure Metal layer after display change: {}",
-                                e
-                            );
-                        }
-                    }
-
                     // Request redraw to apply changes
                     window.request_redraw();
                 }
@@ -176,19 +163,6 @@ impl WindowState {
 
                     let size = window.inner_size();
                     renderer.reconfigure_after_display_change(size.width, size.height);
-
-                    // On macOS, reconfigure the Metal layer for the new display
-                    #[cfg(target_os = "macos")]
-                    {
-                        if let Err(e) =
-                            crate::macos_metal::configure_metal_layer_for_performance(window)
-                        {
-                            log::warn!(
-                                "Failed to reconfigure Metal layer after window move: {}",
-                                e
-                            );
-                        }
-                    }
 
                     // Request redraw to ensure proper rendering on new display
                     window.request_redraw();

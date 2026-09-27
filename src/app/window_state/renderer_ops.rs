@@ -146,16 +146,6 @@ impl WindowState {
             }
         }
 
-        // On macOS, reconfigure the Metal layer
-        #[cfg(target_os = "macos")]
-        {
-            if let Some(window) = &self.window
-                && let Err(e) = crate::macos_metal::configure_metal_layer_for_performance(window)
-            {
-                log::warn!("Failed to reconfigure Metal layer: {}", e);
-            }
-        }
-
         // Request redraw
         self.focus_state.needs_redraw = true;
         self.request_redraw();

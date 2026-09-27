@@ -280,21 +280,8 @@ impl WindowState {
         let mut renderer = params.create_renderer(Arc::clone(&window)).await?;
         self.collect_startup_shader_errors(&mut renderer);
 
-        // macOS: Configure CAMetalLayer (transparency + performance)
-        // This MUST be done AFTER creating the wgpu surface/renderer
-        // so that the CAMetalLayer has been created by wgpu
         #[cfg(target_os = "macos")]
         {
-            if let Err(e) = crate::macos_metal::configure_metal_layer_for_performance(&window) {
-                log::warn!("Failed to configure Metal layer: {}", e);
-                log::warn!(
-                    "Continuing anyway - may experience reduced FPS or missing transparency on macOS"
-                );
-            }
-            // Set initial layer opacity to match config (content only, frame unaffected)
-            if let Err(e) = crate::macos_metal::set_layer_opacity(&window, 1.0) {
-                log::warn!("Failed to set initial Metal layer opacity: {}", e);
-            }
             // Apply initial blur settings if enabled
             {
                 let cfg = self.config.load();
