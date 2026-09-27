@@ -221,6 +221,7 @@ impl CellRenderer {
         // while it is held. The render layer is the CAMetalLayer wgpu-hal
         // configured, and its mutex is the same one hal locks in `configure`.
         let Some(hal_surface) = (unsafe { self.surface.as_hal::<wgpu::hal::api::Metal>() }) else {
+            log::warn!("Surface is not a Metal surface; CAMetalLayer colorspace left untagged");
             return;
         };
         let layer = hal_surface.render_layer().lock();
