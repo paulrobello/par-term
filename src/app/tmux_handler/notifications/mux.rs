@@ -3289,6 +3289,7 @@ out.flush()
     /// handler wrote ESC[I / ESC[O into the mirror terminal, which has no
     /// PTY — an app in a mux pane that enabled focus tracking never heard
     /// the window focus change (card 01a0d9b55c2273a2be9d87a0718690c3).
+    #[cfg(unix)]
     #[test]
     fn focus_reports_reach_the_daemon_pane() {
         let path = socket_path("ws-focus");
@@ -3643,6 +3644,7 @@ out.flush()
     /// daemon pane wrapped in the bracketed-paste sequences with `\n`
     /// converted to `\r` — asserted on the raw bytes the daemon pane
     /// receives (`cat -v` caret notation), not the rendered screen.
+    #[cfg(unix)]
     #[test]
     fn mux_paste_wraps_bracketed_paste_and_converts_newlines() {
         let (ws, path) = paste_byte_mirror_state("ws-paste-bp");
@@ -3666,6 +3668,7 @@ out.flush()
     /// line is NOT in the daemon pane when the first arrives, and lands
     /// once the delay elapses (the test drives the same poll tick the app
     /// loop would).
+    #[cfg(unix)]
     #[test]
     fn mux_paste_honors_paste_delay_ms() {
         let (mut ws, path) = paste_byte_mirror_state("ws-paste-delay");
@@ -5171,6 +5174,7 @@ out.flush()
     /// query in the pane answers `6;12;24t` (not the 10x20 construction
     /// default) and an OSC 11 query answers the client bg. The pane's own
     /// program proves the reports live daemon-side, not just on the wire.
+    #[cfg(unix)]
     #[test]
     fn attach_reports_cells_and_theme_to_the_daemon() {
         let path = socket_path("attach-metrics");

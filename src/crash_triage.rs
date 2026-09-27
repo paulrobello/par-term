@@ -556,6 +556,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn triage_prompt_names_status_and_path() {
         let mut state = CrashTriageState::default();
@@ -576,6 +577,7 @@ mod tests {
     /// payload keeps the tail, and activating the palette row launches the
     /// default agent with the exit status and payload path typed after its
     /// command.
+    #[cfg(unix)]
     #[test]
     fn crashed_pane_is_captured_and_triaged_into_the_default_agent() {
         use std::time::{Duration, Instant};
