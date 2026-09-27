@@ -87,6 +87,7 @@ impl CellRenderer {
 
     pub fn update_opacity(&mut self, opacity: f32) {
         self.window_opacity = opacity;
+        self.sync_alpha_mode_to_opacity();
         // update_bg_image_uniforms() multiplies bg_image_opacity by window_opacity,
         // so both images and solid colors respect window transparency
         self.update_bg_image_uniforms(None);

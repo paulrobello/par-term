@@ -124,7 +124,7 @@ impl CellRenderer {
             );
             self.config.width = width;
             self.config.height = height;
-            self.surface.configure(&self.device, &self.config);
+            self.configure_surface();
         } else {
             log::debug!(
                 "Surface extent unchanged ({}x{}), skipping configure",

@@ -84,6 +84,48 @@ pub fn alternate_present_mode(
         .or_else(|| supported.iter().copied().find(|m| *m != target))
 }
 
+/// Whether a window at `window_opacity` needs a non-opaque (compositing) surface.
+///
+/// Matches the gate on `CellRenderer::render_opaque_alpha`, which stamps every
+/// pixel to alpha 1.0 at this opacity, so nothing is lost by telling the
+/// compositor the layer is opaque.
+pub fn surface_needs_alpha(window_opacity: f32) -> bool {
+    window_opacity < 1.0
+}
+
+/// Pick the composite alpha mode for the surface.
+///
+/// A fully opaque window gets `Opaque`, which makes wgpu set
+/// `CAMetalLayer.opaque = true` on every configure; macOS then draws the layer
+/// directly instead of blending it with whatever sits behind it. A translucent
+/// window keeps the compositing order PreMultiplied > PostMultiplied > Auto.
+/// Falls back to the first advertised mode when none of the preferred modes is
+/// available.
+pub fn select_alpha_mode(
+    needs_alpha: bool,
+    available: &[wgpu::CompositeAlphaMode],
+) -> Option<wgpu::CompositeAlphaMode> {
+    let preferred: &[wgpu::CompositeAlphaMode] = if needs_alpha {
+        &[
+            wgpu::CompositeAlphaMode::PreMultiplied,
+            wgpu::CompositeAlphaMode::PostMultiplied,
+            wgpu::CompositeAlphaMode::Auto,
+        ]
+    } else {
+        &[
+            wgpu::CompositeAlphaMode::Opaque,
+            wgpu::CompositeAlphaMode::PreMultiplied,
+            wgpu::CompositeAlphaMode::PostMultiplied,
+            wgpu::CompositeAlphaMode::Auto,
+        ]
+    };
+    preferred
+        .iter()
+        .copied()
+        .find(|m| available.contains(m))
+        .or_else(|| available.first().copied())
+}
+
 /// Refresh a surface configuration against capabilities re-queried after a
 /// display-topology change.
 ///
@@ -135,15 +177,8 @@ pub fn refresh_config_after_display_change(
     }
 
     if !alpha_modes.contains(&config.alpha_mode) {
-        let fallback = [
-            wgpu::CompositeAlphaMode::PreMultiplied,
-            wgpu::CompositeAlphaMode::PostMultiplied,
-            wgpu::CompositeAlphaMode::Auto,
-        ]
-        .into_iter()
-        .find(|m| alpha_modes.contains(m))
-        .or_else(|| alpha_modes.first().copied());
-        if let Some(fallback) = fallback {
+        let needs_alpha = config.alpha_mode != wgpu::CompositeAlphaMode::Opaque;
+        if let Some(fallback) = select_alpha_mode(needs_alpha, alpha_modes) {
             log::warn!(
                 "Alpha mode {:?} no longer supported after display change; falling back to {:?}",
                 config.alpha_mode,
@@ -159,6 +194,36 @@ pub fn refresh_config_after_display_change(
 }
 
 impl CellRenderer {
+    /// The single entry point for `Surface::configure`.
+    ///
+    /// Every configure path goes through here so anything that must hold after
+    /// a configure (wgpu rewrites the CAMetalLayer's properties on each call)
+    /// is applied in one place.
+    pub(crate) fn configure_surface(&self) {
+        self.surface.configure(&self.device, &self.config);
+    }
+
+    /// Move the surface between `Opaque` and a compositing alpha mode when
+    /// the window's opacity crosses 1.0, reconfiguring only on a real change.
+    pub(crate) fn sync_alpha_mode_to_opacity(&mut self) {
+        let Some(alpha_mode) = select_alpha_mode(
+            surface_needs_alpha(self.window_opacity),
+            &self.supported_alpha_modes,
+        ) else {
+            return;
+        };
+        if alpha_mode != self.config.alpha_mode {
+            log::info!(
+                "Surface alpha mode {:?} -> {:?} (window_opacity={})",
+                self.config.alpha_mode,
+                alpha_mode,
+                self.window_opacity
+            );
+            self.config.alpha_mode = alpha_mode;
+            self.configure_surface();
+        }
+    }
+
     pub fn reconfigure_surface(&mut self) {
         // Every configure path must be attributable from the debug log: a
         // silent same-config configure is exactly how the wgpu-30 strobe
@@ -169,7 +234,7 @@ impl CellRenderer {
             self.config.height,
             self.config.present_mode
         );
-        self.surface.configure(&self.device, &self.config);
+        self.configure_surface();
     }
 
     /// Reconfigure the surface after a display-topology change (monitor
@@ -200,6 +265,7 @@ impl CellRenderer {
             self.device.limits().max_texture_dimension_2d,
         );
         self.supported_present_modes = caps.present_modes.clone();
+        self.supported_alpha_modes = caps.alpha_modes.clone();
 
         let target = refreshed.present_mode;
         match alternate_present_mode(target, &self.supported_present_modes) {
@@ -216,9 +282,9 @@ impl CellRenderer {
                 );
                 self.config = refreshed;
                 self.config.present_mode = alternate;
-                self.surface.configure(&self.device, &self.config);
+                self.configure_surface();
                 self.config.present_mode = target;
-                self.surface.configure(&self.device, &self.config);
+                self.configure_surface();
             }
             None if refreshed == self.config => {
                 // Nothing to transition to: a same-config configure heals
@@ -233,7 +299,7 @@ impl CellRenderer {
                     "Display-change heal: no alternate present mode; applying refreshed config"
                 );
                 self.config = refreshed;
-                self.surface.configure(&self.device, &self.config);
+                self.configure_surface();
             }
         }
     }
@@ -272,7 +338,7 @@ impl CellRenderer {
         // Only reconfigure if the mode actually changed
         if actual != current {
             self.config.present_mode = actual;
-            self.surface.configure(&self.device, &self.config);
+            self.configure_surface();
             log::info!("VSync mode changed to {:?}", actual);
         }
 
@@ -463,5 +529,36 @@ mod tests {
             8192,
         );
         assert_eq!((config.width, config.height), (8192, 2822));
+    }
+
+    #[test]
+    fn opaque_window_selects_opaque_alpha_mode() {
+        use wgpu::CompositeAlphaMode::*;
+        let available = [Opaque, PostMultiplied];
+        assert_eq!(
+            select_alpha_mode(surface_needs_alpha(1.0), &available),
+            Some(Opaque)
+        );
+    }
+
+    #[test]
+    fn translucent_window_selects_compositing_alpha_mode() {
+        use wgpu::CompositeAlphaMode::*;
+        assert_eq!(
+            select_alpha_mode(surface_needs_alpha(0.9), &[Opaque, PostMultiplied]),
+            Some(PostMultiplied)
+        );
+        assert_eq!(
+            select_alpha_mode(true, &[Opaque, PostMultiplied, PreMultiplied]),
+            Some(PreMultiplied)
+        );
+    }
+
+    #[test]
+    fn alpha_mode_falls_back_to_first_advertised() {
+        use wgpu::CompositeAlphaMode::*;
+        assert_eq!(select_alpha_mode(true, &[Opaque]), Some(Opaque));
+        assert_eq!(select_alpha_mode(false, &[Inherit]), Some(Inherit));
+        assert_eq!(select_alpha_mode(false, &[]), None);
     }
 }

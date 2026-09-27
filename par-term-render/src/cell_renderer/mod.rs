@@ -160,6 +160,9 @@ pub struct CellRenderer {
     pub(crate) config: wgpu::SurfaceConfiguration,
     /// Supported present modes for this surface (for vsync mode validation)
     pub(crate) supported_present_modes: Vec<wgpu::PresentMode>,
+    /// Supported composite alpha modes, so an opacity change can move the
+    /// surface between `Opaque` and a compositing mode.
+    pub(crate) supported_alpha_modes: Vec<wgpu::CompositeAlphaMode>,
 
     // Sub-structs grouping related GPU and rendering state
     pub(crate) pipelines: GpuPipelines,
@@ -344,6 +347,7 @@ impl CellRenderer {
 
         // Store supported present modes for runtime validation
         let supported_present_modes = surface_caps.present_modes.clone();
+        let supported_alpha_modes = surface_caps.alpha_modes.clone();
 
         // Select present mode with fallback if requested mode isn't supported
         let requested_mode = vsync_mode.to_present_mode();
@@ -366,30 +370,11 @@ impl CellRenderer {
             }
         };
 
-        // Select alpha mode for window transparency
-        // Prefer PreMultiplied (best for compositing) > PostMultiplied > Auto > first available
-        let alpha_mode = if surface_caps
-            .alpha_modes
-            .contains(&wgpu::CompositeAlphaMode::PreMultiplied)
-        {
-            wgpu::CompositeAlphaMode::PreMultiplied
-        } else if surface_caps
-            .alpha_modes
-            .contains(&wgpu::CompositeAlphaMode::PostMultiplied)
-        {
-            wgpu::CompositeAlphaMode::PostMultiplied
-        } else if surface_caps
-            .alpha_modes
-            .contains(&wgpu::CompositeAlphaMode::Auto)
-        {
-            wgpu::CompositeAlphaMode::Auto
-        } else {
-            surface_caps
-                .alpha_modes
-                .first()
-                .copied()
-                .context("Surface reports no supported alpha modes")?
-        };
+        let alpha_mode = surface::select_alpha_mode(
+            surface::surface_needs_alpha(window_opacity),
+            &surface_caps.alpha_modes,
+        )
+        .context("Surface reports no supported alpha modes")?;
         log::info!(
             "Selected alpha mode: {:?} (available: {:?})",
             alpha_mode,
@@ -422,7 +407,6 @@ impl CellRenderer {
             config.color_space,
             SURFACE_FRAME_LATENCY
         );
-        surface.configure(&device, &config);
 
         let scale_factor = window.scale_factor() as f32;
 
@@ -512,6 +496,7 @@ impl CellRenderer {
             surface,
             config,
             supported_present_modes,
+            supported_alpha_modes,
             pipelines: GpuPipelines {
                 bg_pipeline,
                 text_pipeline,
@@ -655,6 +640,7 @@ impl CellRenderer {
             scratch_row_cells: Vec::with_capacity(cols),
             scale_context: swash::scale::ScaleContext::new(),
         };
+        renderer.configure_surface();
 
         // Upload a solid white 2x2 pixel block to the atlas for geometric block rendering
         renderer.upload_solid_pixel();
