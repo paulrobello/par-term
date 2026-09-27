@@ -1,5 +1,6 @@
 use super::TerminalManager;
 use par_term_config::{Cell, Theme};
+use par_term_emu_core_rust::terminal::TriggerEngine;
 
 /// Shared context for row-level cell rendering helpers.
 ///
@@ -101,7 +102,7 @@ impl TerminalManager {
         }
 
         // Apply trigger highlights on top of cell colors
-        let highlights = term.get_trigger_highlights();
+        let highlights = TriggerEngine::get_trigger_highlights(&term);
         for highlight in &highlights {
             let abs_row = scrollback_len + highlight.row;
             if abs_row < start_line || abs_row >= end_line {
@@ -121,7 +122,7 @@ impl TerminalManager {
                 }
             }
         }
-        term.clear_expired_highlights();
+        TriggerEngine::clear_expired_highlights(&mut term);
 
         Some(cells)
     }
@@ -279,7 +280,7 @@ impl TerminalManager {
         }
 
         // Apply trigger highlights on top of cell colors
-        let highlights = term.get_trigger_highlights();
+        let highlights = TriggerEngine::get_trigger_highlights(&term);
         for highlight in &highlights {
             let abs_row = scrollback_len + highlight.row;
             if abs_row < start_line || abs_row >= end_line {
@@ -299,7 +300,7 @@ impl TerminalManager {
                 }
             }
         }
-        term.clear_expired_highlights();
+        TriggerEngine::clear_expired_highlights(&mut term);
 
         cells
     }

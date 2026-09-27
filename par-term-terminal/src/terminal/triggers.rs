@@ -7,6 +7,7 @@
 
 use super::TerminalManager;
 use crate::conversion::to_core_trigger_action;
+use par_term_emu_core_rust::terminal::TriggerEngine;
 
 impl TerminalManager {
     /// Sync trigger configs from Config into the core TriggerRegistry.
@@ -23,9 +24,12 @@ impl TerminalManager {
         let mut term = terminal.write();
 
         // Clear existing trigger registrations before applying the new config.
-        let existing: Vec<u64> = term.list_triggers().iter().map(|t| t.id).collect();
+        let existing: Vec<u64> = TriggerEngine::list_triggers(&term)
+            .iter()
+            .map(|t| t.id)
+            .collect();
         for id in existing {
-            term.remove_trigger(id);
+            TriggerEngine::remove_trigger(&mut term, id);
         }
 
         let mut security_map = std::collections::HashMap::new();
@@ -37,14 +41,15 @@ impl TerminalManager {
                 .map(|a| to_core_trigger_action(a.clone()))
                 .collect();
 
-            match term.add_trigger(
+            match TriggerEngine::add_trigger(
+                &mut term,
                 trigger_config.name.clone(),
                 trigger_config.pattern.clone(),
                 actions,
             ) {
                 Ok(id) => {
                     if !trigger_config.enabled {
-                        term.set_trigger_enabled(id, false);
+                        TriggerEngine::set_trigger_enabled(&mut term, id, false);
                     }
                     security_map.insert(id, trigger_config.prompt_before_run);
                     log::info!(
@@ -75,7 +80,7 @@ impl TerminalManager {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.write();
-        term.list_triggers()
+        TriggerEngine::list_triggers(&term)
             .iter()
             .map(|t| (t.id, t.name.clone()))
             .collect()

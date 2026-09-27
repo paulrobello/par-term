@@ -2,7 +2,7 @@ use crate::scrollback_metadata::ScrollbackMetadata;
 use anyhow::Result;
 use par_term_config::Theme;
 use par_term_emu_core_rust::pty_session::PtySession;
-use par_term_emu_core_rust::terminal::Terminal;
+use par_term_emu_core_rust::terminal::{Terminal, TriggerEngine};
 use parking_lot::{Mutex, RwLock};
 use std::sync::Arc;
 
@@ -434,7 +434,7 @@ impl TerminalManager {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let mut term = terminal.write();
-        term.poll_action_results()
+        TriggerEngine::poll_action_results(&mut term)
     }
 
     // === File Transfer Methods ===

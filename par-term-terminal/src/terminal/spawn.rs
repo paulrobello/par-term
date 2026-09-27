@@ -1,5 +1,6 @@
 use super::TerminalManager;
 use anyhow::Result;
+use par_term_emu_core_rust::terminal::TriggerEngine;
 
 /// Resolve the user's login shell PATH and return environment variables for coprocess spawning.
 ///
@@ -238,7 +239,7 @@ impl TerminalManager {
             let mut term = terminal.write();
             let batch = term.process_deferred(data);
             term.record_output(data);
-            term.process_trigger_scans();
+            TriggerEngine::process_trigger_scans(&mut term);
             if term.has_pending_responses() {
                 let _ = term.drain_responses();
             }
