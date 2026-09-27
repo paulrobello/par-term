@@ -21,6 +21,10 @@ pub struct IntegrationConfig {
     #[serde(default)]
     pub shell_integration_state: InstallPromptState,
 
+    /// par-mux agent skill install state
+    #[serde(default)]
+    pub agent_skill_state: InstallPromptState,
+
     /// Version tracking for integrations
     #[serde(default)]
     pub integration_versions: IntegrationVersions,

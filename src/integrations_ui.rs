@@ -17,6 +17,8 @@ pub struct IntegrationsResponse {
     pub install_shaders: bool,
     /// User wants to install shell integration
     pub install_shell_integration: bool,
+    /// User wants to install the par-mux agent skill
+    pub install_agent_skill: bool,
     /// User clicked Skip (dismiss for this session)
     pub skipped: bool,
     /// User clicked Never Ask
@@ -46,6 +48,8 @@ pub struct IntegrationsUI {
     pub shaders_checked: bool,
     /// Whether shell integration checkbox is checked
     pub shell_integration_checked: bool,
+    /// Whether agent skill checkbox is checked
+    pub agent_skill_checked: bool,
     /// Detected shell type
     pub detected_shell: ShellType,
     /// Whether installation is in progress
@@ -63,6 +67,7 @@ pub struct IntegrationsUI {
     /// Pending install request flags preserved while waiting for confirmation
     pub pending_install_shaders: bool,
     pub pending_install_shell_integration: bool,
+    pub pending_install_agent_skill: bool,
 }
 
 impl IntegrationsUI {
@@ -72,6 +77,7 @@ impl IntegrationsUI {
             visible: false,
             shaders_checked: true,
             shell_integration_checked: true,
+            agent_skill_checked: true,
             detected_shell: ShellType::detect(),
             installing: false,
             progress_message: None,
@@ -81,6 +87,7 @@ impl IntegrationsUI {
             shader_conflicts: Vec::new(),
             pending_install_shaders: false,
             pending_install_shell_integration: false,
+            pending_install_agent_skill: false,
         }
     }
 
@@ -97,6 +104,7 @@ impl IntegrationsUI {
         self.shader_conflicts.clear();
         self.pending_install_shaders = false;
         self.pending_install_shell_integration = false;
+        self.pending_install_agent_skill = false;
     }
 
     /// Hide the dialog
@@ -286,6 +294,27 @@ impl IntegrationsUI {
                             });
                         });
 
+                        ui.add_space(8.0);
+
+                        // Agent skill checkbox with description
+                        ui.group(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.checkbox(&mut self.agent_skill_checked, "");
+                                ui.vertical(|ui| {
+                                    ui.label(RichText::new("par-mux Agent Skill").strong());
+                                    ui.label(
+                                        RichText::new(
+                                            "Installs an agent skill to ~/.claude/skills/par-mux \
+                                             so AI coding agents can drive par-mux sessions \
+                                             and panes",
+                                        )
+                                        .weak()
+                                        .small(),
+                                    );
+                                });
+                            });
+                        });
+
                         ui.add_space(20.0);
                     }
                 }
@@ -339,8 +368,9 @@ impl IntegrationsUI {
                                 }
                             } else {
                                 // Install Selected button (only if something is checked)
-                                let can_install =
-                                    self.shaders_checked || self.shell_integration_checked;
+                                let can_install = self.shaders_checked
+                                    || self.shell_integration_checked
+                                    || self.agent_skill_checked;
                                 ui.add_enabled_ui(can_install, |ui| {
                                     if ui
                                         .add_sized(
@@ -352,6 +382,7 @@ impl IntegrationsUI {
                                         response.install_shaders = self.shaders_checked;
                                         response.install_shell_integration =
                                             self.shell_integration_checked;
+                                        response.install_agent_skill = self.agent_skill_checked;
                                     }
                                 });
 

@@ -309,6 +309,38 @@ impl Config {
         true
     }
 
+    /// Check if the par-mux agent skill should be prompted
+    ///
+    /// # Arguments
+    /// * `current_version` - The application version (from root crate's `VERSION` constant)
+    pub fn should_prompt_agent_skill(&self, current_version: &str) -> bool {
+        if self.integrations.agent_skill_state != InstallPromptState::Ask {
+            return false;
+        }
+
+        // Check if already prompted for this version
+        if let Some(ref prompted) = self
+            .integrations
+            .integration_versions
+            .agent_skill_prompted_version
+            && prompted == current_version
+        {
+            return false;
+        }
+
+        // Check if installed and up to date
+        if let Some(ref installed) = self
+            .integrations
+            .integration_versions
+            .agent_skill_installed_version
+            && installed == current_version
+        {
+            return false;
+        }
+
+        true
+    }
+
     /// Check if either integration should be prompted
     ///
     /// # Arguments
@@ -316,6 +348,7 @@ impl Config {
     pub fn should_prompt_integrations(&self, current_version: &str) -> bool {
         self.should_prompt_shader_install_versioned(current_version)
             || self.should_prompt_shell_integration(current_version)
+            || self.should_prompt_agent_skill(current_version)
     }
 
     /// Get the effective startup directory based on configuration mode.

@@ -17,6 +17,7 @@ use crate::integrations_ui::IntegrationsResponse;
 pub(crate) struct IntegrationsInstallOutcome {
     shaders: Option<Result<String, String>>,
     shell_integration: Option<Result<String, String>>,
+    agent_skill: Option<Result<String, String>>,
 }
 
 impl WindowState {
@@ -25,6 +26,7 @@ impl WindowState {
         // Nothing to do if dialog wasn't interacted with
         if !response.install_shaders
             && !response.install_shell_integration
+            && !response.install_agent_skill
             && !response.skipped
             && !response.never_ask
             && !response.closed
@@ -38,6 +40,7 @@ impl WindowState {
         // Determine install intent and overwrite behavior
         let mut install_shaders = false;
         let mut install_shell_integration = false;
+        let mut install_agent_skill = false;
         let mut force_overwrite_modified_shaders = false;
         let mut triggered_install = false;
 
@@ -49,6 +52,7 @@ impl WindowState {
                 .overlay_ui
                 .integrations_ui
                 .pending_install_shell_integration;
+            install_agent_skill = self.overlay_ui.integrations_ui.pending_install_agent_skill;
 
             match action {
                 crate::integrations_ui::ShaderConflictAction::Overwrite => {
@@ -65,6 +69,7 @@ impl WindowState {
                     self.overlay_ui
                         .integrations_ui
                         .pending_install_shell_integration = false;
+                    self.overlay_ui.integrations_ui.pending_install_agent_skill = false;
                     self.overlay_ui.integrations_ui.error_message = None;
                     self.overlay_ui.integrations_ui.success_message = None;
                     self.focus_state.needs_redraw = true;
@@ -78,10 +83,14 @@ impl WindowState {
             self.overlay_ui.integrations_ui.error_message = None;
             self.overlay_ui.integrations_ui.success_message = None;
             self.overlay_ui.integrations_ui.installing = false;
-        } else if response.install_shaders || response.install_shell_integration {
+        } else if response.install_shaders
+            || response.install_shell_integration
+            || response.install_agent_skill
+        {
             triggered_install = true;
             install_shaders = response.install_shaders;
             install_shell_integration = response.install_shell_integration;
+            install_agent_skill = response.install_agent_skill;
 
             if install_shaders {
                 match crate::shader_installer::detect_modified_bundled_shaders() {
@@ -96,6 +105,8 @@ impl WindowState {
                         self.overlay_ui
                             .integrations_ui
                             .pending_install_shell_integration = install_shell_integration;
+                        self.overlay_ui.integrations_ui.pending_install_agent_skill =
+                            install_agent_skill;
                         self.overlay_ui.integrations_ui.installing = false;
                         self.overlay_ui.integrations_ui.error_message = None;
                         self.overlay_ui.integrations_ui.success_message = None;
@@ -116,9 +127,10 @@ impl WindowState {
         // Handle "Install Selected" - user wants to install one or both integrations
         if triggered_install && self.overlay_ui.integrations_install_receiver.is_none() {
             log::info!(
-                "User requested installations: shaders={}, shell_integration={}, overwrite_modified={}",
+                "User requested installations: shaders={}, shell_integration={}, agent_skill={}, overwrite_modified={}",
                 install_shaders,
                 install_shell_integration,
+                install_agent_skill,
                 force_overwrite_modified_shaders
             );
 
@@ -126,8 +138,10 @@ impl WindowState {
                 .integrations_ui
                 .set_installing(if install_shaders {
                     "Installing shaders..."
-                } else {
+                } else if install_shell_integration {
                     "Installing shell integration..."
+                } else {
+                    "Installing agent skill..."
                 });
 
             // Both installers block: the shader install downloads a release
@@ -166,9 +180,18 @@ impl WindowState {
                         format!("shell integration ({})", result.shell.display_name())
                     })
                 });
+                let agent_skill = install_agent_skill.then(|| {
+                    crate::skill_installer::install_agent_skill()
+                        .map_err(|e| e.to_string())
+                        .map(|path| {
+                            log::info!("Installed par-mux agent skill to {}", path.display());
+                            "par-mux agent skill".to_string()
+                        })
+                });
                 let _ = tx.send(IntegrationsInstallOutcome {
                     shaders,
                     shell_integration,
+                    agent_skill,
                 });
             });
 
@@ -190,6 +213,9 @@ impl WindowState {
                 new.integrations
                     .integration_versions
                     .shell_integration_prompted_version = Some(v.clone());
+                new.integrations
+                    .integration_versions
+                    .agent_skill_prompted_version = Some(v.clone());
                 std::sync::Arc::new(new)
             });
             if let Err(e) = self.save_config_debounced() {
@@ -205,11 +231,8 @@ impl WindowState {
             self.config.rcu(|old| {
                 let mut new = (**old).clone();
                 new.integrations.shader_install_prompt = ShaderInstallPrompt::Never;
-                std::sync::Arc::new(new)
-            });
-            self.config.rcu(|old| {
-                let mut new = (**old).clone();
                 new.integrations.shell_integration_state = crate::config::InstallPromptState::Never;
+                new.integrations.agent_skill_state = crate::config::InstallPromptState::Never;
                 std::sync::Arc::new(new)
             });
             if let Err(e) = self.save_config_debounced() {
@@ -302,6 +325,28 @@ impl WindowState {
             None => {}
         }
 
+        match outcome.agent_skill {
+            Some(Ok(detail)) => {
+                success_parts.push(detail);
+                let v = current_version.clone();
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.integrations
+                        .integration_versions
+                        .agent_skill_installed_version = Some(v.clone());
+                    new.integrations
+                        .integration_versions
+                        .agent_skill_prompted_version = Some(v.clone());
+                    std::sync::Arc::new(new)
+                });
+            }
+            Some(Err(e)) => {
+                log::error!("Failed to install agent skill: {}", e);
+                error_parts.push(format!("Agent skill: {}", e));
+            }
+            None => {}
+        }
+
         // Show result
         if error_parts.is_empty() {
             self.overlay_ui
@@ -330,6 +375,7 @@ impl WindowState {
         self.overlay_ui
             .integrations_ui
             .pending_install_shell_integration = false;
+        self.overlay_ui.integrations_ui.pending_install_agent_skill = false;
 
         self.focus_state.needs_redraw = true;
         false

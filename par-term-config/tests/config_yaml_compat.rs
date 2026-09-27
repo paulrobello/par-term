@@ -813,3 +813,88 @@ fn log_level_defaults_to_warn() {
     assert_eq!(parse("{}").log_level, LogLevel::Warn);
     assert_eq!(LogLevel::default(), LogLevel::Warn);
 }
+
+// ---------------------------------------------------------------------------
+// Agent skill integration state (par-mux skill install prompt)
+// ---------------------------------------------------------------------------
+
+/// A config file written before the agent skill existed must parse: the two
+/// new `integration_versions` fields default to `None` and the prompt state
+/// defaults to `Ask`.
+#[test]
+fn agent_skill_fields_absent_in_old_configs_still_load() {
+    let cfg = parse(
+        "integration_versions:\n  \
+         shaders_installed_version: \"0.40.0\"\n  \
+         shell_integration_prompted_version: \"0.41.0\"\n",
+    );
+    let v = &cfg.integrations.integration_versions;
+    assert_eq!(v.shaders_installed_version.as_deref(), Some("0.40.0"));
+    assert_eq!(
+        v.shell_integration_prompted_version.as_deref(),
+        Some("0.41.0")
+    );
+    assert_eq!(v.agent_skill_installed_version, None);
+    assert_eq!(v.agent_skill_prompted_version, None);
+    assert_eq!(
+        cfg.integrations.agent_skill_state,
+        par_term_config::InstallPromptState::Ask,
+        "default state is Ask so the welcome dialog offers the skill",
+    );
+}
+
+/// `should_prompt_agent_skill` mirrors the shell-integration rule: prompt when
+/// the state is `Ask` and the running version was neither prompted nor
+/// installed; quiet after any of prompt, install, or Never.
+#[test]
+fn agent_skill_prompt_follows_the_version_rule() {
+    let mut cfg = parse("");
+    let v = "0.47.0";
+    assert!(
+        cfg.should_prompt_agent_skill(v),
+        "fresh install: nothing prompted or installed yet",
+    );
+
+    cfg.integrations
+        .integration_versions
+        .agent_skill_prompted_version = Some(v.to_string());
+    assert!(
+        !cfg.should_prompt_agent_skill(v),
+        "prompted for this version: quiet",
+    );
+    assert!(
+        cfg.should_prompt_agent_skill("0.48.0"),
+        "prompted only for the old version: asks again on upgrade",
+    );
+
+    cfg.integrations
+        .integration_versions
+        .agent_skill_installed_version = Some("0.48.0".to_string());
+    assert!(
+        !cfg.should_prompt_agent_skill("0.48.0"),
+        "installed for this version: quiet",
+    );
+
+    cfg.integrations.agent_skill_state = par_term_config::InstallPromptState::Never;
+    assert!(
+        !cfg.should_prompt_agent_skill("0.49.0"),
+        "Never: never prompts again",
+    );
+}
+
+/// `should_prompt_integrations` fires when ONLY the agent skill is pending,
+/// so a user who installed everything else still gets offered the skill.
+#[test]
+fn agent_skill_alone_can_trigger_the_welcome_dialog() {
+    let mut cfg = parse("");
+    cfg.integrations
+        .integration_versions
+        .shaders_installed_version = Some("0.47.0".to_string());
+    cfg.integrations
+        .integration_versions
+        .shell_integration_installed_version = Some("0.47.0".to_string());
+    assert!(
+        cfg.should_prompt_integrations("0.47.0"),
+        "only the agent skill is uninstalled: dialog must still show",
+    );
+}

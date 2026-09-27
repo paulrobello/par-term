@@ -48,6 +48,7 @@ impl InstallPromptState {
 
 /// Tracks installed and prompted versions for integrations
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct IntegrationVersions {
     /// Version when shaders were installed
     pub shaders_installed_version: Option<String>,
@@ -57,6 +58,10 @@ pub struct IntegrationVersions {
     pub shell_integration_installed_version: Option<String>,
     /// Version when user was last prompted about shell integration
     pub shell_integration_prompted_version: Option<String>,
+    /// Version when the par-mux agent skill was installed
+    pub agent_skill_installed_version: Option<String>,
+    /// Version when user was last prompted about the agent skill
+    pub agent_skill_prompted_version: Option<String>,
 }
 
 // ============================================================================

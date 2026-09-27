@@ -108,6 +108,7 @@ pub mod shader_lint;
 pub mod shader_watcher;
 pub mod shell_integration_installer;
 pub mod shell_quote;
+pub mod skill_installer;
 pub mod smart_selection;
 pub mod snippets;
 pub mod ssh_connect_ui;
