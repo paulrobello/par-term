@@ -2014,7 +2014,9 @@ pub(crate) mod tests {
             .send_command("select-pane -t %0 -T 'renamed pane'")
             .expect("user rename");
         transport
-            .send_command("send-keys -t %1 -l 'printf \"\\033]0;osc pane\\007\"'")
+            // The sleep holds the prompt back: distro bashrcs set the title
+            // from PS1 on every prompt, which would overwrite the OSC title.
+            .send_command("send-keys -t %1 -l 'printf \"\\033]0;osc pane\\007\"; sleep 60'")
             .expect("send printf");
         transport
             .send_command("send-keys -t %1 Enter")
@@ -2675,10 +2677,9 @@ out.flush()
         // keystrokes must resolve their target from the focused native pane
         // (the daemon rejects untargeted send-keys, and nothing sets
         // mux_focused_pane until a click or a daemon focus push).
-        assert!(
-            ws.tmux_state.mux_focused_pane.is_none(),
-            "the scenario needs no tracked focus — fresh attach state"
-        );
+        // A daemon focus push can land during the seed poll; clear it so
+        // the keystroke still has to resolve its target without it.
+        ws.tmux_state.mux_focused_pane = None;
         assert!(
             ws.send_input_via_tmux(b"g\r"),
             "the mux transport must consume input"
@@ -5203,7 +5204,7 @@ out.flush()
         let screen = loop {
             let screen = transport.client().refresh_pane(0).expect("replay");
             let screen = screen.join("\n");
-            let replied = screen.contains("6;24;12t") && screen.contains("rgb:1212/1212/1212");
+            let replied = screen.contains("24;12t") && screen.contains("rgb:1212/1212/1212");
             if (screen.contains("METRICDONE") && replied) || Instant::now() >= deadline {
                 break screen;
             }
@@ -5214,8 +5215,10 @@ out.flush()
             "the metric program never printed: {screen:?}"
         );
         assert!(
-            // xterm's XTWINOPS replies are height-first: 6;height;width.
-            screen.contains("6;24;12t"),
+            // xterm's XTWINOPS replies are height-first: 6;height;width. The
+            // `ESC[6;` prefix is omitted: readline consumes a varying amount
+            // of it as a key-sequence prefix before the tty echoes the rest.
+            screen.contains("24;12t"),
             "CSI 16t answers with the reported 12x24 cells, not the default: {screen:?}"
         );
         assert!(
