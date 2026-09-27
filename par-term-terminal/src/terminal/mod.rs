@@ -307,7 +307,7 @@ impl TerminalManager {
             ..Default::default()
         };
 
-        term.screenshot_to_file(path, config, scrollback_lines)
+        par_term_emu_core_rust::screenshot::save_terminal(&term, path, config, scrollback_lines)
             .map_err(|e| anyhow::anyhow!("Failed to save screenshot: {}", e))?;
 
         log::info!("Screenshot saved successfully");

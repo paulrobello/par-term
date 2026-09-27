@@ -11,6 +11,14 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Security
+
+- **Kitty graphics file media is gated (core 0.53)** — a program writing to the terminal can no longer make par-term read an arbitrary path with `t=f` or read-and-delete one with `t=t`. `t=t` now loads only kitty-spec temp files (`tty-graphics-protocol` in the name, under a temp root) and `t=f` is refused. Direct transmission (`t=d`, what `pt-imgcat --format kitty` sends), Sixel, and iTerm2 images are unaffected.
+
+### Changed
+
+- **Core bumped to `par-term-emu-core-rust` 0.53.** par-mux daemon fixes that reach par-term: a client no longer spawns a second daemon when a pre-0.52 daemon is still serving the legacy socket path (it attaches and the version check reports the mismatch), stopped daemons remove their socket file, pane spawn and persist capture no longer hold the tree lock (a slow shell rc no longer stalls every client), oversized control lines and hook report values are bounded, and a `send-keys` line with leading whitespace no longer panics the connection handler. The core's `screenshot` feature is now enabled explicitly, since 0.53 gates the renderer behind it.
+
 ### Fixed
 
 - **Self-updater installs the native macOS build** — the updater preferred `par-term-macos-universal.zip` on every Mac, so Apple Silicon installs picked up x86_64 slices (including the bundled `par-mux`) and macOS 27 warned "App Update Required: this version of par-term includes a component that will not open in macOS 28". It now prefers the per-arch zip (`par-term-macos-aarch64.zip` / `-x86_64.zip`) and falls back to Universal only when a release lacks it. Existing installs that show the warning need one reinstall from the aarch64 zip or the Homebrew cask.
