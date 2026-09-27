@@ -46,3 +46,9 @@ log.workspace = true
 
 # Concurrency
 parking_lot.workspace = true
+
+# macOS: tag wgpu's CAMetalLayer with an explicit colorspace after each
+# configure. Same versions wgpu-hal's Metal backend already depends on.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std", "CGColorSpace"] }
+objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["std", "CALayer", "CAMetalLayer", "objc2-core-graphics"] }

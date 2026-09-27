@@ -201,6 +201,43 @@ impl CellRenderer {
     /// is applied in one place.
     pub(crate) fn configure_surface(&self) {
         self.surface.configure(&self.device, &self.config);
+        #[cfg(target_os = "macos")]
+        self.tag_metal_layer_colorspace();
+    }
+
+    /// Tag the CAMetalLayer as sRGB and log its post-configure state.
+    ///
+    /// wgpu 30 resolves `SurfaceColorSpace::Auto` to `Srgb` and then writes a
+    /// nil colorspace to the layer on every configure (wgpu 29 never touched
+    /// it). With no tag, macOS color-matches the frame against each display's
+    /// profile its own way; an explicit sRGB tag gives every display the same
+    /// conversion. Must run after each configure, which resets the property.
+    #[cfg(target_os = "macos")]
+    fn tag_metal_layer_colorspace(&self) {
+        use objc2_core_graphics::{CGColorSpace, kCGColorSpaceSRGB};
+
+        // SAFETY: `as_hal` borrows the live hal surface of this `wgpu::Surface`
+        // for the scope of the guard; no other access to the surface happens
+        // while it is held. The render layer is the CAMetalLayer wgpu-hal
+        // configured, and its mutex is the same one hal locks in `configure`.
+        let Some(hal_surface) = (unsafe { self.surface.as_hal::<wgpu::hal::api::Metal>() }) else {
+            return;
+        };
+        let layer = hal_surface.render_layer().lock();
+        // SAFETY: kCGColorSpaceSRGB is an immutable CoreGraphics constant.
+        let srgb = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceSRGB }));
+        layer.setColorspace(srgb.as_deref());
+        log::info!(
+            "CAMetalLayer after configure: opaque={} displaySync={} maxDrawables={} colorspace={}",
+            layer.isOpaque(),
+            layer.displaySyncEnabled(),
+            layer.maximumDrawableCount(),
+            if layer.colorspace().is_some() {
+                "sRGB"
+            } else {
+                "none"
+            }
+        );
     }
 
     /// Move the surface between `Opaque` and a compositing alpha mode when
