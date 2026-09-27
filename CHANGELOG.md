@@ -11,6 +11,18 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Changed
+
+- **Core bumped to `par-term-emu-core-rust` 0.54.** Trigger calls moved to the core's `TriggerEngine` service ahead of the deprecated `Terminal` forwarders' removal in 0.56.
+
+### Fixed
+
+- **macOS brightness strobe on external displays** — a fully opaque window now uses an opaque Metal surface, so macOS draws it directly instead of blending every frame, and the Metal layer is tagged sRGB after every surface configure (wgpu 30 cleared the tag). The debug log records the layer's state after each configure. Colors on a display with a wide-gamut profile may look slightly different now that macOS color-matches the frame.
+
+### Removed
+
+- The macOS Metal-layer tuning that ran at startup and on display changes. It inspected the wrong layer, never took effect, and logged three warnings per display change.
+
 ---
 
 ## [0.47.0] - 2026-09-26
