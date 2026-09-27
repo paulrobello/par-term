@@ -11,17 +11,39 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
-### Security
+---
 
-- **Kitty graphics file media is gated (core 0.53)** — a program writing to the terminal can no longer make par-term read an arbitrary path with `t=f` or read-and-delete one with `t=t`. `t=t` now loads only kitty-spec temp files (`tty-graphics-protocol` in the name, under a temp root) and `t=f` is refused. Direct transmission (`t=d`, what `pt-imgcat --format kitty` sends), Sixel, and iTerm2 images are unaffected.
+## [0.47.0] - 2026-09-26
+
+### Added
+
+- **Crash triage** — a pane whose shell exits non-zero, a plugin that hits its restart cap, or a par-term run that panicked leaves a **Triage** row in the command palette. Activating it writes a markdown payload (exit status, process, last output lines) and launches your default agent on it. Capture is local and nothing is sent until you click. See [CRASH_TRIAGE.md](docs/features/CRASH_TRIAGE.md).
+- **Agent launcher** — an `agents:` config list of launchable coding agents, edited under Settings → Snippets & Actions → Agents. Each entry gets a `Launch <name>` palette row, plus a labelled `(autonomous)` row when `autonomy_args` is set and `Launch Default Agent` for the default entry. In a par-mux tab a launch splits daemon-side. See [Agents (Launcher)](docs/CONFIG_REFERENCE.md#agents-launcher).
+- **Rename panes** — right-click a pane title bar or bind `rename_pane` to give a pane a name that OSC and CWD title changes do not overwrite. Names persist for local panes and sync to the daemon for par-mux panes.
+- **par-mux improvements** — mux tabs carry a link glyph in the tab bar; the agent roster shows **done/unseen** when an agent finishes until you view its pane; mux panes get par-term's shell environment (`TERM_PROGRAM`, `shell_env`, augmented `PATH`); the daemon learns the client's cell pixel size and theme colors so `CSI 14t/16t` and `OSC 10/11` answer correctly; tab operations map onto daemon windows (Cmd+T creates a daemon window, closing a tab kills it, moving a mux tab is blocked); clipboard copies sync into the daemon paste buffer; Claude, pi, and omp release their roster claim when the agent quits; and a window refuses to attach to the session it runs inside. See [MUX.md](docs/features/MUX.md).
+- **Plugin `theme_changed` event** — plugins that subscribe receive the active theme's color tokens on start and whenever the theme changes. See [PLUGINS.md](docs/features/PLUGINS.md).
+- **Synced agent-usage records** — `agent_usage_extra_records_dirs` adds more snapshot directories (for example a synced folder from another machine); records for the same agent merge to the widest values. See [AGENT_USAGE.md](docs/features/AGENT_USAGE.md).
+- **par-term agent skill** — `skills/par-term/SKILL.md` teaches coding agents to drive par-term.
 
 ### Changed
 
 - **Core bumped to `par-term-emu-core-rust` 0.53.** par-mux daemon fixes that reach par-term: a client no longer spawns a second daemon when a pre-0.52 daemon is still serving the legacy socket path (it attaches and the version check reports the mismatch), stopped daemons remove their socket file, pane spawn and persist capture no longer hold the tree lock (a slow shell rc no longer stalls every client), oversized control lines and hook report values are bounded, and a `send-keys` line with leading whitespace no longer panics the connection handler. The core's `screenshot` feature is now enabled explicitly, since 0.53 gates the renderer behind it.
+- **Sub-crate versions**: `par-term-config` 0.14.6, `par-term-render` 0.11.3, `par-term-update` 0.5.2, `par-term-scripting` 0.2.0, `par-term-settings-ui` 0.18.0, `par-term-terminal` 0.6.0, `par-term-tmux` 0.2.0, `par-term-mux` 0.2.0.
 
 ### Fixed
 
 - **Self-updater installs the native macOS build** — the updater preferred `par-term-macos-universal.zip` on every Mac, so Apple Silicon installs picked up x86_64 slices (including the bundled `par-mux`) and macOS 27 warned "App Update Required: this version of par-term includes a component that will not open in macOS 28". It now prefers the per-arch zip (`par-term-macos-aarch64.zip` / `-x86_64.zip`) and falls back to Universal only when a release lacks it. Existing installs that show the warning need one reinstall from the aarch64 zip or the Homebrew cask.
+- **Dead keys and IME input reach the pane** — composed characters (Option+e then e, IME conversions) were dropped in every pane on macOS.
+- **The copy-mode cursor is drawn where copy mode puts it**, including while scrolled back, instead of at the shell cursor.
+- **Agent status-bar widgets are clickable in the left and center sections**, not only the right.
+- **Plugins honor their restart cap when a respawn fails to spawn.**
+- **The renderer no longer reconfigures the surface on every window move.**
+- **par-mux client hardening** — input from snippets, triggers, scripts, paste (now bracketed and honoring `paste_delay_ms`), file drop, broadcast, SSH connect, and anti-idle reaches daemon panes; search, copy mode, the AI inspector, OSC 52, session logging, triggers, and focus reports read daemon pane output instead of the hidden local shell; two session windows no longer cross-route pane input; a hung daemon no longer freezes the UI per keystroke; detach and daemon death never block the UI thread; closing a mux tab's last pane closes the tab rather than the session; the restore placeholder tab and layout-less tabs close when appropriate; and agent-hook scripts deleted from under their registrations are restored at startup.
+- **The `--no-default-features` build compiles again.**
+
+### Security
+
+- **Kitty graphics file media is gated (core 0.53)** — a program writing to the terminal can no longer make par-term read an arbitrary path with `t=f` or read-and-delete one with `t=t`. `t=t` now loads only kitty-spec temp files (`tty-graphics-protocol` in the name, under a temp root) and `t=f` is refused. Direct transmission (`t=d`, what `pt-imgcat --format kitty` sends), Sixel, and iTerm2 images are unaffected.
 
 ---
 

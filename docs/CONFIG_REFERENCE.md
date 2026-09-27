@@ -554,7 +554,7 @@ directory written by external collectors — see
 ## Agents (Launcher)
 
 Top-level `agents:` list — CLI coding agents exposed as command-palette
-"Launch" rows. Managed under Settings → Actions → Agents.
+"Launch" rows. Managed under Settings → Snippets & Actions → Agents.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|

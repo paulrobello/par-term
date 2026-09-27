@@ -42,9 +42,16 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
-### Unreleased
+### 0.47.0
 
-- **Self-updater installs the native macOS build** — Apple Silicon now updates to `par-term-macos-aarch64.zip` instead of the Universal zip, whose x86_64 slices made macOS 27 warn "App Update Required … will not open in macOS 28". Universal remains the fallback. If you already see that warning, reinstall from the aarch64 zip or `brew install --cask par-term`.
+Crash triage, an agent launcher, pane renaming, and a broad par-mux hardening pass. Core library 0.53 is required; `par-term-config` moves to 0.14.6, `par-term-render` 0.11.3, `par-term-update` 0.5.2, `par-term-scripting` 0.2.0, `par-term-settings-ui` 0.18.0, `par-term-terminal` 0.6.0, `par-term-tmux` 0.2.0, and `par-term-mux` 0.2.0.
+
+- **Crash triage** — crashed panes, capped plugins, and the previous run's panic become palette rows that hand the context to your default agent. See [CRASH_TRIAGE.md](docs/features/CRASH_TRIAGE.md).
+- **Agent launcher** — an `agents:` config list (edited under Settings → Snippets & Actions → Agents) adds `Launch <name>` palette rows, with explicitly labelled autonomous variants.
+- **Rename panes** — user-set pane titles that survive OSC/CWD changes and sync to par-mux.
+- **par-mux** — mux tabs are marked in the tab bar, the roster shows done/unseen agents, mux panes get par-term's shell environment, tab operations map onto daemon windows, and input, output reads, clipboard, and a hung daemon are all handled daemon-side. See [MUX.md](docs/features/MUX.md).
+- **Kitty graphics file media is gated** (core 0.53) — `t=f` is refused and `t=t` only loads kitty-spec temp files.
+- **Fixes** — dead keys and IME input reach the pane, the copy-mode cursor draws in the right place, and the self-updater installs the native macOS build instead of Universal (if macOS 27 warns "App Update Required", reinstall once from the aarch64 zip or `brew install --cask par-term`).
 
 ### 0.46.0
 

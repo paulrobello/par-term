@@ -70,6 +70,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Notifications](features/NOTIFICATIONS.md) | Desktop notifications for the bell, session activity/silence, and OSC 9/777/99 escape sequences |
 | [Plugins](features/PLUGINS.md) | Status-bar widgets, custom actions, and Settings panels contributed by user scripts |
 | [Agent Usage](features/AGENT_USAGE.md) | Coding-agent token/cost usage panel driven by snapshot files in a watched directory |
+| [Crash Triage](features/CRASH_TRIAGE.md) | Captures crashed panes, plugin crash-caps, and the previous run's panic as palette rows that hand the context to an agent |
 | [par-mux Hooks & Extensions](features/INTEGRATIONS.md#par-mux-agent-extensions) | Session hooks (Claude/Codex/Grok) and pi/omp agent-state extensions that feed the agent roster |
 
 ## Architecture & Development
