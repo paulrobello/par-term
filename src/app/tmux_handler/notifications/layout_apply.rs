@@ -32,12 +32,18 @@ impl WindowState {
         };
 
         if let Some(pm) = tab.pane_manager_mut() {
-            pm.update_layout_from_tmux(parsed_layout, &self.tmux_state.tab_mappings(tab_id));
+            let mappings = self.tmux_state.tab_mappings(tab_id);
+            pm.update_layout_from_tmux(parsed_layout, &mappings);
             pm.recalculate_bounds();
 
             if let Some((_, _, _, _, cell_width, cell_height, _)) = bounds_info {
                 pm.resize_all_terminals(cell_width, cell_height);
             }
+
+            // A same-panes layout change can be another client's resize of
+            // the very panes we mirror: adopt the daemon-side leaf geometry
+            // after the local-metrics recompute so it wins.
+            pm.resize_pane_terminals_from_layout(parsed_layout, &mappings);
         }
 
         self.focus_state.needs_redraw = true;
@@ -99,6 +105,11 @@ impl WindowState {
             if let Some((_, _, _, _, cell_width, cell_height, _)) = bounds_info {
                 pm.resize_all_terminals(cell_width, cell_height);
             }
+
+            // Survivors adopt the daemon-side geometry, same as the
+            // same-panes case: the closing pane's resize and ours both
+            // land in this layout string.
+            pm.resize_pane_terminals_from_layout(parsed_layout, &kept_mappings);
         }
 
         // Update mappings - remove closed panes

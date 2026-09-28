@@ -38,6 +38,54 @@ impl PaneManager {
         );
     }
 
+    /// Re-fit each mapped pane's terminal to its daemon-side cell geometry.
+    ///
+    /// The layout string's leaf `WxH` is the authority for a mirror
+    /// terminal's grid: after a resize driven by another client
+    /// (`refresh-client -C`, `resize-pane`), the local pane must adopt it
+    /// or the desktop keeps rendering at its own window's size with
+    /// wrapping drift. Runs AFTER `update_layout_from_tmux` (ratios) and
+    /// `resize_all_terminals` (local metrics) so the daemon geometry wins.
+    pub fn resize_pane_terminals_from_layout(
+        &self,
+        layout: &TmuxLayout,
+        pane_mappings: &HashMap<TmuxPaneId, PaneId>,
+    ) {
+        fn collect_leaves(node: &LayoutNode, leaves: &mut Vec<(TmuxPaneId, usize, usize)>) {
+            match node {
+                LayoutNode::Pane {
+                    id, width, height, ..
+                } => {
+                    leaves.push((*id, *width, *height));
+                }
+                LayoutNode::HorizontalSplit { children, .. }
+                | LayoutNode::VerticalSplit { children, .. } => {
+                    for child in children {
+                        collect_leaves(child, leaves);
+                    }
+                }
+            }
+        }
+
+        let mut leaves = Vec::new();
+        collect_leaves(&layout.root, &mut leaves);
+        let mut adopted = 0;
+        for (tmux_id, cols, rows) in leaves {
+            if let Some(pane) = pane_mappings
+                .get(&tmux_id)
+                .and_then(|pid| self.get_pane(*pid))
+            {
+                // `resize_terminal` is a no-op when the grid already
+                // matches, so the attach-fit echo re-adopts for free.
+                pane.resize_terminal(cols.max(1), rows.max(1));
+                adopted += 1;
+            }
+        }
+        if adopted > 0 {
+            log::debug!("Adopted daemon pane geometry for {adopted} mirror terminal(s)");
+        }
+    }
+
     /// Recursively update a pane node's ratios and directions from tmux layout
     fn update_node_from_tmux_layout(
         node: &mut PaneNode,

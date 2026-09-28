@@ -5321,6 +5321,85 @@ out.flush()
         );
     }
 
+    /// A `%layout-change` born of ANOTHER client's resize
+    /// (`refresh-client -C`, the exact form ParDeck's streamer sends) must
+    /// re-fit the local mirror grid: the daemon-side leaf geometry is the
+    /// authority, or the desktop keeps rendering the pane at its own
+    /// window's size with wrapping drift (pardeck P2 proof, card
+    /// 01a0e8c150ae7c02ab588e2365d80eaf).
+    #[cfg(unix)]
+    #[test]
+    fn layout_change_from_another_clients_resize_refits_the_mirror() {
+        let path = socket_path("layout-adopt");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(
+            &transport,
+            "layout-adopt",
+            Some((80, 24)),
+            &Default::default(),
+        )
+        .expect("attach_sequence");
+        let mut ws = manners_state();
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("layout-adopt".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until the layout consumer creates the native mirror for %0.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tmux_state.tmux_pane_owners.contains_key(&0) {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the pane"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // The deliberate resize: another viewer shrinks the pane under us.
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command("refresh-client -t %0 -C 61x17")
+            .expect("deliberate resize");
+
+        let mirror_dims = |ws: &crate::app::window_state::WindowState| {
+            let (tab_id, pane_id) = *ws.tmux_state.tmux_pane_owners.get(&0).expect("%0 owned");
+            let tab = ws.tab_manager.get_tab(tab_id).expect("tab");
+            let pm = tab.pane_manager().expect("panes");
+            let pane = pm.get_pane(pane_id).expect("pane");
+            pane.terminal
+                .try_read()
+                .expect("terminal lock")
+                .dimensions()
+        };
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if mirror_dims(&ws) == (61, 17) {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the mirror never adopted the deliberate resize (last dims {:?})",
+                mirror_dims(&ws)
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// The session-restore shape for a mux-attached window: restore spawns
     /// ONE local shell tab (so a failed attach never leaves an empty
     /// window) and marks it as the placeholder. These tests pin the
