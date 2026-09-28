@@ -117,6 +117,7 @@ Adopt one word per concept in every user-visible string, doc, and action label. 
 - **K7. Default leader:** macOS `Cmd+B` (free today; Cmd chords never reach the shell, and it echoes tmux `C-b`). Linux/Windows `Ctrl+Shift+B`, which requires moving `toggle_background_shader` to `Ctrl+Alt+B` there (D3). Configurable as `leader_key`; `leader_timeout_ms` default 2000; `leader_overlay_delay_ms` default 400.
 - **K8.** Leader then the leader chord again sends the literal chord to the pane.
 - **K9.** Keys marked *repeat* stay armed (tmux `-r` behavior) until a non-repeat key, Escape, or the timeout.
+- **K9a.** Vim-style `h j k l` / `H J K L` for focus and swap are opt-in via `leader_vim_keys: true`, because the default table keeps tmux's meanings for `l` (last tab) and `L` (last session). Enabling it moves last tab to `Tab` and last session to `S`. Every letter in the default table below is unique.
 
 **L-table (proposed).** Keys mirror tmux wherever tmux has a convention.
 
@@ -136,8 +137,8 @@ Adopt one word per concept in every user-visible string, doc, and action label. 
 | `d` | Detach (M-series) | par-mux / tmux only |
 | `%` or `\|` | Split Right | |
 | `"` or `-` | Split Down | |
-| Arrows or `h j k l` | Focus pane in direction | *repeat* |
-| `Shift`+Arrows / `H J K L` | Swap with pane in direction | *repeat* |
+| Arrows | Focus pane in direction | *repeat* |
+| `Shift`+Arrows | Swap with pane in direction | *repeat* |
 | `o` | Next pane (A7) | *repeat* |
 | `;` | Last-focused pane (A8) | |
 | `q` | Show pane letters (existing `select_pane_hint`) | tmux `display-panes` |
@@ -160,9 +161,13 @@ Adopt one word per concept in every user-visible string, doc, and action label. 
 
 `Mod` and `PaneMod` as defined in K1. Every "new" chord below was checked against the claim inventory in Appendix C; items marked RT need a runtime check.
 
+**Migration rule (prerequisite for every row below).** Default changes do not reach existing users safely today: `merge_default_keybindings` re-adds any default whose action id is missing from the user's config (`par-term-config/src/config/keybindings_methods.rs:25-35`), and a chord bound twice resolves by later-wins or HashMap order (B20, B23). An upgrading user with `Cmd+D: split_horizontal` would silently gain a `split_right` default on the same chord. Before shipping K10–K22: (1) a new or moved default is added only if its chord is unclaimed in the user's config, (2) renamed actions (`split_horizontal` → `split_down`) are migrated in place rather than added alongside, and (3) the registry rejects duplicate chords at load with a visible warning.
+
+K5 governs new chords; the existing macOS swap default (Cmd+Ctrl+Opt+Arrow) is kept for continuity but becomes recordable once B18 is fixed.
+
 | Code | Action | macOS | Linux / Windows | Change |
 |---|---|---|---|---|
-| K10 | Command palette | Cmd+Shift+P | Ctrl+Shift+P | New default (VS Code convention). Profile drawer moves to leader `P` and keeps its menu item (D2). |
+| K10 | Command palette | Cmd+Shift+P | Ctrl+Shift+P | New default (VS Code convention). Profile drawer moves to leader `P` and keeps its menu item (D2). Also remove the hardcoded drawer duplicate (`src/app/input_events/key_handler/keyboard_handlers.rs:172-195`) or it keeps intercepting. |
 | K11 | Split Right | Cmd+D | Ctrl+Shift+E | macOS flips to match iTerm2 (D1). Linux already matches Terminator. |
 | K12 | Split Down | Cmd+Shift+D | Ctrl+Shift+O | Linux adds Terminator's `O`; keep Ctrl+Shift+D as an alias (D1). |
 | K13 | Zoom pane | Cmd+Shift+Enter | Ctrl+Shift+Enter | New (iTerm2). RT1: confirm the hardcoded Shift+Enter handler (`key_handler/mod.rs:489-542`) does not swallow it. |
@@ -208,7 +213,7 @@ Every new action is: registered in `ACTION_HANDLERS`, listed in `AVAILABLE_ACTIO
 | A11 | `go_to_last_tab` | Rightmost tab | K19 | Local |
 | A12 | `rename_tab` | Opens inline rename on the active tab (today only the context menu can) | leader `,`, double-click tab | Supported (`rename-window`) |
 | A13 | `next_window`, `prev_window` | Cycle OS windows in creation order | K21 | n/a |
-| A14 | `close_window` (real) | Close the whole window with all tabs. Current smart-close keeps its behavior under a new id `close_tab_or_window` | leader `N`… none by default | Attached window: detach (M-series) |
+| A14 | `close_window` (real) | Close the whole window with all tabs. Current smart-close keeps its behavior under a new id `close_tab_or_window` | none (menu + palette) | Attached window: detach (M-series) |
 | A15 | `toggle_tree_picker` | Fuzzy tree of windows → tabs → panes (+ attached session) with live previews of titles, cwd, agent state; Enter focuses, `x` closes, `r` renames | leader `w` | Supported (list-windows / list-panes) |
 | A16 | `toggle_session_picker` | Unified par-mux + tmux session list: attach here, attach in new window, new session, rename, kill, detach | K18, leader `s` | list/new supported; rename/kill need UP1/UP2 |
 | A17 | `focus_next_attention_agent` | Jump to next roster agent that is blocked, then done-unseen, cycling | K17, leader `a` | Supported (roster cache) |
@@ -245,6 +250,8 @@ These rank above all keymap polish because they lose work. All are `[verified]` 
 - **M11. Unstable tab names.** New attached tabs are titled "tmux @N" (`notifications/window.rs:47`); the daemon names new windows "0" (`par-term-emu-core-rust/src/mux/dispatch.rs:698`). **Fix:** send `new-window -n <name>` using the same title rules as local tabs; show the daemon name, not the tmux id.
 - **M12. All par-mux errors are 2-second toasts**, including the multi-line stale-daemon instruction (`src/app/input_events/keybinding_helpers.rs:13-16`; `mux.rs:638`). **Fix:** persistent error state on the session chip (V1) with the full message and an action button (for example "Restart daemon").
 - **M13. Roster jump goes to the wrong tab.** `focus_agent_roster_pane` passes a 0-based position over all tabs to `switch_to_tab_index`, which is 1-based over visible tabs (`src/app/tmux_handler/gateway.rs:302-310`; `src/tab/manager_nav.rs:65-77`). Selecting an agent in the first tab does nothing; any other tab lands one to the left, then focuses a pane id in the wrong tab. (Listed as B5 too.)
+- **M15. par-mux attach is profile-only.** The only entry is a profile's `mux_session_name` (`par-term-config/src/profile_types/profile.rs:100-104`); there is no CLI flag (`src/cli/mod.rs:32-72`), no global auto-attach setting (tmux has `tmux_auto_attach`), and no palette or menu attach. **Fix:** `par-term --attach <session>`, A22, the session picker, and an optional `mux_auto_attach: <session>` config.
+- **M16. Agent launch and crash triage land in an arbitrary pane.** In attached windows they `split-window -h` next to *some* mux pane, possibly in a background tab (`src/app/tmux_handler/notifications/mux.rs:427-492`; `agent_launch.rs:49-57`). **Fix:** split next to the focused pane of the active tab, or open a new tab when the user chooses.
 - **M14. Daemon death, hung daemon, and max-tabs overflow are easy to miss.** Windows beyond `max_tabs` are dropped with a debug log (`notifications/window.rs:15-25`). **Fix:** persistent chip state (V1) and a toast naming the dropped count.
 
 ---
@@ -313,6 +320,8 @@ Target: **the same key does the same thing** whether a tab is local or attached.
 - **PN11. Arrangements and Duplicate Tab keep pane layouts.** Arrangements store only single-pane titles (`src/arrangements/capture.rs:93-106`); duplicate copies only cwd/color/icon (`src/tab/manager.rs:466-505`). Store the tree the way session restore already does (`src/session/mod.rs:88-121`).
 - **PN12. Restore divider sizing** uses `unwrap_or(1.0)` with no DPI scale (`src/tab/pane_ops.rs:376-377`) versus `unwrap_or(2.0) * dpi_scale` elsewhere (B14).
 - **PN13. Remove or implement `pane_title_font`** (listed in CONFIG_REFERENCE, never read; B7).
+- **PN14. Pane hover focus.** `focus_follows_mouse` only focuses the OS window on cursor enter (`src/app/handler/window_state_impl/handle_window_event.rs:501-507`); there is no hover-to-focus between panes. Add `pane_focus_follows_mouse` (off by default).
+- **PN15. Composable macros.** Custom action sequences resolve `SequenceStep.action_id` against `config.actions` only (`workflow.rs:57-83`), so a user can't build "split right, then run X, then equalize". Let sequence steps call any built-in action id.
 
 ---
 
@@ -336,7 +345,7 @@ Target: **the same key does the same thing** whether a tab is local or attached.
 
 ## 10. Decisions for the owner
 
-- **D1. Flip macOS split chords to iTerm2's meaning** (Cmd+D = Split Right) and give Linux Terminator's pair (Ctrl+Shift+E right, Ctrl+Shift+O down). Existing users keep their current bindings because defaults are persisted in `config.keybindings`; only new installs and "reset to default" change. **Recommendation: yes.** The defaults comment already claims iTerm2 parity (`par-term-config/src/defaults/misc.rs:57`), and today the chord matches but the result is the opposite.
+- **D1. Flip macOS split chords to iTerm2's meaning** (Cmd+D = Split Right) and give Linux Terminator's pair (Ctrl+Shift+E right, Ctrl+Shift+O down). Existing users keep their current bindings **only once the Section 3.3 migration rule ships**; without it the default merge would add the new chord alongside the old one (B20, B23). With the rule, only new installs and "reset to default" change. **Recommendation: yes, gated on the migration rule.** The defaults comment already claims iTerm2 parity (`par-term-config/src/defaults/misc.rs:57`), and today the chord matches but the result is the opposite.
 - **D2. Give Cmd/Ctrl+Shift+P to the command palette**, moving the profile drawer to leader `P` and its menu item. **Recommendation: yes.** The palette is the discoverability hub and has no default chord at all.
 - **D3. Leader key defaults:** macOS Cmd+B, Linux/Windows Ctrl+Shift+B (moving background-shader toggle to Ctrl+Alt+B there). Alternative: ship the leader disabled and prompt once on first par-mux attach. **Recommendation: enabled by default**; Cmd+B is unused, and Ctrl+Shift+B only displaces a rarely used toggle.
 - **D4. Use Cmd+Shift+T for Reopen Closed Tab** (browser convention), moving throughput mode to the palette. **Recommendation: optional, low priority.**
@@ -365,7 +374,7 @@ Acceptance:
 
 ### P1. par-mux safety
 
-Scope: M1–M9, M11, M12, M14, TW2, B32, U5–U10, U14.
+Scope: M1–M9, M11, M12, M14, M16, TW2, B32, U5–U10, U14.
 
 Acceptance:
 - Closing the last attached tab shows the Detach / End session / Cancel dialog; Detach leaves the session listed by `par-mux list-sessions`.
@@ -382,6 +391,7 @@ Acceptance:
 Scope: K2 (single registry, menus read it), K3, K4–K9 leader + which-key, K6, K10–K22, K23–K28 Settings editor, B18–B26.
 
 Acceptance:
+- Loading a config saved by the previous release preserves every existing binding and produces no duplicate chords (fixture test over a pre-change config with `split_horizontal` on Cmd+D and the profile drawer on Cmd+Shift+P).
 - Every chord in Appendix C resolves through the registry; `KEY_LAYERS` holds no chords; a test enumerates menus and asserts their accelerators equal the registry binding.
 - Setting a hardcoded chord (for example `Alt+1`) to "pass to terminal" delivers it to the shell and survives restart.
 - The leader works identically in a local tab, an attached tab, and a tmux gateway tab; the overlay lists live bindings.
@@ -391,7 +401,7 @@ Acceptance:
 
 ### P3. Pane power features
 
-Scope: A1, A3–A9, PN3, PN4, PN6–PN9, PN11, V5–V7, V9, M7.
+Scope: A1, A3–A9, PN3, PN4, PN6–PN9, PN11, PN14, PN15, V5–V7, V9, M7.
 
 Acceptance:
 - Zoom toggles in local and attached tabs, shows its indicator, and unzooms on split or focus move.
@@ -403,7 +413,7 @@ Acceptance:
 
 ### P4. Session management and navigation
 
-Scope: A10–A18, A21–A23, V1–V3, V10, V13, M10, U11–U13, UP1–UP8 as they land upstream.
+Scope: A10–A18, A21–A23, V1–V3, V10, V13, M10, M15, U11–U13, UP1–UP8 as they land upstream.
 
 Acceptance:
 - Without editing any profile, a user can attach, create, switch, and detach a par-mux session from the session picker and palette.
