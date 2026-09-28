@@ -13,7 +13,7 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ### Changed
 
-- **Core bumped to `par-term-emu-core-rust` 0.54.** Trigger calls moved to the core's `TriggerEngine` service ahead of the deprecated `Terminal` forwarders' removal in 0.56.
+- **Core bumped to `par-term-emu-core-rust` 0.55.** 0.55 removed the six deprecated `Terminal` screenshot/benchmark forwarders; par-term has zero call sites — trigger calls already moved to the core's `TriggerEngine` service ahead of the deprecated `Terminal` macro/trigger forwarders' removal in 0.56.
 
 ### Fixed
 
