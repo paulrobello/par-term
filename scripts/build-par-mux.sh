@@ -46,11 +46,15 @@ INSTALL_ARGS=(
   --root "$ROOT"
   par-term-emu-core-rust
 )
-if [ -n "$TARGET" ]; then
-  cargo install --target "$TARGET" "${INSTALL_ARGS[@]}"
-else
-  cargo install "${INSTALL_ARGS[@]}"
-fi
+# The temp --root makes cargo print "be sure to add <root>/bin to your PATH",
+# which is noise here: the binary is copied OUT of the temp root below, so
+# that PATH advice is never actionable. Filter only that line; keep the real
+# exit status and every other line of output.
+install_output=$(cargo install ${TARGET:+--target "$TARGET"} "${INSTALL_ARGS[@]}" 2>&1) || {
+  printf '%s\n' "$install_output" >&2
+  exit 1
+}
+printf '%s\n' "$install_output" | grep -v '^warning: be sure to add' || true
 
 mkdir -p "$(dirname "$OUT")"
 if [ "$(uname -s)" = "Msys" ] || [[ "$OUT" == *.exe ]]; then
