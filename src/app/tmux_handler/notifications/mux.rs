@@ -633,11 +633,12 @@ impl WindowState {
                         log::warn!(
                             "par-mux daemon older than the client — daemon {daemon}, \
                              client {client}; daemon-side fixes are missing until the \
-                             daemon is restarted (pkill -f par-mux)"
+                             daemon is restarted (par-mux --restart)"
                         );
                         self.show_toast(format!(
                             "par-mux: daemon older than this client ({daemon} vs {client}) \
-                             — restart it (pkill -f par-mux) to pick up daemon fixes"
+                             — run `par-mux --restart` in a terminal to pick up fixes \
+                             (your session is restored)"
                         ));
                     }
                 }

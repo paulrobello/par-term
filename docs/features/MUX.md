@@ -140,11 +140,23 @@ States are shown as the agent reports them (`working`, `blocked`, `idle`); `done
 
 Both surfaces are scoped to the attached session. An entry disappears as soon as its pane closes, or when the agent itself exits — the hooks and extensions send `pane.release_agent` on claude `SessionEnd` and pi/omp shutdown (the codex and grok hooks have no release, so those entries stay until the pane closes), so a quit agent leaves the roster at once instead of showing "working" until the pane dies. The widget and picker never count a closed pane or offer a row they cannot focus.
 
+## Socket location contract
+
+The daemon's socket lives at a stable, per-user path that does not depend on the par-mux or par-term version, so a par-term upgrade never re-homes a live daemon:
+
+| Platform | Default path | Notes |
+|---|---|---|
+| Linux | `$XDG_RUNTIME_DIR/par-mux-<name>.sock`, else `$TMPDIR/par-mux-<uid>/par-mux-<name>.sock` | The per-UID directory (tmux's `/tmp/tmux-<uid>` defense) keeps the socket out of the shared temp dir. |
+| macOS | `$TMPDIR/par-mux-<uid>/par-mux-<name>.sock` | `$XDG_RUNTIME_DIR` is usually unset on macOS, so the per-UID temp dir is the norm. |
+| Windows | `%TEMP%\par-mux-<name>.sock` | The file is the marker the named pipe name is derived from; the transport itself is a named pipe. |
+
+An explicit `--socket <path>` always wins. An upgrade never strands a live daemon: `connect_or_spawn` probes the pre-0.52 legacy path (`$TMPDIR/par-mux-<name>.sock`, Unix only) before spawning a replacement, and only follows a socket file it owns — a planted regular file or symlink is never probed. When the daemon and client build stamps disagree, par-term attaches anyway and toasts `par-mux --restart` (all platforms, bundles inside the .app / `par-term-bundle-*` archives), which stops the daemon, saves its state, starts a fresh one, and restores the tree.
+
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| Attach reports a stale daemon | An old daemon from before an upgrade is still running. Quit it and reattach. |
+| Attach reports a stale daemon | Run `par-mux --restart` (works on all platforms; `pkill -f par-mux` is macOS/Linux only). Your session tree is restored. |
 | Attach fails with a visible error | Check the daemon binary next to the par-term executable and on `PATH`; for a from-source build see `CLAUDE.md`, "par-mux daemon for local runs". |
 | Roster is empty | Install the hook/extension installers (see [Agent roster](#agent-roster)); roster entries only exist for agents reporting through par-mux. |
 | Pane looks frozen | The daemon owns the pane; unfocused panes redraw as data arrives. If a pane stops updating, reattach to force a reseed. |
