@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -444,6 +444,15 @@ ifeq ($(shell uname),Darwin)
 else
 	@echo "App bundle installation is only supported on macOS"
 endif
+
+# Build and install the macOS bundle against the local core checkout
+bundle-install-local-core:
+	scripts/with-local-core.sh sh -c 'cargo build --manifest-path /Users/probello/Repos/par-term-emu-core-rust/Cargo.toml --no-default-features --features mux --bin par-mux --release && $(MAKE) build-full && cp /Users/probello/Repos/par-term-emu-core-rust/target/release/par-mux target/release/par-mux'
+	@$(MAKE) bundle
+	@cp /Users/probello/Repos/par-term-emu-core-rust/target/release/par-mux target/release/bundle/par-term.app/Contents/MacOS/par-mux
+	@cp target/release/par-term "$${HOME}/.cargo/bin/par-term"
+	@cp /Users/probello/Repos/par-term-emu-core-rust/target/release/par-mux "$${HOME}/.cargo/bin/par-mux"
+	@cp -R target/release/bundle/par-term.app /Applications/
 
 # Generate config file example
 config-example:
