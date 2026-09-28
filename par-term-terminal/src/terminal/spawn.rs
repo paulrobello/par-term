@@ -202,19 +202,17 @@ impl TerminalManager {
     /// Process raw data through the terminal emulator (for tmux output routing).
     pub fn process_data(&self, data: &[u8]) {
         let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.write();
-        term.process(data);
+        // with_terminal_mut, not a bare write guard: it republishes the
+        // wait-free geometry mirror (ENH-023) that `cursor_position()` and
+        // `size()` serve, so daemon-fed feeds move the rendered cursor too.
+        pty.with_terminal_mut(|term| term.process(data));
         // A mux pane has no PTY reader thread to bump the generation, and
         // the app's render cache is keyed on it — without this bump the
         // cache serves stale cells forever (panes only redrawn on focus).
         // Gated on the local-core `mux` feature: mark_updated exists only
         // in the unpublished core (see Cargo.toml's feature note).
         #[cfg(feature = "mux")]
-        {
-            drop(term);
-            pty.mark_updated();
-        }
+        pty.mark_updated();
     }
 
     /// Process daemon-fed output with the per-chunk pipeline the PTY reader
@@ -234,17 +232,20 @@ impl TerminalManager {
         // reader-fed bytes (term.record_output below feeds the core's own
         // recording buffer, a different consumer).
         pty.fire_output_callback(data);
-        let terminal = pty.terminal();
-        let dispatch_batch = {
-            let mut term = terminal.write();
+        // with_terminal_mut, not a bare write guard: it republishes the
+        // wait-free geometry mirror (ENH-023) that `cursor_position()` and
+        // `size()` serve — a mirror pane has no PTY reader thread to do it,
+        // so without this the rendered cursor never moves off its seed
+        // position while the cells keep updating.
+        let dispatch_batch = pty.with_terminal_mut(|term| {
             let batch = term.process_deferred(data);
             term.record_output(data);
-            TriggerEngine::process_trigger_scans(&mut term);
+            TriggerEngine::process_trigger_scans(term);
             if term.has_pending_responses() {
                 let _ = term.drain_responses();
             }
             batch
-        };
+        });
         // Deliver observers with the write guard released (ARC-001: slow or
         // re-entrant observers must not stall concurrent readers).
         dispatch_batch.deliver();
@@ -503,6 +504,36 @@ mod tests {
                 .read()
                 .has_pending_responses(),
             "mirror query replies must not accumulate"
+        );
+    }
+
+    /// Daemon-fed feeds must advance the wait-free geometry mirror (ENH-023)
+    /// that `cursor_position()`/`size()` serve: the render loop reads the
+    /// cursor through it, so a feed that only touches the grid under a raw
+    /// `terminal.write()` guard moves the cells but freezes the cursor.
+    #[test]
+    fn daemon_fed_feeds_advance_the_wait_free_cursor_mirror() {
+        let mirror = TerminalManager::new(80, 24).unwrap();
+        mirror.process_mux_output(b"abc");
+        assert_eq!(
+            mirror.cursor_position(),
+            (3, 0),
+            "mux echo must advance the mirrored cursor the renderer reads"
+        );
+
+        mirror.process_mux_output(b"\r\ndef");
+        assert_eq!(
+            mirror.cursor_position(),
+            (3, 1),
+            "later mux output must keep the mirrored cursor current"
+        );
+
+        let tmux_routed = TerminalManager::new(80, 24).unwrap();
+        tmux_routed.process_data(b"abc");
+        assert_eq!(
+            tmux_routed.cursor_position(),
+            (3, 0),
+            "the bare tmux-routing feed shares the same mirror"
         );
     }
 }
