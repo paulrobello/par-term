@@ -69,7 +69,8 @@ pub(crate) enum UiTestAction {
     /// Assert a named boolean condition is false.
     AssertNot { assert_not: String },
     /// Assert a named keyed value: `["top_action", "toggle_fullscreen"]`,
-    /// `["file_empty", "/tmp/capture.txt"]`.
+    /// `["file_empty", "/tmp/capture.txt"]`,
+    /// `["mux_pane_grid", "97x29"]`.
     AssertEq { assert_eq: (String, String) },
 }
 
@@ -566,6 +567,58 @@ impl WindowManager {
                 let empty = matches!(&meta, Ok(m) if m.len() == 0)
                     || matches!(&meta, Err(e) if e.kind() == std::io::ErrorKind::NotFound);
                 Ok((actual, empty))
+            }
+            // The rendered grid of every mux-attached pane, the readout a
+            // resize proof asserts on: one pane reports bare "WxH", more
+            // report "paneid=WxH" joined by commas in ascending pane order.
+            "mux_pane_grid" => {
+                let Some(ws) = self.ui_test_window_state() else {
+                    return Err("mux_pane_grid: no terminal window".into());
+                };
+                let owners = &ws.tmux_state.tmux_pane_owners;
+                if owners.is_empty() {
+                    return Err("mux_pane_grid: no par-mux panes attached".into());
+                }
+                let mut entries: Vec<(u64, String)> = Vec::new();
+                for (mux_id, (tab_id, pane_id)) in owners {
+                    let Some(tab) = ws.tab_manager.get_tab(*tab_id) else {
+                        return Err(format!(
+                            "mux_pane_grid: tab {tab_id:?} holding %{mux_id} not found"
+                        ));
+                    };
+                    let Some(pm) = tab.pane_manager() else {
+                        return Err(format!(
+                            "mux_pane_grid: tab {tab_id:?} holding %{mux_id} has no panes"
+                        ));
+                    };
+                    let Some(pane) = pm.get_pane(*pane_id) else {
+                        return Err(format!(
+                            "mux_pane_grid: pane {pane_id:?} for %{mux_id} not found"
+                        ));
+                    };
+                    let (cols, rows) = match pane.terminal.try_read() {
+                        Ok(term) => term.dimensions(),
+                        Err(e) => {
+                            return Err(format!("mux_pane_grid: %{mux_id} terminal lock: {e}"));
+                        }
+                    };
+                    entries.push((*mux_id, format!("{cols}x{rows}")));
+                }
+                entries.sort_by_key(|(id, _)| *id);
+                let actual = if entries.len() == 1 {
+                    entries
+                        .into_iter()
+                        .next()
+                        .map(|(_, g)| g)
+                        .unwrap_or_default()
+                } else {
+                    entries
+                        .into_iter()
+                        .map(|(id, g)| format!("%{id}={g}"))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                };
+                Ok((actual.clone(), actual == expected))
             }
             _ => Err(format!("unknown assert_eq operand '{what}'")),
         }
