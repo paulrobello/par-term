@@ -3574,14 +3574,17 @@ out.flush()
             std::thread::sleep(Duration::from_millis(25));
         }
 
-        // Run the byte mirror in the daemon pane: the printf emits
-        // DECSET 2004 so the client mirror arms bracketed paste
-        // deterministically (no reliance on the shell's own init); `stty
-        // raw -echo` takes the pane's tty out of canonical mode so input
-        // is neither echoed nor CR-mangled (ICRNL) before `cat -v` renders
-        // it — the screen then shows exactly the bytes the paste sent,
-        // in caret notation (ESC → `^[`, CR → `^M`).
-        let line = b"printf '\\033[?2004h'; stty raw -echo; cat -v";
+        // Run the byte mirror in the daemon pane. `stty raw -echo` runs
+        // FIRST so a paste can never land on a still-canonical tty (where
+        // echo and ICRNL would mangle it); `printf` emits DECSET 2004 so
+        // the client mirror arms bracketed paste deterministically, with
+        // no reliance on the shell's own init; `cat -v` then renders
+        // exactly the bytes the paste sent, in caret notation
+        // (ESC → `^[`, CR → `^M`). The readiness marker is emitted as
+        // `MIRR""OR_READY` so the string the wait below matches can only
+        // exist as the echo's OUTPUT, never as the zle echo of the typed
+        // line itself.
+        let line = b"stty raw -echo; printf '\\033[?2004h'; echo MIRR\"\"OR_READY; cat -v";
         let hex = line
             .iter()
             .map(|b| format!("{b:02x}"))
@@ -3600,26 +3603,40 @@ out.flush()
             .send_command("send-keys -t %0 Enter")
             .expect("run byte-mirror command");
 
-        // Wait for the mirror to see the mode: its bracketed sequences
-        // turn non-empty only after the daemon pane's %output carries the
-        // escape sequence back.
+        // Pump until BOTH the mirror reports bracketed paste armed AND
+        // the daemon-side capture shows MIRROR_READY. Neither alone
+        // suffices: zsh's line editor emits its own ?2004h at prompt
+        // draw, so the mirror can arm before this line has executed at
+        // all (the fixed 150ms settle that used to cover the gap was the
+        // parallel-load flake), and MIRROR_READY without the printf's
+        // DECSET would leave the paste unwrapped. Pumping notifications
+        // before the capture means an armed mirror seen in the same
+        // iteration as the marker reflects the printf's own emission,
+        // which precedes the marker in the pane's output stream — so both
+        // conditions together prove the tty is raw and the paste will be
+        // wrapped. A paste that then beats the exec of `cat -v` queues in
+        // the raw input buffer and is rendered when `cat -v` reads.
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             ws.check_mux_notifications();
-            if focused_mirror_bracketed(&ws).is_some_and(|(start, _)| !start.is_empty()) {
+            let armed = focused_mirror_bracketed(&ws).is_some_and(|(start, _)| !start.is_empty());
+            let view = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_command("capture-pane -t %0 -p")
+                .expect("capture")
+                .join("|");
+            if armed && view.contains("MIRROR_READY") {
                 break;
             }
             assert!(
                 Instant::now() < deadline,
-                "the mirror never armed bracketed paste"
+                "the byte mirror never became ready: armed={armed} view={view:?}"
             );
             std::thread::sleep(Duration::from_millis(25));
         }
-        // The mode escape only proves printf ran; give the shell's `cat -v`
-        // a beat to become the foreground reader before any paste lands
-        // (a paste that races the exec lands on the shell's prompt
-        // instead, and the assertions read noise).
-        std::thread::sleep(Duration::from_millis(150));
         (ws, path)
     }
 
