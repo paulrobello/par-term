@@ -291,6 +291,7 @@ keybindings:
 - `select_pane_hint`
 - `resize_pane_left`, `resize_pane_right`
 - `resize_pane_up`, `resize_pane_down`
+- `swap_pane_left`, `swap_pane_right`, `swap_pane_up`, `swap_pane_down` — swap the focused pane with its neighbor in that direction
 - `promote_pane_to_tab`, `demote_tab_to_pane`
 
 **Display:**

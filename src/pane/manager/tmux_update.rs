@@ -30,12 +30,73 @@ impl PaneManager {
         // Calculate ratios from the tmux layout and update our tree
         if let Some(ref mut root) = self.root {
             Self::update_node_from_tmux_layout(root, &layout.root, pane_mappings);
+            // A daemon (or tmux) swap-pane reorders the layout's leaves
+            // without changing any size, so the ratio pass above cannot see
+            // it. Realign the leaves: every tree position must hold the
+            // native pane whose tmux id the layout puts at that position.
+            Self::realign_leaves_from_tmux(root, &layout.root, pane_mappings);
         }
 
         log::debug!(
             "Updated pane layout ratios from tmux layout ({} panes)",
             pane_mappings.len()
         );
+    }
+
+    /// Permute the tree's leaves so each position holds the native pane
+    /// whose tmux id the layout string puts there.
+    ///
+    /// Only runs when every leaf is identified in BOTH directions (forward
+    /// `tmux -> native` mapping covers every layout leaf, inverse covers
+    /// every tree leaf); otherwise identities are unknowable and the tree
+    /// is left alone. Skips the no-op permutation silently.
+    fn realign_leaves_from_tmux(
+        root: &mut PaneNode,
+        tmux_node: &LayoutNode,
+        pane_mappings: &HashMap<TmuxPaneId, PaneId>,
+    ) {
+        fn collect_layout_leaves(node: &LayoutNode, leaves: &mut Vec<TmuxPaneId>) {
+            match node {
+                LayoutNode::Pane { id, .. } => leaves.push(*id),
+                LayoutNode::HorizontalSplit { children, .. }
+                | LayoutNode::VerticalSplit { children, .. } => {
+                    for child in children {
+                        collect_layout_leaves(child, leaves);
+                    }
+                }
+            }
+        }
+
+        let mut desired: Vec<TmuxPaneId> = Vec::new();
+        collect_layout_leaves(tmux_node, &mut desired);
+
+        let native_to_tmux: HashMap<PaneId, TmuxPaneId> = pane_mappings
+            .iter()
+            .map(|(&tmux, &native)| (native, tmux))
+            .collect();
+        let mut current = root.all_pane_ids();
+        if desired.len() != current.len()
+            || !current.iter().all(|id| native_to_tmux.contains_key(id))
+        {
+            return;
+        }
+
+        // Selection-sort the permutation: while position i holds the wrong
+        // pane, swap it with the position that holds the pane `desired[i]`
+        // wants. With one mismatched pair this is a single swap.
+        for i in 0..desired.len() {
+            let at_i = native_to_tmux[&current[i]];
+            if at_i == desired[i] {
+                continue;
+            }
+            let Some(j) =
+                (i + 1..desired.len()).find(|&j| native_to_tmux[&current[j]] == desired[i])
+            else {
+                return; // identity missing mid-permutation — leave the rest
+            };
+            root.swap_panes(current[i], current[j]);
+            current.swap(i, j);
+        }
     }
 
     /// Re-fit each mapped pane's terminal to its daemon-side cell geometry.

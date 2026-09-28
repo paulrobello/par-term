@@ -124,6 +124,22 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Cmd+Alt+Down"),
     ),
     (
+        "swap_pane_left",
+        "Swap Pane Left",
+        Some("Cmd+Ctrl+Alt+Left"),
+    ),
+    (
+        "swap_pane_right",
+        "Swap Pane Right",
+        Some("Cmd+Ctrl+Alt+Right"),
+    ),
+    ("swap_pane_up", "Swap Pane Up", Some("Cmd+Ctrl+Alt+Up")),
+    (
+        "swap_pane_down",
+        "Swap Pane Down",
+        Some("Cmd+Ctrl+Alt+Down"),
+    ),
+    (
         "select_pane_hint",
         "Select Pane by Letter",
         Some("Cmd+Alt+P"),
@@ -336,6 +352,14 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Resize Pane Down",
         Some("Ctrl+Alt+Shift+Down"),
     ),
+    ("swap_pane_left", "Swap Pane Left", Some("Alt+Shift+Left")),
+    (
+        "swap_pane_right",
+        "Swap Pane Right",
+        Some("Alt+Shift+Right"),
+    ),
+    ("swap_pane_up", "Swap Pane Up", Some("Alt+Shift+Up")),
+    ("swap_pane_down", "Swap Pane Down", Some("Alt+Shift+Down")),
     (
         "increase_font_size",
         "Increase Font Size",

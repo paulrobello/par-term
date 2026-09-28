@@ -317,6 +317,20 @@ impl Tab {
         }
     }
 
+    /// Swap the focused pane with its neighbor in the given direction.
+    /// Returns the swapped `(focused, neighbor)` pair, or None when there
+    /// is no pane manager, no focused pane, or nothing lies that way.
+    pub fn swap_pane(
+        &mut self,
+        direction: NavigationDirection,
+    ) -> Option<(crate::pane::PaneId, crate::pane::PaneId)> {
+        let pm = self.pane_manager.as_mut()?;
+        let focused = pm.focused_pane_id()?;
+        let neighbor = pm.neighbor_in_direction(focused, direction)?;
+        pm.swap_panes(focused, neighbor)
+            .then_some((focused, neighbor))
+    }
+
     /// Check if a position is on a divider
     pub fn is_on_divider(&self, x: f32, y: f32) -> bool {
         self.pane_manager

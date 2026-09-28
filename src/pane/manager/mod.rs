@@ -450,7 +450,7 @@ impl Default for PaneManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pane::types::SplitDirection;
+    use crate::pane::types::{NavigationDirection, SplitDirection};
 
     // Note: Full tests would require mocking TerminalManager
     // These are placeholder tests for the manager logic
@@ -709,5 +709,88 @@ mod tests {
             target.next_pane_id() >= counter_before,
             "the target's counter must not rewind onto an id its own panes hold"
         );
+    }
+
+    #[test]
+    fn swap_panes_exchanges_two_panes_positions() {
+        let mut manager = manager_with_two_panes("/left", "/right");
+        assert!(manager.swap_panes(1, 2), "both ids exist");
+        // Terminals follow their ids; only the tree position changed.
+        assert_eq!(marker_of(&manager, 1).as_deref(), Some("/left"));
+        assert_eq!(marker_of(&manager, 2).as_deref(), Some("/right"));
+        // Position swapped: pane 1 now sits on the right.
+        let pane1 = manager.get_pane(1).expect("pane 1 present");
+        let pane2 = manager.get_pane(2).expect("pane 2 present");
+        assert!(
+            pane1.bounds.x > pane2.bounds.x,
+            "swapped pane 1 must sit right of pane 2 ({} vs {})",
+            pane1.bounds.x,
+            pane2.bounds.x
+        );
+    }
+
+    #[test]
+    fn swap_panes_works_across_splits_and_keeps_unknown_ids() {
+        // Four panes in a 2x2-ish tree; swap two leaves that share no
+        // parent split.
+        let mut manager = PaneManager::new();
+        manager.root = Some(PaneNode::split(
+            SplitDirection::Vertical,
+            0.5,
+            PaneNode::split(
+                SplitDirection::Horizontal,
+                0.5,
+                PaneNode::leaf(stub_pane(1, "/tl")),
+                PaneNode::leaf(stub_pane(2, "/bl")),
+            ),
+            PaneNode::split(
+                SplitDirection::Horizontal,
+                0.5,
+                PaneNode::leaf(stub_pane(3, "/tr")),
+                PaneNode::leaf(stub_pane(4, "/br")),
+            ),
+        ));
+        manager.focused_pane_id = Some(1);
+        manager.next_pane_id = 5;
+
+        assert!(manager.swap_panes(1, 4), "both ids exist");
+        let pane1 = manager.get_pane(1).expect("pane 1 present");
+        let pane4 = manager.get_pane(4).expect("pane 4 present");
+        assert!(
+            pane1.bounds.x > pane4.bounds.x && pane1.bounds.y < pane4.bounds.y,
+            "pane 1 must now sit bottom-right ({}x{}) while pane 4 sits top-left ({}x{})",
+            pane1.bounds.x,
+            pane1.bounds.y,
+            pane4.bounds.x,
+            pane4.bounds.y
+        );
+        // Neighbors resolve against the swapped bounds.
+        assert_eq!(
+            manager.neighbor_in_direction(1, NavigationDirection::Left),
+            Some(3),
+            "left of bottom-right pane is top-right"
+        );
+
+        assert!(!manager.swap_panes(1, 99), "unknown id must not swap");
+        assert!(!manager.swap_panes(99, 98), "both unknown must not swap");
+    }
+
+    #[test]
+    fn swap_pane_tab_helper_swaps_focused_with_directional_neighbor() {
+        // Tab-level helper: focused pane 1 (top-left of a vertical split of
+        // two horizontal splits is not needed here — two panes suffice).
+        let mut manager = manager_with_two_panes("/left", "/right");
+        manager.focused_pane_id = Some(1);
+        // The stub tree has never had bounds laid out; navigation needs
+        // real pane bounds.
+        manager.recalculate_bounds();
+        let focused = manager.focused_pane_id().expect("focused");
+        let neighbor = manager
+            .neighbor_in_direction(focused, NavigationDirection::Right)
+            .expect("right neighbor");
+        assert_eq!(neighbor, 2);
+        assert!(manager.swap_panes(focused, neighbor));
+        // Focus id is unchanged: it follows the pane to its new position.
+        assert_eq!(manager.focused_pane_id(), Some(1));
     }
 }

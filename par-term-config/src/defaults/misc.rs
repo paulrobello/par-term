@@ -106,6 +106,23 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Alt+Shift+Down".to_string(),
             action: "resize_pane_down".to_string(),
         },
+        // Pane swap shortcuts (swap with the neighbor in that direction)
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Ctrl+Alt+Left".to_string(),
+            action: "swap_pane_left".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Ctrl+Alt+Right".to_string(),
+            action: "swap_pane_right".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Ctrl+Alt+Up".to_string(),
+            action: "swap_pane_up".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Ctrl+Alt+Down".to_string(),
+            action: "swap_pane_down".to_string(),
+        },
         // Broadcast input mode
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Alt+I".to_string(),
@@ -232,6 +249,23 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
         crate::types::KeyBinding {
             key: "Ctrl+Alt+Shift+Down".to_string(),
             action: "resize_pane_down".to_string(),
+        },
+        // Pane swap shortcuts (swap with the neighbor in that direction)
+        crate::types::KeyBinding {
+            key: "Alt+Shift+Left".to_string(),
+            action: "swap_pane_left".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "Alt+Shift+Right".to_string(),
+            action: "swap_pane_right".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "Alt+Shift+Up".to_string(),
+            action: "swap_pane_up".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "Alt+Shift+Down".to_string(),
+            action: "swap_pane_down".to_string(),
         },
         // Broadcast input mode
         crate::types::KeyBinding {

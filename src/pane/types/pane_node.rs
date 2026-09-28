@@ -268,6 +268,30 @@ impl PaneNode {
         best.map(|(id, _)| id)
     }
 
+    /// Swap the positions of the two panes identified by `a` and `b`.
+    ///
+    /// Each leaf keeps its terminal; only its place in the tree changes.
+    /// Returns true when both ids exist in the tree.
+    pub fn swap_panes(&mut self, a: PaneId, b: PaneId) -> bool {
+        match self {
+            PaneNode::Leaf(pane) => pane.id == a || pane.id == b,
+            PaneNode::Split { first, second, .. } => {
+                let a_first = first.find_pane(a).is_some();
+                let b_first = first.find_pane(b).is_some();
+                if a_first && b_first {
+                    first.swap_panes(a, b)
+                } else if !a_first && !b_first {
+                    second.swap_panes(a, b)
+                } else if second.find_pane(if a_first { b } else { a }).is_some() {
+                    std::mem::swap(first, second);
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
     /// Collect all divider rectangles in the pane tree
     ///
     /// Returns a list of DividerRect structures that can be used for:

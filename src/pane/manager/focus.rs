@@ -81,6 +81,33 @@ impl PaneManager {
         }
     }
 
+    /// Swap the positions of two panes, keeping each pane's terminal and
+    /// focus id. Returns true when both panes exist and were swapped.
+    pub fn swap_panes(&mut self, a: PaneId, b: PaneId) -> bool {
+        let Some(root) = self.root.as_mut() else {
+            return false;
+        };
+        if root.swap_panes(a, b) {
+            self.recalculate_bounds();
+            log::debug!("Swapped panes {a} and {b}");
+            true
+        } else {
+            false
+        }
+    }
+
+    /// The pane adjacent to `from_id` in the given direction, or None when
+    /// `from_id` is unknown or nothing lies that way (e.g. a single pane).
+    pub fn neighbor_in_direction(
+        &self,
+        from_id: PaneId,
+        direction: NavigationDirection,
+    ) -> Option<PaneId> {
+        self.root
+            .as_ref()?
+            .find_pane_in_direction(from_id, direction)
+    }
+
     /// Focus a specific pane by ID
     pub fn focus_pane(&mut self, id: PaneId) {
         if self

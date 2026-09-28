@@ -257,6 +257,22 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         s.resize_pane(crate::pane::NavigationDirection::Down);
         true
     }),
+    ("swap_pane_left", |s: &mut WindowState| {
+        s.swap_pane(crate::pane::NavigationDirection::Left);
+        true
+    }),
+    ("swap_pane_right", |s: &mut WindowState| {
+        s.swap_pane(crate::pane::NavigationDirection::Right);
+        true
+    }),
+    ("swap_pane_up", |s: &mut WindowState| {
+        s.swap_pane(crate::pane::NavigationDirection::Up);
+        true
+    }),
+    ("swap_pane_down", |s: &mut WindowState| {
+        s.swap_pane(crate::pane::NavigationDirection::Down);
+        true
+    }),
     ("toggle_tmux_session_picker", |s: &mut WindowState| {
         s.overlay_ui.tmux_session_picker_ui.toggle();
         s.request_redraw();

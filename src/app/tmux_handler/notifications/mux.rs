@@ -21,6 +21,7 @@ pub(crate) use super::mux_attach::{AttachSequence, attach_sequence, mux_attach_r
 pub(crate) use super::mux_transport::MuxTransport;
 use crate::app::tmux_handler::tmux_state::{TmuxState, TmuxTransport};
 use crate::app::window_state::WindowState;
+use crate::pane::NavigationDirection;
 use crate::tmux::escape_keys_for_tmux;
 use par_term_mux::{AttachOutcome, MuxSessionClient, VersionCheck, check_daemon_version};
 use par_term_tmux::TmuxPaneId;
@@ -363,8 +364,58 @@ impl WindowState {
         }
     }
 
-    /// Launch a configured agent into a new daemon-side pane (the
-    /// agent-launcher palette's mux arm). Splits the resolved mux pane,
+    /// Swap the focused par-mux pane with its directional neighbor
+    /// daemon-side: targeted `swap-pane -t %f -s %n` via the transport.
+    /// The neighbor is resolved from the native mirror tree's bounds — the
+    /// same `find_pane_in_direction` the local swap path uses — and both
+    /// ids map through `tmux_pane_in_tab` to daemon pane ids. The daemon's
+    /// swap reply carries a layout broadcast, so the %layout-change
+    /// consumer re-lays-out the mirror exactly as split/close flows do.
+    ///
+    /// Returns true when the swap was consumed here (a daemon pane was the
+    /// target — a local swap of the mirror would fight the daemon's next
+    /// layout push and desync the pane map). False when no transport is
+    /// attached, no pane is focused, or no neighbor lies that way — the
+    /// caller then falls through to the local swap.
+    pub(crate) fn swap_pane_via_mux(&mut self, direction: NavigationDirection) -> bool {
+        let Some(transport) = self.tmux_state.transport.as_ref() else {
+            return false;
+        };
+        // Resolve everything under immutable borrows first: `send_command`
+        // and `show_toast` need `self` again below.
+        let resolved = (|| {
+            let tab = self.tab_manager.active_tab()?;
+            let pm = tab.pane_manager()?;
+            let focused = pm.focused_pane_id()?;
+            let neighbor = pm.neighbor_in_direction(focused, direction)?;
+            let f_mux = self.tmux_state.tmux_pane_in_tab(tab.id, focused)?;
+            let n_mux = self.tmux_state.tmux_pane_in_tab(tab.id, neighbor)?;
+            Some((f_mux, n_mux))
+        })();
+        let Some((f_mux, n_mux)) = resolved else {
+            return false;
+        };
+        // tmux's swap-pane takes the neighbor as `-s`, the focused pane as
+        // the target. A success reply carries only the layout broadcast, so
+        // non-empty IS the failure signal (same shape as kill-pane's).
+        let cmd = format!("swap-pane -t %{f_mux} -s %{n_mux}");
+        let result = transport.send_command(&cmd);
+        let ok = result.as_ref().is_ok_and(|body| body.is_empty());
+        match result {
+            Ok(body) if !ok => {
+                let text = body.join("\n");
+                log::error!("par-mux swap-pane rejected: {text}");
+                self.show_toast(format!("par-mux: swap failed — {text}"));
+            }
+            Ok(_) => log::info!("MUX: swapped panes %{f_mux} and %{n_mux}"),
+            Err(e) => {
+                log::error!("par-mux swap-pane failed: {e}");
+                self.show_toast(format!("par-mux: swap failed — {e}"));
+            }
+        }
+        true
+    }
+
     /// then types the command line into the new pane's shell: the daemon
     /// spawns shells on `split-window` (no command argument exists on the
     /// wire), so typing is the launch mechanism, and the pane lands in the
@@ -1216,6 +1267,143 @@ pub(crate) mod tests {
             "a split pane must not share the first pane's ITERM_SESSION_ID"
         );
         drop(transport);
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A mux-mode pane swap goes DAEMON-side: `swap_pane_via_mux` sends
+    /// targeted `swap-pane -t %f -s %n`, the daemon broadcasts the new
+    /// layout, and the %layout-change consumer re-lays-out the local
+    /// mirror — the native pane owning daemon %0 ends up on the side the
+    /// focused pane held before. A local tree swap here would fight the
+    /// daemon's next layout push.
+    #[test]
+    fn swap_pane_via_mux_swaps_daemon_side_and_the_mirror_follows() {
+        let path = socket_path("mux-swap");
+        spawn_daemon(&path);
+
+        // Attach through the app's own install path (poll arm), then map
+        // %0 — the split test's pump.
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "swapme".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never mapped %0"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        // Split to a second pane; the reply's new daemon pane %1 becomes
+        // focused, and the layout consumer maps it into the mirror.
+        assert!(ws.split_pane_via_mux(true), "daemon-side split");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never mapped %1"
+            );
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        // The focused native pane maps to a daemon pane; its LEFT neighbor
+        // maps to another (do not assume which id the split put where).
+        let tab_id = ws.tab_manager.active_tab().unwrap().id;
+        let (focused_native, neighbor_native) = {
+            let tab = ws.tab_manager.active_tab().expect("active mux tab");
+            let pm = tab.pane_manager().expect("pane manager");
+            let focused = pm.focused_pane_id().expect("focused native pane");
+            (
+                focused,
+                pm.neighbor_in_direction(focused, NavigationDirection::Left),
+            )
+        };
+        let neighbor_native = neighbor_native.expect("left neighbor exists");
+        let daemon_of = |native: crate::pane::PaneId| -> u64 {
+            ws.tmux_state
+                .tmux_pane_owners
+                .iter()
+                .find(|(_, (owner, pane))| *owner == tab_id && *pane == native)
+                .map(|(&tmux, _)| tmux)
+                .expect("daemon id for native pane")
+        };
+        let f_daemon = daemon_of(focused_native);
+        let n_daemon = daemon_of(neighbor_native);
+        assert_ne!(f_daemon, n_daemon, "two distinct daemon panes");
+
+        // Swap focused with its left neighbor, daemon-side. The %layout-
+        // change broadcast re-lays-out the mirror; native pane ids may be
+        // recreated by that relayout, so each poll re-resolves them from
+        // the pane map before reading bounds.
+        let mut probe = par_term_mux::MuxSessionClient::connect(&path).expect("probe client");
+        let before = probe.list_panes().expect("list-panes");
+        assert!(
+            ws.swap_pane_via_mux(NavigationDirection::Left),
+            "daemon-side swap must be consumed"
+        );
+        let after = probe.list_panes().expect("list-panes");
+        assert_ne!(
+            before, after,
+            "the daemon must swap the two panes (list-panes order {before:?} -> {after:?})"
+        );
+        let deadline = Instant::now() + Duration::from_secs(10);
+        // The mirror's PRE-swap orientation has the focused pane right of
+        // its neighbor (the split put it there); the consumer applying the
+        // swapped layout flips that. Poll until the flip is visible.
+        let flipped = loop {
+            let native_of = |daemon: u64| -> Option<crate::pane::PaneId> {
+                ws.tmux_state
+                    .tmux_pane_owners
+                    .iter()
+                    .find(|(tmux, (owner, _))| **tmux == daemon && *owner == tab_id)
+                    .map(|(_, (_, pane))| *pane)
+            };
+            let xf = native_of(f_daemon)
+                .and_then(|n| ws.tab_manager.active_tab()?.pane_manager()?.get_pane(n))
+                .map(|p| p.bounds.x);
+            let xn = native_of(n_daemon)
+                .and_then(|n| ws.tab_manager.active_tab()?.pane_manager()?.get_pane(n))
+                .map(|p| p.bounds.x);
+            if let (Some(xf), Some(xn)) = (xf, xn)
+                && xf < xn
+            {
+                break true;
+            }
+            // The known test pump: a refresh-client size push forces the
+            // consumer to apply the pending daemon layout.
+            let _ = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+            assert!(Instant::now() < deadline, "mirror never re-laid-out");
+        };
+        assert!(
+            flipped,
+            "the focused pane's mirror must end left of its neighbor's"
+        );
 
         let _ = std::fs::remove_file(&path);
     }

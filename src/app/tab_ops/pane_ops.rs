@@ -334,6 +334,27 @@ impl WindowState {
         }
     }
 
+    /// Swap the focused pane with its neighbor in the given direction.
+    /// In mux mode the swap is daemon-side (`swap_pane_via_mux`) — the
+    /// daemon owns the layout — so the local mirror only re-lays-out from
+    /// the reply's %layout-change broadcast. Local tabs swap the pane
+    /// tree directly.
+    pub fn swap_pane(&mut self, direction: crate::pane::NavigationDirection) {
+        #[cfg(feature = "mux")]
+        if self.swap_pane_via_mux(direction) {
+            self.focus_state.needs_redraw = true;
+            self.request_redraw();
+            return;
+        }
+        if let Some(tab) = self.tab_manager.active_tab_mut()
+            && tab.has_multiple_panes()
+        {
+            tab.swap_pane(direction);
+            self.focus_state.needs_redraw = true;
+            self.request_redraw();
+        }
+    }
+
     /// Resize the focused pane in the given direction
     ///
     /// Growing left/up decreases the pane's ratio, growing right/down increases it
