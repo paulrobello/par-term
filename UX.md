@@ -183,6 +183,56 @@ K5 governs new chords; the existing macOS swap default (Cmd+Ctrl+Opt+Arrow) is k
 
 Everything else keeps its current default.
 
+### 3.3a iTerm2 alignment (owner decision 2026-09-28: "wherever possible align with iTerm2")
+
+Source of truth: iTerm2's `sources/MainMenu/Base.lproj/MainMenu.xib` and `sources/Settings/iTermPreferences.m` in `~/Repos/iTerm2`. This table **supersedes K11–K22 on macOS** where they differ. Linux/Windows keep the K1 family (Ctrl+Shift for window/tab, Ctrl+Alt for pane) applied to the same letters, since iTerm2 is macOS-only.
+
+| Code | Action | iTerm2 (macOS) | par-term today | Change |
+|---|---|---|---|---|
+| I1 | Split side by side (Split Right) | Cmd+D | Cmd+Shift+D | Swap (D1) |
+| I2 | Split stacked (Split Down) | Cmd+Shift+D | Cmd+D | Swap (D1) |
+| I3 | Maximize active pane (zoom) | Cmd+Shift+Enter | none | New (A1) |
+| I4 | Next / previous pane | Cmd+] / Cmd+[ | none | New (A7) |
+| I5 | Select pane in direction | Cmd+Opt+Arrow | Cmd+Opt+Arrow | Already aligned |
+| I6 | Move divider (resize) | Cmd+Ctrl+Arrow | Cmd+Opt+Shift+Arrow | Move to Cmd+Ctrl+Arrow. Cmd+Opt+Shift+Arrow becomes swap (I7). Requires B18 recorder fix. |
+| I7 | Swap pane | none in iTerm2 | Cmd+Ctrl+Opt+Arrow | Move to Cmd+Opt+Shift+Arrow (frees the Rectangle-style chord) |
+| I8 | Next / previous tab | Cmd+Shift+] / [ | same | Aligned |
+| I9 | Move tab left / right | Cmd+Shift+Opt+[ / ] | Cmd+Shift+Left/Right | Change to iTerm2 chords; keep arrows as alias |
+| I10 | Tab 1–8, Cmd+9 = last tab | Cmd+1..9 | Cmd+9 = 9th tab | Cmd+9 = last tab (K19) |
+| I11 | Window by number | Cmd+Opt+1..9 | none | New (A13) |
+| I12 | New tab / new window | Cmd+T / Cmd+N | same | Aligned |
+| I13 | New tab / window with current profile | Cmd+Opt+Shift+T / Cmd+Opt+Shift+N | none | New (TW11); Cmd+Opt+T moves session picker (I24) |
+| I14 | New tab next to current | Cmd+Opt+T | config `new_tab_position` | New action |
+| I15 | Close (pane, else tab, else window) | Cmd+W | Cmd+W closes tab; Cmd+Shift+W closes pane | Cmd+W closes the focused **pane**, cascading to tab and window (iTerm2 semantics). `close_tab` becomes Cmd+Opt+W ("Close All Panes in Tab"). |
+| I16 | Close window | Cmd+Shift+W | none (menu smart close) | Real close-window (A14) |
+| I17 | Undo close | Cmd+Shift+T (D4) | Cmd+Z | Cmd+Shift+T; throughput mode moves to palette only. Keep Cmd+Z as alias. |
+| I18 | Broadcast to all panes in tab | Cmd+Opt+I | Cmd+Opt+I | Aligned (and becomes per-tab, D8) |
+| I19 | Broadcast to all panes in all tabs | Cmd+Shift+I | none | New mode; Cmd+Shift+I is free on macOS (assistant is Cmd+I) |
+| I20 | Send input to current pane only | Cmd+Opt+Shift+I | none | New (turns broadcast off) |
+| I21 | Toggle broadcast for current pane | Cmd+Ctrl+Opt+I | none | New (per-pane opt-out, V5) |
+| I22 | Edit session / rename | Cmd+I (Edit Session) | Cmd+I = assistant panel | **Not aligned**: Cmd+I stays the assistant. Rename tab via leader `,` and double-click. |
+| I23 | Detach (tmux) | Cmd+Ctrl+Shift+D | none | Detach from par-mux/tmux; leader `d` too |
+| I24 | Session picker | none (iTerm2 uses tmux dashboard) | Cmd+Opt+T | Move to Cmd+Ctrl+S (leader `s` as the main path) so Cmd+Opt+T can be I14 |
+| I25 | New tmux window / tab | Cmd+Ctrl+Shift+N / Cmd+Ctrl+Shift+T | none | In an attached window, Cmd+T already creates a daemon window; add these as explicit aliases |
+| I26 | Find / find next / find previous | Cmd+F / Cmd+G / Cmd+Shift+G | Cmd+F only | Add Cmd+G / Cmd+Shift+G |
+| I27 | Open Quickly (fuzzy switcher) | Cmd+Shift+O | none | Bind the tree picker (A15) here |
+| I28 | Command history | Cmd+Shift+; | Cmd+R | Change to Cmd+Shift+; and give Cmd+R back to the shell (readline reverse-search) |
+| I29 | Paste history | Cmd+Shift+H | Cmd+Shift+H | Aligned |
+| I30 | Copy mode | Cmd+Shift+C | Cmd+Shift+C | Aligned |
+| I31 | Clear buffer / clear scrollback | Cmd+K / Cmd+Shift+K | Cmd+Shift+K clears scrollback | Add Cmd+K clear buffer |
+| I32 | Full screen | Cmd+Ctrl+F | F11 | Add Cmd+Ctrl+F (macOS F11 is Show Desktop); keep F11 |
+| I33 | Previous / next mark | Cmd+Shift+Up / Down | Super+Up/Down | Change to Cmd+Shift+Up/Down |
+| I34 | Save window arrangement | Cmd+Shift+S | none (Cmd+Shift+S = SSH quick connect) | Save arrangement takes Cmd+Shift+S (prompting for a name inline, TW13). SSH quick connect moves to Cmd+Ctrl+Shift+S plus the palette (Cmd+Ctrl+S is the session picker, I24; Cmd+Opt+S is iTerm2's "save current window as arrangement"). |
+| I35 | Command palette | none in iTerm2 | none | Cmd+Shift+P (D2, K10). Profile drawer, which iTerm2 calls Open Profiles, moves to Cmd+O (I36). |
+| I36 | Open profiles | Cmd+O | Cmd+Shift+P (drawer) | Drawer moves to Cmd+O |
+| I37 | Restart pane process | menu item, no chord | none | A9, leader `R` |
+| I38 | Move pane to tab / window / split | menu items, no chord | promote/demote, no chord | Rename to iTerm2 wording: "Move Pane to New Tab", "Move Pane to Window", "Move Pane to Split" |
+
+Notes:
+- **I15 is the most visible change.** It matches iTerm2 and tmux mental models (close the thing you are in). The last-attached-tab dialog (M1) and running-job confirmation (M2, D6) apply before the cascade.
+- **Chord reclaims** (I17, I28, I34, I36) go through the migration rule above, so users who already rebound those chords keep their bindings.
+- **Close prompts, iTerm2 defaults** (D6): iTerm2 ships `ConfirmClosingMultipleTabs = YES`, `PromptOnQuit = YES`, profile "prompt before closing" = never, undo-close timeout 5 s (`iTermPreferences.m:708-709`, `iTermProfilePreferences.m:1217-1218`). Aligned defaults are listed under D6.
+
 ### 3.4 Settings keybinding editor
 
 - **K23.** One grid listing **every** action, including prefix actions (`mux-detach`, `restore_arrangement:<name>`, `snippet:`, `action:`), grouped by Window / Tab / Pane / Session / Agents / View.
@@ -345,12 +395,21 @@ Target: **the same key does the same thing** whether a tab is local or attached.
 
 ## 10. Decisions for the owner
 
+**Owner answers (2026-09-28):** D1 approved, extended to "wherever possible align with iTerm2" (Section 3.3a). D2, D3, D4, D5, D7, D8 approved. D6 pending (options below).
+
 - **D1. Flip macOS split chords to iTerm2's meaning** (Cmd+D = Split Right) and give Linux Terminator's pair (Ctrl+Shift+E right, Ctrl+Shift+O down). Existing users keep their current bindings **only once the Section 3.3 migration rule ships**; without it the default merge would add the new chord alongside the old one (B20, B23). With the rule, only new installs and "reset to default" change. **Recommendation: yes, gated on the migration rule.** The defaults comment already claims iTerm2 parity (`par-term-config/src/defaults/misc.rs:57`), and today the chord matches but the result is the opposite.
 - **D2. Give Cmd/Ctrl+Shift+P to the command palette**, moving the profile drawer to leader `P` and its menu item. **Recommendation: yes.** The palette is the discoverability hub and has no default chord at all.
 - **D3. Leader key defaults:** macOS Cmd+B, Linux/Windows Ctrl+Shift+B (moving background-shader toggle to Ctrl+Alt+B there). Alternative: ship the leader disabled and prompt once on first par-mux attach. **Recommendation: enabled by default**; Cmd+B is unused, and Ctrl+Shift+B only displaces a rarely used toggle.
 - **D4. Use Cmd+Shift+T for Reopen Closed Tab** (browser convention), moving throughput mode to the palette. **Recommendation: optional, low priority.**
 - **D5. Splits inherit the tab's profile, including SSH.** **Recommendation: yes, behind `split_inherits_profile` default true.**
-- **D6. Safer close defaults** (TW5). **Recommendation: yes.** Power users lose running work to the current defaults more than they are annoyed by a prompt.
+- **D6. Close-safety defaults** (TW5). Pending owner answer. The settings in question and today's values:
+  - `confirm_close_running_jobs` (ask before closing a tab or pane whose shell has a foreground job not in `jobs_to_ignore`): par-term **false**. iTerm2's per-profile equivalent defaults to "never prompt", with a job-aware mode available.
+  - `prompt_on_quit` (confirm quitting): par-term **false**. iTerm2 **YES**.
+  - Confirm closing a window with multiple tabs: par-term has no setting. iTerm2 `ConfirmClosingMultipleTabs` **YES**.
+  - `session_undo_timeout_secs` (how long Reopen Closed Tab works): par-term **5**. iTerm2 **5**.
+  - `session_undo_preserve_shell` (reopen keeps the live process instead of a fresh shell): par-term **false**. iTerm2 keeps the live session during the undo window.
+
+  **Recommendation, following the iTerm2-alignment rule:** `prompt_on_quit: true`, add `confirm_close_multiple_tabs: true`, keep undo at 5 s but set `session_undo_preserve_shell: true` (that is what iTerm2's undo does), and leave `confirm_close_running_jobs: false` for local tabs. Attached par-mux tabs always get the M1/M2 dialogs regardless, because closing them can end a session.
 - **D7. Hidden tabs as a first-class par-mux concept** (M4). The alternative is making last-pane close kill the window. **Recommendation: hidden tabs**, since it keeps the deliberate "last pane close is safe" choice and gives Cmd+Z real meaning.
 - **D8. Per-tab broadcast scope** instead of per-window (V5). **Recommendation: yes.**
 
@@ -543,6 +602,8 @@ Known chord risks: Linux Ctrl+Alt+Arrow (GNOME workspaces), Ubuntu Ctrl+Alt+T (o
 ## Appendix D: upstream daemon gaps (par-term-emu-core-rust)
 
 Checked against the daemon command table (`par-term-emu-core-rust/src/mux/command.rs:681-705`, version 0.55.0). Each should be filed on the core project's board when its phase starts.
+
+Filed on the par-term-emu-core-rust board 2026-09-28: UP1+UP2 `01a0ea74ec2e74d0ae11815d14fc25f6`, UP3 `01a0ea74eddf7960bf69078e11984522`, UP4+UP8 `01a0ea74ef9b76929f4f1a84eca8a5f2`, UP5 `01a0ea74f1ba70f099f836051d9dd4a1`, UP6+UP7 `01a0ea74f3757b91be963081760df36c`.
 
 | Code | Needed for | Missing command |
 |---|---|---|
