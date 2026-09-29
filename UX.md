@@ -1021,7 +1021,7 @@ Rules:
 | B65 | Menus are built once; stale accelerators after rebind, and native menu keeps claiming the old chord | `window_lifecycle.rs:130,351`; `window_session.rs:401` [verified] |
 | B66 | No menu item is ever disabled or checked | no `set_enabled`/`set_checked` in `src/menu` [verified] |
 | B67 | Linux ☰ menu (and `toggle_menu`) unreachable when the tab bar is hidden | `src/tab_bar_ui/mod.rs:104-111` [verified] |
-| B68 | Reset Font Size forces 14.0 instead of the configured size | `menu_actions.rs:372` [reported; verify] |
+| B68 | Reset Font Size forces 14.0 instead of the configured size | `menu_actions.rs:370-373` [verified] |
 | B69 | tmux session picker has no Escape handling and runs `tmux list-sessions` synchronously in the frame | `src/tmux_session_picker_ui.rs:21,108-115` [verified by report] |
 | B70 | Clipboard/command-history arrow and Enter handling is unreachable behind the key gate while footers advertise it | `key_handler/clipboard.rs:13-58` [inferred; RT26] |
 | B71 | Settings profile "Open" chain is dead (`ProfileModalAction::OpenProfile` never constructed) | `par-term-settings-ui/src/profiles_tab/management.rs:29` [verified in Part II research] |
