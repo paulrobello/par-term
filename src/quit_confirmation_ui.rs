@@ -21,6 +21,9 @@ pub struct QuitConfirmationUI {
     visible: bool,
     /// Number of active sessions to display
     session_count: usize,
+    /// The attached par-mux session, if any — its survival changes what
+    /// the dialog may truthfully claim (UX.md M9)
+    mux_session: Option<String>,
 }
 
 impl Default for QuitConfirmationUI {
@@ -35,6 +38,7 @@ impl QuitConfirmationUI {
         Self {
             visible: false,
             session_count: 0,
+            mux_session: None,
         }
     }
 
@@ -44,15 +48,19 @@ impl QuitConfirmationUI {
     }
 
     /// Show the confirmation dialog with the number of active sessions
-    pub fn show_confirmation(&mut self, session_count: usize) {
+    /// and, when a par-mux session is attached, its name (UX.md M9: the
+    /// dialog must state that the daemon session survives the quit).
+    pub fn show_confirmation(&mut self, session_count: usize, mux_session: Option<&str>) {
         self.visible = true;
         self.session_count = session_count;
+        self.mux_session = mux_session.map(str::to_string);
     }
 
     /// Hide the dialog and clear state
     pub(crate) fn hide(&mut self) {
         self.visible = false;
         self.session_count = 0;
+        self.mux_session = None;
     }
 
     /// Render the dialog and return any action
@@ -80,18 +88,12 @@ impl QuitConfirmationUI {
                     );
                     ui.add_space(10.0);
 
-                    let session_text = if self.session_count == 1 {
-                        "There is 1 active session.".to_string()
-                    } else {
-                        format!("There are {} active sessions.", self.session_count)
-                    };
+                    let (session_text, closing_text) =
+                        summary_lines(self.session_count, self.mux_session.as_deref());
                     ui.label(&session_text);
                     ui.add_space(5.0);
 
-                    ui.label(
-                        egui::RichText::new("All sessions will be terminated.")
-                            .color(egui::Color32::GRAY),
-                    );
+                    ui.label(egui::RichText::new(closing_text).color(egui::Color32::GRAY));
                     ui.add_space(15.0);
 
                     // Buttons
@@ -149,7 +151,63 @@ impl crate::traits::OverlayComponent for QuitConfirmationUI {
         if !visible {
             self.hide();
         }
-        // Note: setting visible=true requires session_count context.
-        // Use show_confirmation(session_count) to open this dialog.
+        // Note: setting visible=true requires session context.
+        // Use show_confirmation(session_count, mux_session) to open this dialog.
+    }
+}
+
+/// UX.md M9: the dialog's two body lines, matched to what quitting
+/// actually does. A local-only quit terminates everything, but an
+/// attached par-mux session survives the quit (the detach drops the
+/// client, the daemon keeps running) — "All sessions will be
+/// terminated" was false whenever one was attached.
+fn summary_lines(session_count: usize, mux_session: Option<&str>) -> (String, String) {
+    match mux_session {
+        Some(name) => {
+            let first = if session_count == 1 {
+                "There is 1 open tab.".to_string()
+            } else {
+                format!("There are {session_count} open tabs.")
+            };
+            (
+                first,
+                format!("par-mux session '{name}' will keep running (it detaches)."),
+            )
+        }
+        None => {
+            let first = if session_count == 1 {
+                "There is 1 active session.".to_string()
+            } else {
+                format!("There are {session_count} active sessions.")
+            };
+            (first, "All sessions will be terminated.".to_string())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::summary_lines;
+
+    /// UX.md M9: with a par-mux session attached, quitting detaches —
+    /// the dialog must say the session survives, never "terminated".
+    #[test]
+    fn mux_attach_summary_claims_survival_not_termination() {
+        let (count_line, closing_line) = summary_lines(3, Some("work"));
+        assert_eq!(count_line, "There are 3 open tabs.");
+        assert_eq!(
+            closing_line,
+            "par-mux session 'work' will keep running (it detaches)."
+        );
+    }
+
+    /// The local-only quit keeps its original, truthful wording.
+    #[test]
+    fn local_only_summary_still_claims_termination() {
+        let (count_line, closing_line) = summary_lines(1, None);
+        assert_eq!(count_line, "There is 1 active session.");
+        assert_eq!(closing_line, "All sessions will be terminated.");
+        let (count_line, _) = summary_lines(4, None);
+        assert_eq!(count_line, "There are 4 active sessions.");
     }
 }

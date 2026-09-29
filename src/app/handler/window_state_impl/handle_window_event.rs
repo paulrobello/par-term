@@ -89,9 +89,16 @@ impl WindowState {
                         "Showing quit confirmation dialog ({} active sessions)",
                         tab_count
                     );
+                    // UX.md M9: when a par-mux session is attached, the
+                    // dialog must say it survives the quit (it detaches).
+                    let mux_session = self
+                        .tmux_state
+                        .tmux_session_name
+                        .clone()
+                        .filter(|_| self.tmux_state.is_mux_attached());
                     self.overlay_ui
                         .quit_confirmation_ui
-                        .show_confirmation(tab_count);
+                        .show_confirmation(tab_count, mux_session.as_deref());
                     self.focus_state.needs_redraw = true;
                     self.request_redraw();
                     return false; // Don't close yet - wait for user confirmation
