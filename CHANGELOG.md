@@ -21,6 +21,8 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 - **Core bumped to `par-term-emu-core-rust` 0.55.** 0.55 removed the six deprecated `Terminal` screenshot/benchmark forwarders; par-term has zero call sites — trigger calls already moved to the core's `TriggerEngine` service ahead of the deprecated `Terminal` macro/trigger forwarders' removal in 0.56.
 
+- **Keyboard encoding now comes from the core's shared encoder** (ENH-028). `par-term-input` maps each winit key event onto `par-term-emu-core-rust`'s `keyboard::encode_key_with`, so par-term and other core frontends send the same bytes. Two sequences change. Home and End under application cursor mode (DECCKM) now send `ESC O H` / `ESC O F` instead of `ESC [ H` / `ESC [ F`, matching the `xterm-256color` terminfo par-term advertises, xterm, and iTerm2. Alt+Space now applies the Option-key mode like every other Alt+key: `ESC SP` in Esc mode (the default), `0xA0` in Meta mode, and a plain space in Normal mode; Ctrl+Alt+Space likewise sends `ESC NUL` in Esc mode. `par-term-input`'s `update_option_key_modes` and the `left_option_key_mode` / `right_option_key_mode` fields are replaced by `InputHandler::key_options` (a `KeyEncodeOptions`, built with `key_encode_options`).
+
 ### Fixed
 
 - **macOS brightness strobe on external displays** — a fully opaque window now uses an opaque Metal surface, so macOS draws it directly instead of blending every frame, and the Metal layer is tagged sRGB after every surface configure (wgpu 30 cleared the tag). The debug log records the layer's state after each configure. Colors on a display with a wide-gamut profile may look slightly different now that macOS color-matches the frame.

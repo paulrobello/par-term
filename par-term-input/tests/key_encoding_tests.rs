@@ -1,9 +1,17 @@
 //! Byte-exact encoding matrix for `InputHandler`.
 //!
 //! `handle_key_input_with_mode` switches on three axes — key type, modifier set,
-//! and terminal mode (modifyOtherKeys level, application cursor) — and until now
-//! the crate had no tests of its own. These drive the axes directly and assert
-//! the exact bytes written to the PTY.
+//! and terminal mode (modifyOtherKeys level, application cursor). These drive the
+//! axes directly and assert the exact bytes written to the PTY.
+//!
+//! Since ENH-028 the bytes come from the shared encoder in
+//! `par-term-emu-core-rust` (`keyboard::encode_key_with`); this crate only maps
+//! winit events onto it. The rows below are the ones this crate pinned before the
+//! cutover and they pass unchanged through the wired-up encoder, except one
+//! deliberate change marked `ENH-028 CHANGE` (Home/End under DECCKM). A second
+//! behaviour change, Alt+Space, was never pinned; its new row is marked the same
+//! way. The rows are kept as the wrapper check that the winit mapping feeds the
+//! core the right codepoint, modifier bits and Alt side.
 //!
 //! # Two constraints this file works under
 //!
@@ -13,12 +21,10 @@
 //! test binary before commit 53705aaf. [`KeyInput`] carries exactly the three
 //! fields encoding reads and is safe to construct.
 //!
-//! **Left/right Alt selection is unreachable.** `InputHandler::track_alt_key`
-//! takes a `&KeyEvent`, so no test can set `left_alt_pressed` /
-//! `right_alt_pressed`. Every Alt case below therefore exercises the
-//! "neither tracked" fallback, which resolves to the *left* mode. The tests set
-//! both modes to the same value via `update_option_key_modes(m, m)` so the
-//! assertion holds either way.
+//! **Alt side selection goes through `track_alt_physical_key`.** Unless a test
+//! presses a side explicitly, no Alt key is tracked and the left mode applies;
+//! most tests set both sides to the same mode via [`modes`] so the assertion
+//! holds either way. The side-selection tests below press each side.
 //!
 //! # Non-ASCII coverage
 //!
@@ -30,7 +36,7 @@
 //! minimal copy rather than reaching outside its package directory.
 
 use par_term_config::OptionKeyMode;
-use par_term_input::{InputHandler, KeyInput};
+use par_term_input::{InputHandler, KeyInput, key_encode_options};
 use winit::event::{ElementState, Modifiers};
 use winit::keyboard::{Key, KeyCode, ModifiersState, NamedKey, PhysicalKey};
 
@@ -272,12 +278,22 @@ fn application_cursor_switches_bare_arrows_to_ss3() {
 }
 
 #[test]
-fn application_cursor_does_not_apply_to_home_end_or_modified_arrows() {
-    // Home/End are in the same "letter form" table but are not cursor keys, so
-    // DECCKM must leave them on CSI.
-    let home = named(NamedKey::Home, KeyCode::Home);
-    let bytes = handler_with(NONE).handle_key_input_with_mode(&home, 0, true);
-    assert_eq!(bytes.as_deref(), Some(&b"\x1b[H"[..]));
+fn application_cursor_switches_bare_home_end_to_ss3_but_not_modified_arrows() {
+    // ENH-028 CHANGE: Home/End under DECCKM now send SS3 H/F (formerly CSI).
+    // That is the `khome`/`kend` pair the xterm-256color terminfo par-term
+    // advertises lists alongside `smkx` (= DECCKM on), and what xterm and
+    // iTerm2 (VT100Output.m specialKey → CURSOR_SET_HOME) send.
+    for (key, code, expected) in [
+        (NamedKey::Home, KeyCode::Home, b"\x1bOH"),
+        (NamedKey::End, KeyCode::End, b"\x1bOF"),
+    ] {
+        let bytes = handler_with(NONE).handle_key_input_with_mode(&named(key, code), 0, true);
+        assert_eq!(
+            bytes.as_deref(),
+            Some(&expected[..]),
+            "{key:?} under DECCKM"
+        );
+    }
 
     // With any modifier present the sequence switches to CSI form even under
     // DECCKM — SS3 has no modifier encoding.
@@ -487,10 +503,15 @@ fn multi_scalar_graphemes_are_written_as_one_unit() {
 // Option/Alt key modes
 // ---------------------------------------------------------------------------
 
+/// Set both Option sides to `mode`.
+fn modes(handler: &mut InputHandler, mode: OptionKeyMode) {
+    handler.key_options = key_encode_options(mode, mode);
+}
+
 fn alt_handler(mode: OptionKeyMode) -> InputHandler {
     let mut handler = handler_with(ALT);
-    // Both sides set identically — see the module note on `track_alt_key`.
-    handler.update_option_key_modes(mode, mode);
+    // Both sides set identically — see the module note on Alt side selection.
+    modes(&mut handler, mode);
     handler
 }
 
@@ -551,7 +572,7 @@ fn ctrl_alt_letter_preserves_the_alt_modifier() {
     let input = character("a", KeyCode::KeyA);
     let mut handler = handler_with(CTRL | ALT);
 
-    handler.update_option_key_modes(OptionKeyMode::Meta, OptionKeyMode::Meta);
+    modes(&mut handler, OptionKeyMode::Meta);
     assert_eq!(
         handler
             .handle_key_input_with_mode(&input, 0, false)
@@ -561,7 +582,7 @@ fn ctrl_alt_letter_preserves_the_alt_modifier() {
     );
 
     for mode in [OptionKeyMode::Esc, OptionKeyMode::Normal] {
-        handler.update_option_key_modes(mode, mode);
+        modes(&mut handler, mode);
         assert_eq!(
             handler
                 .handle_key_input_with_mode(&input, 0, false)
@@ -677,7 +698,7 @@ fn encoding_never_panics_and_always_yields_valid_utf8_or_control_bytes() {
         let option_mode = *rng.pick(&option_modes);
 
         let mut handler = handler_with(mods);
-        handler.update_option_key_modes(option_mode, option_mode);
+        modes(&mut handler, option_mode);
         let input = character(&text, code);
 
         // The property: encoding must return, never panic, and never produce a
@@ -697,5 +718,186 @@ fn encoding_never_panics_and_always_yields_valid_utf8_or_control_bytes() {
                 );
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ENH-028: rows from the core conformance suite that this crate did not pin,
+// driven through the winit mapping (par-term-emu-core-rust src/keyboard.rs).
+// ---------------------------------------------------------------------------
+
+fn press_alt(handler: &mut InputHandler, code: KeyCode) {
+    handler.track_alt_physical_key(PhysicalKey::Code(code), ElementState::Pressed);
+}
+
+#[test]
+fn right_alt_selects_the_right_option_mode_and_both_held_selects_left() {
+    let input = character("å", KeyCode::KeyA);
+    let handler = || {
+        let mut h = handler_with(ALT);
+        h.key_options = key_encode_options(OptionKeyMode::Normal, OptionKeyMode::Meta);
+        h
+    };
+
+    let mut left = handler();
+    press_alt(&mut left, KeyCode::AltLeft);
+    assert_eq!(
+        left.handle_key_input_with_mode(&input, 0, false).as_deref(),
+        Some("å".as_bytes()),
+        "left Alt → left (Normal) mode passes the composed glyph through"
+    );
+
+    let mut right = handler();
+    press_alt(&mut right, KeyCode::AltRight);
+    assert_eq!(
+        right
+            .handle_key_input_with_mode(&input, 0, false)
+            .as_deref(),
+        Some(&[0xE1u8][..]),
+        "right Alt → right (Meta) mode sets the high bit on the base 'a'"
+    );
+
+    let mut both = handler();
+    press_alt(&mut both, KeyCode::AltLeft);
+    press_alt(&mut both, KeyCode::AltRight);
+    assert_eq!(
+        both.handle_key_input_with_mode(&input, 0, false).as_deref(),
+        Some("å".as_bytes()),
+        "both Alts held → left wins"
+    );
+
+    // Releasing the left key leaves the right one in charge.
+    both.track_alt_physical_key(PhysicalKey::Code(KeyCode::AltLeft), ElementState::Released);
+    assert_eq!(
+        both.handle_key_input_with_mode(&input, 0, false).as_deref(),
+        Some(&[0xE1u8][..])
+    );
+}
+
+#[test]
+fn shift_enter_sends_lf() {
+    assert_bytes(
+        SHIFT,
+        &named(NamedKey::Enter, KeyCode::Enter),
+        b"\n",
+        "Shift+Enter",
+    );
+}
+
+#[test]
+fn ctrl_super_up_counts_ctrl_only() {
+    assert_bytes(
+        CTRL | SUPER,
+        &named(NamedKey::ArrowUp, KeyCode::ArrowUp),
+        b"\x1b[1;5A",
+        "Ctrl+Super+Up",
+    );
+}
+
+#[test]
+fn modify_other_keys_mode_one_and_two_share_the_rule_set() {
+    let cases: &[(ModifiersState, KeyInput, u8, &[u8], &str)] = &[
+        (
+            CTRL,
+            character("c", KeyCode::KeyC),
+            1,
+            b"\x1b[27;5;99~",
+            "mode 1 Ctrl+c",
+        ),
+        (
+            CTRL,
+            character("a", KeyCode::KeyA),
+            2,
+            b"\x1b[27;5;97~",
+            "mode 2 Ctrl+a",
+        ),
+        (
+            CTRL,
+            named(NamedKey::Space, KeyCode::Space),
+            1,
+            b"\x1b[27;5;32~",
+            "mode 1 Ctrl+Space",
+        ),
+        // Alt routes to the 27-form too, reporting the base 'f', not 'ƒ'; the
+        // Option mode does not apply under modifyOtherKeys.
+        (
+            ALT,
+            character("ƒ", KeyCode::KeyF),
+            2,
+            b"\x1b[27;3;102~",
+            "mode 2 Alt+f",
+        ),
+        // Functional keys never take the 27-form.
+        (
+            CTRL,
+            named(NamedKey::Enter, KeyCode::Enter),
+            2,
+            b"\r",
+            "mode 2 Ctrl+Enter",
+        ),
+    ];
+    for (mods, input, mode, expected, what) in cases {
+        let bytes = handler_with(*mods).handle_key_input_with_mode(input, *mode, false);
+        assert_eq!(bytes.as_deref(), Some(*expected), "{what}");
+    }
+}
+
+#[test]
+fn alt_space_applies_the_option_mode() {
+    // ENH-028 CHANGE: Alt+Space formerly sent a plain space because Space fell
+    // into the encoder's catch-all "no modifier encoding" arm. It now runs the
+    // Option-key transform like every other Alt+key, as iTerm2 does
+    // (dataForOptionModifiedKeypress has no Space exception). Users who type
+    // with Option-composed characters already run Normal mode on that side,
+    // and Normal still sends a plain space.
+    let space = named(NamedKey::Space, KeyCode::Space);
+    let cases: &[(OptionKeyMode, &[u8])] = &[
+        (OptionKeyMode::Normal, b" "),
+        (OptionKeyMode::Meta, &[0xA0]),
+        (OptionKeyMode::Esc, b"\x1b "),
+    ];
+    for (mode, expected) in cases {
+        let bytes = alt_handler(*mode).handle_key_input_with_mode(&space, 0, false);
+        assert_eq!(bytes.as_deref(), Some(*expected), "Alt+Space in {mode:?}");
+    }
+
+    // Ctrl+Alt+Space keeps Alt the same way Ctrl+Alt+letter does.
+    let mut handler = handler_with(CTRL | ALT);
+    modes(&mut handler, OptionKeyMode::Esc);
+    assert_eq!(
+        handler
+            .handle_key_input_with_mode(&space, 0, false)
+            .as_deref(),
+        Some(&[0x1bu8, 0x00][..])
+    );
+    modes(&mut handler, OptionKeyMode::Meta);
+    assert_eq!(
+        handler
+            .handle_key_input_with_mode(&space, 0, false)
+            .as_deref(),
+        Some(&[0x80u8][..])
+    );
+}
+
+#[test]
+fn keys_without_a_terminal_encoding_produce_nothing() {
+    assert_eq!(
+        encode(NONE, &named(NamedKey::CapsLock, KeyCode::CapsLock)),
+        None
+    );
+    assert_eq!(encode(NONE, &named(NamedKey::F13, KeyCode::F13)), None);
+    let dead = pressed(Key::Dead(Some('`')), PhysicalKey::Code(KeyCode::Backquote));
+    assert_eq!(encode(NONE, &dead), None);
+}
+
+#[test]
+fn alt_esc_prefix_keeps_a_multi_scalar_string_whole_when_there_is_no_base_key() {
+    // No physical base character and a non-ASCII first scalar: Meta and Esc both
+    // fall back to an ESC prefix, and the rest of the string must follow it.
+    let input = character("é\u{301}", KeyCode::IntlBackslash);
+    let expected = [&[0x1bu8][..], "é\u{301}".as_bytes()].concat();
+    for mode in [OptionKeyMode::Meta, OptionKeyMode::Esc] {
+        let bytes = alt_handler(mode).handle_key_input_with_mode(&input, 0, false);
+        assert_eq!(bytes.as_deref(), Some(&expected[..]), "{mode:?}");
     }
 }

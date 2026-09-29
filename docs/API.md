@@ -298,7 +298,8 @@ Keyboard input processing: converting winit events to terminal byte sequences.
 
 | Type | Description |
 |------|-------------|
-| `InputHandler` | Converts winit `KeyEvent` values to VT/xterm byte sequences. Handles modifier state, Option key modes, clipboard access, and modifyOtherKeys encoding. |
+| `InputHandler` | Converts winit `KeyEvent` values to VT/xterm byte sequences through the core's shared encoder (`par_term_emu_core_rust::keyboard::encode_key_with`). Tracks modifier state and which Alt key is held, and owns clipboard access. |
+| `KeyEncodeOptions` | Re-exported from the core: per-side Option-key modes (`left_option`, `right_option`) handed to the encoder. Build it from config with `key_encode_options(left, right)` and store it in `InputHandler::key_options`. |
 
 ### Key Methods
 
@@ -307,6 +308,8 @@ Keyboard input processing: converting winit events to terminal byte sequences.
 | `InputHandler::new()` | Creates a new input handler, initializing clipboard support. |
 | `handle_key_event(event)` | Convert a key press to terminal bytes (normal mode). |
 | `handle_key_event_with_mode(event, mode, app_cursor)` | Convert with modifyOtherKeys and application cursor support. |
+| `handle_key_input_with_mode(input, mode, app_cursor)` | The same, from a `KeyInput` (the three fields encoding reads) for callers without a winit `KeyEvent`. |
+| `track_alt_key(event)` / `track_alt_physical_key(key, state)` | Record which Alt key is held, so the right Option-key mode applies to right-Alt chords. |
 | `paste_from_clipboard()` | Read text from the system clipboard. |
 | `copy_to_clipboard(text)` | Write text to the system clipboard. |
 | `clipboard_has_image()` | Check whether the clipboard contains an image (for image-aware apps). |

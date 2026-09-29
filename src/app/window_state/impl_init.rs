@@ -50,7 +50,7 @@ impl WindowState {
 
         let mut input_handler = InputHandler::new();
         // Initialize Option/Alt key modes from config
-        input_handler.update_option_key_modes(
+        input_handler.key_options = par_term_input::key_encode_options(
             config.input.left_option_key_mode,
             config.input.right_option_key_mode,
         );

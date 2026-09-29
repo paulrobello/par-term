@@ -129,7 +129,7 @@ These eight crates each depend on `par-term-config` and implement a distinct fea
 | Crate | Responsibility |
 |-------|---------------|
 | `par-term-fonts` | Font discovery, loading, and fallback chain using `fontdb`. Text shaping via `rustybuzz` (HarfBuzz port). Glyph rasterization via `swash`. Provides `FontManager` and `TextShaper` to `par-term-render` and the root binary. |
-| `par-term-input` | Translates `winit` keyboard and mouse events into VT escape byte sequences. Handles modifier keys, function keys, mouse reporting modes, and clipboard paste sequences. |
+| `par-term-input` | Translates `winit` keyboard events into VT escape byte sequences by mapping them onto `par-term-emu-core-rust`'s shared key encoder (`keyboard::encode_key_with`). Owns modifier and Alt-side tracking, the per-side Option-key modes, and clipboard access. |
 | `par-term-keybindings` | Parses keybinding definitions from config, matches key combos against incoming events, and maintains a named action registry. Supports platform-aware `CmdOrCtrl` modifier shorthand. |
 | `par-term-scripting` | Observer pattern implementation for event-driven automation. Integrates with `par-term-emu-core-rust`'s terminal event observer trait to trigger shell callbacks and automation scripts on terminal output events. |
 | `par-term-settings-ui` | 13 settings tabs: Appearance (includes Badge + Progress Bar), Window (includes Arrangements), Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts and Plugins), Snippets & Actions, Assistant, Advanced. Sidebar navigation component and section search. Built on egui; depends on `par-term-config` and `par-term-scripting` (plugin manifest types for the Plugins section). |

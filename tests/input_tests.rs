@@ -5,7 +5,7 @@
 // these do not go through `winit::event::KeyEvent`.
 
 use par_term::config::OptionKeyMode;
-use par_term_input::InputHandler;
+use par_term_input::{InputHandler, key_encode_options};
 
 #[test]
 fn test_input_handler_creation() {
@@ -25,20 +25,23 @@ fn test_input_handler_default() {
 fn test_option_key_mode_default() {
     // Test that OptionKeyMode defaults to Esc (most compatible for terminal use)
     let handler = InputHandler::new();
-    assert_eq!(handler.left_option_key_mode, OptionKeyMode::Esc);
-    assert_eq!(handler.right_option_key_mode, OptionKeyMode::Esc);
+    assert_eq!(
+        handler.key_options,
+        key_encode_options(OptionKeyMode::Esc, OptionKeyMode::Esc)
+    );
 }
 
 #[test]
-fn test_update_option_key_modes() {
-    // Test that we can update the Option key modes
-    let mut handler = InputHandler::new();
-
-    // Update to different modes
-    handler.update_option_key_modes(OptionKeyMode::Normal, OptionKeyMode::Meta);
-
-    assert_eq!(handler.left_option_key_mode, OptionKeyMode::Normal);
-    assert_eq!(handler.right_option_key_mode, OptionKeyMode::Meta);
+fn test_key_encode_options_maps_each_side() {
+    // The config modes map onto the shared encoder's per-side option values
+    // (0 normal, 1 meta, 2 esc).
+    let options = key_encode_options(OptionKeyMode::Normal, OptionKeyMode::Meta);
+    assert_eq!(options.left_option, 0);
+    assert_eq!(options.right_option, 1);
+    assert_eq!(
+        key_encode_options(OptionKeyMode::Esc, OptionKeyMode::Esc).left_option,
+        2
+    );
 }
 
 #[test]
@@ -177,7 +180,8 @@ fn test_escape_sends_escape() {
 // receiving `1` instead of `!` when the user pressed Shift+1. iTerm2's reference
 // implementation in iTermModifyOtherKeysMapper.m routes any Shift-only printable
 // through the OS text-input layer (no modifyOtherKeys encoding), and we match
-// that rule — see par-term-input/src/lib.rs::try_modify_other_keys_encoding.
+// that rule — see the modifyOtherKeys gate in par-term-input/src/key_encoding.rs
+// and `encode_legacy` in par-term-emu-core-rust's src/keyboard.rs.
 
 fn char_event(ch: &str, code: KeyCode) -> KeyInput {
     key_input(Key::Character(ch.into()), PhysicalKey::Code(code))

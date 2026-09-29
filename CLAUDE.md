@@ -121,7 +121,7 @@ See `docs/architecture/ARCHITECTURE.md` for detailed architecture documentation.
 | **Rendering (search highlights overlay)** | `src/app/window_state/search_highlight.rs` | main |
 | **Cursor rendering** | `par-term-render/src/cell_renderer/bg_instance_builder.rs`, `cursor.rs` | `par-term-render` |
 | **Block characters (▄▀ etc.)** | `par-term-render/src/cell_renderer/block_chars/` | `par-term-render` |
-| **Input handling** | `src/app/input_events/` (window-event dispatch), `par-term-input/src/lib.rs` (`InputHandler`), `par-term-input/src/key_encoding.rs` (escape-sequence generation) | `par-term-input` |
+| **Input handling** | `src/app/input_events/` (window-event dispatch), `par-term-input/src/lib.rs` (`InputHandler`), `par-term-input/src/key_encoding.rs` (winit → core key-event mapping; bytes come from the core's `keyboard::encode_key_with`) | `par-term-input` |
 | **Tab management** | `src/tab/manager.rs`, `src/app/tab_ops/` | main |
 | **Tab bar UI** | `src/tab_bar_ui/` (9 files, no subdirectories) | main |
 | **Settings UI** | `src/settings_window/`, `par-term-settings-ui/` | `par-term-settings-ui` |
@@ -172,7 +172,7 @@ Layer 1 — Foundation (bump before anything that depends on it):
 Layer 2 — Depend on par-term-config (bump after Layer 1):
   par-term-mcp          → par-term-config  (agent-command file format)
   par-term-fonts        → par-term-config
-  par-term-input        → par-term-config
+  par-term-input        → par-term-config  [+ emu-core]
   par-term-keybindings  → par-term-config
   par-term-scripting    → par-term-config  [+ emu-core]
   par-term-terminal     → par-term-config  [+ emu-core]
@@ -225,7 +225,7 @@ The core's spawn resolution looks next to `current_exe()` first (walking out of 
 
 ### Adding a New Keyboard Shortcut
 1. Add key handling in `src/app/input_events/` (directory — `mod.rs` + `keybinding_actions.rs`)
-2. If needed, add sequence generation in `par-term-input/src/key_encoding.rs`; `InputHandler` itself is defined in `par-term-input/src/lib.rs`.
+2. Byte sequences come from the shared encoder in `par-term-emu-core-rust` (`keyboard::encode_key_with`, ENH-028); a new sequence belongs there. `par-term-input/src/key_encoding.rs` only maps the winit event onto the core's `TermKeyEvent`, and `InputHandler` itself is defined in `par-term-input/src/lib.rs`.
 
 ### Adding Snippet or Action Keybindings
 See `docs/features/SNIPPETS.md` for full documentation. Key points:

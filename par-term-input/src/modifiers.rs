@@ -1,16 +1,16 @@
-//! Modifier state tracking: shift/ctrl/alt/super and Option/Alt key modes.
+//! Modifier state tracking: shift/ctrl/alt/super and which Alt key is held.
 //!
 //! Implements [`InputHandler`] methods that record and resolve keyboard
 //! modifier state from winit events. Includes a defensive Windows focus-steal
-//! workaround (`sync_modifier_from_key_event`) and resolution of the active
-//! Option-key mode based on which Alt key is held. Split from `lib.rs` for
+//! workaround (`sync_modifier_from_key_event`) and the translation of that
+//! state into the shared encoder's modifier bits, including the `ALT_RIGHT`
+//! side bit that selects the right Option-key mode. Split from `lib.rs` for
 //! organization (AUDIT.md ARC-006); the key-encoding cluster in
 //! `key_encoding.rs` reads this state via shared `impl InputHandler` methods.
 
+use par_term_emu_core_rust::keyboard::{modifiers as term_mods, option_modes};
 use winit::event::{ElementState, KeyEvent, Modifiers};
 use winit::keyboard::{KeyCode, ModifiersState, PhysicalKey};
-
-use par_term_config::OptionKeyMode;
 
 use super::InputHandler;
 
@@ -20,22 +20,19 @@ impl InputHandler {
         self.modifiers = modifiers;
     }
 
-    /// Update Option/Alt key modes from config
-    pub fn update_option_key_modes(&mut self, left: OptionKeyMode, right: OptionKeyMode) {
-        self.left_option_key_mode = left;
-        self.right_option_key_mode = right;
-    }
-
     /// Track Alt key press/release to know which Alt is active
     pub fn track_alt_key(&mut self, event: &KeyEvent) {
-        // Check if this is an Alt key event by physical key
-        let is_left_alt = matches!(event.physical_key, PhysicalKey::Code(KeyCode::AltLeft));
-        let is_right_alt = matches!(event.physical_key, PhysicalKey::Code(KeyCode::AltRight));
+        self.track_alt_physical_key(event.physical_key, event.state);
+    }
 
-        if is_left_alt {
-            self.left_alt_pressed = event.state == ElementState::Pressed;
-        } else if is_right_alt {
-            self.right_alt_pressed = event.state == ElementState::Pressed;
+    /// [`track_alt_key`](Self::track_alt_key) for callers without a winit
+    /// `KeyEvent` (which cannot be constructed outside winit).
+    pub fn track_alt_physical_key(&mut self, physical_key: PhysicalKey, state: ElementState) {
+        let pressed = state == ElementState::Pressed;
+        match physical_key {
+            PhysicalKey::Code(KeyCode::AltLeft) => self.left_alt_pressed = pressed,
+            PhysicalKey::Code(KeyCode::AltRight) => self.right_alt_pressed = pressed,
+            _ => {}
         }
     }
 
@@ -77,18 +74,38 @@ impl InputHandler {
         self.modifiers = Modifiers::from(state);
     }
 
-    /// Get the active Option key mode based on which Alt key is pressed
-    pub(crate) fn get_active_option_mode(&self) -> OptionKeyMode {
-        // If both are pressed, prefer left (arbitrary but consistent)
-        // If only one is pressed, use that one's mode
-        // If neither is pressed (shouldn't happen when alt modifier is set), default to left
-        if self.left_alt_pressed {
-            self.left_option_key_mode
-        } else if self.right_alt_pressed {
-            self.right_option_key_mode
+    /// The held modifiers as the shared encoder's bits. Super carries no
+    /// legacy xterm bit and is left out. `ALT_RIGHT` is set only when the
+    /// right Alt alone is held: both held (or neither tracked) reports left.
+    pub(crate) fn term_modifiers(&self) -> u8 {
+        let state = self.modifiers.state();
+        let mut bits = 0;
+        if state.shift_key() {
+            bits |= term_mods::SHIFT;
+        }
+        if state.alt_key() {
+            bits |= term_mods::ALT;
+            if self.right_alt_pressed && !self.left_alt_pressed {
+                bits |= term_mods::ALT_RIGHT;
+            }
+        }
+        if state.control_key() {
+            bits |= term_mods::CTRL;
+        }
+        bits
+    }
+
+    /// The Option mode the encoder will apply for `mods`, resolved the same
+    /// way the core does (side from `ALT_RIGHT`, unknown values as Normal).
+    pub(crate) fn active_option_mode(&self, mods: u8) -> u8 {
+        let mode = if mods & term_mods::ALT_RIGHT != 0 {
+            self.key_options.right_option
         } else {
-            // Fallback: both modes are the same in most configs, so use left
-            self.left_option_key_mode
+            self.key_options.left_option
+        };
+        match mode {
+            option_modes::META | option_modes::ESC => mode,
+            _ => option_modes::NORMAL,
         }
     }
 }

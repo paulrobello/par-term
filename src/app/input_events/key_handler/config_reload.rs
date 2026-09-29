@@ -25,7 +25,7 @@ impl WindowState {
                     new.input.right_option_key_mode = new_config.input.right_option_key_mode;
                     std::sync::Arc::new(new)
                 });
-                self.input_handler.update_option_key_modes(
+                self.input_handler.key_options = par_term_input::key_encode_options(
                     new_config.input.left_option_key_mode,
                     new_config.input.right_option_key_mode,
                 );

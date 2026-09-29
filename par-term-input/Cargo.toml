@@ -15,6 +15,9 @@ categories = ["command-line-utilities"]
 # Configuration types (OptionKeyMode)
 par-term-config = { path = "../par-term-config", version = "0.14.4" }
 
+# Shared key encoder (keyboard::encode_key_with) — the single VT key encoder
+par-term-emu-core-rust.workspace = true
+
 # Clipboard access
 arboard.workspace = true
 
