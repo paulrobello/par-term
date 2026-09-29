@@ -229,14 +229,17 @@ impl WindowState {
                     // target; a local split would strand it) and surface it.
                     let body = reply.join("\n");
                     log::error!("par-mux split-window rejected: {body}");
-                    self.show_toast(format!("par-mux: split failed — {body}"));
+                    self.show_persistent_toast(format!("par-mux: split failed — {body}"));
                     true
                 }
             }
             Err(e) => {
                 log::error!("par-mux split-window failed: {e}");
-                self.show_toast(format!("par-mux: split failed — {e}"));
-                false
+                self.show_persistent_toast(format!("par-mux: split failed — {e}"));
+                // M6: a resolved daemon target means the split was
+                // consumed — false here falls through to a LOCAL split and
+                // strands an unmapped pane inside the mux tab.
+                true
             }
         }
     }
@@ -277,7 +280,7 @@ impl WindowState {
             }),
             Err(e) => {
                 log::error!("par-mux split-window failed: {e}");
-                self.show_toast(format!("par-mux: split failed — {e}"));
+                self.show_persistent_toast(format!("par-mux: split failed — {e}"));
                 return true;
             }
         };
@@ -289,7 +292,7 @@ impl WindowState {
                 .map(|r| r.join("\n"))
                 .unwrap_or_default();
             log::error!("par-mux split-window rejected: {body}");
-            self.show_toast(format!("par-mux: split failed — {body}"));
+            self.show_persistent_toast(format!("par-mux: split failed — {body}"));
             return true;
         };
         self.tmux_state.mux_focused_pane = Some(pane);
@@ -2719,6 +2722,100 @@ pub(crate) mod tests {
                 .contains("re-shown"),
             "the re-show names what happened: {:?}",
             ws.overlay_state.toast_message
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A transport whose sends always fail — the forced transport error
+    /// M6 tests. Drain stays empty-and-connected so the swap alone
+    /// triggers no teardown before the split call.
+    struct FailingTransport;
+
+    impl TmuxTransport for FailingTransport {
+        fn drain(
+            &self,
+        ) -> (
+            Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
+            bool,
+        ) {
+            (Vec::new(), false)
+        }
+
+        fn send_command(&self, _command: &str) -> io::Result<Vec<String>> {
+            Err(io::Error::new(
+                io::ErrorKind::ConnectionAborted,
+                "forced for test",
+            ))
+        }
+
+        fn send_command_no_wait(&self, _command: &str) -> io::Result<()> {
+            Err(io::Error::new(
+                io::ErrorKind::ConnectionAborted,
+                "forced for test",
+            ))
+        }
+    }
+
+    /// UX.md M6: a failed par-mux split must not fall through to a LOCAL
+    /// split — the transport error consumes the call (no stray local
+    /// pane inside the attached tab) and surfaces a persistent error.
+    #[test]
+    fn failed_mux_split_creates_no_local_pane_and_shows_a_persistent_error() {
+        let path = socket_path("split-fail");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(&transport, "splitfail", Some((80, 24)), &Default::default())
+            .expect("attach");
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("splitfail".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.focused_mux_pane_from_native().is_some() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never focused a daemon-mirrored pane"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // Swap in the failing transport, then force the error.
+        ws.tmux_state.transport = Some(Box::new(FailingTransport));
+        ws.split_pane_vertical();
+
+        let tab = ws.tab_manager.active_tab().expect("tab survives");
+        assert!(
+            !tab.has_multiple_panes(),
+            "a failed mux split must not create a stray local pane"
+        );
+        let toast = ws
+            .overlay_state
+            .toast_message
+            .as_deref()
+            .expect("split failure surfaces an error");
+        assert!(toast.contains("split failed"), "toast says so: {toast}");
+        assert!(
+            ws.overlay_state.toast_hide_time.is_none(),
+            "the error is persistent (no auto-hide): {toast}"
         );
 
         let _ = std::fs::remove_file(&path);

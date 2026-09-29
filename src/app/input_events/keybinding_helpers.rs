@@ -18,6 +18,16 @@ impl WindowState {
         self.request_redraw();
     }
 
+    /// Show a toast with no auto-hide timer — it stays until replaced or
+    /// cleared, the V11 error-surface shape for failures the user must
+    /// see and act on rather than watch fade.
+    pub(crate) fn show_persistent_toast(&mut self, message: impl Into<String>) {
+        self.overlay_state.toast_message = Some(message.into());
+        self.overlay_state.toast_hide_time = None;
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
+    }
+
     /// Show pane index overlays for a specified duration.
     pub(crate) fn show_pane_indices(&mut self, duration: std::time::Duration) {
         self.overlay_state.pane_identify_hide_time = Some(std::time::Instant::now() + duration);
