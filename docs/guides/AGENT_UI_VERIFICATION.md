@@ -239,3 +239,67 @@ HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
 `#[serde(flatten)]`ed) — nesting it under a `session_restore:` key silently
 defaults it off and run B restores nothing. Before the TW2 fix, run B reports
 `window_count` 1 ≠ 3 — the negative control.
+
+## Checked-in script: pass_to_terminal delivers to the shell (K27)
+
+`tests/ui/k27_pass_to_terminal_delivers.json` proves a user-set
+`pass_to_terminal` row end to end: the bound chords are encoded to the PTY,
+the shell receives exactly the expected bytes, and the binding still claims
+its chords in a second, fresh process (the restart-survival half). The chord
+injector's PTY tail mirrors the real key handler: a `pass_to_terminal`
+match, or a chord no binding matches, is encoded through
+`InputHandler::handle_key_input_with_mode` (`KeyInput` — the sanctioned
+path; a winit `KeyEvent` cannot be fabricated) and written to the focused
+terminal. The script binds BOTH `CmdOrCtrl+1` (claimed by the macOS
+`switch_to_tab_1` default) and `Alt+1` (claimed by the Windows/Linux
+default), so the byte-exact `file_bytes` assert has teeth on every
+platform: if the rows were lost, the platform's tab-switch default consumes
+its chord and the sink is missing that byte run. The trailing `Enter`
+flushes the canonical-mode line (ICRNL turns the CR into LF, hence the
+final `0a`); the `esc` option mode is pinned in the config so `Alt+1`
+encodes as `ESC 1` (`1b31`). The assert uses the ends-with form of
+`file_bytes` (`path*hex`) because the app window can steal desktop focus
+mid-run on a live machine and catch real keystrokes into the PTY ahead of
+the scripted ones — observed as stray `cc-` and TAB runs contaminating the
+sink — and the long final settle (4 s) absorbs the first-run tail of the
+async PTY write under startup load.
+
+```bash
+mkdir -p /tmp/pt-k27/cfg/par-term /tmp/pt-k27/home
+cat > /tmp/pt-k27/cfg/par-term/config.yaml <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - "-c"
+  - "cat > /tmp/pt-k27-sink.bin"
+login_shell: false
+shader_install_prompt: never
+shell_integration_state: never
+agent_skill_state: never
+left_option_key_mode: esc
+right_option_key_mode: esc
+keybindings:
+  - key: "Alt+1"
+    action: "pass_to_terminal"
+  - key: "CmdOrCtrl+1"
+    action: "pass_to_terminal"
+EOF
+cat > /tmp/pt-k27/run.sh <<'EOF'
+#!/bin/bash
+rm -f /tmp/pt-k27-sink.bin
+export HOME=/tmp/pt-k27/home
+export XDG_CONFIG_HOME=/tmp/pt-k27/cfg
+exec "$1" --ui-test tests/ui/k27_pass_to_terminal_delivers.json --ui-test-report "$2"
+EOF
+chmod +x /tmp/pt-k27/run.sh
+# Run A (deliver) and run B (survives restart: same config dir, fresh process).
+/tmp/pt-k27/run.sh target/dev-release/par-term /tmp/pt-k27/a.json
+/tmp/pt-k27/run.sh target/dev-release/par-term /tmp/pt-k27/b.json
+```
+
+Both reports' `all_passed` must be true, with step records
+`-> pass_to_terminal -> PTY (…)` naming the branch each chord took. Negative
+control: delete the `keybindings:` rows from the config and rerun — the
+report now shows `CmdOrCtrl+1 -> keybinding 'switch_to_tab_1'` (macOS;
+`Alt+1` symmetrically on Windows/Linux) and the `file_bytes` assert fails on
+the missing byte run, proving the row (not some fallthrough) is what frees
+the chord for the shell.

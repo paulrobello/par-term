@@ -11,7 +11,10 @@
 //!   [`KeybindingRegistry::lookup_with_key_fields`] — winit's `KeyEvent` has
 //!   private fields and cannot be constructed outside winit, so chords enter
 //!   as public key fields — and dispatch via `execute_keybinding_action`,
-//!   the same entry point real key events use.
+//!   the same entry point real key events use. A chord bound to
+//!   `pass_to_terminal`, or one no binding matches, is encoded to the
+//!   focused terminal's PTY through the same `KeyInput` path the keyboard
+//!   handler's tail uses.
 //! - `type_text`/`press` steps push [`egui::Event`]s onto
 //!   `EguiState::pending_events`, the channel macOS menu accelerators already
 //!   use for synthetic input, so overlay widgets consume them on the next
@@ -529,15 +532,113 @@ impl WindowManager {
         match action {
             Some(action) => {
                 let action = action.to_string();
-                let handled = ws.execute_keybinding_action(&action);
-                ws.request_redraw();
-                StepOutcome::Performed(format!(
-                    "chord {chord} -> keybinding '{action}' (handled={handled})"
-                ))
+                if action == par_term_keybindings::PASS_TO_TERMINAL {
+                    // A passthrough row claims the chord for the shell: the
+                    // real handler skips every layer and encodes the key to
+                    // the PTY, so the injector must too.
+                    Self::inject_chord_to_pty(ws, chord, "pass_to_terminal", logical, physical)
+                } else {
+                    let handled = ws.execute_keybinding_action(&action);
+                    ws.request_redraw();
+                    StepOutcome::Performed(format!(
+                        "chord {chord} -> keybinding '{action}' (handled={handled})"
+                    ))
+                }
             }
-            None => StepOutcome::Performed(format!(
-                "chord {chord} -> no keybinding matched (not dispatched)"
+            // An unmatched key falls through every layer to the PTY in the
+            // real handler; encode it the same way instead of dropping it.
+            None => Self::inject_chord_to_pty(ws, chord, "unbound fallthrough", logical, physical),
+        }
+    }
+
+    /// Encode a chord's key fields to the focused terminal's PTY — the tail
+    /// of the real key handler that a `pass_to_terminal` row or an unmatched
+    /// key reaches. Encoding goes through [`par_term_input::KeyInput`], the
+    /// sanctioned construction path (a winit `KeyEvent` cannot be fabricated
+    /// safely), and the write rides the shared read lock like the keyboard
+    /// path so it cannot starve the refresh task.
+    fn inject_chord_to_pty(
+        ws: &mut WindowState,
+        chord: &str,
+        via: &str,
+        logical: Key,
+        physical: PhysicalKey,
+    ) -> StepOutcome {
+        // Same mode priority as the keyboard path: focused pane's terminal,
+        // else the tab's cached modes. Scoped — the encoder needs &mut
+        // input_handler, which cannot alias the tab borrow.
+        let (modify_other_keys_mode, application_cursor) = {
+            let Some(tab) = ws.tab_manager.active_tab() else {
+                return StepOutcome::Failed(format!("chord {chord} -> PTY: no active tab"));
+            };
+            if let Some(ref pane_manager) = tab.pane_manager
+                && let Some(focused_pane) = pane_manager.focused_pane()
+                && let Ok(term) = focused_pane.terminal.try_read()
+            {
+                (term.modify_other_keys_mode(), term.application_cursor())
+            } else {
+                let (m, a, _) = tab.read_or_cached_modes();
+                (m, a)
+            }
+        };
+
+        let input = par_term_input::KeyInput {
+            logical_key: logical,
+            physical_key: physical,
+            state: winit::event::ElementState::Pressed,
+        };
+        let Some(bytes) = ws.input_handler.handle_key_input_with_mode(
+            &input,
+            modify_other_keys_mode,
+            application_cursor,
+        ) else {
+            return StepOutcome::Failed(format!("chord {chord} -> PTY: encoder declined the key"));
+        };
+
+        // Same terminal selection as the keyboard path: focused pane's
+        // terminal when splits exist, else the tab's main terminal.
+        let terminal = {
+            let Some(tab) = ws.tab_manager.active_tab() else {
+                return StepOutcome::Failed(format!("chord {chord} -> PTY: no active tab"));
+            };
+            if let Some(ref pane_manager) = tab.pane_manager
+                && let Some(focused_pane) = pane_manager.focused_pane()
+            {
+                std::sync::Arc::clone(&focused_pane.terminal)
+            } else {
+                std::sync::Arc::clone(&tab.terminal)
+            }
+        };
+        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        let byte_count = bytes.len();
+        // Write synchronously when the lock is free so the step record's
+        // byte claim is true at record time — a spawned write can be
+        // starved or dropped at app exit, which a byte-exact sink assert
+        // then reports as lost input. The spawn fallback preserves delivery
+        // under momentary contention (same shape as the keyboard path).
+        // The guard must drop before `terminal`/`bytes` move into the
+        // fallback spawn, so the attempt runs in its own block.
+        let mut write_result: Result<(), String> = Ok(());
+        let mut contended = false;
+        {
+            match terminal.try_read() {
+                Ok(term) => write_result = term.write(&bytes).map_err(|e| e.to_string()),
+                Err(_) => contended = true,
+            }
+        }
+        if contended {
+            ws.runtime.spawn(async move {
+                let term = terminal.read().await;
+                if let Err(e) = term.write(&bytes) {
+                    crate::debug_error!("INPUT", "PTY write failed (ui-test passthrough): {e}");
+                }
+            });
+        }
+        match write_result {
+            Ok(()) => StepOutcome::Performed(format!(
+                "chord {chord} -> {via} -> PTY ({byte_count} bytes: {hex})"
             )),
+            Err(e) => StepOutcome::Failed(format!("chord {chord} -> PTY write failed: {e}")),
         }
     }
 
@@ -641,6 +742,29 @@ impl WindowManager {
                 let empty = matches!(&meta, Ok(m) if m.len() == 0)
                     || matches!(&meta, Err(e) if e.kind() == std::io::ErrorKind::NotFound);
                 Ok((actual, empty))
+            }
+            // Byte-exact PTY-sink readout, the delivery half of a
+            // pass-to-terminal proof: `["file_bytes", "<path>:<hex>"]`.
+            // `"<path>*<hex>"` asserts the sink ENDS with the hex run — for
+            // scripts run on a live desktop, where the app window can steal
+            // focus mid-run and catch real keystrokes ahead of the scripted
+            // ones (observed: stray "cc-" and TAB contaminating the line).
+            // Unlike file_empty, a missing file is a failure — a delivery
+            // proof must show the bytes arrived.
+            "file_bytes" => {
+                let (path, expected_hex, exact) = if let Some((p, h)) = expected.split_once(':') {
+                    (p, h, true)
+                } else if let Some((p, h)) = expected.split_once('*') {
+                    (p, h, false)
+                } else {
+                    return Err("file_bytes: expected '<path>:<hex>' or '<path>*<hex>'".into());
+                };
+                let expected_hex = expected_hex.to_ascii_lowercase();
+                let actual = std::fs::read(path)
+                    .map(|bytes| bytes.iter().map(|b| format!("{b:02x}")).collect::<String>())
+                    .unwrap_or_else(|_| "missing".to_string());
+                let ok = actual == expected_hex || (!exact && actual.ends_with(&expected_hex));
+                Ok((actual, ok))
             }
             // The rendered grid of every mux-attached pane, the readout a
             // resize proof asserts on: one pane reports bare "WxH", more

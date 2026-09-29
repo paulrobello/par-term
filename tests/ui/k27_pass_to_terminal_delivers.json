@@ -1,0 +1,8 @@
+{
+  "steps": [
+    { "wait_ms": 1500, "chord": "CmdOrCtrl+1" },
+    { "wait_ms": 200, "chord": "Alt+1" },
+    { "wait_ms": 300, "chord": "Enter" },
+    { "wait_ms": 4000, "assert_eq": ["file_bytes", "/tmp/pt-k27-sink.bin*311b310a"] }
+  ]
+}
