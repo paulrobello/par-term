@@ -51,6 +51,35 @@ impl WindowState {
             return;
         }
 
+        // D7 (UX.md M4): a HIDDEN mux tab's entry re-shows the tab. The
+        // daemon window kept running and the tab never left the manager, so
+        // there is nothing to rebuild — and no max_tabs slot is consumed.
+        // The entry is consumed even when the tab is gone (session ended,
+        // detach closed it): falling through to older entries would restore
+        // an unrelated tab, the same trap the killed-window refusal closes.
+        if let Some(hidden) = &info.hidden_mux_window {
+            let live = self.tab_manager.get_tab(hidden.tab_id).is_some()
+                && self.mux_window_for_tab(hidden.tab_id) == Some(hidden.window_id);
+            if live && let Some(tab) = self.tab_manager.get_tab_mut(hidden.tab_id) {
+                let was_hidden = tab.is_hidden;
+                tab.is_hidden = false;
+                self.tab_manager.switch_to(hidden.tab_id);
+                if was_hidden {
+                    self.show_toast(format!(
+                        "par-mux: window @{} re-shown (it kept running)",
+                        hidden.window_id
+                    ));
+                }
+            } else {
+                self.show_toast(
+                    "That par-mux tab is no longer attached — its window kept running in the daemon",
+                );
+            }
+            self.focus_state.needs_redraw = true;
+            self.request_redraw();
+            return;
+        }
+
         // Check max tabs limit
         if self.config.load().tabs.max_tabs > 0
             && self.tab_manager.tab_count() >= self.config.load().tabs.max_tabs
@@ -284,6 +313,7 @@ mod tests {
             custom_color: None,
             hidden_tab: None,
             ended_mux_window,
+            hidden_mux_window: None,
         }
     }
 

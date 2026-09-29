@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use super::super::window_state::WindowState;
-use super::ClosedTabInfo;
+use super::{ClosedTabInfo, HiddenMuxTab};
 use crate::tmux::TmuxWindowId;
 use par_term_config::TabId;
 
@@ -256,13 +256,103 @@ impl WindowState {
         self.close_current_tab_inner(true)
     }
 
-    /// The last-pane close of a mux tab (card 01a0d9b5568): the tab closes
-    /// locally and the daemon window KEEPS RUNNING — the detach-like
-    /// shape — so the window can come back on reattach. A TAB close (the
-    /// public method above) kills the daemon window instead.
+    /// The last-pane close of a mux tab (D7, UX.md M4): the tab becomes
+    /// HIDDEN — the same mechanism the tmux gateway tab uses — and the
+    /// daemon window KEEPS RUNNING. The window↔tab mapping stays live, so
+    /// daemon layout pushes keep landing and roster rows keep working;
+    /// Cmd+Z (typed undo entry) and roster selection re-show the tab.
+    /// A TAB close (the public method above) kills the daemon window
+    /// instead.
+    ///
+    /// Returns true (close the window) only when no other tab could stay
+    /// visible — the implicit-detach shape; the session survives daemon-side.
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
-    pub(crate) fn close_current_tab_keeping_mux_window(&mut self) -> bool {
-        self.close_current_tab_inner(false)
+    pub(crate) fn hide_active_mux_tab(&mut self) -> bool {
+        let Some(tab_id) = self.tab_manager.active_tab_id() else {
+            return true; // no tabs at all: the window closes
+        };
+        let Some(window_id) = self.mux_window_for_tab(tab_id) else {
+            // Not a mapped mux tab (transport gone mid-close): the daemon
+            // window is unreachable from this client either way.
+            return self.close_current_tab_inner(false);
+        };
+        // The tab that stays visible and active: prefer an already-visible
+        // sibling, else re-show a hidden one — a window with zero visible
+        // tabs has no surface to render.
+        let successor = self
+            .tab_manager
+            .tabs()
+            .iter()
+            .filter(|t| t.id != tab_id)
+            .find(|t| !t.is_hidden)
+            .or_else(|| {
+                self.tab_manager
+                    .tabs()
+                    .iter()
+                    .rev()
+                    .find(|t| t.id != tab_id)
+            })
+            .map(|t| t.id);
+        let Some(successor_id) = successor else {
+            // Literally no other tab: closing the window is the detach
+            // shape — the session survives daemon-side.
+            return self.close_current_tab_inner(false);
+        };
+
+        if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+            tab.is_hidden = true;
+        }
+
+        // Session-undo capture: a TYPED re-show entry — the tab is hidden,
+        // not closed, so Cmd+Z re-shows it instead of restoring anything
+        // (and consumes the entry rather than popping an older, unrelated
+        // one — the M3 trap).
+        if self.config.load().session_restore.session_undo_timeout_secs > 0 {
+            let (title, has_default_title) = self
+                .tab_manager
+                .get_tab(tab_id)
+                .map(|tab| (tab.title.clone(), tab.has_default_title))
+                .unwrap_or_default();
+            let info = ClosedTabInfo {
+                cwd: None,
+                title,
+                has_default_title,
+                index: self.tab_manager.active_tab_index().unwrap_or(0),
+                closed_at: std::time::Instant::now(),
+                pane_layout: None,
+                custom_color: None,
+                hidden_tab: None,
+                ended_mux_window: None,
+                hidden_mux_window: Some(HiddenMuxTab { tab_id, window_id }),
+            };
+            self.overlay_state.closed_tabs.push_front(info);
+            while self.overlay_state.closed_tabs.len()
+                > self.config.load().session_restore.session_undo_max_entries
+            {
+                self.overlay_state.closed_tabs.pop_back();
+            }
+        }
+
+        if let Some(tab) = self.tab_manager.get_tab_mut(successor_id) {
+            tab.is_hidden = false;
+        }
+        self.tab_manager.switch_to(successor_id);
+
+        self.play_alert_sound(crate::config::AlertEvent::TabClose);
+        let key_hint = self
+            .config
+            .load()
+            .keybindings
+            .iter()
+            .find(|kb| kb.action == "reopen_closed_tab")
+            .map(|kb| kb.key.clone())
+            .unwrap_or_else(|| "keybinding".to_string());
+        self.show_toast(format!(
+            "par-mux: tab hidden — window @{window_id} keeps running. Press {key_hint} to re-show"
+        ));
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
+        false
     }
 
     /// The shared close body. `kill_mux_window` decides a mux tab's
@@ -318,6 +408,7 @@ impl WindowState {
                             custom_color: None,
                             hidden_tab: None,
                             ended_mux_window: Some(window_id),
+                            hidden_mux_window: None,
                         };
                         self.overlay_state.closed_tabs.push_front(info);
                     }
@@ -379,6 +470,7 @@ impl WindowState {
                             custom_color,
                             hidden_tab: Some(hidden_tab),
                             ended_mux_window: None,
+                            hidden_mux_window: None,
                         };
                         self.overlay_state.closed_tabs.push_front(info);
                         while self.overlay_state.closed_tabs.len()
@@ -413,6 +505,7 @@ impl WindowState {
                         custom_color: tab.custom_color,
                         hidden_tab: None,
                         ended_mux_window: None,
+                        hidden_mux_window: None,
                     };
                     self.overlay_state.closed_tabs.push_front(info);
                     while self.overlay_state.closed_tabs.len()

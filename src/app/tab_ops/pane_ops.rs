@@ -197,9 +197,11 @@ impl WindowState {
                     .active_tab()
                     .is_some_and(|tab| tab.has_multiple_panes())
             {
-                crate::debug_info!("MUX", "close of a mux tab's last pane — closing the tab");
-                self.show_toast("par-mux: closed tab — window survives in the daemon");
-                return self.close_current_tab_keeping_mux_window();
+                crate::debug_info!(
+                    "MUX",
+                    "close of a mux tab's last pane — hiding the tab (D7)"
+                );
+                return self.hide_active_mux_tab();
             }
             if self.close_pane_via_mux() {
                 // Consumed: the daemon's %layout-change drives the local

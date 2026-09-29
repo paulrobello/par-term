@@ -36,4 +36,15 @@ pub(crate) struct ClosedTabInfo {
     /// consumes it with an explanatory toast rather than restoring an older,
     /// unrelated entry (UX.md M3).
     pub ended_mux_window: Option<crate::tmux::TmuxWindowId>,
+    /// Set when the entry records a mux tab HIDDEN by its last-pane close
+    /// (UX.md M4): the daemon window kept running and the tab stayed in the
+    /// manager. Cmd+Z re-shows it; there is nothing to restore.
+    pub hidden_mux_window: Option<HiddenMuxTab>,
+}
+
+/// The re-show target of a [`ClosedTabInfo::hidden_mux_window`] entry: the
+/// still-live local tab and the daemon window it mirrors.
+pub(crate) struct HiddenMuxTab {
+    pub tab_id: crate::tab::TabId,
+    pub window_id: crate::tmux::TmuxWindowId,
 }

@@ -2532,7 +2532,210 @@ pub(crate) mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// D7 (UX.md M4): closing a mux tab's last pane HIDES the tab — the
+    /// daemon window keeps running, the window↔tab mapping stays live, and
+    /// the typed undo entry re-shows it on Cmd+Z. The pre-D7 behavior (tab
+    /// dropped, invisible daemon window, ghost roster rows) is what this
+    /// test pins out of existence.
     #[test]
+    fn last_pane_close_hides_mux_tab_and_undo_reshows_it() {
+        let path = socket_path("hide-undo");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(&transport, "hideundo", Some((80, 24)), &Default::default())
+            .expect("attach");
+        // A second window so hiding the first leaves a visible successor.
+        transport.send_command("new-window").expect("new-window");
+        std::thread::sleep(Duration::from_millis(50));
+        // Background windows' layouts are not pushed on their own — the
+        // refresh-client -C pump forces a %layout-change for every pane so
+        // the layout consumer creates each mirror.
+        for pane in transport.client().list_panes().expect("list panes") {
+            transport
+                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
+                .expect("refresh-client");
+        }
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("hideundo".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() >= 2 && ws.tmux_state.tmux_pane_owners.len() >= 2 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created 2 tabs: {} tabs, panes {:?}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // Focus a daemon window's tab, then run the last-pane close path
+        // against it. A CREATED session reports its first window via the
+        // daemon's own %window-add push, so the id comes from the mapping
+        // the pump built, not from `existing_windows` (empty for new
+        // sessions).
+        let tab_id = ws.tab_manager.tabs()[0].id;
+        let first_window = ws
+            .tmux_state
+            .tmux_sync
+            .get_window(tab_id)
+            .expect("tab maps to a daemon window");
+        ws.tab_manager.switch_to(tab_id);
+
+        assert!(!ws.hide_active_mux_tab(), "hiding keeps the window open");
+        let tab = ws
+            .tab_manager
+            .get_tab(tab_id)
+            .expect("hidden tab stays in the manager");
+        assert!(tab.is_hidden, "last-pane close hides the tab, not drops it");
+        assert_eq!(ws.tab_manager.visible_tab_count(), 1);
+        assert_ne!(
+            ws.tab_manager.active_tab_id(),
+            Some(tab_id),
+            "active moved to the visible successor"
+        );
+        assert_eq!(
+            ws.tmux_state.tmux_sync.get_window(tab_id),
+            Some(first_window),
+            "the window↔tab mapping stays live"
+        );
+        let listing = ws
+            .tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command("list-windows")
+            .expect("list-windows after hide");
+        assert!(
+            listing
+                .iter()
+                .any(|l| l.contains(&format!("@{first_window}"))),
+            "the daemon window survived the last-pane close: {listing:?}"
+        );
+        let entry = ws
+            .overlay_state
+            .closed_tabs
+            .front()
+            .expect("a typed undo entry was pushed");
+        let hidden = entry
+            .hidden_mux_window
+            .as_ref()
+            .expect("entry is the re-show kind");
+        assert_eq!(hidden.tab_id, tab_id);
+        assert_eq!(hidden.window_id, first_window);
+
+        // Cmd+Z re-shows the hidden tab.
+        ws.reopen_closed_tab();
+        assert!(
+            ws.tab_manager.get_tab(tab_id).is_some_and(|t| !t.is_hidden),
+            "undo re-shows the hidden tab"
+        );
+        assert_eq!(ws.tab_manager.active_tab_id(), Some(tab_id));
+        assert!(
+            ws.overlay_state
+                .toast_message
+                .as_deref()
+                .unwrap_or("")
+                .contains("re-shown"),
+            "the re-show names what happened: {:?}",
+            ws.overlay_state.toast_message
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// D7 fallback contract: hiding the ONLY tab closes the window (the
+    /// implicit-detach shape) — a window with zero visible tabs has no
+    /// surface to render — and the daemon window survives it.
+    #[test]
+    fn hiding_the_only_mux_tab_closes_the_window_and_the_daemon_window_survives() {
+        let path = socket_path("hide-last");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(&transport, "hidelast", Some((80, 24)), &Default::default())
+            .expect("attach");
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("hidelast".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() >= 1 && !ws.tmux_state.tmux_pane_owners.is_empty() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created the tab: {} tabs",
+                ws.tab_manager.tab_count()
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // A CREATED session's first window arrives via %window-add, so the
+        // id comes from the mapping the pump built.
+        let only_tab = ws.tab_manager.tabs()[0].id;
+        let only_window = ws
+            .tmux_state
+            .tmux_sync
+            .get_window(only_tab)
+            .expect("tab maps to a daemon window");
+        ws.tab_manager.switch_to(only_tab);
+        assert!(
+            ws.hide_active_mux_tab(),
+            "hiding the only tab answers close-the-window"
+        );
+        assert_eq!(ws.tab_manager.tab_count(), 0, "no zombie tab remains");
+        let listing = ws
+            .tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command("list-windows")
+            .expect("list-windows after fallback close");
+        assert!(
+            listing
+                .iter()
+                .any(|l| l.contains(&format!("@{only_window}"))),
+            "the daemon window survived the window close: {listing:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     fn a_fresh_daemon_yields_an_empty_roster() {
         let path = socket_path("roster");
         spawn_daemon(&path);
