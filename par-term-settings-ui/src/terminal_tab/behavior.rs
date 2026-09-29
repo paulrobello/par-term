@@ -62,8 +62,26 @@ pub(super) fn show_behavior_section(
                 "Confirm before quitting with open sessions",
             )
             .on_hover_text(
-                "When enabled, closing the window will show a confirmation dialog\n\
-                 if there are any open terminal sessions.",
+                "When enabled, closing the window shows a confirmation dialog\n\
+                 if there are any open terminal sessions. Only applies when the\n\
+                 multi-tab guard below is off — with it on, only a multi-tab\n\
+                 window close asks.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.shell.confirm_close_multiple_tabs,
+                "Confirm before closing a window with multiple tabs",
+            )
+            .on_hover_text(
+                "When enabled, closing a window that holds more than one tab asks first.\n\
+                 A single-tab window closes silently — Reopen Closed Tab restores it\n\
+                 (with its running processes) within the session-undo window.",
             )
             .changed()
         {

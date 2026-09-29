@@ -77,10 +77,12 @@ impl WindowState {
             WindowEvent::CloseRequested => {
                 log::info!("Close requested for window");
 
-                // Check if prompt_on_quit is enabled and there are active sessions
+                // Close safety (D6, iTerm2 alignment): ask before closing
+                // a window that holds more than one tab; a single-tab
+                // window closes silently because the session-undo window
+                // (5 s, shell preserved) can restore it.
                 let tab_count = self.tab_manager.visible_tab_count();
-                if self.config.load().shell.prompt_on_quit
-                    && tab_count > 0
+                if should_confirm_window_close(&self.config.load().shell, tab_count)
                     && !self.overlay_ui.quit_confirmation_ui.is_visible()
                 {
                     log::info!(
@@ -603,5 +605,62 @@ impl WindowState {
         }
 
         false // Don't close window
+    }
+}
+
+/// The window-close confirmation rule (D6, iTerm2 alignment): with the
+/// multi-tab guard on, ask only when the window holds more than one tab —
+/// a single-tab close is silently undoable for the session-undo window
+/// (5 s, shell preserved). With the guard off, `prompt_on_quit` keeps the
+/// older ask-on-any-non-empty-window behavior.
+fn should_confirm_window_close(shell: &crate::config::ShellConfig, visible_tabs: usize) -> bool {
+    if shell.confirm_close_multiple_tabs {
+        visible_tabs > 1
+    } else {
+        shell.prompt_on_quit && visible_tabs > 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_confirm_window_close;
+    use crate::config::ShellConfig;
+
+    fn shell(prompt_on_quit: bool, confirm_close_multiple_tabs: bool) -> ShellConfig {
+        ShellConfig {
+            prompt_on_quit,
+            confirm_close_multiple_tabs,
+            ..ShellConfig::default()
+        }
+    }
+
+    #[test]
+    fn multi_tab_window_asks_single_tab_does_not() {
+        // The D6 defaults.
+        let d6 = shell(true, true);
+        assert!(should_confirm_window_close(&d6, 2), "two tabs must ask");
+        assert!(!should_confirm_window_close(&d6, 1), "one tab must not ask");
+        assert!(!should_confirm_window_close(&d6, 0), "no tabs must not ask");
+    }
+
+    #[test]
+    fn prompt_on_quit_alone_keeps_the_legacy_ask_on_any_session() {
+        let legacy = shell(true, false);
+        assert!(should_confirm_window_close(&legacy, 1));
+        assert!(should_confirm_window_close(&legacy, 3));
+    }
+
+    #[test]
+    fn both_flags_off_never_asks() {
+        let silent = shell(false, false);
+        assert!(!should_confirm_window_close(&silent, 1));
+        assert!(!should_confirm_window_close(&silent, 4));
+    }
+
+    #[test]
+    fn multi_tab_guard_asks_even_with_prompt_on_quit_off() {
+        let guard_only = shell(false, true);
+        assert!(should_confirm_window_close(&guard_only, 2));
+        assert!(!should_confirm_window_close(&guard_only, 1));
     }
 }
