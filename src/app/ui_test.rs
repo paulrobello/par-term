@@ -626,6 +626,12 @@ impl WindowManager {
                     .to_string();
                 Ok((actual.clone(), actual == expected))
             }
+            // The app's open-window count — the readout a session-restore
+            // proof asserts on (TW2: quit must save every window).
+            "window_count" => {
+                let actual = self.windows.len().to_string();
+                Ok((actual.clone(), actual == expected))
+            }
             "file_empty" => {
                 let meta = std::fs::metadata(expected);
                 let actual = match &meta {

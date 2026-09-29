@@ -1,0 +1,5 @@
+{
+  "steps": [
+    { "wait_ms": 2500, "assert_eq": ["window_count", "3"] }
+  ]
+}

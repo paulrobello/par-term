@@ -79,6 +79,7 @@ A JSON object with a `steps` array. Each step is one object with an optional
 
 - `["top_action", "toggle_fullscreen"]` — top-ranked palette action for the current query
 - `["file_empty", "/path"]` — file is absent or zero bytes (a missing file counts as empty)
+- `["window_count", "N"]` — the app's open-window count (manager-level; works with zero terminal windows)
 
 Capture-capable operands (usable with `capture`/`assert_eq_captured`):
 
@@ -193,3 +194,45 @@ HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
 `session_undo_preserve_shell: false` in the same config flips the assert to a
 failure (the reopen spawns a fresh shell with a new PID) — the negative
 control proving the assertion has teeth.
+
+## Checked-in script: quit saves every window (TW2)
+
+`tests/ui/tw2_quit_saves_every_window.json` + `tests/ui/tw2_restore_brings_
+back_three.json` are a two-run pair: run A opens two more windows, asserts
+`window_count == 3`, then quits through the real `MenuAction::Quit` path; run
+B starts a fresh app against the same config dir with `restore_session: true`
+and asserts all three windows came back. The quit chord is the script's last
+step, so run A's report usually loses the race with the event-loop exit —
+run B's report is the criterion evidence (`all_passed` must be true).
+
+```bash
+mkdir -p /tmp/pt-ui-test/cfg/par-term /tmp/pt-ui-test/home
+cat > /tmp/pt-ui-test/cfg/par-term/config.yaml <<'EOF'
+custom_shell: /bin/sleep
+shell_args:
+  - "100"
+login_shell: false
+shader_install_prompt: never
+shell_integration_state: never
+agent_skill_state: never
+restore_session: true
+keybindings:
+  - key: "CmdOrCtrl+Alt+Shift+N"
+    action: "new_window"
+  - key: "CmdOrCtrl+Alt+Shift+Q"
+    action: "quit"
+EOF
+HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
+  target/dev-release/par-term \
+  --ui-test tests/ui/tw2_quit_saves_every_window.json \
+  --ui-test-report /tmp/pt-ui-test/tw2-quit-report.json
+HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
+  target/dev-release/par-term \
+  --ui-test tests/ui/tw2_restore_brings_back_three.json \
+  --ui-test-report /tmp/pt-ui-test/tw2-restore-report.json
+```
+
+`restore_session` sits at the TOP level (the session-restore sub-config is
+`#[serde(flatten)]`ed) — nesting it under a `session_restore:` key silently
+defaults it off and run B restores nothing. Before the TW2 fix, run B reports
+`window_count` 1 ≠ 3 — the negative control.
