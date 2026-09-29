@@ -865,6 +865,8 @@ Also noted, not bugs: `CollapsibleSection` (auto-expand on search) and the modal
 
 ## 19. Phased plan (SP)
 
+**Filed on the par-term board 2026-09-29:** SP0 `01a0ed8a93ac7d019ba47c47b5da172f` (critical), SP1 `01a0ed8a97217b62aae0565312e0b56a`, SP2 `01a0ed8a9a857fa0a0079a5889e3d086`, SP3 `01a0ed8a9ea07b70ac2f739289887dd3`, SP4 `01a0ed8aa2807dc2a8dc6c3f251566d4`.
+
 - **SP0. Data loss and dead controls** (no IA change). B35, B36, B37 via SS1–SS3 minimal version, B42, B43, B44/B45 color helpers (SC3), B52 delete confirmations, B38/B41 remove or wire dead controls, B39 hide Text Shaping until wired.
   - Acceptance: Cancel then Save in the profile list keeps every profile (test). Closing with unsaved edits prompts; Revert restores every window to the snapshot (test on a changed opacity). Editing a disabled snippet keeps it disabled; saving a ShellCommand action preserves `timeout_secs` and `description` (tests). No picker shows alpha for an RGB field; RGBA fields round-trip alpha (test). Every delete asks.
 - **SP1. Search.** SQ1–SQ8.
