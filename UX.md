@@ -610,8 +610,8 @@ Filed on the par-term-emu-core-rust board 2026-09-28: UP1+UP2 `01a0ea74ec2e74d0a
 
 | Code | Needed for | Missing command |
 |---|---|---|
-| UP1 | Rename session (A16, L `$`) | `rename-session` |
-| UP2 | End session explicitly (M1, A16) | `kill-session` (today only a side effect of killing the last window) |
+| UP1 | Rename session (A16, L `$`) | `rename-session` — shipped in core 0.56 |
+| UP2 | End session explicitly (M1, A16) | `kill-session` — shipped in core 0.56; par-term's End session uses it |
 | UP3 | True pane zoom in attached tabs (A1) | `resize-pane -Z` or equivalent zoom state |
 | UP4 | Promote/demote for attached tabs (M8, U10) | `break-pane`, `join-pane` / `move-pane` |
 | UP5 | Restart dead pane (A9, U16) | `respawn-pane` |

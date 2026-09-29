@@ -9,7 +9,7 @@ members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input"
 # ---------------------------------------------------------------------------
 [workspace.dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.55", default-features = false, features = ["rust-only", "pty_session", "screenshot"] }
+par-term-emu-core-rust = { version = "0.56", default-features = false, features = ["rust-only", "pty_session", "screenshot"] }
 
 # Async runtime
 tokio = { version = "1.52", features = ["full"] }

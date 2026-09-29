@@ -754,44 +754,28 @@ impl WindowState {
         }
     }
 
-    /// "End session" from the last-tab close dialog (UX.md M1). The
-    /// daemon's `kill-session` (UP2) exists on core main but is not in
-    /// the published 0.55 pin, so this kills every daemon window the
-    /// client maps — emptying the session makes the daemon delete it,
-    /// the same end state `kill-session` produces. No local teardown
-    /// runs here: the `%window-close` / `%sessions-changed` broadcasts
-    /// tear the view down through the same path as a session killed by
-    /// another client. The gap versus a real kill-session: a daemon
-    /// window dropped by `max_tabs` overflow (UX.md M14) is unknown here
-    /// and would survive.
+    /// "End session" from the last-tab close dialog (UX.md M1). One
+    /// `kill-session` on the daemon empties the session — including
+    /// windows this client never mapped (`max_tabs` overflow, UX.md
+    /// M14), which the per-window kill fallback could not reach. No
+    /// local teardown runs here: the `%window-close` /
+    /// `%sessions-changed` broadcasts tear the view down through the
+    /// same path as a session killed by another client.
     pub(crate) fn end_attached_mux_session(&mut self) {
         let Some(transport) = self.tmux_state.transport.as_ref() else {
             return; // the view already ended; there is nothing to kill
         };
-        let mut failures = Vec::new();
-        let windows: Vec<crate::tmux::TmuxWindowId> = self
-            .tab_manager
-            .tabs()
-            .iter()
-            .filter_map(|t| self.tmux_state.tmux_sync.get_window(t.id))
-            .collect();
-        for window in windows {
-            match transport.send_command(&format!("kill-window -t @{window}")) {
-                Ok(_) => {
-                    log::info!("MUX: end session — kill-window @{window} sent");
-                }
-                Err(e) => {
-                    log::error!("MUX: end session — kill-window @{window} failed: {e}");
-                    failures.push(e.to_string());
-                }
+        let Some(session_id) = self.tmux_state.mux_session_id else {
+            return; // attach pairs the transport with the session id
+        };
+        match transport.send_command(&format!("kill-session -t ${session_id}")) {
+            Ok(_) => {
+                log::info!("MUX: end session — kill-session ${session_id} sent");
             }
-        }
-        if !failures.is_empty() {
-            self.show_toast(format!(
-                "par-mux: kill-window failed ({} windows) — {}",
-                failures.len(),
-                failures[0]
-            ));
+            Err(e) => {
+                log::error!("MUX: end session — kill-session ${session_id} failed: {e}");
+                self.show_toast(format!("par-mux: kill-session failed — {e}"));
+            }
         }
     }
 
@@ -3219,6 +3203,122 @@ pub(crate) mod tests {
         assert!(
             sessions.iter().all(|s| s.name != "endsess"),
             "end session removes it from the daemon: {sessions:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// UX.md M1 + M14: End session is one daemon `kill-session`, so it
+    /// kills windows the client never mapped — a daemon window dropped
+    /// by `max_tabs` overflow has no tab here, and the per-window
+    /// fallback left exactly those windows (and the session) alive.
+    #[test]
+    fn end_session_kills_windows_the_client_never_mapped() {
+        let path = socket_path("end-session-overflow");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach =
+            attach_test(&transport, "endovf", Some((80, 24)), &Default::default()).expect("attach");
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut config = crate::config::Config::default();
+        config.tabs.max_tabs = 1;
+        let mut ws = crate::app::window_state::WindowState::new(config, runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("endovf".to_string());
+        ws.tmux_state.mux_session_id = Some(match &attach.outcome {
+            AttachOutcome::Created(s) | AttachOutcome::Attached(s) => s.id,
+        });
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() == 1 && !ws.tmux_state.tmux_pane_owners.is_empty() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created the first tab: {} tabs, panes {:?}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // A second daemon window the client cannot map (max_tabs=1).
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command("new-window")
+            .expect("new-window");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            let windows = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_command("list-windows")
+                .expect("list-windows");
+            if windows.iter().filter(|l| l.contains('@')).count() == 2 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the overflow window never appeared on the daemon"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        // Let the queued %window-open land so the max_tabs drop is real.
+        std::thread::sleep(Duration::from_millis(100));
+        for _ in 0..4 {
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert_eq!(
+            ws.tab_manager.tab_count(),
+            1,
+            "max_tabs=1 must leave the second daemon window unmapped"
+        );
+
+        // The only mapped tab is the last attached tab: the close gates.
+        assert!(!ws.close_current_tab());
+        assert!(ws.overlay_ui.mux_last_tab_ui.is_visible());
+
+        ws.overlay_ui.mux_last_tab_ui.hide();
+        ws.handle_mux_last_tab_action(crate::mux_last_tab_ui::MuxLastTabAction::EndSession);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tmux_state.transport.is_none() && ws.tab_manager.tab_count() == 0 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the view never tore down after kill-session: {} tabs, transport {}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.transport.is_some()
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        let mut checker = MuxSessionClient::connect(&path).expect("checker client connects");
+        let sessions = checker.list_sessions().expect("list-sessions after kill");
+        assert!(
+            sessions.iter().all(|s| s.name != "endovf"),
+            "end session must kill the unmapped overflow window too: {sessions:?}"
         );
 
         let _ = std::fs::remove_file(&path);
