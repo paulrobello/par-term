@@ -856,6 +856,8 @@ Also noted, not bugs: `CollapsibleSection` (auto-expand on search) and the modal
 
 ## 18. Decisions for the owner (SD)
 
+**Owner answer (2026-09-29): SD1–SD4 accepted as recommended.** (a) iTerm2 names and groupings with par-term's global-plus-override model; 12 top-level tabs; quick-settings strip becomes a General › Common page; live preview kept with Save/Revert and a close prompt.
+
 - **SD1. How far to follow iTerm2's layout.** (a) Borrow its tab names and groupings (General, Appearance, Profiles, Keys, Pointer, Arrangements, Advanced) while keeping par-term's global-with-overrides model, as in 15.2. (b) Go profile-first like iTerm2, moving most per-terminal settings into the profile editor. **Recommendation: (a).** par-term users configure globally and override per profile; (b) would bury common settings.
 - **SD2. Number of top-level tabs.** 12 as in 15.2 (with Notifications and Status Bar under Advanced), or keep them top-level for 14. **Recommendation: 12, with Status Bar top-level if you use it often**; the sidebar stays short and search (SQ4) makes depth cheap.
 - **SD3. Quick-settings strip.** It duplicates 10 settings above every tab and eats vertical space. Options: remove it; or turn it into a General › "Common" page. **Recommendation: turn it into a page.**
