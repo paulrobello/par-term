@@ -116,7 +116,7 @@ Values can carry secrets (tokens in `shell_env`). They travel over the owner-onl
 Detach closes the par-term side and leaves the session running in the daemon:
 
 - **Command palette** — the palette carries an explicit **Detach par-mux session** row when a session is attached.
-- **Action** — `detach_mux_session` is a bindable action (`action: detach_mux_session` in your keybindings config).
+- **Action** — `mux-detach` is a bindable action (`action: mux-detach` in your keybindings config).
 - Windows arrangements that captured `mux_session_name` reattach on restore.
 
 Reattach by opening the profile (or restoring an arrangement) again: the stale-daemon check runs, existing windows become tabs, and every pane is reseeded. Sessions also survive a par-term crash for the same reason — the daemon kept them.
