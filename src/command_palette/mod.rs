@@ -24,6 +24,9 @@ pub(crate) struct CommandPalette {
     query: String,
     /// Index into the *filtered* list, not the catalog.
     selected: usize,
+    /// First drawn row of the `VISIBLE_ROWS` window, in the same index
+    /// space as `selected` (B62).
+    scroll_offset: usize,
     /// Latest plugin snapshot, replaced by every `open()`.
     plugin_entries: Vec<PaletteEntry>,
     /// Built-ins plus the current plugin snapshot, label-sorted. Rebuilt on
@@ -47,6 +50,7 @@ impl CommandPalette {
             visible: false,
             query: String::new(),
             selected: 0,
+            scroll_offset: 0,
             plugin_entries: Vec::new(),
             entries: build_catalog(),
             request_focus: false,
@@ -87,6 +91,7 @@ impl CommandPalette {
         self.visible = true;
         self.query.clear();
         self.selected = 0;
+        self.scroll_offset = 0;
         self.request_focus = true;
     }
 
@@ -122,12 +127,38 @@ impl CommandPalette {
         self.selected = self.selected.min(len.saturating_sub(1));
     }
 
+    /// Scroll the `VISIBLE_ROWS` window so `selected` stays drawn (B62).
+    ///
+    /// Runs every frame after the arrows move `selected`: moving past the
+    /// window's last row advances it, above its first row pulls it back, and
+    /// a list shorter than the window parks at offset 0.
+    fn ensure_selection_visible(&mut self, len: usize) {
+        if self.selected < self.scroll_offset {
+            self.scroll_offset = self.selected;
+        } else if self.selected >= self.scroll_offset + VISIBLE_ROWS {
+            self.scroll_offset = self.selected + 1 - VISIBLE_ROWS;
+        }
+        self.scroll_offset = self.scroll_offset.min(len.saturating_sub(VISIBLE_ROWS));
+    }
+
     /// Action id of the top-ranked row for the current query.
     ///
     /// Harness read: `--ui-test` scripts assert the ranking without standing
     /// up an egui context (ranking is pure `fuzzy::rank` over the query).
     pub(crate) fn top_action(&self) -> Option<&str> {
         self.filtered_ids(&self.query).first().copied()
+    }
+
+    /// Harness read (`--ui-test`): the selected row's index into the
+    /// filtered list.
+    pub(crate) fn selected_index(&self) -> usize {
+        self.selected
+    }
+
+    /// Harness read (`--ui-test`): whether the selected row falls inside the
+    /// drawn `VISIBLE_ROWS` window — the B62 invariant.
+    pub(crate) fn selected_row_is_visible(&self) -> bool {
+        self.selected >= self.scroll_offset && self.selected < self.scroll_offset + VISIBLE_ROWS
     }
 
     /// Draw the palette. Returns the chosen action id when a row is activated.
@@ -157,12 +188,19 @@ impl CommandPalette {
             self.close();
         }
 
-        if ctx.input(|i| i.key_pressed(Key::ArrowDown)) && !matches.is_empty() {
-            self.selected = (self.selected + 1).min(matches.len() - 1);
+        // num_presses, not key_pressed: input events can coalesce into one
+        // frame (fast typing, key repeat, the ui-test harness pressing
+        // faster than the frame cadence), and each press must move the
+        // selection — a boolean would swallow every press but the first.
+        let downs = ctx.input(|i| i.num_presses(Key::ArrowDown));
+        if downs > 0 && !matches.is_empty() {
+            self.selected = (self.selected + downs).min(matches.len() - 1);
         }
-        if ctx.input(|i| i.key_pressed(Key::ArrowUp)) {
-            self.selected = self.selected.saturating_sub(1);
+        let ups = ctx.input(|i| i.num_presses(Key::ArrowUp));
+        if ups > 0 {
+            self.selected = self.selected.saturating_sub(ups);
         }
+        self.ensure_selection_visible(matches.len());
         if ctx.input(|i| i.key_pressed(Key::Enter))
             && let Some(id) = matches.get(self.selected)
         {
@@ -184,14 +222,22 @@ impl CommandPalette {
 
                 ui.separator();
 
-                for (row, action_id) in matches.iter().take(VISIBLE_ROWS).enumerate() {
+                for (row, action_id) in matches
+                    .iter()
+                    .skip(self.scroll_offset)
+                    .take(VISIBLE_ROWS)
+                    .enumerate()
+                {
                     let entry = self
                         .entries
                         .iter()
                         .find(|e| e.action_id == action_id.as_str())
                         .expect("filtered ids come from self.entries");
 
-                    let selected = row == self.selected;
+                    // Windowed row index plus the offset lands in the same
+                    // space as `selected` (B62): comparing the raw windowed
+                    // index let the highlight run off the drawn rows.
+                    let selected = self.scroll_offset + row == self.selected;
                     ui.horizontal(|ui| {
                         let label = if selected {
                             RichText::new(&entry.label).strong()
@@ -413,6 +459,81 @@ mod tests {
 
         palette.clamp_selection(0);
         assert_eq!(palette.selected, 0, "an empty result list clamps to 0");
+    }
+
+    #[test]
+    fn arrowing_to_the_20th_match_scrolls_it_into_view() {
+        // B62: 12 rows are drawn, so selecting index 19 must advance the
+        // window instead of highlighting an invisible row. The loop mirrors
+        // show()'s ArrowDown math, which needs a live egui context.
+        let mut palette = CommandPalette::new();
+        let len = 50;
+        for _ in 0..19 {
+            palette.selected = (palette.selected + 1).min(len - 1);
+        }
+        palette.ensure_selection_visible(len);
+        assert_eq!(palette.selected, 19);
+        assert_eq!(
+            palette.scroll_offset, 8,
+            "row 19 must be the window's last drawn row"
+        );
+        assert!(palette.selected_row_is_visible());
+    }
+
+    #[test]
+    fn arrowing_back_up_pulls_the_window_home() {
+        let mut palette = CommandPalette::new();
+        palette.selected = 19;
+        palette.scroll_offset = 8;
+        palette.selected = 0;
+        palette.ensure_selection_visible(50);
+        assert_eq!(palette.scroll_offset, 0);
+        assert!(palette.selected_row_is_visible());
+    }
+
+    #[test]
+    fn a_query_that_shortens_the_list_parks_the_window_at_zero() {
+        // A stale offset from a longer result list must not blank a short one.
+        let mut palette = CommandPalette::new();
+        palette.selected = 3;
+        palette.scroll_offset = 40;
+        palette.ensure_selection_visible(5);
+        assert_eq!(palette.scroll_offset, 0);
+        assert!(palette.selected_row_is_visible());
+    }
+
+    #[test]
+    fn opening_resets_the_scroll_window() {
+        let mut palette = CommandPalette::new();
+        let registry = KeybindingRegistry::new();
+        palette.open(Vec::new(), &registry);
+        palette.scroll_offset = 9;
+        palette.close();
+        palette.open(Vec::new(), &registry);
+        assert_eq!(
+            palette.scroll_offset, 0,
+            "a reopened palette starts the window at the top"
+        );
+    }
+
+    #[test]
+    fn the_drawn_window_compares_indices_in_one_space() {
+        // B62 pin: the draw loop must skip past hidden rows and compare
+        // windowed row + offset against the global selection. `.take()`
+        // alone compared a windowed row index against the global selection
+        // and the highlight vanished below row 12. Assembled needles so the
+        // scan cannot match this test's own source.
+        let source = include_str!("mod.rs");
+        let skip = [".skip(self.", "scroll_offset)"].join("");
+        let same_space = ["self.scroll_offset + row == ", "self.selected"].join("");
+        assert!(
+            source.contains(&skip),
+            "the draw loop must window the list with the scroll offset"
+        );
+        assert!(
+            source.contains(&same_space),
+            "the selected flag must add the scroll offset to the windowed row"
+        );
     }
 
     #[test]

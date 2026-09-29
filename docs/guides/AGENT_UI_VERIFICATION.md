@@ -53,18 +53,20 @@ A JSON object with a `steps` array. Each step is one object with an optional
 | Step | Meaning |
 |---|---|
 | `{"chord": "Ctrl+Alt+Cmd+P"}` | Inject a chord through the **real keybinding layer**: config registry lookup → `execute_keybinding_action`. Mirrors `handle_key_event`'s modal guard, so chords are blocked while a modal overlay is open, exactly as real keys are. The chord fires the action literally — `open_settings` opens (it is not a toggle), so closing the window again needs the window's own close path (e.g. its Escape handling), not a second chord. |
-| `{"type_text": "fullscr"}` | Deliver text to the focused egui widget (the same synthetic-input channel macOS menu accelerators use). |
-| `{"press": "Enter"}` | Press a named key on the egui side. Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). |
+| `{"type_text": "fullscr"}` | Deliver text to the focused egui widget (the same synthetic-input channel macOS menu accelerators use), then render one frame synchronously so the next step reads post-input state. |
+| `{"press": "Enter"}` | Press a named key on the egui side, then render one frame synchronously (the redraw round-trip is neither immediate nor guaranteed — an occluded window or a gate-rejected redraw left presses undelivered run-to-run before this). Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). |
 | `{"assert": "X"}` / `{"assert_not": "X"}` | Boolean conditions, below. |
 | `{"assert_eq": ["what", "expected"]}` | Keyed values, below. |
 | `{"capture": "what"}` | Stash a capture-capable operand's current value. |
 | `{"assert_eq_captured": "what"}` | Assert the operand's current value equals the stashed one — for values a script cannot know up front, like a spawned shell's PID. |
-| `{"open_modal": "D"}` | Seed dialog `D` open through its real entry point (`close_running_job`, `mux_last_tab`, `trigger_confirm`, `agent_command_confirm`, `update_dialog`, `tab_context_menu`, `new_tab_profile_menu`, `demote_chooser`, `profile_drawer`, `quit_confirmation`) — the seam standing in for the user interaction that opens it, so a script can prove typed keys stay off the PTY while it is open (worked example: `tests/ui/b61_modal_guard.json`). |
+| `{"open_modal": "D"}` | Seed dialog `D` open through its real entry point (`close_running_job`, `mux_last_tab`, `trigger_confirm`, `agent_command_confirm`, `update_dialog`, `tab_context_menu`, `new_tab_profile_menu`, `demote_chooser`, `profile_drawer`, `quit_confirmation`, `tmux_picker`) — the seam standing in for the user interaction that opens it, so a script can prove typed keys stay off the PTY while it is open (worked example: `tests/ui/b61_modal_guard.json`). |
 | `{"close_modal": "D"}` | Clear the state `open_modal` seeded. Buttons and Escape are the dialog's own egui handling (`press` steps); this only arms/disarms the modal the key guard sums over. |
 
 ### Boolean operands
 
 - `palette_open` / `search_open` — overlay visible
+- `tmux_picker_open` — tmux session picker visible
+- `palette_selected_visible` — the palette's selected row falls inside the drawn 12-row window (the B62 scroll invariant)
 - `agent_usage_panel_open` — the agent-usage popup panel is visible
 - `agent_usage_ready` — the usage store has ≥1 displayable record
 - `plugins_loaded` — the plugin host's last discovery scan found ≥1 valid plugin
@@ -80,6 +82,7 @@ A JSON object with a `steps` array. Each step is one object with an optional
 ### Keyed operands
 
 - `["top_action", "toggle_fullscreen"]` — top-ranked palette action for the current query
+- `["palette_selected", "N"]` — the palette's selected row index into the filtered list (the B62 scroll proof pairs it with `palette_selected_visible`)
 - `["file_empty", "/path"]` — file is absent or zero bytes (a missing file counts as empty)
 - `["window_count", "N"]` — the app's open-window count (manager-level; works with zero terminal windows)
 

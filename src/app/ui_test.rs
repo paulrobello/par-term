@@ -404,7 +404,7 @@ impl WindowManager {
                 ws.egui
                     .pending_events
                     .push(egui::Event::Text(type_text.clone()));
-                ws.request_redraw();
+                Self::render_ui_test_frame(ws);
                 StepOutcome::Performed(format!("type_text \"{type_text}\" (egui)"))
             }
             UiTestAction::Press { press } => {
@@ -424,7 +424,7 @@ impl WindowManager {
                     repeat: false,
                     modifiers: egui::Modifiers::default(),
                 });
-                ws.request_redraw();
+                Self::render_ui_test_frame(ws);
                 StepOutcome::Performed(format!("press {press} (egui)"))
             }
             UiTestAction::Assert { assert } => {
@@ -668,6 +668,13 @@ impl WindowManager {
                     ws.overlay_ui.quit_confirmation_ui.hide();
                 }
             }
+            "tmux_picker" => {
+                if open {
+                    ws.overlay_ui.tmux_session_picker_ui.show_picker();
+                } else {
+                    ws.overlay_ui.tmux_session_picker_ui.hide();
+                }
+            }
             _ => {
                 return StepOutcome::Failed(format!(
                     "{verb}: unknown dialog '{name}' (see UiTestAction::OpenModal docs)"
@@ -676,6 +683,25 @@ impl WindowManager {
         }
         ws.request_redraw();
         StepOutcome::Performed(format!("{verb} {name}"))
+    }
+
+    /// Drive one full render frame synchronously after queueing synthetic
+    /// egui input.
+    ///
+    /// The alternative — `request_redraw` and letting the OS deliver
+    /// `RedrawRequested` — is neither immediate nor guaranteed: the FPS gate
+    /// in `should_render_frame` rejects redraws that arrive close behind a
+    /// rendered frame, and an occluded window may not get one at all. Both
+    /// were observed as run-to-run flaky `press` delivery (b62/b64 scripts
+    /// passing one run and failing the next with the key never reaching the
+    /// dialog). Clearing `last_render_time` passes the gate for this one
+    /// frame; the frame then flushes `pending_events` through the real
+    /// `render()` → egui path, so the next step's asserts read state the
+    /// input has already been applied to.
+    fn render_ui_test_frame(ws: &mut WindowState) {
+        ws.focus_state.last_render_time = None;
+        ws.render();
+        ws.request_redraw();
     }
 
     /// Inject a chord through the real keybinding registry + action dispatch.
@@ -893,6 +919,10 @@ impl WindowManager {
                     }
                     "plugin_action_dispatched" => ws.status_bar_ui.any_plugin_action_dispatched(),
                     "modal_guard" => ws.any_modal_ui_visible(),
+                    "tmux_picker_open" => ws.overlay_ui.tmux_session_picker_ui.visible,
+                    "palette_selected_visible" => {
+                        ws.overlay_ui.command_palette.selected_row_is_visible()
+                    }
                     "pane_hint_mode_active" => ws.pane_hint_select.is_active(),
                     "egui_keyboard" => ws.is_egui_using_keyboard(),
                     "fullscreen" => ws.window.as_ref().is_some_and(|w| w.fullscreen().is_some()),
@@ -943,6 +973,15 @@ impl WindowManager {
                     .top_action()
                     .unwrap_or("<none>")
                     .to_string();
+                Ok((actual.clone(), actual == expected))
+            }
+            // The palette's selected row index into the filtered list — the
+            // B62 scroll proof asserts it alongside palette_selected_visible.
+            "palette_selected" => {
+                let Some(ws) = self.ui_test_window_state() else {
+                    return Err("palette_selected: no terminal window".into());
+                };
+                let actual = ws.overlay_ui.command_palette.selected_index().to_string();
                 Ok((actual.clone(), actual == expected))
             }
             // The app's open-window count — the readout a session-restore

@@ -1,0 +1,9 @@
+{
+  "steps": [
+    { "open_modal": "tmux_picker", "wait_ms": 500 },
+    { "assert": "tmux_picker_open" },
+    { "assert": "modal_guard" },
+    { "press": "Escape", "wait_ms": 400 },
+    { "assert_not": "tmux_picker_open" }
+  ]
+}

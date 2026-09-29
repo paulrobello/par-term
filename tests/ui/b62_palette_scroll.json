@@ -1,0 +1,30 @@
+{
+  "steps": [
+    { "chord": "Ctrl+Alt+Cmd+P", "wait_ms": 800 },
+    { "assert": "palette_open" },
+    { "assert_eq": ["palette_selected", "0"] },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "press": "ArrowDown", "wait_ms": 60 },
+    { "assert_eq": ["palette_selected", "19"] },
+    { "assert": "palette_selected_visible" },
+    { "press": "Escape", "wait_ms": 400 },
+    { "assert_not": "palette_open" }
+  ]
+}
