@@ -305,3 +305,15 @@ report now shows `CmdOrCtrl+1 -> keybinding 'switch_to_tab_1'` (macOS;
 `Alt+1` symmetrically on Windows/Linux) and the `file_bytes` assert fails on
 the missing byte run, proving the row (not some fallthrough) is what frees
 the chord for the shell.
+
+## Checked-in script: Enter is the safe choice in destructive dialogs (B64/MD5)
+
+`tests/ui/b64_enter_safe_choice.json` proves the MD5 dialog-Enter rule end to
+end: `press Enter` (the egui-event seam — `chord` mirrors the keybinding path
+and never reaches dialog input, so it cannot test this) in the quit, close-job,
+and par-mux last-tab dialogs cancels each one — `assert_not modal_guard` after
+every press. The final `chord Enter` flushes `0a` to the capture sink, proving
+no other key reached the shell. The quit half is self-checking: if Enter ever
+maps back to Quit, the app exits mid-script and the report is never written.
+Negative control (2026-09-29): pre-fix binary, same script — report missing,
+the quit dialog's Enter killed the app mid-run.

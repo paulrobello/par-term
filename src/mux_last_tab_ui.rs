@@ -136,6 +136,14 @@ impl MuxLastTabUI {
             action = MuxLastTabAction::Cancel;
         }
 
+        // MD5: Enter is the safe choice, never the destructive End
+        // session. It runs after the buttons so it also wins over a
+        // focused button's same-frame Enter activation (egui fake-clicks
+        // focused widgets).
+        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+            action = MuxLastTabAction::Cancel;
+        }
+
         // Hide dialog on any action
         if !matches!(action, MuxLastTabAction::None) {
             self.hide();
@@ -161,6 +169,45 @@ impl crate::traits::OverlayComponent for MuxLastTabUI {
             self.hide();
         }
         // Note: setting visible=true requires the session name — use
-        // show_for_session(&name) to open the dialog.
+        // show_for_session(&name) to open this dialog.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MuxLastTabAction, MuxLastTabUI};
+
+    /// Render one frame with an Enter key press under a headless egui
+    /// context and return the action the dialog reported.
+    fn show_with_enter(ui: &mut MuxLastTabUI) -> MuxLastTabAction {
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 800.0),
+            )),
+            events: vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        });
+        let action = ui.show(&ctx);
+        ctx.end_pass().textures_delta.clear();
+        action
+    }
+
+    /// MD5: Enter is the safe choice everywhere — never the destructive
+    /// EndSession. egui also fake-clicks a focused button on Enter, so
+    /// this must win over any same-frame button activation.
+    #[test]
+    fn enter_cancels_never_ends_session() {
+        let mut ui = MuxLastTabUI::new();
+        ui.show_for_session("work");
+        assert_eq!(show_with_enter(&mut ui), MuxLastTabAction::Cancel);
+        assert!(!ui.is_visible());
     }
 }

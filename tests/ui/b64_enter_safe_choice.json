@@ -1,0 +1,21 @@
+{
+  "steps": [
+    { "open_modal": "quit_confirmation" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "press": "Enter" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "close_running_job" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "press": "Enter" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "mux_last_tab" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "press": "Enter" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "chord": "Enter" },
+    { "wait_ms": 400, "assert_eq": ["file_bytes", "/tmp/pt-b61-sink.bin:0a"] }
+  ]
+}

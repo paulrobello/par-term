@@ -185,6 +185,13 @@ impl CloseConfirmationUI {
             action = CloseConfirmAction::Cancel;
         }
 
+        // MD5: Enter is the safe choice, never the destructive Close. It
+        // runs after the buttons so it also wins over a focused button's
+        // same-frame Enter activation (egui fake-clicks focused widgets).
+        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+            action = CloseConfirmAction::Cancel;
+        }
+
         // Hide dialog on any action
         if !matches!(action, CloseConfirmAction::None) {
             self.hide();
@@ -211,5 +218,54 @@ impl crate::traits::OverlayComponent for CloseConfirmationUI {
         }
         // Note: setting visible=true requires additional state (tab_id, command_name, etc.).
         // Use show_for_tab() or show_for_pane() to open this dialog.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CloseConfirmAction, CloseConfirmationUI};
+
+    /// Render one frame with an Enter key press under a headless egui
+    /// context and return the action the dialog reported.
+    fn show_with_enter(ui: &mut CloseConfirmationUI) -> CloseConfirmAction {
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 800.0),
+            )),
+            events: vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        });
+        let action = ui.show(&ctx);
+        ctx.end_pass().textures_delta.clear();
+        action
+    }
+
+    /// MD5: Enter is the safe choice everywhere — never the destructive
+    /// Close. egui also fake-clicks a focused button on Enter, so this
+    /// must win over any same-frame button activation.
+    #[test]
+    fn enter_cancels_never_closes_tab() {
+        let mut ui = CloseConfirmationUI::new();
+        ui.show_for_tab(7, "work", "sleep 100");
+        assert_eq!(show_with_enter(&mut ui), CloseConfirmAction::Cancel);
+        assert!(!ui.is_visible());
+    }
+
+    /// The pane flavor of the same dialog (close-job confirm) shares the
+    /// Enter rule.
+    #[test]
+    fn enter_cancels_never_closes_pane() {
+        let mut ui = CloseConfirmationUI::new();
+        ui.show_for_pane(7, 2, "work", "cargo build");
+        assert_eq!(show_with_enter(&mut ui), CloseConfirmAction::Cancel);
+        assert!(!ui.is_visible());
     }
 }

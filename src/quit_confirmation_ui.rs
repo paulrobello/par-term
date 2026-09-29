@@ -122,9 +122,10 @@ impl QuitConfirmationUI {
             action = QuitConfirmAction::Cancel;
         }
 
-        // Handle enter key to confirm quit
+        // MD5: Enter is the safe choice — it cancels like Escape. Quit
+        // stays on its own button (B64 mapped Enter to Quit).
         if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
-            action = QuitConfirmAction::Quit;
+            action = QuitConfirmAction::Cancel;
         }
 
         // Hide dialog on any action
@@ -187,7 +188,40 @@ fn summary_lines(session_count: usize, mux_session: Option<&str>) -> (String, St
 
 #[cfg(test)]
 mod tests {
-    use super::summary_lines;
+    use super::{QuitConfirmAction, QuitConfirmationUI, summary_lines};
+
+    /// Render one frame with an Enter key press under a headless egui
+    /// context and return the action the dialog reported.
+    fn show_with_enter(ui: &mut QuitConfirmationUI) -> QuitConfirmAction {
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 800.0),
+            )),
+            events: vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        });
+        let action = ui.show(&ctx);
+        ctx.end_pass().textures_delta.clear();
+        action
+    }
+
+    /// MD5: Enter is the safe choice everywhere — in the quit dialog it
+    /// must cancel, never quit. B64 mapped Enter to Quit.
+    #[test]
+    fn enter_cancels_never_quits() {
+        let mut ui = QuitConfirmationUI::new();
+        ui.show_confirmation(2, None);
+        assert_eq!(show_with_enter(&mut ui), QuitConfirmAction::Cancel);
+        assert!(!ui.is_visible());
+    }
 
     /// UX.md M9: with a par-mux session attached, quitting detaches —
     /// the dialog must say the session survives, never "terminated".
