@@ -508,15 +508,25 @@ mod tests {
         let mut store = UsageStore::new(dir.path().to_path_buf());
 
         // Update the file; the watcher must surface it via poll().
-        write(&dir, "claude.json", &READY_RECORD.replace("42.0", "90.0"));
-        // 60s, not 3s or 15s: FSEvents delivery plus the 300ms debounce can
-        // exceed a tight tolerance under full-suite machine load (15s still
-        // failed once at load avg ~130, 2026-09-29); the helper returns on
-        // first event, so a healthy run still costs ~0.3s.
-        assert!(
-            poll_until_event(&mut store, Duration::from_secs(60)),
-            "watcher event should arrive within tolerance"
-        );
+        //
+        // A single write is not enough: under load one run saw no event for
+        // the whole 60s window (a wider window cannot fix that), most likely
+        // because the FSEvents stream was not yet live when the write landed.
+        // Re-touch the file each second until an event arrives. The helper returns on
+        // the first event, so a healthy run still costs ~0.3s, and a watcher
+        // that never emits still fails once the overall deadline passes.
+        let updated = READY_RECORD.replace("42.0", "90.0");
+        let start = Instant::now();
+        let arrived = loop {
+            write(&dir, "claude.json", &updated);
+            if poll_until_event(&mut store, Duration::from_secs(1)) {
+                break true;
+            }
+            if start.elapsed() >= Duration::from_secs(60) {
+                break false;
+            }
+        };
+        assert!(arrived, "watcher event should arrive within tolerance");
         assert_eq!(store.snapshot().records[0].limits[0].percent, Some(90.0));
     }
 
