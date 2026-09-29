@@ -12,16 +12,14 @@
 //! # What earns a chord in the third column
 //!
 //! Only chords par-term's own key handling dispatches — a shipped
-//! `Config::default().keybindings` entry, or a hardcoded key layer. A chord
-//! that exists *only* as a native menu-bar accelerator is deliberately left
-//! `None`, for two reasons: this table is split macOS / not-macOS, and the
-//! not-macOS half is shared with Linux, which cannot attach a native menu bar
-//! (its in-app menu only draws accelerator labels), so such a chord does
-//! nothing there; and the native menu bar consumes the key before the
-//! keybinding registry runs, so it is not a *default* the user could rebind.
-//! That is why `new_window`, `close_window`, `quit`, `select_all` and
-//! `maximize_vertically` show no default even though the menu accelerates them
-//! on macOS and Windows.
+//! `Config::default().keybindings` entry, or a hardcoded key layer. The
+//! menu-advertised chords became registry defaults (`defaults::menu_chords`,
+//! UX K2), so they are real defaults the user can rebind and appear here.
+//! `close_window` on the not-macOS side stays `None`: no non-macOS default
+//! ships for it, and a chord that exists *only* as a native menu-bar
+//! accelerator is deliberately left `None` — the not-macOS half is shared
+//! with Linux, whose in-app menu only draws accelerator labels, so such a
+//! chord would do nothing there.
 
 /// All available keybinding actions with their descriptions and default key combos.
 /// macOS uses Cmd as the primary modifier (safe for terminals).
@@ -29,11 +27,11 @@
 #[cfg(target_os = "macos")]
 pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
-    ("new_window", "New Window", None),
-    ("close_window", "Close Window", None),
+    ("new_window", "New Window", Some("Cmd+N")),
+    ("close_window", "Close Window", Some("Cmd+W")),
     ("save_arrangement", "Save Window Arrangement", None),
-    ("quit", "Quit par-term", None),
-    ("select_all", "Select All", None),
+    ("quit", "Quit par-term", Some("Cmd+Q")),
+    ("select_all", "Select All", Some("Cmd+A")),
     ("toggle_menu", "Open Application Menu", None),
     ("toggle_fps_overlay", "Toggle FPS Overlay", Some("F3")),
     ("reload_config", "Reload Configuration", Some("F5")),
@@ -61,7 +59,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Assistant Panel",
         Some("Cmd+I"),
     ),
-    ("maximize_vertically", "Maximize Vertically", None),
+    (
+        "maximize_vertically",
+        "Maximize Vertically",
+        Some("Shift+F11"),
+    ),
     (
         "toggle_background_shader",
         "Toggle Background Shader",
@@ -163,7 +165,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     // The font-size layer in the root crate uses the super key on macOS
     // (`font_mod = super_key` under `#[cfg(target_os = "macos")]`), so Ctrl does
     // not drive these actions here.
-    ("increase_font_size", "Increase Font Size", Some("Cmd+Plus")),
+    ("increase_font_size", "Increase Font Size", Some("Cmd+=")),
     (
         "decrease_font_size",
         "Decrease Font Size",
@@ -221,11 +223,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
 #[cfg(not(target_os = "macos"))]
 pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
-    ("new_window", "New Window", None),
+    ("new_window", "New Window", Some("Ctrl+Shift+N")),
     ("close_window", "Close Window", None),
     ("save_arrangement", "Save Window Arrangement", None),
-    ("quit", "Quit par-term", None),
-    ("select_all", "Select All", None),
+    ("quit", "Quit par-term", Some("Ctrl+Shift+Q")),
+    ("select_all", "Select All", Some("Ctrl+Shift+A")),
     ("toggle_menu", "Open Application Menu", None),
     ("toggle_fps_overlay", "Toggle FPS Overlay", Some("F3")),
     ("reload_config", "Reload Configuration", Some("F5")),
@@ -253,7 +255,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Assistant Panel",
         Some("Ctrl+Shift+I"),
     ),
-    ("maximize_vertically", "Maximize Vertically", None),
+    (
+        "maximize_vertically",
+        "Maximize Vertically",
+        Some("Shift+F11"),
+    ),
     (
         "toggle_background_shader",
         "Toggle Background Shader",
@@ -363,14 +369,14 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     (
         "increase_font_size",
         "Increase Font Size",
-        Some("Ctrl+Plus"),
+        Some("Ctrl+Shift+="),
     ),
     (
         "decrease_font_size",
         "Decrease Font Size",
-        Some("Ctrl+Minus"),
+        Some("Ctrl+Shift+-"),
     ),
-    ("reset_font_size", "Reset Font Size", Some("Ctrl+0")),
+    ("reset_font_size", "Reset Font Size", Some("Ctrl+Shift+0")),
     ("clear_scrollback", "Clear Scrollback", Some("Ctrl+Shift+K")),
     (
         "cycle_cursor_style",

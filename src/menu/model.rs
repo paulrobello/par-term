@@ -3,7 +3,7 @@
 //! This is the single source of truth for the menu's contents. Two renderers
 //! consume it:
 //!
-//! - [`super::MenuManager::new`] walks it to build the [`muda::Menu`] that macOS
+//! - [`super::MenuManager::new_with`] walks it to build the [`muda::Menu`] that macOS
 //!   and Windows attach natively.
 //! - [`super::egui_menu::AppMenuUi`] walks the same model to draw the in-app
 //!   menu on platforms that cannot attach a native menu bar (Linux/BSD, where
@@ -13,6 +13,7 @@
 
 use super::actions::MenuAction;
 use muda::accelerator::{Accelerator, Code, Modifiers};
+use par_term_config::KeyBinding;
 
 /// Title of the Help section.
 ///
@@ -59,7 +60,13 @@ pub struct MenuSection {
 /// macOS carries Quit and Preferences in the separate application menu built by
 /// [`super::macos::build_app_menu`], so they are omitted from File/Edit there.
 pub fn platform_menu_model() -> Vec<MenuSection> {
-    menu_model(cfg!(target_os = "macos"))
+    platform_menu_model_with(&par_term_config::Config::default().keybindings)
+}
+
+/// Build the menu model for the current platform's native menu, sourcing
+/// accelerators from explicit keybindings.
+pub fn platform_menu_model_with(keybindings: &[KeyBinding]) -> Vec<MenuSection> {
+    menu_model_with(cfg!(target_os = "macos"), keybindings)
 }
 
 /// Build the menu model.
@@ -70,6 +77,24 @@ pub fn platform_menu_model() -> Vec<MenuSection> {
 /// Windows and Linux expect — and what the in-app egui menu always needs, since
 /// it is the only menu wherever it is drawn.
 pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
+    menu_model_with(
+        has_native_app_menu,
+        &par_term_config::Config::default().keybindings,
+    )
+}
+
+/// Build the menu model, sourcing every accelerator from `keybindings` (the
+/// registry) and keeping the hardcoded chords only as the fallback for
+/// actions with no binding — see [`super::registry_accel`].
+pub fn menu_model_with(has_native_app_menu: bool, keybindings: &[KeyBinding]) -> Vec<MenuSection> {
+    let mut sections = hardcoded_menu_model(has_native_app_menu);
+    super::registry_accel::apply_registry_accelerators(&mut sections, keybindings);
+    sections
+}
+
+/// The menu model with its hardcoded fallback accelerators, before the
+/// registry is applied.
+fn hardcoded_menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
     // Platform-specific modifier keys
     // macOS: Cmd (META) is safe — it's separate from Ctrl used by terminal control codes
     // Windows/Linux: Use Ctrl+Shift to avoid conflicts with terminal control codes

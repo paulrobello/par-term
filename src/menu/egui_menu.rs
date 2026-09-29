@@ -62,14 +62,20 @@ impl AppMenuUi {
     /// Width the trigger button occupies in a horizontal bar, in logical pixels.
     pub const BUTTON_WIDTH: f32 = 24.0;
 
-    /// Build the menu for one window.
-    pub fn new() -> Self {
+    /// Build the menu for one window, sourcing accelerators from the live
+    /// config's keybindings so a rebind shows here too.
+    pub fn new_with(keybindings: &[par_term_config::KeyBinding]) -> Self {
         Self {
             // The in-app menu is the only menu wherever it is drawn, so it must
             // carry the commands a native application menu would otherwise own.
-            sections: model::menu_model(false),
+            sections: model::menu_model_with(false, keybindings),
             open: false,
         }
+    }
+
+    /// Build the menu for one window from the default bindings.
+    pub fn new() -> Self {
+        Self::new_with(&par_term_config::Config::default().keybindings)
     }
 
     /// Whether the in-app menu should be drawn in this process.

@@ -98,3 +98,57 @@ pub enum MenuAction {
     /// Reload configuration from disk (same as F5)
     ReloadConfig,
 }
+
+impl MenuAction {
+    /// The keybinding-registry action id this menu entry dispatches to, or
+    /// `None` when no registry action exists for it.
+    ///
+    /// The menu model re-reads its accelerators from the registry through
+    /// this mapping (`registry_accel::apply_registry_accelerators`), so a
+    /// menu item and its registry binding cannot drift apart. `None` covers
+    /// items with no registry action: Copy/Paste (dedicated clipboard paths,
+    /// not `ACTION_HANDLERS`), profile entries, the macOS Window menu, About,
+    /// and remote shell integration.
+    pub fn keybinding_action(&self) -> Option<std::borrow::Cow<'static, str>> {
+        let id = match self {
+            Self::NewWindow => "new_window",
+            Self::CloseWindow => "close_window",
+            Self::Quit => "quit",
+            Self::ToggleProfileDrawer => "toggle_profile_drawer",
+            Self::NewTab => "new_tab",
+            Self::CloseTab => "close_tab",
+            Self::NextTab => "next_tab",
+            Self::PreviousTab => "prev_tab",
+            Self::MoveTabLeft => "move_tab_left",
+            Self::MoveTabRight => "move_tab_right",
+            Self::DuplicateTab => "duplicate_tab",
+            Self::SelectAll => "select_all",
+            Self::ClearScrollback => "clear_scrollback",
+            Self::ClipboardHistory => "toggle_clipboard_history",
+            Self::ToggleFullscreen => "toggle_fullscreen",
+            Self::MaximizeVertically => "maximize_vertically",
+            Self::IncreaseFontSize => "increase_font_size",
+            Self::DecreaseFontSize => "decrease_font_size",
+            Self::ResetFontSize => "reset_font_size",
+            Self::ToggleFpsOverlay => "toggle_fps_overlay",
+            Self::OpenSettings => "open_settings",
+            Self::ShowHelp => "toggle_help",
+            Self::SaveArrangement => "save_arrangement",
+            Self::ToggleBackgroundShader => "toggle_background_shader",
+            Self::ToggleCursorShader => "toggle_cursor_shader",
+            Self::ReloadConfig => "reload_config",
+            Self::SwitchToTab(n) => {
+                return Some(std::borrow::Cow::Owned(format!("switch_to_tab_{n}")));
+            }
+            Self::OpenProfile(_)
+            | Self::ManageProfiles
+            | Self::Copy
+            | Self::Paste
+            | Self::Minimize
+            | Self::Zoom
+            | Self::About
+            | Self::InstallShellIntegrationRemote => return None,
+        };
+        Some(std::borrow::Cow::Borrowed(id))
+    }
+}

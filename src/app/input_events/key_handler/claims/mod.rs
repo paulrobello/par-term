@@ -415,42 +415,20 @@ fn accelerator_key(accel: &Accelerator) -> ChordKey {
 /// to an advertised action or is menu-only.
 fn menu_action_name(action: crate::menu::MenuAction) -> String {
     use crate::menu::MenuAction as A;
-    match action {
-        A::NewWindow => "new_window".into(),
-        A::CloseWindow => "close_window".into(),
-        A::Quit => "quit".into(),
-        A::ManageProfiles => "internal:manage_profiles".into(),
-        A::ToggleProfileDrawer => "toggle_profile_drawer".into(),
-        A::OpenProfile(_) => "internal:open_profile".into(),
-        A::NewTab => "new_tab".into(),
-        A::CloseTab => "close_tab".into(),
-        A::NextTab => "next_tab".into(),
-        A::PreviousTab => "prev_tab".into(),
-        A::SwitchToTab(n) => format!("switch_to_tab_{n}"),
-        A::MoveTabLeft => "move_tab_left".into(),
-        A::MoveTabRight => "move_tab_right".into(),
-        A::DuplicateTab => "duplicate_tab".into(),
-        A::Copy => "internal:copy".into(),
-        A::Paste => "internal:paste".into(),
-        A::SelectAll => "select_all".into(),
-        A::ClearScrollback => "clear_scrollback".into(),
-        A::ClipboardHistory => "toggle_clipboard_history".into(),
-        A::ToggleFullscreen => "toggle_fullscreen".into(),
-        A::MaximizeVertically => "maximize_vertically".into(),
-        A::IncreaseFontSize => "increase_font_size".into(),
-        A::DecreaseFontSize => "decrease_font_size".into(),
-        A::ResetFontSize => "reset_font_size".into(),
-        A::ToggleFpsOverlay => "toggle_fps_overlay".into(),
-        A::OpenSettings => "open_settings".into(),
-        A::Minimize => "internal:minimize".into(),
-        A::Zoom => "internal:zoom".into(),
-        A::ShowHelp => "toggle_help".into(),
-        A::About => "internal:about".into(),
-        A::SaveArrangement => "save_arrangement".into(),
-        A::InstallShellIntegrationRemote => "internal:install_shell_integration_remote".into(),
-        A::ToggleBackgroundShader => "toggle_background_shader".into(),
-        A::ToggleCursorShader => "toggle_cursor_shader".into(),
-        A::ReloadConfig => "reload_config".into(),
+    match action.keybinding_action() {
+        Some(id) => id.into_owned(),
+        // Test-only labels for menu items with no registry action.
+        None => match action {
+            A::ManageProfiles => "internal:manage_profiles".into(),
+            A::OpenProfile(_) => "internal:open_profile".into(),
+            A::Copy => "internal:copy".into(),
+            A::Paste => "internal:paste".into(),
+            A::Minimize => "internal:minimize".into(),
+            A::Zoom => "internal:zoom".into(),
+            A::About => "internal:about".into(),
+            A::InstallShellIntegrationRemote => "internal:install_shell_integration_remote".into(),
+            other => unreachable!("{other:?} has a keybinding_action id"),
+        },
     }
 }
 

@@ -56,6 +56,7 @@ impl WindowState {
         );
 
         // Create badge state and overlay UI before wrapping config in ArcSwap
+        let menu_keybindings = config.keybindings.clone();
         let badge_state = BadgeState::new(&config);
         let overlay_ui = crate::app::window_state::overlay_ui_state::OverlayUiState::new(&config);
 
@@ -75,7 +76,7 @@ impl WindowState {
             runtime,
 
             tab_manager: TabManager::new(),
-            tab_bar_ui: TabBarUI::new(),
+            tab_bar_ui: TabBarUI::new_with(&menu_keybindings),
             status_bar_ui: StatusBarUI::new(),
 
             debug: crate::app::window_state::debug_state::DebugState::new(),

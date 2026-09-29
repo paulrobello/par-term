@@ -7,6 +7,7 @@
 
 mod colors;
 mod font;
+mod menu_chords;
 mod misc;
 mod shader;
 mod terminal;

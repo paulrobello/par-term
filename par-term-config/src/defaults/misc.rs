@@ -37,7 +37,7 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
     // so we use Ctrl+Shift+key following standard terminal emulator conventions
     // (WezTerm, Kitty, Alacritty, GNOME Terminal, Windows Terminal).
     #[cfg(target_os = "macos")]
-    let bindings = vec![
+    let mut bindings = vec![
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Shift+B".to_string(),
             action: "toggle_background_shader".to_string(),
@@ -177,7 +177,7 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
     ];
 
     #[cfg(not(target_os = "macos"))]
-    let bindings = vec![
+    let mut bindings = vec![
         crate::types::KeyBinding {
             key: "Ctrl+Shift+B".to_string(),
             action: "toggle_background_shader".to_string(),
@@ -321,6 +321,9 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             action: "toggle_profile_drawer".to_string(),
         },
     ];
+
+    // Menu-advertised chords (UX.md K2) — see `defaults::menu_chords`.
+    bindings.extend(super::menu_chords::menu_chords());
 
     bindings
 }

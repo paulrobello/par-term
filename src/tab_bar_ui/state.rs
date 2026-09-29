@@ -106,6 +106,14 @@ impl TabBarUI {
             app_menu: crate::menu::AppMenuUi::new(),
         }
     }
+
+    /// Build the tab bar with the in-app menu sourcing accelerators from the
+    /// live config's keybindings.
+    pub fn new_with(keybindings: &[par_term_config::KeyBinding]) -> Self {
+        let mut bar = Self::new();
+        bar.app_menu = crate::menu::AppMenuUi::new_with(keybindings);
+        bar
+    }
 }
 
 impl Default for TabBarUI {

@@ -73,29 +73,17 @@ const KNOWN_MISMATCHES: &[(&str, &str)] = &[];
 /// Reported, not gated: under-advertisement is a documentation gap, not a
 /// dispatch defect, and correcting the table is a separate decision.
 ///
-/// What remains here is deliberate, and all of one kind: chords supplied *only*
-/// by a native menu-bar accelerator. `AVAILABLE_ACTIONS` advertises a chord only
-/// when par-term's own key handling dispatches it — see that table's module
-/// docs for why a menu-only accelerator does not qualify.
+/// The menu-advertised chords became registry defaults (`defaults::menu_chords`,
+/// UX K2), so every action the menus accelerate is now advertised with its
+/// default and this set is empty on macOS.
 #[cfg(target_os = "macos")]
-const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &[
-    "close_window (native_menu)",
-    "maximize_vertically (native_menu)",
-    "new_window (native_menu)",
-    "quit (macos_app_menu)",
-    "select_all (native_menu)",
-];
+const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &[];
 
-/// Same menu-supplied entries as macOS, except Quit lives in the File menu
-/// rather than a separate application menu.
+/// Only `close_window` remains: no non-macOS default ships for it, so its
+/// native menu-bar accelerator is still a chord par-term's own key handling
+/// never dispatches.
 #[cfg(target_os = "windows")]
-const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &[
-    "close_window (native_menu)",
-    "maximize_vertically (native_menu)",
-    "new_window (native_menu)",
-    "quit (native_menu)",
-    "select_all (native_menu)",
-];
+const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &["close_window (native_menu)"];
 
 /// No native menu here, so every menu-only entry disappears and nothing modeled
 /// claims a chord the table advertises as having none.

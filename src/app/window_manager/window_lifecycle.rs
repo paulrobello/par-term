@@ -127,7 +127,7 @@ impl WindowManager {
                 // and unhandled key combos can cause the app to exit via
                 // [NSApp terminate:].
                 if self.menu.is_none() {
-                    match MenuManager::new() {
+                    match MenuManager::new_with(&self.config.load().keybindings) {
                         Ok(menu) => {
                             if let Err(e) = menu.init_global() {
                                 log::warn!("Failed to initialize global menu: {}", e);
@@ -348,7 +348,7 @@ impl WindowManager {
 
         // Menu init (idempotent — only runs once globally).
         if self.menu.is_none() {
-            match MenuManager::new() {
+            match MenuManager::new_with(&self.config.load().keybindings) {
                 Ok(menu) => {
                     if let Err(e) = menu.init_global() {
                         log::warn!("Failed to initialize global menu: {}", e);

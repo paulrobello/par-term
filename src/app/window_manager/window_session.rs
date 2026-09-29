@@ -398,7 +398,7 @@ impl WindowManager {
                 // Initialize menu BEFORE the blocking GPU init (same rationale
                 // as create_window — see window_lifecycle.rs for details).
                 if self.menu.is_none() {
-                    match MenuManager::new() {
+                    match MenuManager::new_with(&self.config.load().keybindings) {
                         Ok(menu) => {
                             if let Err(e) = menu.init_global() {
                                 log::warn!("Failed to initialize global menu: {}", e);

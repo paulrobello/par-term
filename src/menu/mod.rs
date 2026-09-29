@@ -17,6 +17,7 @@ mod actions;
 mod bridge;
 pub mod egui_menu;
 pub mod model;
+mod registry_accel;
 
 /// macOS-specific menu building and NSApp initialization.
 #[cfg(target_os = "macos")]
@@ -63,11 +64,13 @@ pub struct MenuManager {
 }
 
 impl MenuManager {
-    /// Create a new menu manager with the default menu structure
+    /// Create a new menu manager sourcing accelerators from `keybindings`
     ///
-    /// The structure comes from [`model::platform_menu_model`]; this function
-    /// only turns it into muda objects and records the id → action mapping.
-    pub fn new() -> Result<Self> {
+    /// The structure comes from [`model::platform_menu_model_with`]; this
+    /// function only turns it into muda objects and records the id → action
+    /// mapping. Pass the live config's keybindings so the menu bar shows the
+    /// user's chords, not the defaults.
+    pub fn new_with(keybindings: &[par_term_config::KeyBinding]) -> Result<Self> {
         let menu = Menu::new();
         let mut action_map = HashMap::new();
         let mut profiles_submenu = None;
@@ -78,7 +81,7 @@ impl MenuManager {
         #[cfg(target_os = "macos")]
         macos::build_app_menu(&menu, &mut action_map)?;
 
-        for section in model::platform_menu_model() {
+        for section in model::platform_menu_model_with(keybindings) {
             // macOS convention: the native Window menu sits just before Help.
             #[cfg(target_os = "macos")]
             if section.title == model::HELP_SECTION_TITLE {
