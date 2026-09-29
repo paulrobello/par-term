@@ -162,12 +162,16 @@ impl WindowState {
                     // Handle tab bar visibility change
                     self.handle_tab_bar_resize_after_add(old_tab_count, tab_id);
 
-                    // Restore title and custom color
+                    // Restore title, custom color, and the user-named/icon
+                    // state that keeps a later OSC title from overwriting
+                    // the user's name (UX.md B15/TW3).
                     if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
                         if !info.has_default_title {
                             tab.set_title(&info.title);
                         }
                         tab.custom_color = info.custom_color;
+                        tab.user_named = info.user_named;
+                        tab.custom_icon = info.custom_icon.clone();
                     }
 
                     // Move tab to its original position
@@ -311,6 +315,8 @@ mod tests {
             closed_at: std::time::Instant::now(),
             pane_layout: None,
             custom_color: None,
+            user_named: false,
+            custom_icon: None,
             hidden_tab: None,
             ended_mux_window,
             hidden_mux_window: None,
@@ -327,5 +333,89 @@ mod tests {
     #[test]
     fn local_entry_has_no_refusal_toast() {
         assert!(ended_mux_window_toast(&info(None)).is_none());
+    }
+
+    /// UX.md B15/TW3: a reopened renamed tab keeps its name and icon, and a
+    /// later OSC-driven title update does not overwrite the user's name.
+    #[test]
+    fn reopened_renamed_tab_keeps_name_icon_and_survives_osc() {
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut config = crate::config::Config::default();
+        // The metadata-only undo path is where B15 bites: preserve-shell
+        // re-inserts the live Tab and keeps everything by construction.
+        config.session_restore.session_undo_preserve_shell = false;
+        // Keep the close out of the running-job confirmation dialog.
+        config.shell.confirm_close_running_jobs = false;
+        let mut ws =
+            crate::app::window_state::WindowState::new(config, std::sync::Arc::clone(&runtime));
+
+        // Two local tabs so closing one never tears down the window.
+        for _ in 0..2 {
+            ws.tab_manager
+                .new_tab_with_cwd(&ws.config.load(), runtime.clone(), None, None)
+                .expect("create tab");
+        }
+
+        // Apply the rename and icon exactly as the tab bar does.
+        let renamed_id = ws.tab_manager.tabs()[0].id;
+        ws.handle_tab_bar_action_after_render(crate::tab_bar_ui::TabBarAction::RenameTab(
+            renamed_id,
+            "work".to_string(),
+        ));
+        ws.handle_tab_bar_action_after_render(crate::tab_bar_ui::TabBarAction::SetTabIcon(
+            renamed_id,
+            Some("🔥".to_string()),
+        ));
+        ws.tab_manager.switch_to(renamed_id);
+        {
+            let tab = ws.tab_manager.get_tab(renamed_id).expect("renamed tab");
+            assert_eq!(tab.title, "work");
+            assert!(tab.user_named);
+            assert_eq!(tab.custom_icon.as_deref(), Some("🔥"));
+        }
+
+        ws.close_current_tab();
+
+        // The undo entry captured the user's name and icon.
+        let info = ws.overlay_state.closed_tabs.front().expect("undo entry");
+        assert!(info.user_named, "capture must record user_named");
+        assert_eq!(
+            info.custom_icon.as_deref(),
+            Some("🔥"),
+            "capture must record the icon"
+        );
+
+        ws.reopen_closed_tab();
+
+        let tab = ws.tab_manager.active_tab().expect("reopened tab is active");
+        assert_eq!(tab.title, "work", "reopened tab keeps the user's name");
+        assert!(tab.user_named, "reopened tab is still user-named");
+        assert_eq!(
+            tab.custom_icon.as_deref(),
+            Some("🔥"),
+            "reopened tab keeps the icon"
+        );
+
+        // A later OSC-driven title update must not overwrite the user's name.
+        let tab_id = tab.id;
+        let (title_mode, remote_format, remote_osc_priority) = {
+            let cfg = ws.config.load();
+            (
+                cfg.tabs.tab_title_mode,
+                cfg.tabs.remote_tab_title_format,
+                cfg.tabs.remote_tab_title_osc_priority,
+            )
+        };
+        let tab = ws.tab_manager.get_tab_mut(tab_id).expect("reopened tab");
+        tab.update_title(title_mode, remote_format, remote_osc_priority);
+        assert_eq!(
+            tab.title, "work",
+            "OSC/CWD auto-title must not overwrite a user-named reopened tab"
+        );
     }
 }

@@ -359,6 +359,8 @@ impl WindowState {
                 closed_at: std::time::Instant::now(),
                 pane_layout: None,
                 custom_color: None,
+                user_named: false,
+                custom_icon: None,
                 hidden_tab: None,
                 ended_mux_window: None,
                 hidden_mux_window: Some(HiddenMuxTab { tab_id, window_id }),
@@ -444,6 +446,8 @@ impl WindowState {
                             closed_at: std::time::Instant::now(),
                             pane_layout: None,
                             custom_color: None,
+                            user_named: false,
+                            custom_icon: None,
                             hidden_tab: None,
                             ended_mux_window: Some(window_id),
                             hidden_mux_window: None,
@@ -492,6 +496,8 @@ impl WindowState {
                     let title = tab.title.clone();
                     let has_default_title = tab.has_default_title;
                     let custom_color = tab.custom_color;
+                    let user_named = tab.user_named;
+                    let custom_icon = tab.custom_icon.clone();
                     let index = self.tab_manager.active_tab_index().unwrap_or(0);
 
                     if let Some((mut hidden_tab, is_empty)) = self.tab_manager.remove_tab(tab_id) {
@@ -506,6 +512,8 @@ impl WindowState {
                             closed_at: std::time::Instant::now(),
                             pane_layout: None, // Preserved inside the hidden Tab itself
                             custom_color,
+                            user_named,
+                            custom_icon,
                             hidden_tab: Some(hidden_tab),
                             ended_mux_window: None,
                             hidden_mux_window: None,
@@ -541,6 +549,8 @@ impl WindowState {
                             .and_then(|pm| pm.root())
                             .map(crate::session::capture::capture_pane_node),
                         custom_color: tab.custom_color,
+                        user_named: tab.user_named,
+                        custom_icon: tab.custom_icon.clone(),
                         hidden_tab: None,
                         ended_mux_window: None,
                         hidden_mux_window: None,

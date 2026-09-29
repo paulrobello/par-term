@@ -27,6 +27,11 @@ pub(crate) struct ClosedTabInfo {
     pub closed_at: std::time::Instant,
     pub pane_layout: Option<crate::session::SessionPaneNode>,
     pub custom_color: Option<[u8; 3]>,
+    /// The closed tab's `user_named` flag: a reopened renamed tab must stay
+    /// user-named, or the next OSC title overwrites the user's name (UX.md B15/TW3).
+    pub user_named: bool,
+    /// The closed tab's custom icon, restored on reopen (UX.md B15/TW3).
+    pub custom_icon: Option<String>,
     /// When `session_undo_preserve_shell` is enabled, the live Tab is kept here
     /// instead of being dropped. Dropping this ClosedTabInfo will drop the Tab,
     /// which kills the PTY.
