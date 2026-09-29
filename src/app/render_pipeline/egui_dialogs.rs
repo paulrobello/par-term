@@ -118,6 +118,7 @@ pub(super) fn open_command_palette_with_runtime_rows(
     crash_triage: &mut CrashTriageState,
     config: &ArcSwap<Config>,
     command_palette: &mut CommandPalette,
+    keybinding_registry: &par_term_keybindings::KeybindingRegistry,
     #[cfg(feature = "mux")] tmux_state: &TmuxState,
 ) {
     // The `mut` serves only the mux arm's extend below.
@@ -148,7 +149,7 @@ pub(super) fn open_command_palette_with_runtime_rows(
     // pattern as the roster.
     #[cfg(feature = "mux")]
     plugin_rows.extend(tmux_state.mux_palette_rows());
-    command_palette.open(plugin_rows);
+    command_palette.open(plugin_rows, keybinding_registry);
 }
 
 /// The self-update dialog: poll an in-flight install, render the dialog,

@@ -11,6 +11,7 @@
 use crate::app::input_events::keybinding_actions::ACTION_HANDLERS;
 use crate::app::input_events::keybinding_display_actions::DISPLAY_ACTION_HANDLERS;
 use par_term_config::agent_launcher::AgentLaunchConfig;
+use par_term_keybindings::parser::{KeyCombo, ParsedKey};
 use par_term_scripting::plugin_manager::PluginActionRow;
 use par_term_settings_ui::input_tab::actions_table::AVAILABLE_ACTIONS;
 
@@ -24,14 +25,49 @@ pub(crate) struct PaletteEntry {
     pub(crate) action_id: String,
     /// Human-readable name — curated where one exists, derived otherwise.
     pub(crate) label: String,
-    /// Default chord advertised for this action, shown right-aligned.
-    pub(crate) chord: Option<&'static str>,
+    /// Chord advertised for this action, shown right-aligned. Owned because
+    /// [`build_catalog`] seeds it with the static default but open() replaces
+    /// it with the live registry chord (B22).
+    pub(crate) chord: Option<String>,
     /// Ordering boost: higher sorts first (ahead of the label sort), so
     /// runtime rows can lead the empty-query view. 0 is the default for
     /// built-ins and plugin rows; the agent-roster picker uses 1 for agent
     /// rows and 2 for blocked ones — the palette exists to answer "who is
     /// waiting", so blocked agents outrank everything.
     pub(crate) priority: u8,
+}
+
+/// Format a live registry combo for the palette's right-aligned chord hint.
+///
+/// Registry combos are stored platform-normalized, so `super_key` is spelled
+/// the way the platform's user knows it (Cmd on macOS, Super elsewhere), and
+/// arrow keys drop the `Arrow` prefix to match the settings table's
+/// vocabulary (Right, not ArrowRight).
+pub(crate) fn chord_display(combo: &KeyCombo) -> String {
+    let mut parts = Vec::new();
+    let modifiers = &combo.modifiers;
+    if modifiers.super_key {
+        #[cfg(target_os = "macos")]
+        parts.push("Cmd");
+        #[cfg(not(target_os = "macos"))]
+        parts.push("Super");
+    }
+    if modifiers.ctrl {
+        parts.push("Ctrl");
+    }
+    if modifiers.alt {
+        parts.push("Alt");
+    }
+    if modifiers.shift {
+        parts.push("Shift");
+    }
+    let key = match &combo.key {
+        ParsedKey::Character(c) => c.to_string(),
+        ParsedKey::Named(named) => format!("{named:?}").trim_start_matches("Arrow").to_string(),
+        ParsedKey::Physical(code) => format!("[{code:?}]"),
+    };
+    parts.push(key.as_str());
+    parts.join("+")
 }
 
 /// Derive a display label from an action id.
@@ -65,7 +101,7 @@ pub(crate) fn build_catalog() -> Vec<PaletteEntry> {
                 Some((_, display_name, chord)) => PaletteEntry {
                     action_id: action_id.to_string(),
                     label: (*display_name).to_string(),
-                    chord: *chord,
+                    chord: chord.map(str::to_string),
                     priority: 0,
                 },
                 None => PaletteEntry {

@@ -216,6 +216,21 @@ impl KeybindingRegistry {
             .and_then(|combo| self.bindings.get(&combo).map(String::as_str))
     }
 
+    /// Look up the live chord bound to an action, if any (UX.md B22).
+    ///
+    /// The registry maps chord → action, so this is a reverse lookup over the
+    /// whole map. Actions shipped with two chords (`next_tab` has both
+    /// `Ctrl+Tab` and the bracket chord) yield the lexicographically smallest
+    /// normalized spelling, so the choice is deterministic despite the
+    /// HashMap's random iteration order.
+    pub fn chord_for_action(&self, action: &str) -> Option<parser::KeyCombo> {
+        self.bindings
+            .iter()
+            .filter(|(_, bound)| bound.as_str() == action)
+            .min_by(|(a, _), (b, _)| a.to_string().cmp(&b.to_string()))
+            .map(|(combo, _)| combo.clone())
+    }
+
     /// Get the number of registered bindings.
     pub fn len(&self) -> usize {
         self.bindings.len()
@@ -362,6 +377,63 @@ mod tests {
             assert_eq!(registry.len(), 2);
             assert_eq!(registry.find_by_chord("Cmd+D"), Some("user_binding"));
             assert_eq!(registry.find_by_chord("Ctrl+D"), Some("default_binding"));
+        }
+    }
+
+    #[test]
+    fn test_chord_for_action_returns_the_live_binding() {
+        // B22: the reverse lookup answers "what chord fires this action
+        // right now", so a rebind (toggle_fullscreen moved to F9) is visible
+        // to chord-advertising surfaces.
+        let bindings = vec![
+            KeyBinding {
+                key: "F9".to_string(),
+                action: "toggle_fullscreen".to_string(),
+            },
+            KeyBinding {
+                key: "Ctrl+D".to_string(),
+                action: "split_horizontal".to_string(),
+            },
+        ];
+
+        let registry = KeybindingRegistry::from_config(&bindings);
+        assert_eq!(
+            registry
+                .chord_for_action("toggle_fullscreen")
+                .map(|combo| combo.to_string()),
+            Some("F9".to_string())
+        );
+        assert_eq!(
+            registry
+                .chord_for_action("split_horizontal")
+                .map(|combo| combo.to_string()),
+            Some("Ctrl+D".to_string())
+        );
+        assert!(registry.chord_for_action("new_tab").is_none());
+    }
+
+    #[test]
+    fn test_chord_for_action_is_deterministic_across_dual_chords() {
+        // next_tab ships with two chords; the smallest normalized spelling
+        // wins every call despite the HashMap's random iteration order.
+        let bindings = vec![
+            KeyBinding {
+                key: "CmdOrCtrl+Shift+]".to_string(),
+                action: "next_tab".to_string(),
+            },
+            KeyBinding {
+                key: "Ctrl+Tab".to_string(),
+                action: "next_tab".to_string(),
+            },
+        ];
+
+        let registry = KeybindingRegistry::from_config(&bindings);
+        let expected = registry.chord_for_action("next_tab").expect("bound");
+        for _ in 0..32 {
+            assert_eq!(
+                registry.chord_for_action("next_tab"),
+                Some(expected.clone())
+            );
         }
     }
 }

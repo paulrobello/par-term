@@ -138,7 +138,9 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         // a runtime row, present only while a transport is installed.
         #[cfg(feature = "mux")]
         plugin_rows.extend(s.tmux_state.mux_palette_rows());
-        s.overlay_ui.command_palette.toggle(plugin_rows);
+        s.overlay_ui
+            .command_palette
+            .toggle(plugin_rows, &s.keybinding_registry);
         s.focus_state.needs_redraw = true;
         s.request_redraw();
         log::info!(

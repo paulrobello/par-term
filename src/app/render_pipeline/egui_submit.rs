@@ -426,6 +426,7 @@ impl WindowState {
                                 &mut self.crash_triage,
                                 &self.config,
                                 &mut self.overlay_ui.command_palette,
+                                &self.keybinding_registry,
                                 #[cfg(feature = "mux")]
                                 &self.tmux_state,
                             );

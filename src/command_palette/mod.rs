@@ -9,8 +9,9 @@
 pub(crate) mod catalog;
 pub(crate) mod fuzzy;
 
-use catalog::{PaletteEntry, build_catalog};
+use catalog::{PaletteEntry, build_catalog, chord_display};
 use egui::{Context, Frame, Key, RichText, Window, epaint::Shadow};
+use par_term_keybindings::KeybindingRegistry;
 
 /// Rows drawn before the list scrolls.
 const VISIBLE_ROWS: usize = 12;
@@ -58,7 +59,14 @@ impl CommandPalette {
     /// The merged view (built-ins + plugin rows) is rebuilt here, not at
     /// construction, because the plugin set can change between summons; the
     /// caller passes the snapshot it just read from the host.
-    pub(crate) fn open(&mut self, plugin_rows: Vec<PaletteEntry>) {
+    ///
+    /// Every row's chord hint is then replaced with the LIVE registry chord
+    /// (B22): the registry holds user rows plus unclaimed defaults after the
+    /// §3.3 merge, so a rebound action advertises its new chord and an action
+    /// whose default chord was claimed away (e.g. by `pass_to_terminal`)
+    /// advertises nothing instead of a stale default. Runtime rows (plugins,
+    /// agents, crashes) have no registry entry and never carry a chord.
+    pub(crate) fn open(&mut self, plugin_rows: Vec<PaletteEntry>, registry: &KeybindingRegistry) {
         self.plugin_entries = plugin_rows;
         let mut merged = build_catalog();
         merged.extend(self.plugin_entries.iter().cloned());
@@ -70,6 +78,11 @@ impl CommandPalette {
                 .cmp(&a.priority)
                 .then_with(|| a.label.cmp(&b.label))
         });
+        for entry in &mut merged {
+            entry.chord = registry
+                .chord_for_action(&entry.action_id)
+                .map(|combo| chord_display(&combo));
+        }
         self.entries = merged;
         self.visible = true;
         self.query.clear();
@@ -83,11 +96,11 @@ impl CommandPalette {
     }
 
     /// Flip visibility, resetting state when opening.
-    pub(crate) fn toggle(&mut self, plugin_rows: Vec<PaletteEntry>) {
+    pub(crate) fn toggle(&mut self, plugin_rows: Vec<PaletteEntry>, registry: &KeybindingRegistry) {
         if self.visible {
             self.close();
         } else {
-            self.open(plugin_rows);
+            self.open(plugin_rows, registry);
         }
     }
 
@@ -188,10 +201,10 @@ impl CommandPalette {
                         if ui.selectable_label(selected, label).clicked() {
                             chosen = Some(entry.action_id.clone());
                         }
-                        if let Some(chord) = entry.chord {
+                        if let Some(chord) = &entry.chord {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| ui.weak(chord),
+                                |ui| ui.weak(chord.as_str()),
                             );
                         }
                     });
@@ -223,20 +236,22 @@ mod tests {
     #[test]
     fn toggle_flips_visibility() {
         let mut palette = CommandPalette::new();
-        palette.toggle(Vec::new());
+        let registry = KeybindingRegistry::new();
+        palette.toggle(Vec::new(), &registry);
         assert!(palette.visible);
-        palette.toggle(Vec::new());
+        palette.toggle(Vec::new(), &registry);
         assert!(!palette.visible);
     }
 
     #[test]
     fn opening_resets_query_and_selection() {
         let mut palette = CommandPalette::new();
-        palette.open(Vec::new());
+        let registry = KeybindingRegistry::new();
+        palette.open(Vec::new(), &registry);
         palette.query = "stale".to_string();
         palette.selected = 7;
         palette.close();
-        palette.open(Vec::new());
+        palette.open(Vec::new(), &registry);
         assert_eq!(
             palette.query, "",
             "a reopened palette must not show the last query"
@@ -251,7 +266,8 @@ mod tests {
             label: "Aaaa First Plugin Action · Demo".to_string(),
         };
         let mut palette = CommandPalette::new();
-        palette.open(plugin_palette_entries(&[plugin_row]));
+        let registry = KeybindingRegistry::new();
+        palette.open(plugin_palette_entries(&[plugin_row]), &registry);
         let labels: Vec<&str> = palette.entries.iter().map(|e| e.label.as_str()).collect();
         let mut sorted = labels.clone();
         sorted.sort_unstable();
@@ -289,7 +305,8 @@ mod tests {
             },
         ];
         let mut palette = CommandPalette::new();
-        palette.open(runtime_rows);
+        let registry = KeybindingRegistry::new();
+        palette.open(runtime_rows, &registry);
         assert_eq!(
             palette.entries.first().map(|e| e.action_id.as_str()),
             Some("agent-roster-focus:3"),
@@ -320,9 +337,10 @@ mod tests {
             label: "New Action · New Plugin".to_string(),
         }]);
         let mut palette = CommandPalette::new();
-        palette.open(snapshot_a);
+        let registry = KeybindingRegistry::new();
+        palette.open(snapshot_a, &registry);
         palette.close();
-        palette.open(snapshot_b);
+        palette.open(snapshot_b, &registry);
         let ids = palette.filtered_ids("");
         assert!(
             ids.contains(&"plugin-action:com.new:act"),
@@ -395,5 +413,63 @@ mod tests {
 
         palette.clamp_selection(0);
         assert_eq!(palette.selected, 0, "an empty result list clamps to 0");
+    }
+
+    #[test]
+    fn palette_advertises_the_live_chord_after_a_rebind() {
+        // Criterion 5 / B22: the palette's chord hints must come from the
+        // live registry, not the static defaults table — rebinding
+        // toggle_fullscreen to F9 must advertise F9, never the F11 default.
+        let registry = KeybindingRegistry::from_config(&[par_term_config::KeyBinding {
+            key: "F9".to_string(),
+            action: "toggle_fullscreen".to_string(),
+        }]);
+        let mut palette = CommandPalette::new();
+        palette.open(vec![], &registry);
+
+        let entry = palette
+            .entries
+            .iter()
+            .find(|e| e.action_id == "toggle_fullscreen")
+            .expect("toggle_fullscreen is in the catalog");
+        assert_eq!(entry.chord.as_deref(), Some("F9"));
+    }
+
+    #[test]
+    fn palette_hides_a_default_chord_claimed_by_pass_to_terminal() {
+        // The live registry is the authority: with F11 claimed for the
+        // terminal, toggle_fullscreen has no live chord and must show none —
+        // advertising the stale F11 default would send the user to a key the
+        // app no longer answers.
+        let registry = KeybindingRegistry::from_config(&[par_term_config::KeyBinding {
+            key: "F11".to_string(),
+            action: par_term_keybindings::PASS_TO_TERMINAL.to_string(),
+        }]);
+        let mut palette = CommandPalette::new();
+        palette.open(vec![], &registry);
+
+        let entry = palette
+            .entries
+            .iter()
+            .find(|e| e.action_id == "toggle_fullscreen")
+            .expect("toggle_fullscreen is in the catalog");
+        assert_eq!(entry.chord, None);
+    }
+
+    #[test]
+    fn palette_advertises_defaults_through_a_merged_registry() {
+        // A registry built from the real merged defaults (what the app holds
+        // after config load) still advertises chords for bound actions, so
+        // the empty-config case renders exactly like the old static table.
+        let registry = KeybindingRegistry::from_config(&par_term_config::defaults::keybindings());
+        let mut palette = CommandPalette::new();
+        palette.open(vec![], &registry);
+
+        let entry = palette
+            .entries
+            .iter()
+            .find(|e| e.action_id == "toggle_fullscreen")
+            .expect("toggle_fullscreen is in the catalog");
+        assert_eq!(entry.chord.as_deref(), Some("F11"));
     }
 }
