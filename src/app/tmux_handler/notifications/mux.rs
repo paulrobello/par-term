@@ -3556,6 +3556,95 @@ pub(crate) mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// UX.md B2: a background tab receiving output lights its tab-bar
+    /// activity dot; focusing the tab clears it, and the active tab never
+    /// shows its own dot.
+    #[test]
+    fn background_tab_output_lights_activity_dot_and_focus_clears_it() {
+        let path = socket_path("activity-dot");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach =
+            attach_test(&transport, "actdot", Some((80, 24)), &Default::default()).expect("attach");
+        transport.send_command("new-window").expect("new-window");
+        std::thread::sleep(Duration::from_millis(50));
+        for pane in transport.client().list_panes().expect("list panes") {
+            transport
+                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
+                .expect("refresh-client");
+        }
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("actdot".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() >= 2 && ws.tmux_state.tmux_pane_owners.len() >= 2 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created 2 tabs: {} tabs, panes {:?}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        let first_id = ws.tab_manager.tabs()[0].id;
+        let second_id = ws.tab_manager.tabs()[1].id;
+        ws.tab_manager.switch_to(first_id);
+        // Baseline: consume the attach seeds' generation bumps so the dot
+        // below derives only from the explicit mark_updated calls.
+        ws.check_activity_idle_notifications();
+        for tab in ws.tab_manager.tabs() {
+            assert!(!tab.activity.has_activity, "no dot before new output");
+        }
+
+        // New output in BOTH tabs: only the background one may dot.
+        for tab in ws.tab_manager.tabs_mut() {
+            if let Ok(term) = tab.terminal.try_write() {
+                term.process_data(b"x");
+            }
+        }
+        ws.check_activity_idle_notifications();
+        assert!(
+            ws.tab_manager
+                .get_tab(second_id)
+                .is_some_and(|t| t.activity.has_activity),
+            "the background tab's output must light its dot"
+        );
+        assert!(
+            !ws.tab_manager
+                .get_tab(first_id)
+                .is_some_and(|t| t.activity.has_activity),
+            "the active tab never shows its own dot"
+        );
+
+        // Focusing the background tab clears it.
+        ws.tab_manager.switch_to(second_id);
+        assert!(
+            !ws.tab_manager
+                .get_tab(second_id)
+                .is_some_and(|t| t.activity.has_activity),
+            "focusing the tab clears the dot"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
 
     fn a_fresh_daemon_yields_an_empty_roster() {

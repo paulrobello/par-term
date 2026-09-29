@@ -209,8 +209,8 @@ impl TerminalManager {
         // A mux pane has no PTY reader thread to bump the generation, and
         // the app's render cache is keyed on it — without this bump the
         // cache serves stale cells forever (panes only redrawn on focus).
-        // Gated on the local-core `mux` feature: mark_updated exists only
-        // in the unpublished core (see Cargo.toml's feature note).
+        // Gated on the `mux` feature: mark_updated is part of the core's
+        // mux surface (see Cargo.toml's feature note).
         #[cfg(feature = "mux")]
         pty.mark_updated();
     }

@@ -557,20 +557,10 @@ impl WindowState {
     /// - **Silence notification**: Triggered when a terminal has been idle for longer than the
     ///   configured threshold (useful for detecting stalled processes).
     pub(crate) fn check_activity_idle_notifications(&mut self) {
-        // Skip if both notification types are disabled
-        if !self
-            .config
-            .load()
-            .notifications
-            .notification_activity_enabled
-            && !self
-                .config
-                .load()
-                .notifications
-                .notification_silence_enabled
-        {
-            return;
-        }
+        // The generation scan below always runs: the tab-bar activity dot
+        // (UX.md B2) rides on it and must not depend on the notification
+        // config (both flags default off). Only the notification emission
+        // is gated, per flag, inside the loop.
 
         let now = std::time::Instant::now();
         let activity_threshold = std::time::Duration::from_secs(
@@ -588,6 +578,9 @@ impl WindowState {
 
         // Collect notification data for all tabs to avoid borrow conflicts
         let mut notifications_to_send: Vec<(String, String)> = Vec::new();
+        // Tabs with new output this tick — they light the tab-bar activity
+        // dot (UX.md B2) after the loop releases the tabs borrow.
+        let mut activity_tabs: Vec<crate::tab::TabId> = Vec::new();
 
         for tab in self.tab_manager.tabs_mut() {
             // Get current terminal generation to detect new output
@@ -610,6 +603,7 @@ impl WindowState {
                 tab.activity.last_seen_generation = current_generation;
                 tab.activity.last_activity_time = now;
                 tab.activity.silence_notified = false; // Reset silence notification flag
+                activity_tabs.push(tab.id);
 
                 // Activity notification: notify if we were idle long enough
                 if self
@@ -654,6 +648,13 @@ impl WindowState {
                     notifications_to_send.push((title, message));
                 }
             }
+        }
+
+        // UX.md B2: new output in a background tab lights its tab-bar
+        // activity dot. mark_activity no-ops for the active tab, so the
+        // focused tab never shows its own dot.
+        for id in activity_tabs {
+            self.tab_manager.mark_activity(id);
         }
 
         // Send collected notifications (after releasing mutable borrow)
