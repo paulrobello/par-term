@@ -757,22 +757,94 @@ mod tests {
         let pane1 = manager.get_pane(1).expect("pane 1 present");
         let pane4 = manager.get_pane(4).expect("pane 4 present");
         assert!(
-            pane1.bounds.x > pane4.bounds.x && pane1.bounds.y < pane4.bounds.y,
+            pane1.bounds.x > pane4.bounds.x && pane1.bounds.y > pane4.bounds.y,
             "pane 1 must now sit bottom-right ({}x{}) while pane 4 sits top-left ({}x{})",
             pane1.bounds.x,
             pane1.bounds.y,
             pane4.bounds.x,
             pane4.bounds.y
         );
+        // Leaf semantics (UX.md B1): only the two named panes move. The
+        // other column keeps its panes — 2 stays bottom-left, 3 stays
+        // top-right.
+        let pane2 = manager.get_pane(2).expect("pane 2 present");
+        let pane3 = manager.get_pane(3).expect("pane 3 present");
+        assert!(
+            pane2.bounds.x < pane1.bounds.x && pane2.bounds.y > pane3.bounds.y,
+            "pane 2 must stay bottom-left ({}x{})",
+            pane2.bounds.x,
+            pane2.bounds.y
+        );
+        assert!(
+            pane3.bounds.x > pane2.bounds.x && pane3.bounds.y < pane1.bounds.y,
+            "pane 3 must stay top-right ({}x{})",
+            pane3.bounds.x,
+            pane3.bounds.y
+        );
         // Neighbors resolve against the swapped bounds.
         assert_eq!(
             manager.neighbor_in_direction(1, NavigationDirection::Left),
-            Some(3),
-            "left of bottom-right pane is top-right"
+            Some(2),
+            "left of bottom-right pane is bottom-left"
         );
 
         assert!(!manager.swap_panes(1, 99), "unknown id must not swap");
         assert!(!manager.swap_panes(99, 98), "both unknown must not swap");
+    }
+
+    #[test]
+    fn swap_panes_top_row_of_a_grid_moves_only_the_top_row() {
+        // UX.md B1: swapping top-left with top-right in a 2x2 grid moves
+        // exactly those two panes; the bottom row keeps its places.
+        let mut manager = PaneManager::new();
+        manager.root = Some(PaneNode::split(
+            SplitDirection::Vertical,
+            0.5,
+            PaneNode::split(
+                SplitDirection::Horizontal,
+                0.5,
+                PaneNode::leaf(stub_pane(1, "/tl")),
+                PaneNode::leaf(stub_pane(2, "/bl")),
+            ),
+            PaneNode::split(
+                SplitDirection::Horizontal,
+                0.5,
+                PaneNode::leaf(stub_pane(3, "/tr")),
+                PaneNode::leaf(stub_pane(4, "/br")),
+            ),
+        ));
+        manager.focused_pane_id = Some(1);
+        manager.next_pane_id = 5;
+
+        assert!(manager.swap_panes(1, 3), "both ids exist");
+        let pane1 = manager.get_pane(1).expect("pane 1 present");
+        let pane2 = manager.get_pane(2).expect("pane 2 present");
+        let pane3 = manager.get_pane(3).expect("pane 3 present");
+        let pane4 = manager.get_pane(4).expect("pane 4 present");
+        assert!(
+            pane3.bounds.x < pane1.bounds.x && pane3.bounds.y < pane2.bounds.y,
+            "pane 3 must now sit top-left ({}x{})",
+            pane3.bounds.x,
+            pane3.bounds.y
+        );
+        assert!(
+            pane1.bounds.x > pane2.bounds.x && pane1.bounds.y < pane2.bounds.y,
+            "pane 1 must now sit top-right ({}x{})",
+            pane1.bounds.x,
+            pane1.bounds.y
+        );
+        assert!(
+            pane2.bounds.x < pane1.bounds.x && pane2.bounds.y > pane3.bounds.y,
+            "pane 2 must stay bottom-left ({}x{})",
+            pane2.bounds.x,
+            pane2.bounds.y
+        );
+        assert!(
+            pane4.bounds.x > pane3.bounds.x && pane4.bounds.y > pane1.bounds.y,
+            "pane 4 must stay bottom-right ({}x{})",
+            pane4.bounds.x,
+            pane4.bounds.y
+        );
     }
 
     #[test]

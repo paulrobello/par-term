@@ -274,7 +274,11 @@ impl PaneNode {
     /// Returns true when both ids exist in the tree.
     pub fn swap_panes(&mut self, a: PaneId, b: PaneId) -> bool {
         match self {
-            PaneNode::Leaf(pane) => pane.id == a || pane.id == b,
+            // Only the degenerate a == b self-swap resolves at a leaf: a
+            // single id matching here means the OTHER id does not exist,
+            // and the "neither in first" descent below does not verify
+            // existence before recursing.
+            PaneNode::Leaf(pane) => pane.id == a && pane.id == b,
             PaneNode::Split { first, second, .. } => {
                 let a_first = first.find_pane(a).is_some();
                 let b_first = first.find_pane(b).is_some();
@@ -282,11 +286,23 @@ impl PaneNode {
                     first.swap_panes(a, b)
                 } else if !a_first && !b_first {
                     second.swap_panes(a, b)
-                } else if second.find_pane(if a_first { b } else { a }).is_some() {
-                    std::mem::swap(first, second);
-                    true
                 } else {
-                    false
+                    // a and b live in different subtrees: exchange the two
+                    // leaf panes, not the subtrees. Swapping whole subtrees
+                    // dragged every pane sharing a column along — a 2x2
+                    // swap of the top row moved the bottom row too
+                    // (UX.md B1).
+                    let (in_first, in_second) = if a_first { (a, b) } else { (b, a) };
+                    match (
+                        first.find_pane_mut(in_first),
+                        second.find_pane_mut(in_second),
+                    ) {
+                        (Some(pa), Some(pb)) => {
+                            std::mem::swap(pa, pb);
+                            true
+                        }
+                        _ => false,
+                    }
                 }
             }
         }
