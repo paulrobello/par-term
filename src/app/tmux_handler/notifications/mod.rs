@@ -40,6 +40,8 @@ mod mux_attach;
 #[cfg(feature = "mux")]
 mod mux_drain;
 #[cfg(feature = "mux")]
+mod mux_panes;
+#[cfg(feature = "mux")]
 mod mux_transport;
 mod output;
 mod polling;
