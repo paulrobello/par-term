@@ -521,4 +521,42 @@ keybindings:
         // all gains the default, as before).
         assert!(bound_chord(&config, "toggle_background_shader").is_some());
     }
+
+    /// UX.md K27/B20: a `pass_to_terminal` row claims its chord, so the
+    /// default merge must not resurrect a default on that chord, and the row
+    /// itself round-trips through YAML (restart survival).
+    #[test]
+    fn pass_to_terminal_row_survives_merge_and_yaml_round_trip() {
+        let yaml = r#"
+keybindings:
+  - key: Alt+1
+    action: pass_to_terminal
+"#;
+        let mut config: Config = serde_yaml_ng::from_str(yaml).expect("yaml parses");
+        assert_eq!(
+            bound_chord(&config, "pass_to_terminal"),
+            Some("Alt+1".to_string())
+        );
+
+        let defaults = vec![KeyBinding {
+            key: "Alt+1".to_string(),
+            action: "switch_to_tab_1".to_string(),
+        }];
+        config.merge_default_keybindings_from(&defaults);
+        assert!(
+            bound_chord(&config, "switch_to_tab_1").is_none(),
+            "a chord claimed by pass_to_terminal must not gain its default back"
+        );
+        assert_eq!(
+            bound_chord(&config, "pass_to_terminal"),
+            Some("Alt+1".to_string())
+        );
+
+        let rewritten = serde_yaml_ng::to_string(&config).expect("yaml serializes");
+        let reloaded: Config = serde_yaml_ng::from_str(&rewritten).expect("yaml reloads");
+        assert_eq!(
+            bound_chord(&reloaded, "pass_to_terminal"),
+            Some("Alt+1".to_string())
+        );
+    }
 }

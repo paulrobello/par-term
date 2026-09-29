@@ -224,6 +224,21 @@ keybindings:
     action: "split_horizontal"
 ```
 
+#### Passing a chord through to the shell
+
+Binding a chord to the `pass_to_terminal` action gives it back to the shell:
+no shortcut layer, menu accelerator fallback, or paste/copy interception may
+take it, and the default merge never re-binds that chord on load, so the row
+survives restarts. This is how to free chords the terminal steals by default,
+e.g. `Alt+1` (readline `digit-argument`, irssi/weechat window numbers) or
+`Cmd+1` tab switching:
+
+```yaml
+keybindings:
+  - key: "Alt+1"
+    action: "pass_to_terminal"
+```
+
 Custom actions also support an optional two-stroke trigger. Set `custom_action_prefix_key`
 globally, then assign a single-character `prefix_char` on each action (or a single-character
 `keybinding` with no modifiers). Press the prefix key, release it, then press the action
@@ -253,10 +268,10 @@ reference.
 - `select_all` - Select the whole terminal buffer (scrollback plus visible screen), or the focused text field when Settings or an overlay has focus
 - `toggle_menu` - Open the in-app application menu
 
-None of these five ships with a default `keybindings` entry. macOS and Windows
-reach the first four through native menu accelerators (`Cmd + N` / `Ctrl + N`,
-`+ W`, `+ Q`, `+ A`); Linux has no native menu bar, so on Linux a keybinding is
-the only direct keyboard route. Bind `toggle_menu` if you run with
+`new_window`, `quit` and `select_all` ship with default `keybindings` entries
+mirroring the native menu accelerators (`Cmd + N` / `Ctrl + N`, `+ Q`, `+ A`),
+as does `close_window` on macOS (`Cmd + W`; no non-macOS default ships for
+it). `toggle_menu` has no default. Bind it if you run with
 `tab_bar_mode: never` — the tab bar is what normally holds the `☰` button, so
 without a binding there is no way to open the in-app menu.
 

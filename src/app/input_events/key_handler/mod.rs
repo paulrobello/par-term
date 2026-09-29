@@ -256,6 +256,12 @@ impl WindowState {
             return;
         }
 
+        // Unbind/passthrough (UX K2/K27): set when the registry matched a
+        // `pass_to_terminal` row below. No hardcoded interception may take the
+        // key after that — it must reach the PTY encoding at the end of this
+        // handler.
+        let mut passthrough = false;
+
         // Check user-defined keybindings first (before hardcoded shortcuts)
         if event.state == ElementState::Pressed
             && let Some(action) = self.keybinding_registry.lookup_with_options(
@@ -274,7 +280,9 @@ impl WindowState {
             );
             // Clone to avoid borrow conflict
             let action = action.to_string();
-            if self.execute_keybinding_action(&action) {
+            if action == par_term_keybindings::PASS_TO_TERMINAL {
+                passthrough = true;
+            } else if self.execute_keybinding_action(&action) {
                 return; // Key was handled by user-defined keybinding
             }
         } else if event.state == ElementState::Pressed {
@@ -288,28 +296,32 @@ impl WindowState {
 
         // Shortcut layers, in precedence order — the first layer to claim the
         // key wins and the key never reaches the terminal.  See KEY_LAYERS.
-        for (_, layer) in KEY_LAYERS {
-            if layer(self, &event) {
-                return;
+        // A passthrough row claims the chord for the shell, so every
+        // hardcoded layer is skipped (K3: Alt+1..9, Ctrl+_, … become freeable).
+        if !passthrough {
+            for (_, layer) in KEY_LAYERS {
+                if layer(self, &event) {
+                    return;
+                }
+            }
+
+            // These two layers continue the same precedence chain but need the
+            // event loop (they can exit the app / open windows), so they cannot
+            // live in KEY_LAYERS.  They run last, exactly as before.
+            //
+            // Check for utility shortcuts (clear scrollback, font size, etc.)
+            if self.handle_utility_shortcuts(&event, event_loop) {
+                return; // Key was handled by utility shortcut
+            }
+
+            // Check for tab shortcuts
+            if self.handle_tab_shortcuts(&event, event_loop) {
+                return; // Key was handled by tab shortcut
             }
         }
 
-        // These two layers continue the same precedence chain but need the
-        // event loop (they can exit the app / open windows), so they cannot
-        // live in KEY_LAYERS.  They run last, exactly as before.
-        //
-        // Check for utility shortcuts (clear scrollback, font size, etc.)
-        if self.handle_utility_shortcuts(&event, event_loop) {
-            return; // Key was handled by utility shortcut
-        }
-
-        // Check for tab shortcuts
-        if self.handle_tab_shortcuts(&event, event_loop) {
-            return; // Key was handled by tab shortcut
-        }
-
         // Handle paste shortcuts with bracketed paste support
-        if event.state == ElementState::Pressed {
+        if event.state == ElementState::Pressed && !passthrough {
             // macOS: Cmd+V, NamedKey::Paste
             // Windows/Linux: Ctrl+Shift+V, Shift+Insert, NamedKey::Paste
             // (Ctrl+V is "literal next" in terminals, must not be intercepted)

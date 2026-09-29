@@ -26,6 +26,16 @@ pub use parser::{key_combo_to_bytes, parse_key_sequence};
 use par_term_config::{KeyBinding, ModifierRemapping};
 use std::collections::HashMap;
 
+/// Sentinel action id that claims a chord for the terminal itself
+/// (UX.md K2/K27 "unbind / pass to terminal").
+///
+/// A config row `{ key: "Alt+1", action: "pass_to_terminal" }` suppresses
+/// every hardcoded interception of that chord — key layers, utility and tab
+/// shortcuts, paste/copy — so the key is delivered to the shell. The row also
+/// claims the chord for the §3.3 merge rule, so a default bound to the same
+/// chord is not re-added on load (B20).
+pub const PASS_TO_TERMINAL: &str = "pass_to_terminal";
+
 fn is_removed_action(action: &str) -> bool {
     matches!(action, "toggle_prettifier")
 }
@@ -294,6 +304,21 @@ mod tests {
         let registry = KeybindingRegistry::from_config(&bindings);
         assert_eq!(registry.len(), 1);
         assert_eq!(registry.find_by_chord("CTRL+d"), Some("first_action"));
+    }
+
+    #[test]
+    fn test_pass_to_terminal_row_registers_and_resolves() {
+        // UX K2/K27: a `pass_to_terminal` row registers like any binding and
+        // resolves on lookup, so dispatch can skip hardcoded layers for the
+        // chord (Alt+1 case).
+        let bindings = vec![KeyBinding {
+            key: "Alt+1".to_string(),
+            action: PASS_TO_TERMINAL.to_string(),
+        }];
+
+        let registry = KeybindingRegistry::from_config(&bindings);
+        assert_eq!(registry.len(), 1);
+        assert_eq!(registry.find_by_chord("Alt+1"), Some(PASS_TO_TERMINAL));
     }
 
     #[test]
