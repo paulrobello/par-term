@@ -4143,6 +4143,7 @@ dependencies = [
  "log",
  "open",
  "par-term-config",
+ "par-term-keybindings",
  "par-term-scripting",
  "parking_lot",
  "regex",

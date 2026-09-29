@@ -15,6 +15,9 @@ categories = ["gui"]
 # Configuration system (internal)
 par-term-config = { path = "../par-term-config", version = "0.14.6" }
 
+# Keybinding chord parsing for normalized conflict detection (UX.md K25)
+par-term-keybindings = { path = "../par-term-keybindings", version = "0.1.14" }
+
 # Plugin manifest types (Automation > Plugins section)
 par-term-scripting = { path = "../par-term-scripting", version = "0.2.0" }
 

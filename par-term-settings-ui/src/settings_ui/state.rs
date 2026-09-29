@@ -208,6 +208,7 @@ impl SettingsUI {
             cursor_shader_settings_expanded: true,
             keybinding_recording_index: None,
             keybinding_recorded_combo: None,
+            keybinding_conflict: None,
             test_notification_requested: false,
             selected_tab: SettingsTab::default(),
             collapsed_sections: initial_collapsed,

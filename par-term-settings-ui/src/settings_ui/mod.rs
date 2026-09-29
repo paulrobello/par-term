@@ -186,6 +186,9 @@ pub struct SettingsUI {
     pub keybinding_recording_index: Option<usize>,
     /// The recorded key combination string (displayed during recording)
     pub keybinding_recorded_combo: Option<String>,
+    /// Conflict warning for the last recorded chord (UX.md K25), shown until
+    /// the next recording starts
+    pub keybinding_conflict: Option<String>,
 
     // Notification test state
     /// Flag to request sending a test notification

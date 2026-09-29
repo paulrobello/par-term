@@ -207,11 +207,22 @@ fn parse_key(s: &str) -> Result<ParsedKey, ParseError> {
     // Punctuation word forms — the same vocabulary the settings table and the
     // menu docs spell. Each resolves to the identical chord its literal
     // character produces, so `Ctrl+Comma` and `Ctrl+,` are one binding.
+    // The KeyCode-style names (`BracketRight`, …) are what the Settings
+    // recorder emits; they resolve the same way so a recorded chord is
+    // always parseable (B19).
     let punctuation = match s.to_lowercase().as_str() {
         "plus" => Some('+'),
         "minus" => Some('-'),
         "comma" => Some(','),
         "equal" | "equals" => Some('='),
+        "bracketleft" => Some('['),
+        "bracketright" => Some(']'),
+        "backslash" => Some('\\'),
+        "semicolon" => Some(';'),
+        "colon" => Some(':'),
+        "period" => Some('.'),
+        "slash" => Some('/'),
+        "backquote" => Some('`'),
         _ => None,
     };
     if let Some(c) = punctuation {
@@ -468,6 +479,29 @@ mod tests {
         let equal = parse_key_combo("Ctrl+Equal").unwrap();
         assert_eq!(equal.key, ParsedKey::Character('='));
         assert_eq!(parse_key_combo("Ctrl+Equals").unwrap().key, equal.key);
+    }
+
+    #[test]
+    fn test_recorder_punctuation_word_forms_parse() {
+        // B19: the Settings recorder emits KeyCode-style names for punctuation
+        // keys. Every name it can emit must parse, and must resolve to the
+        // same chord as the literal character so recorded chords claim and
+        // conflict-check against hand-spelled bindings.
+        for (word, ch) in [
+            ("BracketLeft", '['),
+            ("BracketRight", ']'),
+            ("Backslash", '\\'),
+            ("Semicolon", ';'),
+            ("Colon", ':'),
+            ("Period", '.'),
+            ("Slash", '/'),
+            ("Backquote", '`'),
+        ] {
+            let recorded = parse_key_combo(&format!("CmdOrCtrl+Shift+{word}"))
+                .unwrap_or_else(|e| panic!("{word} must parse: {e}"));
+            let literal = parse_key_combo(&format!("CmdOrCtrl+Shift+{ch}")).unwrap();
+            assert_eq!(recorded, literal, "mismatch for {word}");
+        }
     }
 
     #[test]

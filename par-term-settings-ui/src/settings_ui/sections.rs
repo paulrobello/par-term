@@ -121,9 +121,12 @@ impl SettingsUI {
     /// `exclude_id` is the snippet or action ID being edited — its own keybinding
     /// entries (both in `config.keybindings` and in `config.snippets`) are skipped
     /// so that editing an existing item never reports a false self-conflict.
+    ///
+    /// Comparison is normalized (K25): two spellings of the same chord
+    /// (`Ctrl+D` / `Control+D`, `Cmd+D` / `CmdOrCtrl+D` on macOS) conflict.
     pub fn check_keybinding_conflict(&self, key: &str, exclude_id: Option<&str>) -> Option<String> {
         for binding in &self.config.keybindings {
-            if binding.key != key {
+            if !chords_equal(&binding.key, key) {
                 continue;
             }
             // Skip the excluded item's own entry (stored as "action:<id>" or "snippet:<id>")
@@ -139,7 +142,7 @@ impl SettingsUI {
 
         for snippet in &self.config.snippets {
             if let Some(snippet_key) = &snippet.keybinding
-                && snippet_key == key
+                && chords_equal(snippet_key, key)
             {
                 if exclude_id == Some(&snippet.id) {
                     continue;
@@ -148,6 +151,46 @@ impl SettingsUI {
             }
         }
 
+        None
+    }
+
+    /// Conflict check for a chord recorded in the Keybindings tab for `action`
+    /// (UX.md K25): user rows, snippet chords, and the shipped default
+    /// bindings — the same defaults the menu advertises — with normalized
+    /// comparison. The recorded action's own entries never self-conflict.
+    pub fn check_recorded_chord_conflict(&self, key: &str, action: &str) -> Option<String> {
+        for binding in &self.config.keybindings {
+            if binding.action == action || !chords_equal(&binding.key, key) {
+                continue;
+            }
+            return Some(format!("Already bound to: {}", binding.action));
+        }
+
+        for snippet in &self.config.snippets {
+            if let Some(snippet_key) = &snippet.keybinding
+                && chords_equal(snippet_key, key)
+            {
+                return Some(format!("Already bound to snippet: {}", snippet.title));
+            }
+        }
+
+        self.check_default_chord_conflict(key, action)
+    }
+
+    /// Check a chord against the shipped default bindings (menu accelerators
+    /// and layer chords). A default bound to a *different* action is flagged:
+    /// the §3.3 merge rule means a user row claiming the chord silently
+    /// shadows that default.
+    pub fn check_default_chord_conflict(&self, key: &str, exclude_action: &str) -> Option<String> {
+        for default in par_term_config::defaults::keybindings() {
+            if default.action == exclude_action || !chords_equal(&default.key, key) {
+                continue;
+            }
+            return Some(format!(
+                "Conflicts with default binding for: {}",
+                default.action
+            ));
+        }
         None
     }
 
@@ -170,6 +213,20 @@ impl SettingsUI {
         }
 
         None
+    }
+}
+
+/// Normalized chord equality (UX.md K25): parse both spellings and compare
+/// platform-normalized combos, so `Ctrl+D`, `Control+D`, and `CmdOrCtrl+D`
+/// (on macOS) are one chord. Spellings that do not parse fall back to exact
+/// string comparison.
+fn chords_equal(a: &str, b: &str) -> bool {
+    match (
+        par_term_keybindings::parser::parse_key_combo(a),
+        par_term_keybindings::parser::parse_key_combo(b),
+    ) {
+        (Ok(a), Ok(b)) => a.platform_normalized() == b.platform_normalized(),
+        _ => a == b,
     }
 }
 
@@ -219,5 +276,96 @@ mod tests {
         let settings = SettingsUI::new_for_tests(config);
 
         assert_eq!(settings.check_action_prefix_char_conflict('1', None), None);
+    }
+
+    #[test]
+    fn chord_conflict_uses_normalized_comparison() {
+        // K25: "Control+D" and "Ctrl+D" (and any case variant) are the same
+        // chord; an exact string compare misses the collision.
+        let mut config = Config::default();
+        config.keybindings.push(par_term_config::KeyBinding {
+            key: "Control+D".to_string(),
+            action: "my_action".to_string(),
+        });
+        let settings = SettingsUI::new_for_tests(config);
+
+        let conflict = settings.check_keybinding_conflict("ctrl+d", None);
+        assert!(
+            conflict.is_some(),
+            "spelling variants of one chord must conflict"
+        );
+        assert!(conflict.unwrap().contains("my_action"));
+    }
+
+    #[test]
+    fn chord_conflict_unparseable_falls_back_to_exact_match() {
+        let mut config = Config::default();
+        config.keybindings.push(par_term_config::KeyBinding {
+            key: "NotAKey".to_string(),
+            action: "my_action".to_string(),
+        });
+        let settings = SettingsUI::new_for_tests(config);
+
+        assert!(
+            settings
+                .check_keybinding_conflict("NotAKey", None)
+                .is_some()
+        );
+        assert!(
+            settings
+                .check_keybinding_conflict("AlsoNotAKey", None)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn recorded_chord_flags_default_menu_binding() {
+        // Criterion 4 / K25: recording CmdOrCtrl+Shift+BracketRight (what the
+        // recorder emits for Cmd/Ctrl+Shift+]) duplicates the shipped
+        // next_tab default (CmdOrCtrl+Shift+] on macOS, Ctrl+Shift+]
+        // elsewhere) after normalization — same chord on both platforms.
+        let settings = SettingsUI::new_for_tests(Config::default());
+
+        let conflict =
+            settings.check_recorded_chord_conflict("CmdOrCtrl+Shift+BracketRight", "my_action");
+        assert!(
+            conflict.as_deref().is_some_and(|c| c.contains("next_tab")),
+            "recorded chord must flag the next_tab default, got {conflict:?}"
+        );
+
+        // Re-binding an action to its own default chord is not a conflict.
+        assert_eq!(
+            settings.check_recorded_chord_conflict("CmdOrCtrl+Shift+BracketRight", "next_tab"),
+            None
+        );
+    }
+
+    #[test]
+    fn recorded_chord_flags_other_user_row_but_not_own() {
+        let mut config = Config::default();
+        config.keybindings.push(par_term_config::KeyBinding {
+            key: "Ctrl+D".to_string(),
+            action: "other_action".to_string(),
+        });
+        let settings = SettingsUI::new_for_tests(config);
+
+        let conflict = settings.check_recorded_chord_conflict("Control+D", "my_action");
+        assert!(
+            conflict
+                .as_deref()
+                .is_some_and(|c| c.contains("other_action"))
+        );
+
+        // The action's own row (the one just recorded) never self-conflicts.
+        let mut config = Config::default();
+        config.keybindings.push(par_term_config::KeyBinding {
+            key: "Alt+K".to_string(),
+            action: "my_action".to_string(),
+        });
+        let settings = SettingsUI::new_for_tests(config);
+        assert_eq!(
+            settings.check_recorded_chord_conflict("Alt+K", "my_action"),
+            None
+        );
     }
 }

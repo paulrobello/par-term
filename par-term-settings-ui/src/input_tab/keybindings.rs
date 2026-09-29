@@ -57,6 +57,9 @@ pub(super) fn show_keybindings_section(
                     if recording_idx < AVAILABLE_ACTIONS.len() {
                         let (action_name, _, _) = AVAILABLE_ACTIONS[recording_idx];
 
+                        settings.keybinding_conflict =
+                            settings.check_recorded_chord_conflict(&combo, action_name);
+
                         let binding_idx = settings
                             .config
                             .keybindings
@@ -82,7 +85,15 @@ pub(super) fn show_keybindings_section(
                 if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                     settings.keybinding_recording_index = None;
                     settings.keybinding_recorded_combo = None;
+                    settings.keybinding_conflict = None;
                 }
+            }
+
+            if let Some(conflict) = &settings.keybinding_conflict {
+                ui.colored_label(
+                    egui::Color32::RED,
+                    format!("Keybinding conflict: {conflict}"),
+                );
             }
 
             // Collect binding info
@@ -185,11 +196,13 @@ pub(super) fn show_keybindings_section(
             if cancel_recording {
                 settings.keybinding_recording_index = None;
                 settings.keybinding_recorded_combo = None;
+                settings.keybinding_conflict = None;
             }
 
             if let Some(idx) = start_recording {
                 settings.keybinding_recording_index = Some(idx);
                 settings.keybinding_recorded_combo = None;
+                settings.keybinding_conflict = None;
             }
 
             if let Some(action_name) = action_to_clear {
@@ -199,6 +212,7 @@ pub(super) fn show_keybindings_section(
                     .retain(|b| b.action != action_name);
                 settings.has_changes = true;
                 *changes_this_frame = true;
+                settings.keybinding_conflict = None;
             }
 
             ui.add_space(8.0);
@@ -264,9 +278,13 @@ pub fn capture_key_combo(ui: &egui::Ui) -> Option<String> {
 
                 #[cfg(target_os = "macos")]
                 {
+                    // Independent, not else-if: Cmd+Ctrl+… (the pane-swap
+                    // defaults) must keep both modifiers or the chord can
+                    // never be re-recorded (B18).
                     if cmd {
                         parts.push("CmdOrCtrl");
-                    } else if ctrl {
+                    }
+                    if ctrl {
                         parts.push("Ctrl");
                     }
                 }
@@ -276,6 +294,9 @@ pub fn capture_key_combo(ui: &egui::Ui) -> Option<String> {
                     if ctrl {
                         parts.push("CmdOrCtrl");
                     }
+                    // Super cannot be recorded here: egui's Modifiers expose
+                    // no super state off macOS (`command` mirrors `ctrl`), so
+                    // `cmd` carries no extra information on this branch.
                     let _ = cmd;
                 }
 
@@ -377,5 +398,98 @@ fn key_to_string(key: egui::Key) -> Option<&'static str> {
         egui::Key::Slash => Some("Slash"),
         egui::Key::Backtick => Some("Backquote"),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Drive `capture_key_combo` headlessly: a modifier-state change followed
+    /// by one synthetic key event carrying the same modifiers (the recorder
+    /// reads both the frame's modifier state and the event's).
+    fn record(mods: egui::Modifiers, key: egui::Key) -> Option<String> {
+        let ctx = egui::Context::default();
+        let mut raw = egui::RawInput::default();
+        raw.events.push(egui::Event::ModifiersChanged(mods));
+        raw.events.push(egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: mods,
+        });
+        let mut recorded = None;
+        let mut output = ctx.run_ui(raw, |ctx| {
+            recorded = egui::CentralPanel::default()
+                .show(ctx, |ui| capture_key_combo(ui))
+                .inner;
+        });
+        // Headless runs have no renderer to apply the font texture delta;
+        // epaint panics on drop if it is not cleared first.
+        output.textures_delta.clear();
+        recorded
+    }
+
+    #[test]
+    fn recorder_keeps_ctrl_when_cmd_held() {
+        // B18: Cmd+Ctrl+Opt+Arrow (the shipped pane-swap default) must record
+        // with BOTH command and ctrl, spelled as the defaults table spells it
+        // (CmdOrCtrl+Ctrl+Alt+…). Ctrl used to be dropped whenever Cmd was
+        // held, making the shipped default unrecordable.
+        #[cfg(target_os = "macos")]
+        {
+            let mods = egui::Modifiers {
+                ctrl: true,
+                alt: true,
+                mac_cmd: true,
+                command: true,
+                ..Default::default()
+            };
+            assert_eq!(
+                record(mods, egui::Key::ArrowRight).as_deref(),
+                Some("CmdOrCtrl+Ctrl+Alt+Right")
+            );
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            // egui reports command == ctrl off macOS; the recorder must not
+            // emit a second modifier part for it.
+            let mods = egui::Modifiers {
+                ctrl: true,
+                alt: true,
+                command: true,
+                ..Default::default()
+            };
+            assert_eq!(
+                record(mods, egui::Key::ArrowRight).as_deref(),
+                Some("CmdOrCtrl+Alt+Right")
+            );
+        }
+    }
+
+    #[test]
+    fn recorder_punctuation_chord_parses() {
+        // B19 / criterion 4: Cmd+Shift+] records to a chord string the
+        // keybinding parser accepts (the next_tab default's chord).
+        #[cfg(target_os = "macos")]
+        let mods = egui::Modifiers {
+            shift: true,
+            mac_cmd: true,
+            command: true,
+            ..Default::default()
+        };
+        #[cfg(not(target_os = "macos"))]
+        let mods = egui::Modifiers {
+            ctrl: true,
+            shift: true,
+            command: true,
+            ..Default::default()
+        };
+        let combo = record(mods, egui::Key::CloseBracket).expect("combo recorded");
+        assert_eq!(combo, "CmdOrCtrl+Shift+BracketRight");
+        par_term_keybindings::parser::parse_key_combo(&combo)
+            .map(|_| ())
+            .unwrap_or_else(|e| panic!("recorded chord must parse: {e}"));
     }
 }
