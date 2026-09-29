@@ -36,6 +36,37 @@ use winit::keyboard::{Key, NamedKey};
 /// One shortcut layer: inspects a key event and returns `true` if it consumed it.
 pub(super) type KeyLayer = fn(&mut WindowState, &KeyEvent) -> bool;
 
+/// What a key press in a tab whose panes have all exited should do (B63).
+///
+/// The old fallback quit the whole app via `event_loop.exit()` on any stray
+/// key — killing every other window and skipping crash capture. The key now
+/// closes just the dead tab, or the window when it is the last tab, through
+/// the same steps `handle_shell_exit` uses. A tab with a restart pending
+/// (RestartWithPrompt / RestartAfterDelay) keeps the key: the restart
+/// prompt's Enter handler further down `handle_key_event` owns it.
+#[derive(Debug, PartialEq, Eq)]
+enum ExitedTabKeypress {
+    /// Another key consumer owns this event (restart prompt).
+    Keep,
+    /// Close the dead tab; the other tabs and the app stay open.
+    CloseTab,
+    /// Last tab: close the window instead.
+    CloseWindow,
+}
+
+fn exited_tab_keypress_action(
+    restart_pending: bool,
+    visible_tab_count: usize,
+) -> ExitedTabKeypress {
+    if restart_pending {
+        ExitedTabKeypress::Keep
+    } else if visible_tab_count <= 1 {
+        ExitedTabKeypress::CloseWindow
+    } else {
+        ExitedTabKeypress::CloseTab
+    }
+}
+
 /// Shortcut layers in precedence order, as consulted by `handle_key_event`.
 ///
 /// This is **ordered dispatch, not a lookup table**: each layer decides for
@@ -172,19 +203,37 @@ impl WindowState {
             true
         };
 
-        // If shell exited and user presses any key, exit the application
-        // (fallback behavior if close_on_shell_exit is false)
+        // B63: a key press in a tab whose panes have all exited must not
+        // quit the app. The old fallback aborted every tab's refresh task
+        // and called event_loop.exit() here — killing all windows on a
+        // stray key, and firing before the restart prompt's Enter handler
+        // further down, so RestartWithPrompt could never receive its key.
         if !is_running && event.state == ElementState::Pressed {
-            log::info!("Shell has exited, closing terminal on keypress");
-            // Abort refresh tasks for all tabs
-            for tab in self.tab_manager.tabs_mut() {
-                if let Some(task) = tab.refresh_task.take() {
-                    task.abort();
+            let restart_pending = self.tab_manager.active_tab().is_some_and(|tab| {
+                tab.pane_manager()
+                    .is_some_and(|pm| pm.all_panes().iter().any(|p| p.restart_state.is_some()))
+            });
+            match exited_tab_keypress_action(restart_pending, self.tab_manager.visible_tab_count())
+            {
+                ExitedTabKeypress::Keep => {}
+                ExitedTabKeypress::CloseTab => {
+                    if let Some(tab) = self.tab_manager.active_tab() {
+                        let id = tab.id;
+                        log::info!("All panes of tab {id} exited; closing the tab on keypress");
+                        let _ = self.tab_manager.close_tab(id);
+                    }
+                    return;
+                }
+                ExitedTabKeypress::CloseWindow => {
+                    log::info!("Last tab's panes exited; closing the window on keypress");
+                    self.is_shutting_down = true;
+                    for tab in self.tab_manager.tabs_mut() {
+                        tab.stop_refresh_task();
+                    }
+                    event_loop.exit();
+                    return;
                 }
             }
-            log::info!("Refresh tasks aborted");
-            event_loop.exit();
-            return;
         }
 
         // Update last key press time for cursor blink reset and shader effects

@@ -349,3 +349,77 @@ fn cmd_or_ctrl_expands_per_platform() {
     }
     assert!(c.mods.shift);
 }
+
+/// B63: a stray key in a tab whose panes all exited closes that tab (or the
+/// window when it is the last tab) — it must never quit the app outright.
+#[test]
+fn exited_tab_keypress_closes_the_tab_not_the_app() {
+    use super::{ExitedTabKeypress, exited_tab_keypress_action};
+
+    assert_eq!(
+        exited_tab_keypress_action(false, 3),
+        ExitedTabKeypress::CloseTab,
+        "other tabs stay open — the dead tab alone closes"
+    );
+    assert_eq!(
+        exited_tab_keypress_action(false, 1),
+        ExitedTabKeypress::CloseWindow,
+        "last tab closes the window, the shell_exit Close path's own rule"
+    );
+    assert_eq!(
+        exited_tab_keypress_action(true, 3),
+        ExitedTabKeypress::Keep,
+        "a pending restart prompt owns the key — Enter must reach its handler"
+    );
+    assert_eq!(
+        exited_tab_keypress_action(true, 1),
+        ExitedTabKeypress::Keep,
+        "restart pending outranks even the last-tab window close"
+    );
+}
+
+/// B63 regression pin: the all-exited branch must route through
+/// `exited_tab_keypress_action`, and the one `event_loop.exit()` in
+/// handle_key_event may exist only inside the last-tab window-close arm.
+/// The old code exited the loop unconditionally on any key — quitting the
+/// whole app (all windows) on a stray keypress.
+#[test]
+fn stray_keypress_cannot_exit_the_event_loop_outside_the_last_tab_arm() {
+    let source = include_str!("mod.rs");
+
+    // Code lines only — this test's own comments name the call.
+    let exit_lines: Vec<usize> = source
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| {
+            let trimmed = line.trim_start();
+            trimmed.contains("event_loop.exit()") && !trimmed.starts_with("//")
+        })
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(
+        exit_lines.len(),
+        1,
+        "handle_key_event must have exactly one event_loop.exit(), and only \
+         in the ExitedTabKeypress::CloseWindow arm"
+    );
+    let exit_pos = source
+        .lines()
+        .take(exit_lines[0] + 1)
+        .map(|l| l.len() + 1)
+        .sum::<usize>()
+        .saturating_sub(1);
+    let window_arm = source.find("ExitedTabKeypress::CloseWindow").expect(
+        "the exited-tab branch must dispatch through ExitedTabKeypress, not \
+         call the event loop directly",
+    );
+    assert!(
+        window_arm < exit_pos,
+        "the exit call must live inside the CloseWindow arm"
+    );
+    assert!(
+        source[..exit_pos].contains("is_shutting_down = true"),
+        "window close must go through the is_shutting_down path \
+         handle_shell_exit uses, not a bare loop exit"
+    );
+}
