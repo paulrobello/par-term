@@ -395,14 +395,14 @@ Target: **the same key does the same thing** whether a tab is local or attached.
 
 ## 10. Decisions for the owner
 
-**Owner answers (2026-09-28):** D1 approved, extended to "wherever possible align with iTerm2" (Section 3.3a). D2, D3, D4, D5, D7, D8 approved. D6 pending (options below).
+**Owner answers (2026-09-28):** D1 approved, extended to "wherever possible align with iTerm2" (Section 3.3a). D2, D3, D4, D5, D7, D8 approved. D6 approved as recommended (card `01a0eafef7ee7490a7c9bce3cc52ddcd`).
 
 - **D1. Flip macOS split chords to iTerm2's meaning** (Cmd+D = Split Right) and give Linux Terminator's pair (Ctrl+Shift+E right, Ctrl+Shift+O down). Existing users keep their current bindings **only once the Section 3.3 migration rule ships**; without it the default merge would add the new chord alongside the old one (B20, B23). With the rule, only new installs and "reset to default" change. **Recommendation: yes, gated on the migration rule.** The defaults comment already claims iTerm2 parity (`par-term-config/src/defaults/misc.rs:57`), and today the chord matches but the result is the opposite.
 - **D2. Give Cmd/Ctrl+Shift+P to the command palette**, moving the profile drawer to leader `P` and its menu item. **Recommendation: yes.** The palette is the discoverability hub and has no default chord at all.
 - **D3. Leader key defaults:** macOS Cmd+B, Linux/Windows Ctrl+Shift+B (moving background-shader toggle to Ctrl+Alt+B there). Alternative: ship the leader disabled and prompt once on first par-mux attach. **Recommendation: enabled by default**; Cmd+B is unused, and Ctrl+Shift+B only displaces a rarely used toggle.
 - **D4. Use Cmd+Shift+T for Reopen Closed Tab** (browser convention), moving throughput mode to the palette. **Recommendation: optional, low priority.**
 - **D5. Splits inherit the tab's profile, including SSH.** **Recommendation: yes, behind `split_inherits_profile` default true.**
-- **D6. Close-safety defaults** (TW5). Pending owner answer. The settings in question and today's values:
+- **D6. Close-safety defaults** (TW5). **Approved 2026-09-28 as recommended below.** The settings in question and today's values:
   - `confirm_close_running_jobs` (ask before closing a tab or pane whose shell has a foreground job not in `jobs_to_ignore`): par-term **false**. iTerm2's per-profile equivalent defaults to "never prompt", with a job-aware mode available.
   - `prompt_on_quit` (confirm quitting): par-term **false**. iTerm2 **YES**.
   - Confirm closing a window with multiple tabs: par-term has no setting. iTerm2 `ConfirmClosingMultipleTabs` **YES**.
@@ -417,7 +417,7 @@ Target: **the same key does the same thing** whether a tab is local or attached.
 
 ## 11. Phased roadmap with acceptance criteria
 
-**Filed on the par-term board 2026-09-28:** P0 `01a0ea7b391f7511a2d62b8667be10d7`, P1 `01a0ea7b3beb749085938c8fba01d9f2`, P2 keymap system `01a0ea7b3f657fa3922c30640ca88fc1`, iTerm2 alignment `01a0ea7b421c7810b3a6b61ad585bed2`, leader key `01a0ea7b44ad791188b2c670ced14034`, P3 `01a0ea7b474471c18348f207594d69f4`, P4 `01a0ea7b4af97e00a5c77c9a86dd0cb8`, P5 `01a0ea7b4da171a2adcaca0f48e53d58`. D6 is not filed until the owner answers.
+**Filed on the par-term board 2026-09-28:** P0 `01a0ea7b391f7511a2d62b8667be10d7`, P1 `01a0ea7b3beb749085938c8fba01d9f2`, P2 keymap system `01a0ea7b3f657fa3922c30640ca88fc1`, iTerm2 alignment `01a0ea7b421c7810b3a6b61ad585bed2`, leader key `01a0ea7b44ad791188b2c670ced14034`, P3 `01a0ea7b474471c18348f207594d69f4`, P4 `01a0ea7b4af97e00a5c77c9a86dd0cb8`, P5 `01a0ea7b4da171a2adcaca0f48e53d58`. D6 close-safety defaults `01a0eafef7ee7490a7c9bce3cc52ddcd`.
 
 Each phase is independently shippable. Every phase ends with `make checkall` green and docs updated in the same change.
 
