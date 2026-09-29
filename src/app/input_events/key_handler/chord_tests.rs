@@ -454,6 +454,21 @@ fn b61_dialogs_are_in_the_modal_guard() {
              that dialog is open leak to the PTY (B61)"
         );
     }
+
+    // The profile drawer is a side panel, not a modal: B61 covers it as
+    // "while filter focused", which is egui keyboard ownership — it must be
+    // in is_egui_using_keyboard's visibility list or egui is never asked
+    // and typed filter text reaches the PTY instead.
+    let keyboard = source
+        .split("fn is_egui_using_keyboard")
+        .nth(1)
+        .expect("is_egui_using_keyboard present in ui_query_helpers.rs");
+    let keyboard = keyboard.split('}').next().unwrap_or_default();
+    assert!(
+        keyboard.contains("profile_drawer_ui.expanded"),
+        "profile_drawer_ui.expanded missing from is_egui_using_keyboard — \
+         typed tag-filter text leaks to the PTY while the drawer is open (B61)"
+    );
 }
 
 #[test]
