@@ -3469,6 +3469,93 @@ pub(crate) mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// UX.md M13/B5: selecting a roster agent must focus the OWNING tab
+    /// and pane, from both ends of the tab strip — the pre-812dd8c5 code
+    /// computed the index 0-based over all tabs and landed one tab to
+    /// the left (tab 3's row focused tab 2, tab 1's row switched nowhere).
+    #[test]
+    fn roster_jump_from_first_and_third_tab_lands_on_the_owner() {
+        let path = socket_path("roster-ends");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(&transport, "rostends", Some((80, 24)), &Default::default())
+            .expect("attach");
+        transport.send_command("new-window").expect("new-window");
+        transport.send_command("new-window").expect("new-window");
+        std::thread::sleep(Duration::from_millis(50));
+        for pane in transport.client().list_panes().expect("list panes") {
+            transport
+                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
+                .expect("refresh-client");
+        }
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("rostends".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() >= 3 && ws.tmux_state.tmux_pane_owners.len() >= 3 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created 3 tabs: {} tabs, panes {:?}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // Start from the middle tab so a wrong switch is observable in
+        // both directions.
+        let middle_tab_id = ws.tab_manager.tabs()[1].id;
+        ws.tab_manager.switch_to(middle_tab_id);
+        assert_eq!(ws.tab_manager.active_tab_id(), Some(middle_tab_id));
+
+        let owner_tab_of_pane = |ws: &WindowState, tab_id: crate::tab::TabId| {
+            *ws.tmux_state
+                .tmux_pane_owners
+                .iter()
+                .find(|(_, (owner, _))| *owner == tab_id)
+                .map(|(pane, _)| pane)
+                .expect("each tab owns a daemon pane")
+        };
+
+        // The first tab's agent: focus moves LEFT to tab 1.
+        let first_tab_id = ws.tab_manager.tabs()[0].id;
+        let first_pane = owner_tab_of_pane(&ws, first_tab_id);
+        assert!(ws.focus_agent_roster_pane(first_pane));
+        assert_eq!(
+            ws.tab_manager.active_tab_id(),
+            Some(first_tab_id),
+            "tab 1's roster row must focus tab 1"
+        );
+
+        // The third tab's agent: focus moves RIGHT past the middle.
+        let third_tab_id = ws.tab_manager.tabs()[2].id;
+        let third_pane = owner_tab_of_pane(&ws, third_tab_id);
+        assert!(ws.focus_agent_roster_pane(third_pane));
+        assert_eq!(
+            ws.tab_manager.active_tab_id(),
+            Some(third_tab_id),
+            "tab 3's roster row must focus tab 3, not one to the left"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
 
     fn a_fresh_daemon_yields_an_empty_roster() {
