@@ -23,6 +23,7 @@ The plan answers two questions the owner asked: how do we make par-term **easier
 - [Appendix D: upstream daemon gaps](#appendix-d-upstream-daemon-gaps-par-term-emu-core-rust)
 - [Appendix E: items to confirm at runtime](#appendix-e-items-to-confirm-at-runtime)
 - [Part II: Settings window](#part-ii-settings-window) (sections 12–19)
+- [Part III: Menus, profile surfaces, and in-window panels](#part-iii-menus-profile-surfaces-and-in-window-panels) (sections 20–26)
 
 **Reference codes** are stable for discussion: `T` terminology, `K` keymap, `L` leader key table, `A` new actions, `M` par-mux safety, `U` local/mux unification, `V` visibility and discoverability, `PN` pane behavior, `TW` tab/window behavior, `D` decisions, `P` phases, `B` bugs, `DOC` doc drift, `UP` upstream daemon work, `RT` runtime checks.
 
@@ -885,3 +886,175 @@ Also noted, not bugs: `CollapsibleSection` (auto-expand on search) and the modal
 | RT16 | Tick then untick Alert Sounds › Bell; the audio bell volume slider no longer produces sound |
 | RT17 | Open the scrollbar track color picker without changing anything; `scrollbar_track_color` alpha becomes 1.0 on save |
 | RT18 | Focus Settings and press Cmd+W; a terminal tab closes |
+
+---
+
+# Part III: Menus, profile surfaces, and in-window panels
+
+Research date: 2026-09-29, `main` at `4bf6b71b` (after the K2 keybinding-registry dissolution). Scope: the menu bar on all three platforms, every profile launcher and indicator, and every in-window panel, popup, dialog, and toast for windows, tabs, panes, and sessions. Codes continue Parts I–II: bugs from **B58**, runtime checks from **RT19**; new prefixes `MN` (menu bar), `PR` (profile surfaces), `OV` (overlays and dialogs), `MD` (decisions), `MP` (phases).
+
+## 20. Summary
+
+1. **Keys leak into the shell while dialogs are open (OV).** The modal guard (`any_modal_ui_visible`, `src/app/window_state/ui_query_helpers.rs:44-57`) omits the close-running-job dialog, the par-mux last-tab dialog, the trigger and agent-command confirmations, the update dialog, the tab context menu, the new-tab profile menu, and the profile drawer. Typing, Enter, or Escape in those lands in the shell you are about to close. Escape also leaks from dialogs that *are* guarded (quit, tmux picker, remote install).
+2. **The menu bar is a thin, static shadow of the action set (MN).** No pane, Session, or par-mux menu; the macOS Window menu has only Minimize and Zoom and no window list; no item is ever disabled or checkmarked; menus are built once and keep stale accelerators after a rebind; two items run different code from the same-named keybinding.
+3. **Five profile launchers, none alike, all tab-only (PR).** Drawer, chevron dropdown, native Profiles menu, Linux in-app menu, and per-profile shortcuts each list profiles differently; none can open a profile in a new window or split; the palette has no profile rows; nothing shows which profile a tab is running; per-profile shortcuts mostly cannot fire.
+4. **No shared overlay system.** Three visual styles, a global style that leaks between panels, one-slot toasts that overwrite each other with no error styling, inconsistent Enter/Escape/click-away semantics, and a palette that selects rows it doesn't draw.
+
+## 21. Menu bar (MN)
+
+### 21.1 Current state `[verified]`
+
+- One model (`src/menu/model.rs:97-373`) drives the native macOS menu, the native Windows bar, and the Linux in-app ☰ dropdown (`src/menu/egui_menu.rs`). Section order: File, Tab, Profiles, Edit, View, Shell, (macOS) Window, Help.
+- Accelerators are read from the keybinding registry at build time (`src/menu/registry_accel.rs:24-50`), but `MenuManager::new_with` runs only once per app (`src/app/window_manager/window_lifecycle.rs:130,351`; `window_session.rs:401`). A config reload rebuilds the registry, not the menu, so a rebound chord keeps its old label and, on macOS/Windows, the menu keeps intercepting the old chord ahead of the registry.
+- No item is ever disabled or checked: no `set_enabled`, `set_checked`, or `CheckMenuItem` anywhere in `src/menu`.
+- Menu vs keybinding divergence for the same name:
+  - **Clear Scrollback** menu clears `tab.terminal` (`src/app/window_manager/menu_actions.rs:249-257`); the keybinding clears the focused pane. The native accelerator wins, so ⌘⇧K clears the wrong pane in a split tab and the hidden login shell in a par-mux tab (B58).
+  - **New Tab** menu calls `new_tab()`; the keybinding calls `new_tab_or_show_profiles()`. Menu owns ⌘T on macOS/Windows, so the setting is Linux-only (existing B10).
+  - **File › Close** is a smart close; Tab › Close Tab does the same; the `close_tab` keybinding is a no-op on the last tab.
+- Misleading items: "Save Window Arrangement..." opens Settings and saves nothing; there is no Restore item. "About par-term" opens the keyboard-shortcut help overlay. Reset Font Size forces 14.0 instead of the configured size (`menu_actions.rs:372`). Windows/Linux show F12 on both Edit › Preferences and View › Settings. Tab 1–9 items show static labels, not tab titles.
+- Actions with no menu item: every pane action (split, close, navigate, resize, swap, hint, rename, promote, demote), reopen closed tab, broadcast, tmux picker, par-mux detach, copy mode, paste special, search, command palette, command history, assistant panel, agent usage, session logging, shader toggles, reload config, SSH quick connect, reload dynamic profiles, restore arrangement.
+- macOS Window menu is never registered as the NSApp windows menu (muda 0.20 has `set_as_windows_menu_for_nsapp`), so AppKit's automatic window list and Bring All to Front never appear.
+- Linux: the ☰ menu lives inside the tab bar, so `tab_bar_mode: never` (or `when_multiple` with one tab) makes the whole menu unreachable, including through `toggle_menu`, which has no default chord (`src/tab_bar_ui/mod.rs:104-111`).
+- Likely test failure off macOS: `model.rs:701-745` expects `close_tab` to carry no accelerator, but the non-macOS registry default Ctrl+Shift+W is applied to it (RT19).
+
+### 21.2 Proposed menu bar (iTerm2-aligned, owner rule D1)
+
+Built from the registry, rebuilt on every keybinding/config change, with enabled and checked state evaluated per focused window on menu open (macOS `menuNeedsUpdate`-equivalent via muda before-open event, or per frame on Linux).
+
+- **Shell** (replaces File + Tab): New Window, New Window with Profile ▸, New Tab, New Tab with Profile ▸, New Tab Next to Current, Duplicate Tab, Duplicate Window; ---; Split Right, Split Down, Split with Profile ▸; ---; Close (pane → tab → window, I15), Close Tab, Close Window, Undo Close; ---; Broadcast Input ▸ (Current Pane Only · All Panes in Tab ✓ · All Panes in All Tabs · Toggle Current Pane); ---; Session ▸ (par-mux/tmux: Attach…, New Session…, Switch…, Detach, Rename Session…, End Session); SSH ▸ (Quick Connect…, Install Shell Integration on Remote Host…); ---; Quit (non-macOS).
+- **Edit**: Undo/Redo where meaningful, Copy, Paste, Paste Special…, Select All, Copy Mode; Find ▸ (Find…, Find Next, Find Previous); Marks ▸ (Previous/Next Mark); Clear Buffer, Clear Scrollback (both act on the **focused pane**); Clipboard History, Command History.
+- **View**: Command Palette… (Cmd+Shift+P), Open Quickly… (tree picker, Cmd+Shift+O), Toggle Full Screen ✓, Maximize Vertically, Zoom Pane ✓ (Cmd+Shift+Enter); ---; Show Tab Bar ✓, Show Status Bar ✓, Profile Drawer ✓, Assistant Panel ✓, Agent Usage ✓, FPS Overlay ✓; ---; Make Text Bigger / Normal (configured size) / Smaller; ---; Background Shader ✓, Cursor Shader ✓, Throughput Mode ✓.
+- **Session** (per pane, iTerm2's Session menu): Rename Pane…, Rename Tab…, Tab Color ▸, Restart Pane, Move Pane ▸ (to New Tab, to New Window, into Tab…); Log to File ✓; Edit Tab's Profile… / Change Profile ▸ (PR5).
+- **Profiles**: Open Profiles… (Cmd+O, the launcher PR1); ---; one item per profile with its shortcut as accelerator and an ⌥ alternate "…in New Window"; tag submenus when tags exist; Open All / Open All in New Window; ---; Manage Profiles…, Reload Dynamic Profiles.
+- **Window**: Minimize, Zoom; ---; Arrangements ▸ (Save Window Arrangement…, Restore ▸ (dynamic list), Manage…); ---; Tab ▸ (Next, Previous, Last Used, Move Left, Move Right, Move to New Window, Move to Window ▸); Pane ▸ (Select Above/Below/Left/Right, Next, Previous, Last, Resize ▸, Swap ▸, Equalize, Select by Letter); ---; Always on Top ✓; ---; Bring All to Front; window list (macOS via NSApp windows menu; Windows/Linux a dynamic list).
+- **Help**: Keyboard Shortcuts (live registry), par-term Help (docs), About.
+
+Rules:
+- **MN1.** Every menu item maps to a registry action id; every registry action in a user-facing category has a menu home (test).
+- **MN2.** Toggles show checkmarks; context-inapplicable items are disabled (pane ops with one pane, Session ▸ with no mux/tmux, move-to-window for attached tabs with the reason in the label, Tab N beyond the tab count hidden or disabled with the tab title as its label).
+- **MN3.** Menus rebuild on config reload and keybinding change; native accelerators are removed when the user unbinds a chord.
+- **MN4.** Linux ☰ menu stays reachable when the tab bar is hidden (float it at the window's top-left, or give `toggle_menu` a default chord such as Alt alone / F10, D-dependent on RT20).
+
+## 22. Profile surfaces (PR)
+
+### 22.1 Current state `[verified unless marked]`
+
+| Surface | New tab | Window | Split | Search | Keyboard | Shortcut shown | Dynamic marker |
+|---|---|---|---|---|---|---|---|
+| Profile drawer (right panel, `src/profile_drawer_ui.rs`) | double-click / Open | no | no | name/tag substring | none; Esc not handled | raw string | yes |
+| Chevron "New Tab" window (`src/tab_bar_ui/profile_menu.rs`) | yes | no | no | no | Esc only | no | no |
+| Native Profiles menu | yes | no | no | n/a | OS | **no** | no |
+| Linux in-app menu | yes | no | no | no | no | no | no |
+| Per-profile shortcut layer | yes | no | no | n/a | n/a | n/a | n/a |
+| Command palette | **no rows** | | | | | | |
+
+- The drawer overlays the terminal's rightmost columns instead of reflowing, captures the mouse but **not the keyboard** — typing in its filter also types into the shell `[inferred; RT21]` — has no arrow/Enter navigation, does not focus its filter, ignores Escape, and keeps its filter between opens.
+- The chevron window anchors to the screen's top-right regardless of tab-bar position, mixes in an "Assistant Panel" toggle, and uses "v" in the horizontal bar and "⏷" in the vertical bar.
+- `new_tab_shortcut_shows_profiles` opens that same chevron window, as a toggle (Cmd+T twice closes it).
+- **Per-profile shortcuts (B59):** matched as a whole string in fixed Cmd/Ctrl/Alt/Shift order against `logical_key` (`src/app/input_events/key_handler/profiles.rs:42-108`; `par-term-config/src/profile_types/matchers.rs:145-152`); "CmdOrCtrl+…" never matches; Shift+digit becomes "!"; they run after the registry and menus, so the editor's own examples "Cmd+1" (tab 1) and "Ctrl+Shift+1" (shifted) cannot fire; no conflict detection; a bare letter steals the key from the shell; child profiles inherit the parent's shortcut, creating silent duplicates; `key.leak()` leaks a String on every unhandled keypress reaching that layer (`profiles.rs:103`).
+- **Profile identity is invisible.** A tab does not remember which profile opened it (`src/app/tab_ops/profile_ops.rs:87-89` stores only the icon); there is no tab tooltip, status widget, or title element for it; `session.profile_name` is window-global and never reverted. There is no way to change or edit a running tab's profile.
+- **Auto-switching is silent** for hostname and directory rules (only tmux shows a toast), runs only on the active tab, and leaves the window-wide badge changed after it reverts. "Explicit user selection wins" (PROFILES.md:350) has no implementation. `TabProfileState::badge_override` is written in 8 places and never read (B60).
+- **Settings has no working Open for a profile:** `ProfileModalAction::OpenProfile` is never constructed; the chain behind it is dead.
+- Four names for one thing: "Profile Drawer", "Profiles", "New Tab" / "New tab from profile", "Manage" / "Manage Profiles...".
+
+### 22.2 Proposed
+
+- **PR1. One launcher: "Open Profiles…" (Cmd+O, iTerm2).** A keyboard-first picker (palette styling, see OV1): search over name and tags with tag chips; arrows and Enter; Enter = new tab, Shift+Enter = new window, Cmd+D / Cmd+Shift+D = split right / down, Cmd+Enter = replace this tab's profile; multi-select opens several; shortcut column from the live registry; dynamic and default markers; a context menu (Open in…, Edit Profile…, Duplicate). It replaces the chevron window and the `new_tab_shortcut_shows_profiles` picker.
+- **PR2. The drawer becomes an optional pinned view of the same launcher** (same rows, same actions), reflows the terminal instead of covering it, joins the key guard while its filter is focused, and closes on Escape. Rename everywhere to "Profiles".
+- **PR3. Profiles are registry actions.** `open_profile:<id>`, `open_profile_window:<id>`, `split_profile:<id>:<dir>`, `set_tab_profile:<id>`. Per-profile shortcuts become ordinary registry bindings to those actions (recorded with the Settings recorder, conflict-checked, shown in menus and palette). Migrate existing `keyboard_shortcut` strings once; drop the separate layer.
+- **PR4. Palette rows** "Open Profile: X", "Open Profile in New Window: X", "Split with Profile: X", "Change Tab Profile: X", plus "Manage Profiles…".
+- **PR5. Profile identity is visible and changeable.** Tabs record their source profile and any auto-applied profile; tab tooltip shows "Profile: X (auto: rule)"; a Profile status-bar widget; per-tab `tab.profile_name` variable; Session › Change Profile ▸ and Edit Tab's Profile… (iTerm2 Edit Session).
+- **PR6. Auto-switch is announced and controllable.** A toast "Profile X applied (host example.com)" with an Undo button; per-tab "Pin profile" to stop auto-switching; background tabs evaluated too; badge state per tab (wire or delete `badge_override`).
+- **PR7. Menus** follow 21.2: shortcuts as accelerators, ⌥ alternate for new window, tag submenus, Open All.
+
+## 23. Overlays, dialogs, and toasts (OV)
+
+### 23.1 Current state `[verified unless marked]`
+
+- **Key guard gaps (B61).** Not in `any_modal_ui_visible`: close-running-job dialog, par-mux last-tab dialog (M1), trigger and agent-command confirmations, update dialog, tab context menu (and its icon field), new-tab profile window, profile drawer, demote direction chooser. Keys typed there reach the PTY; Enter in the close-job or last-tab dialog is typed into the shell being closed `[inferred from code path; RT22]`.
+- **Escape leaks** from guarded dialogs that don't consume it: quit confirmation, tmux session picker (which also has no Escape handling at all), remote-shell install, SSH connect when its field is unfocused.
+- **Toggle chords can't close their own panel.** While a guarded modal is open, every chord except F1/F2/F3/F11/Escape is dropped, so Cmd+R cannot close command history and one panel cannot hand off to another.
+- **Dead keyboard paths.** Clipboard and command history advertise Enter/arrow keys in their footers, but those branches run after the key gate and never fire (`src/app/input_events/key_handler/clipboard.rs:13-58`); agent-usage h/l likewise.
+- **Inconsistent semantics.**
+
+  | Dialog | Enter | Escape | Click-away |
+  |---|---|---|---|
+  | Quit confirmation | **Quit (destructive)** (`src/quit_confirmation_ui.rs:126`) | cancel (leaks) | — |
+  | Close running job ("Close Tab?" even for panes) | nothing | cancel (leaks) | — |
+  | par-mux last tab | nothing | cancel (leaks) | — |
+  | Trigger / agent command / update | nothing | nothing | — |
+  | Tab rename | submit | cancel | **submit** |
+  | Pane rename | submit | cancel | **cancel** |
+
+- **Command palette (B62).** Draws 12 rows with no scroll area but lets the selection move through every match (`src/command_palette/mod.rs:16,148,174`); arrowing past row 12 selects an invisible row and Enter runs it. No categories, no recent/MRU, no descriptions; shortcut column is static; runtime-row assembly is duplicated (`keybinding_actions.rs:109-155`, `egui_dialogs.rs:117-156`).
+- **Toasts.** One slot at top-centre +60 px; a new toast replaces the current one (so a persistent par-mux error is wiped by the next info toast); no error styling, no icon, not clickable, not dismissible; raw "CmdOrCtrl+Z" key strings; the demote pick hint shares the toast's Area id and collides with it for 2 s.
+- **Styling.** Three looks (popup frame; solid dark windows; default windows). Help, search, the tmux picker, shader install, and integrations call `ctx.set_global_style()` every frame with no reset, so the look of later panels depends on which one opened first `[inferred; RT23]`. Widths vary: 160, 200, 400, 420–520, 450, 500, 550.
+- **App exit on any key (B63).** When every pane in the active tab has exited, any key press calls `event_loop.exit()` and quits the whole app with no confirmation (`src/app/input_events/key_handler/mod.rs:170-187`). Which `shell_exit_action` settings reach this path needs RT24.
+- **tmux picker** runs `tmux list-sessions` synchronously inside the frame with a 2 s timeout (`src/tmux_session_picker_ui.rs:21,108-115`).
+- **Pane hints** show no instruction text and silently do nothing with one pane.
+- **Harness drift.** `ui_test.rs:163-186` `visible_modal_names` omits agent usage; `TabBarUI::is_capturing_input()` is only used in a test.
+
+### 23.2 Proposed overlay system
+
+- **OV1. One overlay framework.** A shared `Overlay` trait with kind (`Modal`, `Popup`, `Panel`, `Mode`), a stack owned by the window, and one theme (frame, widths from a small set: 360 / 520 / 640, colors from tokens). Remove per-panel `set_global_style` calls.
+- **OV2. Key routing by stack.** The top overlay receives keys first; `Modal` and `Popup` consume everything they don't use (never reach the PTY); `Panel` consumes only while it holds focus; `Mode` (pane hints, demote pick, resize mode, leader) consumes its keys. Escape always goes to the top overlay and is never forwarded to the shell while any overlay is open. The toggle chord of the top overlay closes it; other overlay chords replace it.
+- **OV3. Dialog contract.** One `ConfirmDialog` component: title names the object ("Close Pane?", "Close Tab?", "Quit par-term?"), body states the consequence, primary button is the **safe** choice and is the Enter default (Cancel / Detach), destructive button is red and needs its own key (Cmd+Backspace or a letter shown on the button), Escape = Cancel, a "Don't ask again" checkbox where a setting exists. Applies to quit, close job, last tab, trigger/agent confirmations, update, delete confirmations from Part II.
+- **OV4. Inline edits.** Enter submits, Escape cancels, click-away **cancels** (tab rename matches pane rename).
+- **OV5. Pickers share one list component** (palette, Open Profiles, tree picker, session picker, tmux picker, SSH connect, clipboard/command history, move-to-window, arrangement restore): fuzzy filter focused on open, arrows/PageUp/PageDown/Home/End, scrolling list, Enter / Shift+Enter / Cmd+Enter alternates shown in a footer from the live registry, Escape closes.
+- **OV6. Palette upgrades.** Scrolling list (fixes B62), categories (Window, Tab, Pane, Session, Profiles, View, Agents), recent actions first on an empty query, description line, live chords, one runtime-row builder.
+- **OV7. Toast queue.** Stacked toasts (max 3) at bottom-right or top-right away from the palette; kinds info / success / warning / error with color and icon; errors persist until dismissed; optional action button ("Undo", "Restart daemon", "Show"); hints render live chords.
+- **OV8. Mode overlays explain themselves.** Pane hints show "Type a letter · Esc cancels" and use two-letter hints past 26; demote pick shows a banner in its own layer; one pane → toast "Only one pane".
+- **OV9. Never exit the app on a stray key.** A tab whose panes all exited shows the dead-pane overlay (V9) with Restart / Close; closing the last one closes the window through the normal path (with its confirmations).
+- **OV10. Async pickers.** The tmux (and par-mux) session list loads off the frame with a spinner.
+
+## 24. Bugs found in Part III
+
+| Code | Bug | Evidence |
+|---|---|---|
+| B58 | Menu Clear Scrollback clears `tab.terminal`, not the focused pane; native accelerator wins, so ⌘⇧K clears the wrong pane in splits and the hidden shell in par-mux tabs | `src/app/window_manager/menu_actions.rs:249-257` [verified] |
+| B59 | Per-profile shortcuts mostly cannot fire (fixed modifier order, logical key, run after registry/menu, inherited duplicates, no conflict check) and leak a String per unhandled keypress | `key_handler/profiles.rs:42-108`, `:103`; `matchers.rs:145-152,364-368` [verified code; RT25 for the firing claims] |
+| B60 | `TabProfileState::badge_override` written in 8 places, never read; `pre_ssh_switch_profile` saved then discarded; auto-switch never reverts window badge or `session.profile_name` | `profile_auto_switch.rs:122,207,300,303,370,412` [verified] |
+| B61 | Close-job, par-mux last-tab, trigger, agent-command, update dialogs, tab context menu (icon field), profile window, drawer, and demote chooser are outside the key guard | `ui_query_helpers.rs:44-57` [verified]; leak effect RT22 |
+| B62 | Palette selection moves past the 12 drawn rows; Enter runs an invisible row | `src/command_palette/mod.rs:16,148,174` [verified] |
+| B63 | Any key press when the active tab's panes have all exited quits the entire app without confirmation | `key_handler/mod.rs:170-187` [verified code path; RT24 for which settings reach it] |
+| B64 | Quit confirmation maps Enter to Quit | `src/quit_confirmation_ui.rs:126` [verified] |
+| B65 | Menus are built once; stale accelerators after rebind, and native menu keeps claiming the old chord | `window_lifecycle.rs:130,351`; `window_session.rs:401` [verified] |
+| B66 | No menu item is ever disabled or checked | no `set_enabled`/`set_checked` in `src/menu` [verified] |
+| B67 | Linux ☰ menu (and `toggle_menu`) unreachable when the tab bar is hidden | `src/tab_bar_ui/mod.rs:104-111` [verified] |
+| B68 | Reset Font Size forces 14.0 instead of the configured size | `menu_actions.rs:372` [reported; verify] |
+| B69 | tmux session picker has no Escape handling and runs `tmux list-sessions` synchronously in the frame | `src/tmux_session_picker_ui.rs:21,108-115` [verified by report] |
+| B70 | Clipboard/command-history arrow and Enter handling is unreachable behind the key gate while footers advertise it | `key_handler/clipboard.rs:13-58` [inferred; RT26] |
+| B71 | Settings profile "Open" chain is dead (`ProfileModalAction::OpenProfile` never constructed) | `par-term-settings-ui/src/profiles_tab/management.rs:29` [verified in Part II research] |
+| B72 | Help panel has wrong rows and no window/tab/pane/session section; tab hotkey badge shows ^N off macOS (chord is Alt+N); "+" tooltip hard-codes the chord | `src/help_ui.rs`; `tab_painter.rs:230-236`; `horizontal.rs:294-296` [verified; overlaps B8, DOC7] |
+
+## 25. Decisions for the owner (MD)
+
+- **MD1. Menu structure.** Adopt iTerm2's Shell / Edit / View / Session / Profiles / Window / Help (21.2), replacing File and Tab. **Recommendation: yes** (owner rule D1).
+- **MD2. One profile launcher.** Replace the chevron window and the `new_tab_shortcut_shows_profiles` picker with Open Profiles… (PR1), and make the drawer an optional pinned view of it (PR2). **Recommendation: yes.**
+- **MD3. Per-profile shortcuts become registry bindings** (PR3), with a one-time migration of existing strings. **Recommendation: yes.** The current layer mostly cannot fire.
+- **MD4. Toast placement.** Top-right stack (closest to macOS notifications) or bottom-right. **Recommendation: top-right, below the tab bar.**
+- **MD5. Destructive-dialog default.** Enter = safe choice everywhere, destructive action on its own key. **Recommendation: yes** (reverses the current Quit default).
+
+## 26. Phased plan (MP)
+
+- **MP0. Safety and correctness quick fixes.** B61 key guard (add every dialog, menu, and focused panel to the guard; consume Escape centrally), B63 no app exit on stray key, B64 Enter = safe choice, B58 menu clear scrollback on focused pane, B62 palette scroll, B69 tmux picker Escape and async load, B70 wire list keyboard nav, B68.
+  - Acceptance: a `--ui-test` script opens each dialog in B61 and types "x", Enter, and Escape; the PTY capture sink receives nothing (RT22 becomes a test). Pressing a key in a tab whose panes all exited does not quit the app. Enter in quit/close-job/last-tab dialogs never takes the destructive action. ⌘⇧K in a split clears only the focused pane. Arrowing to the 20th palette match keeps it visible.
+- **MP1. Overlay framework.** OV1–OV8, OV10.
+  - Acceptance: every overlay implements the shared trait; no panel calls `set_global_style`; toasts stack with kinds; one list component backs the palette and all pickers; the harness's modal list is derived from the overlay stack.
+- **MP2. Menu bar.** MN1–MN4 and 21.2, after MD1.
+  - Acceptance: a test asserts every user-facing registry action has a menu home and every menu item's accelerator equals the live binding after a rebind; toggles show checkmarks; pane items are disabled with one pane; Session ▸ disabled when not attached; macOS Window menu lists open windows; the Linux menu is reachable with the tab bar hidden.
+- **MP3. Profile surfaces.** PR1–PR7, after MD2/MD3.
+  - Acceptance: Open Profiles… opens a profile in a new tab, new window, and split from the keyboard; the palette lists profiles; a migrated per-profile shortcut fires and appears as the menu accelerator; a tab's tooltip names its profile; an auto-switch shows a toast with Undo and a pinned tab does not switch.
+
+## Appendix E (continued): runtime checks for Part III
+
+| Code | Check |
+|---|---|
+| RT19 | On Linux/Windows, `menu::model` test `the_same_commands_carry_accelerators` fails because `close_tab` now has Ctrl+Shift+W |
+| RT20 | Candidate default chord for the Linux in-app menu (F10 or Alt tap) conflicts with nothing on GNOME/KDE |
+| RT21 | Typing in the profile drawer filter also types into the focused shell |
+| RT22 | Typing and Enter in the close-running-job and par-mux last-tab dialogs reach the PTY |
+| RT23 | Opening Help then the palette changes the palette's background fill |
+| RT24 | Which `shell_exit_action` values leave a tab with all panes exited and hit the exit-on-keypress path |
+| RT25 | A profile shortcut "Cmd+1" (macOS) and "Ctrl+Shift+1" (Linux) never opens the profile |
+| RT26 | Arrow keys and Enter do nothing in clipboard and command history |
