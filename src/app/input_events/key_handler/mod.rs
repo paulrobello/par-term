@@ -2,16 +2,18 @@
 //!
 //! This module handles all keyboard input routing:
 //! - `handle_key_event`: main key dispatch entry point (this file)
-//! - `scroll`: PageUp/PageDown, Home/End, mark navigation
-//! - `config_reload`: F5 config reload + `reload_config`
 //! - `clipboard`: clipboard history, paste special, `paste_text`
 //! - `command_history`: Cmd/Ctrl+R command history UI
 //! - `command_palette`: Escape ownership for the command palette overlay
 //! - `search`: Cmd/Ctrl+F search UI
-//! - `ui_toggles`: AI inspector (Assistant panel) toggle
-//! - `utility`: font size, clear scrollback, cursor style
 //! - `tabs`: new/close/navigate/move/number-switch tab shortcuts
 //! - `profiles`: per-profile hotkeys and shortcut string building
+//!
+//! The chord shortcuts that used to live in dedicated layers (scroll
+//! navigation, F5 config reload, the AI inspector toggle, fullscreen/help/
+//! settings/FPS/profile-drawer toggles) resolve through the registry as
+//! default keybindings (`defaults::layer_chords`, UX K2); only the state
+//! machines above remain here.
 
 mod agent_usage_panel;
 pub(crate) mod claims;
@@ -20,10 +22,8 @@ mod command_history;
 mod command_palette;
 mod config_reload;
 mod profiles;
-mod scroll;
 mod search;
 mod tabs;
-mod ui_toggles;
 mod utility;
 
 #[cfg(test)]
@@ -49,24 +49,24 @@ pub(super) type KeyLayer = fn(&mut WindowState, &KeyEvent) -> bool;
 ///
 /// What each layer claims is declared as data in [`claims::LAYER_CLAIMS`], which
 /// is what lets `chord_tests` answer "who gets this chord first?" without
-/// running the chain.
+/// running the chain. Every entry here is a *state machine* — dialog
+/// navigation, consume-while-open modes — holding no chords of its own
+/// (UX K2: every shipped chord resolves through the registry).
 ///
 /// Two further layers — `handle_utility_shortcuts` and `handle_tab_shortcuts` —
 /// continue this chain immediately after the last entry here but take the
 /// `ActiveEventLoop`, so they are invoked directly in `handle_key_event`.
 pub(super) static KEY_LAYERS: &[(&str, KeyLayer)] = &[
-    // Scroll navigation (PageUp/PageDown, Home/End, mark navigation)
-    ("scroll_keys", WindowState::handle_scroll_keys),
-    // Config reload (F5)
-    ("config_reload", WindowState::handle_config_reload),
-    // Clipboard history (Ctrl+Shift+H)
+    // Clipboard history panel (consume-all while open; opened by the
+    // toggle_clipboard_history action)
     (
         "clipboard_history",
         WindowState::handle_clipboard_history_keys,
     ),
-    // Command history (Ctrl+R / Cmd+R)
+    // Command history (in-panel navigation; opened by the configured
+    // toggle_command_history keybinding)
     ("command_history", WindowState::handle_command_history_keys),
-    // Paste special UI
+    // Paste special UI (in-panel navigation while the dialog is open)
     ("paste_special", WindowState::handle_paste_special_keys),
     // Agent usage panel (Esc/h/l while open; opened by widget click or the
     // toggle_agent_usage_panel action)
@@ -76,31 +76,10 @@ pub(super) static KEY_LAYERS: &[(&str, KeyLayer)] = &[
     ),
     // Command palette (Escape-only; opened by the toggle_command_palette action)
     ("command_palette", WindowState::handle_command_palette_keys),
-    // Search (Cmd/Ctrl+F)
+    // Search (Escape + propagation while the search UI is visible)
     ("search", WindowState::handle_search_keys),
-    // Assistant panel toggle (Cmd+I / Ctrl+Shift+I)
-    (
-        "ai_inspector_toggle",
-        WindowState::handle_ai_inspector_toggle,
-    ),
-    // Fullscreen toggle (F11)
-    ("fullscreen_toggle", WindowState::handle_fullscreen_toggle),
-    // Help toggle (F1)
+    // Help panel (Escape closes help/shader-install/integrations overlays)
     ("help_toggle", WindowState::handle_help_toggle),
-    // Settings toggle (F12)
-    ("settings_toggle", WindowState::handle_settings_toggle),
-    // Shader editor toggle (F11)
-    (
-        "shader_editor_toggle",
-        WindowState::handle_shader_editor_toggle,
-    ),
-    // FPS overlay toggle (F3)
-    ("fps_overlay_toggle", WindowState::handle_fps_overlay_toggle),
-    // Profile drawer toggle (Cmd+Shift+P / Ctrl+Shift+P)
-    (
-        "profile_drawer_toggle",
-        WindowState::handle_profile_drawer_toggle,
-    ),
     // Per-profile hotkeys
     ("profile_shortcuts", WindowState::handle_profile_shortcuts),
 ];

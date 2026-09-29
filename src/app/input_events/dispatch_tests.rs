@@ -65,6 +65,12 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "resize_pane_right",
     "resize_pane_up",
     "save_arrangement",
+    "scroll_down_page",
+    "scroll_to_bottom",
+    "scroll_to_next_mark",
+    "scroll_to_previous_mark",
+    "scroll_to_top",
+    "scroll_up_page",
     "select_all",
     "select_pane_hint",
     "split_horizontal",
@@ -111,21 +117,13 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
 /// earlier layer pre-empts a later one for the same chord, so a reordering is
 /// a behavior change and must be made on purpose.
 const FROZEN_LAYER_ORDER: &[&str] = &[
-    "scroll_keys",
-    "config_reload",
     "clipboard_history",
     "command_history",
     "paste_special",
     "agent_usage_panel",
     "command_palette",
     "search",
-    "ai_inspector_toggle",
-    "fullscreen_toggle",
     "help_toggle",
-    "settings_toggle",
-    "shader_editor_toggle",
-    "fps_overlay_toggle",
-    "profile_drawer_toggle",
     "profile_shortcuts",
 ];
 

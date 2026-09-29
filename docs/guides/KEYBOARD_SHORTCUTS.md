@@ -163,7 +163,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | `F3` | Toggle FPS overlay |
 | `F5` | Reload configuration |
 | `F11` | Toggle fullscreen |
-| `Shift + F11` | **Also toggles fullscreen** — the handler matches bare `F11` with no modifier guard, so any `F11` chord hits it. Maximize-vertically is on the View menu and as the bindable `maximize_vertically` action, which ships **unbound**. |
+| `Shift + F11` | Maximize vertically. Unlike `F11`, this is an exact-chord registry binding: modifier variants of `F11` itself no longer toggle fullscreen — rebind or free the chord in Settings. |
 | `F12` | Open Settings |
 | `Cmd + ,` (macOS) | Open Settings |
 | `Escape` | Close current UI panel |

@@ -7,6 +7,7 @@
 
 mod colors;
 mod font;
+mod layer_chords;
 mod menu_chords;
 mod misc;
 mod shader;

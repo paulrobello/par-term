@@ -1,6 +1,9 @@
 //! Clipboard history, paste special, and paste_text key handling.
+//!
+//! Opening the clipboard-history panel resolves through the registry's
+//! `toggle_clipboard_history` default (UX K2); the handlers here own the
+//! state machines while the panels are open.
 
-use super::claims;
 use crate::app::window_state::WindowState;
 use par_term_terminal::ClipboardSlot;
 use winit::event::{ElementState, KeyEvent};
@@ -50,17 +53,6 @@ impl WindowState {
                 }
             }
             // While clipboard history is visible, consume all key events
-            return true;
-        }
-
-        // Toggle clipboard history: Cmd+Shift+H on macOS, Ctrl+Shift+H elsewhere.
-        // Driven by the layer's declared claim so the declaration cannot drift
-        // from what actually dispatches.
-        if event.state == ElementState::Pressed
-            && claims::CLIPBOARD_HISTORY[0]
-                .matches_event(&self.input_handler.modifiers.state(), &event.logical_key)
-        {
-            self.toggle_clipboard_history();
             return true;
         }
 

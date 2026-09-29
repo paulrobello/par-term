@@ -1,30 +1,12 @@
-//! Config reload key handling (F5) and the `reload_config` implementation.
+//! The `reload_config` implementation (dispatched via the registry's
+//! `reload_config` action, F5 by default).
 
-use super::claims;
 use crate::app::window_state::WindowState;
 use crate::config::Config;
-use winit::event::{ElementState, KeyEvent};
 
 impl WindowState {
-    pub(crate) fn handle_config_reload(&mut self, event: &KeyEvent) -> bool {
-        if event.state != ElementState::Pressed {
-            return false;
-        }
-
-        // F5 to reload config. Driven by the layer's declared claim so the
-        // declaration cannot drift from what actually dispatches.
-        if claims::CONFIG_RELOAD[0]
-            .matches_event(&self.input_handler.modifiers.state(), &event.logical_key)
-        {
-            log::info!("Reloading configuration (F5 pressed)");
-            self.reload_config();
-            return true;
-        }
-
-        false
-    }
-
-    /// Reload configuration from disk (called internally from F5 handler).
+    /// Reload configuration from disk (dispatched via the `reload_config`
+    /// registry action).
     pub(crate) fn reload_config(&mut self) {
         match Config::load() {
             Ok(new_config) => {

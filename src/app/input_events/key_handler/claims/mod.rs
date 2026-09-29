@@ -36,15 +36,14 @@
 //! later source never sees the key.
 
 // Most of this module is a *declaration* of behaviour that only `chord_tests`
-// reads; four layers drive their matching from it at runtime and the rest would
-// otherwise read as dead. Under `--tests` — which is what `make lint` builds —
-// the lint stays on, so anything reachable from `LAYER_CLAIMS` or `claim_chain`
-// is still checked for orphans. Platform-gated sources (`MACOS_APP_MENU`) are
-// only reachable on their own platform, so they are only checked there.
+// reads. Under `--tests` — which is what `make lint` builds — the lint stays
+// on, so anything reachable from `LAYER_CLAIMS` or `claim_chain` is still
+// checked for orphans. Platform-gated sources (`MACOS_APP_MENU`) are only
+// reachable on their own platform, so they are only checked there.
 #![cfg_attr(not(test), allow(dead_code))]
 
 use muda::accelerator::{Accelerator, Modifiers as MudaModifiers};
-use winit::keyboard::{Key, ModifiersState, NamedKey};
+use winit::keyboard::NamedKey;
 
 // ───────────────────────── chord model ─────────────────────────
 
@@ -176,51 +175,6 @@ pub(crate) struct Claim {
 impl Claim {
     fn spec(&self, p: Platform) -> Option<ModSpec> {
         if p.is_mac() { self.mac } else { self.other }
-    }
-
-    fn admits(&self, p: Platform, chord: Chord) -> bool {
-        self.spec(p).is_some_and(|s| s.admits(chord.mods)) && self.keys.contains(&chord.key)
-    }
-
-    /// Runtime form: does this claim admit the live event?
-    ///
-    /// Layers that call this are *driven* by their declaration, so the
-    /// declaration cannot drift from the behaviour.
-    pub(crate) fn matches_event(&self, state: &ModifiersState, key: &Key) -> bool {
-        let Some(chord_key) = event_chord_key(key) else {
-            return false;
-        };
-        self.admits(
-            Platform::HOST,
-            Chord {
-                mods: event_mods(state),
-                key: chord_key,
-            },
-        )
-    }
-}
-
-pub(crate) fn event_mods(state: &ModifiersState) -> Mods {
-    mods(
-        state.control_key(),
-        state.alt_key(),
-        state.shift_key(),
-        state.super_key(),
-    )
-}
-
-fn event_chord_key(key: &Key) -> Option<ChordKey> {
-    match key {
-        Key::Character(c) => {
-            let mut chars = c.chars();
-            let first = chars.next()?;
-            if chars.next().is_some() {
-                return None;
-            }
-            Some(ChordKey::Char(first.to_ascii_uppercase()))
-        }
-        Key::Named(n) => Some(ChordKey::Named(*n)),
-        _ => None,
     }
 }
 

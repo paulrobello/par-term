@@ -1,6 +1,9 @@
-//! Search UI key handling (Cmd/Ctrl+F).
+//! Search UI key handling while the search bar is visible.
+//!
+//! Opening (Cmd+F / Ctrl+Shift+F) resolves through the registry's
+//! `toggle_search` default (UX K2); this layer only owns the state machine
+//! while the UI is open.
 
-use super::claims;
 use crate::app::window_state::WindowState;
 use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{Key, NamedKey};
@@ -19,28 +22,6 @@ impl WindowState {
             // While search is visible, let egui handle most keys
             // Return false to let the event propagate to the UI
             return false;
-        }
-
-        // macOS: Cmd+F / Windows/Linux: Ctrl+Shift+F
-        // (Ctrl+F is "forward character" in readline, must not be intercepted on non-macOS)
-        //
-        // Driven by the layer's declared claim so the declaration cannot drift
-        // from what actually dispatches.
-        if event.state == ElementState::Pressed {
-            let mods = self.input_handler.modifiers.state();
-            let is_search = claims::SEARCH[0].matches_event(&mods, &event.logical_key);
-
-            if is_search {
-                self.overlay_ui.search_ui.open();
-                // Initialize from config
-                self.overlay_ui.search_ui.init_from_config(
-                    self.config.load().search.search_case_sensitive,
-                    self.config.load().search.search_regex,
-                );
-                self.focus_state.needs_redraw = true;
-                log::debug!("Search UI opened");
-                return true;
-            }
         }
 
         false

@@ -19,15 +19,10 @@
 //! - **State-conditional branches are excluded**: while the clipboard-history,
 //!   paste-special, command-history or search panels are open they swallow keys
 //!   wholesale. That is modal behaviour, not a chord claim.
-//! - **Layer claims are mirrored, not derived, except for four**. `config_reload`,
-//!   `search`, `clipboard_history` and `ai_inspector_toggle` are *driven* from
-//!   their claim slices — their handlers call `Claim::matches_event`, so those
-//!   declarations cannot drift from the behaviour. Every other layer's claim is
-//!   hand-mirrored from the handler and can go stale if the handler changes
-//!   without the claim. Six of them (`fullscreen_toggle`, `help_toggle`,
-//!   `settings_toggle`, `shader_editor_toggle`, `fps_overlay_toggle`,
-//!   `profile_drawer_toggle`) live in `window_state/keyboard_handlers.rs` and the
-//!   macOS application menu lives in `menu/macos.rs`, both outside this module.
+//! - **Layer claims are all state-conditional** — every uniform layer's claim
+//!   slice is empty (K2: no layer holds a chord; `uniform_layers_claim_no_chords`
+//!   gates it), and the macOS application menu lives in `menu/macos.rs`,
+//!   outside this module.
 //! - **The menu and the config defaults are derived, not mirrored** — they read
 //!   `crate::menu::model::menu_model` and `Config::default().keybindings` live.
 //! - **One platform per run.** `AVAILABLE_ACTIONS` and `Config::default()` are
@@ -238,6 +233,25 @@ fn every_key_layer_declares_its_claims() {
         "the sources after KEY_LAYERS are the two event-loop layers and the \
          inline paste/copy branch, in that order — `handle_key_event` runs them \
          in exactly this sequence"
+    );
+}
+
+/// K2: the uniform shortcut layers are state machines (dialog navigation,
+/// consume-while-open), not chord sources — every shipped chord resolves
+/// through the registry. A non-empty claim here means a hardcoded chord came
+/// back from the dissolution.
+#[test]
+fn uniform_layers_claim_no_chords() {
+    let claiming: Vec<&str> = claims::LAYER_CLAIMS
+        .iter()
+        .take(claims::UNIFORM_LAYER_COUNT)
+        .filter(|(_, cs)| !cs.is_empty())
+        .map(|(name, _)| *name)
+        .collect();
+    assert!(
+        claiming.is_empty(),
+        "KEY_LAYERS entries claiming hardcoded chords: {claiming:?} — every \
+         shipped chord must resolve through the registry (UX K2)"
     );
 }
 

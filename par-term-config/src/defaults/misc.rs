@@ -325,6 +325,9 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
     // Menu-advertised chords (UX.md K2) — see `defaults::menu_chords`.
     bindings.extend(super::menu_chords::menu_chords());
 
+    // Hardcoded-layer chords (UX.md K2) — see `defaults::layer_chords`.
+    bindings.extend(super::layer_chords::layer_chords());
+
     bindings
 }
 

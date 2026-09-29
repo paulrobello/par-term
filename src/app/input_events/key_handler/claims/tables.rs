@@ -6,66 +6,10 @@
 
 use super::*;
 
-/// `scroll.rs`. Note `super_key` is tested unconditionally, so off macOS these
-/// are Super+Arrow, not Ctrl+Arrow — and nothing is excluded, so the claim is a
-/// superset (Cmd+Alt+Up matches it too).
-const SCROLL_KEYS: &[Claim] = &[
-    Claim {
-        action: "internal:scroll_to_previous_mark",
-        mac: Some(ModSpec::loose(mods(false, false, false, true), NO_MODS)),
-        other: Some(ModSpec::loose(mods(false, false, false, true), NO_MODS)),
-        keys: &[named(NamedKey::ArrowUp)],
-    },
-    Claim {
-        action: "internal:scroll_to_next_mark",
-        mac: Some(ModSpec::loose(mods(false, false, false, true), NO_MODS)),
-        other: Some(ModSpec::loose(mods(false, false, false, true), NO_MODS)),
-        keys: &[named(NamedKey::ArrowDown)],
-    },
-    Claim {
-        action: "internal:scroll_up_page",
-        mac: Some(ModSpec::loose(mods(false, false, true, false), NO_MODS)),
-        other: Some(ModSpec::loose(mods(false, false, true, false), NO_MODS)),
-        keys: &[named(NamedKey::PageUp)],
-    },
-    Claim {
-        action: "internal:scroll_down_page",
-        mac: Some(ModSpec::loose(mods(false, false, true, false), NO_MODS)),
-        other: Some(ModSpec::loose(mods(false, false, true, false), NO_MODS)),
-        keys: &[named(NamedKey::PageDown)],
-    },
-    Claim {
-        action: "internal:scroll_to_top",
-        mac: Some(ModSpec::loose(mods(false, false, true, false), NO_MODS)),
-        other: Some(ModSpec::loose(mods(false, false, true, false), NO_MODS)),
-        keys: &[named(NamedKey::Home)],
-    },
-    Claim {
-        action: "internal:scroll_to_bottom",
-        mac: Some(ModSpec::loose(mods(false, false, true, false), NO_MODS)),
-        other: Some(ModSpec::loose(mods(false, false, true, false), NO_MODS)),
-        keys: &[named(NamedKey::End)],
-    },
-];
-
-/// `config_reload.rs`. Drives the handler.
-pub(crate) const CONFIG_RELOAD: &[Claim] = &[Claim {
-    action: "reload_config",
-    mac: Some(ANY_MODS),
-    other: Some(ANY_MODS),
-    keys: &[named(NamedKey::F5)],
-}];
-
-/// `clipboard.rs`, toggle branch only. Drives the handler.
-///
-/// The "consume everything while the panel is open" branch is state-conditional,
-/// not a chord claim, and is excluded.
-pub(crate) const CLIPBOARD_HISTORY: &[Claim] = &[Claim {
-    action: "toggle_clipboard_history",
-    mac: Some(PRIMARY_SHIFT_MAC),
-    other: Some(PRIMARY_SHIFT_OTHER),
-    keys: &[ch('H')],
-}];
+/// `clipboard.rs`. State-conditional only: the panel is opened by the
+/// configured `toggle_clipboard_history` keybinding, and while it is open the
+/// layer consumes keys wholesale.
+pub(crate) const CLIPBOARD_HISTORY: &[Claim] = &[];
 
 /// `command_history.rs` claims no chord at all — the toggle is driven entirely
 /// by the configured `toggle_command_history` keybinding. Only in-panel
@@ -85,80 +29,15 @@ const COMMAND_PALETTE: &[Claim] = &[];
 /// action, never a chord of its own.
 const AGENT_USAGE_PANEL: &[Claim] = &[];
 
-/// `search.rs`, open branch only. Drives the handler.
-pub(crate) const SEARCH: &[Claim] = &[Claim {
-    action: "toggle_search",
-    mac: Some(PRIMARY_MAC),
-    other: Some(PRIMARY_SHIFT_OTHER),
-    keys: &[ch('F')],
-}];
+/// `search.rs`. State-conditional only: the search bar is opened by the
+/// configured `toggle_search` keybinding; while it is visible, Escape closes
+/// it and everything else propagates to egui.
+pub(crate) const SEARCH: &[Claim] = &[];
 
-/// `ui_toggles.rs`. Drives the handler.
-///
-/// Gated at runtime on `ai_inspector.ai_inspector_enabled` (default `true`), so
-/// the claim holds for a default configuration.
-pub(crate) const AI_INSPECTOR: &[Claim] = &[Claim {
-    action: "toggle_ai_inspector",
-    mac: Some(PRIMARY_MAC),
-    other: Some(PRIMARY_SHIFT_OTHER),
-    keys: &[ch('I')],
-}];
-
-/// `window_state/keyboard_handlers.rs` — mirrored, not driven (not in this
-/// module's ownership).
-const FULLSCREEN_TOGGLE: &[Claim] = &[Claim {
-    action: "toggle_fullscreen",
-    mac: Some(ANY_MODS),
-    other: Some(ANY_MODS),
-    keys: &[named(NamedKey::F11)],
-}];
-
-/// Mirrored. The Escape branches (help panel, shader install, integrations) are
-/// state-conditional and excluded.
-const HELP_TOGGLE: &[Claim] = &[Claim {
-    action: "toggle_help",
-    mac: Some(ANY_MODS),
-    other: Some(ANY_MODS),
-    keys: &[named(NamedKey::F1)],
-}];
-
-/// Mirrored. `is_cmd_comma` tests `super_key()` unconditionally, so off macOS
-/// the comma chord is Super+`,` rather than Ctrl+`,` — which is why
-/// `cycle_cursor_style` can legitimately advertise `Ctrl+Comma` on Linux while
-/// having no macOS default.
-const SETTINGS_TOGGLE: &[Claim] = &[
-    Claim {
-        action: "open_settings",
-        mac: Some(ANY_MODS),
-        other: Some(ANY_MODS),
-        keys: &[named(NamedKey::F12)],
-    },
-    Claim {
-        action: "open_settings",
-        mac: Some(ModSpec::loose(mods(false, false, false, true), NO_MODS)),
-        other: Some(ModSpec::loose(mods(false, false, false, true), NO_MODS)),
-        keys: &[ch(',')],
-    },
-];
-
-/// Mirrored. `handle_shader_editor_toggle` returns `false` unconditionally.
-const SHADER_EDITOR_TOGGLE: &[Claim] = &[];
-
-/// Mirrored.
-const FPS_OVERLAY_TOGGLE: &[Claim] = &[Claim {
-    action: "toggle_fps_overlay",
-    mac: Some(ANY_MODS),
-    other: Some(ANY_MODS),
-    keys: &[named(NamedKey::F3)],
-}];
-
-/// Mirrored.
-const PROFILE_DRAWER_TOGGLE: &[Claim] = &[Claim {
-    action: "toggle_profile_drawer",
-    mac: Some(PRIMARY_SHIFT_MAC),
-    other: Some(PRIMARY_SHIFT_OTHER),
-    keys: &[ch('P')],
-}];
+/// `window_state/keyboard_handlers.rs`. State-conditional only: Escape closes
+/// the help/shader-install/integrations overlays; the panel itself opens via
+/// the configured `toggle_help` keybinding.
+const HELP_TOGGLE: &[Claim] = &[];
 
 /// `profiles.rs` matches against the user's `profiles.yaml`, so what it claims
 /// is not knowable at build time. Deliberately empty; see the coverage note in
@@ -424,26 +303,22 @@ pub(super) const MACOS_APP_MENU: &[Claim] = &[
 
 /// The hardcoded layers, in the order `handle_key_event` consults them.
 ///
-/// The first fourteen mirror [`super::KEY_LAYERS`] one-for-one — `chord_tests`
+/// The first eight mirror [`super::KEY_LAYERS`] one-for-one — `chord_tests`
 /// asserts that correspondence so a new layer cannot be added without declaring
 /// what it claims. The last three continue the same chain but are invoked
 /// directly (two need the `ActiveEventLoop`; the paste/copy branch is inline).
+///
+/// The chord-only layers (scroll, config reload, the UI toggles) dissolved into
+/// registry defaults (`defaults::layer_chords`, UX K2): their chords arrive in
+/// the chain as `config_keybindings` rules, derived from the shipped defaults.
 pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
-    ("scroll_keys", SCROLL_KEYS),
-    ("config_reload", CONFIG_RELOAD),
     ("clipboard_history", CLIPBOARD_HISTORY),
     ("command_history", COMMAND_HISTORY),
     ("paste_special", PASTE_SPECIAL_UI),
     ("agent_usage_panel", AGENT_USAGE_PANEL),
     ("command_palette", COMMAND_PALETTE),
     ("search", SEARCH),
-    ("ai_inspector_toggle", AI_INSPECTOR),
-    ("fullscreen_toggle", FULLSCREEN_TOGGLE),
     ("help_toggle", HELP_TOGGLE),
-    ("settings_toggle", SETTINGS_TOGGLE),
-    ("shader_editor_toggle", SHADER_EDITOR_TOGGLE),
-    ("fps_overlay_toggle", FPS_OVERLAY_TOGGLE),
-    ("profile_drawer_toggle", PROFILE_DRAWER_TOGGLE),
     ("profile_shortcuts", PROFILE_SHORTCUTS),
     ("utility_shortcuts", UTILITY),
     ("tab_shortcuts", TABS),
@@ -451,4 +326,4 @@ pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
 ];
 
 /// Number of [`LAYER_CLAIMS`] entries that correspond to [`super::KEY_LAYERS`].
-pub(crate) const UNIFORM_LAYER_COUNT: usize = 16;
+pub(crate) const UNIFORM_LAYER_COUNT: usize = 8;

@@ -355,6 +355,36 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         true
     }),
     ("clear_scrollback", clear_scrollback),
+    ("scroll_up_page", |s: &mut WindowState| {
+        s.scroll_up_page();
+        s.request_redraw();
+        true
+    }),
+    ("scroll_down_page", |s: &mut WindowState| {
+        s.scroll_down_page();
+        s.request_redraw();
+        true
+    }),
+    ("scroll_to_top", |s: &mut WindowState| {
+        s.scroll_to_top();
+        s.request_redraw();
+        true
+    }),
+    ("scroll_to_bottom", |s: &mut WindowState| {
+        s.scroll_to_bottom();
+        s.request_redraw();
+        true
+    }),
+    ("scroll_to_previous_mark", |s: &mut WindowState| {
+        s.scroll_to_previous_mark();
+        s.request_redraw();
+        true
+    }),
+    ("scroll_to_next_mark", |s: &mut WindowState| {
+        s.scroll_to_next_mark();
+        s.request_redraw();
+        true
+    }),
     // Menu-parity actions. These need the `WindowManager` — the event loop and
     // every window — not just a `WindowState`, so they go through the same queue
     // the in-app menu uses. Routing both through it means a keybinding and its
