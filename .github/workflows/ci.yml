@@ -13,7 +13,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
 
-# Push/PR CI runs formatting and lint ONLY. The full `cargo test --workspace`
+# Push/PR CI runs formatting, lint, and the no-mux type-check ONLY. The full `cargo test --workspace`
 # suite runs in the "Release and Deploy" workflow (release.yml) on all five
 # build legs — Linux x86_64/ARM64, macOS x86_64/ARM64, Windows x86_64 — so
 # re-running it here across three OSes is redundant compute. `make doc-check`
@@ -60,6 +60,11 @@ jobs:
       run: |
         cargo clippy --workspace --all-targets -- -D warnings
         cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+    - name: Check no-mux build
+      # Every other gate builds default features (which include `mux`), so a
+      # mux-gated symbol used from ungated code only breaks here.
+      run: cargo check --workspace --no-default-features
 
     - name: Install cargo-deny
       # Pinned: new cargo-deny releases can change the deny.toml schema and

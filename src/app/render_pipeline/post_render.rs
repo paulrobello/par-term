@@ -142,7 +142,11 @@ impl WindowState {
         }
 
         // Handle par-mux last-tab close dialog actions (UX.md M1)
+        #[cfg(feature = "mux")]
         self.handle_mux_last_tab_action(mux_last_tab);
+        // Without the mux feature there is no session to detach or end.
+        #[cfg(not(feature = "mux"))]
+        let _ = mux_last_tab;
 
         // Handle quit confirmation dialog actions
         match quit_confirm {

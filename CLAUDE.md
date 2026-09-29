@@ -30,13 +30,14 @@ make test           # Run all tests
 make test-one TEST=test_name  # Run specific test
 make all            # Format, lint, test, and build
 make pre-commit     # Run pre-commit checks (secret-scan, fmt-check, lint, test)
-make ci             # Full CI checks (fmt-check, lint-all, test, check-all, check-line-counts)
+make ci             # Full CI checks (fmt-check, lint-all, check-nomux, test, check-all, check-line-counts)
 make fmt            # Format code with rustfmt
 make lint           # Run clippy
 make typecheck      # Type-check entire workspace (cargo check --workspace)
 make checkall       # fmt-check, lint, typecheck, test — verification only, never rewrites files
 make doc-check      # Validate markdown links and anchors (needs lychee)
 make check-line-counts  # Fail on production .rs files over 800 lines (warn over 500)
+make check-nomux    # cargo check --workspace --no-default-features (the no-mux build; only ci and push CI run it)
 cargo test -- --include-ignored  # Run all tests including PTY-dependent ones
 ```
 
