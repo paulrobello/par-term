@@ -269,7 +269,7 @@ pub(crate) fn clear_scrollback(s: &mut WindowState) -> bool {
     };
     if cleared {
         s.set_scroll_target(0);
-        log::info!("Cleared scrollback buffer via keybinding");
+        log::info!("Cleared scrollback buffer (focused pane)");
     }
     true
 }

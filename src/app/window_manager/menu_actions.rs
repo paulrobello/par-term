@@ -250,36 +250,12 @@ impl WindowManager {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
-                    // Clear scrollback in active tab
-                    let cleared = if let Some(tab) = window_state.tab_manager.active_tab_mut() {
-                        let did_clear = if let Ok(mut term) = tab.terminal.try_write() {
-                            term.clear_scrollback();
-                            term.clear_scrollback_metadata();
-                            true
-                        } else {
-                            false
-                        };
-                        if did_clear {
-                            tab.active_cache_mut().scrollback_len = 0;
-                            tab.scripting.trigger_marks.clear();
-                            let tab_terminal = Arc::clone(&tab.terminal);
-                            if let Some(pm) = tab.pane_manager_mut() {
-                                for pane in pm.all_panes_mut() {
-                                    if Arc::ptr_eq(&pane.terminal, &tab_terminal) {
-                                        pane.cache.invalidate_pane_cells();
-                                    }
-                                }
-                            }
-                        }
-                        did_clear
-                    } else {
-                        false
-                    };
-
-                    if cleared {
-                        window_state.set_scroll_target(0);
-                        log::info!("Cleared scrollback buffer");
-                    }
+                    // B58: the menu accelerator intercepts Cmd+Shift+K before
+                    // the keybinding layer on macOS, so this path must run the
+                    // same focused-pane resolution the registry binding uses —
+                    // clearing tab.terminal instead clears the wrong pane in a
+                    // split and the hidden login shell in a par-mux tab.
+                    crate::app::input_events::keybinding_helpers::clear_scrollback(window_state);
                 }
             }
             MenuAction::ClipboardHistory => {
@@ -516,5 +492,35 @@ impl WindowManager {
         for action in actions {
             self.handle_menu_action(action, event_loop, focused_window);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// B58 source pin: the menu's Clear Scrollback must run the keybinding
+    /// helper (focused-pane resolution), never a tab.terminal clear. The
+    /// native accelerator intercepts Cmd+Shift+K before the keybinding
+    /// layer on macOS, so this arm IS the Cmd+Shift+K path in a split tab.
+    #[test]
+    fn menu_clear_scrollback_delegates_to_focused_pane_helper() {
+        let source = include_str!("menu_actions.rs");
+        let selector = "MenuAction::ClearScrollback =>";
+        let arm = source
+            .find(selector)
+            .expect("ClearScrollback menu arm exists");
+        let after = &source[arm + selector.len()..];
+        let body = match after.find("MenuAction::") {
+            Some(next) => &after[..next],
+            None => after,
+        };
+        assert!(
+            body.contains("keybinding_helpers::clear_scrollback"),
+            "the menu arm must delegate to the shared focused-pane helper"
+        );
+        assert!(
+            !body.contains("tab.terminal.try_write"),
+            "the menu arm must not clear tab.terminal directly (B58: wrong \
+             pane in splits, hidden login shell in par-mux tabs)"
+        );
     }
 }
