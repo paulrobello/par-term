@@ -27,7 +27,8 @@ fn test_config_defaults() {
     // Session undo defaults
     assert_eq!(config.session_restore.session_undo_timeout_secs, 5);
     assert_eq!(config.session_restore.session_undo_max_entries, 10);
-    assert!(!config.session_restore.session_undo_preserve_shell);
+    // D6: the shell survives the undo window so reopen restores the live process
+    assert!(config.session_restore.session_undo_preserve_shell);
 }
 
 #[test]
