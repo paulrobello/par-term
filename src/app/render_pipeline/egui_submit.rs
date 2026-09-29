@@ -457,7 +457,7 @@ impl WindowState {
                     }
 
                     // Show help UI
-                    self.overlay_ui.help_ui.show(ctx);
+                    self.overlay_ui.help_ui.show(ctx, &self.keybinding_registry);
 
                     // Show clipboard history UI and collect action
                     actions.clipboard = self.overlay_ui.clipboard_history_ui.show(ctx);

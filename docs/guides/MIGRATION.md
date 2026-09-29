@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [Unreleased — Default Shortcuts Aligned with iTerm2](#unreleased--default-shortcuts-aligned-with-iterm2)
 - [Unreleased — Close-Safety Defaults Aligned with iTerm2](#unreleased--close-safety-defaults-aligned-with-iterm2)
 - [v0.45.0 — Core 0.48 and Kitty Placement Geometry (Library Consumers)](#v0450--core-048-and-kitty-placement-geometry-library-consumers)
 - [v0.43.0 — MSRV 1.98 and wgpu 30 for Library Consumers](#v0430--msrv-198-and-wgpu-30-for-library-consumers)
@@ -23,6 +24,48 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## Unreleased — Default Shortcuts Aligned with iTerm2
+
+The default keybindings follow iTerm2 on macOS, and the same letters through the `Ctrl+Shift` / `Ctrl+Alt` family on Linux and Windows. See [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) for the full table.
+
+**Existing configs keep their chords.** When a config loads, a default is added only if its action has no binding *and* its chord is not already bound to another action. A chord your saved config already binds keeps its old action. You get a new default only where the chord and the action were both free. To take a new default, delete (or rebind) the saved row that holds its chord in **Settings ▸ Input ▸ Keybindings** or in the `keybindings:` list of `config.yaml`; the default is merged in on the next load.
+
+**Renamed actions.** `split_horizontal` is now `split_down` and `split_vertical` is now `split_right`, named for where the new pane goes. Saved bindings are migrated in place on load with the chord unchanged, and the old ids still dispatch if they appear anywhere else.
+
+**Moved chords, macOS:**
+
+| Action | Before | Now |
+|---|---|---|
+| Split right / split down | `Cmd+Shift+D` / `Cmd+D` | `Cmd+D` / `Cmd+Shift+D` |
+| Close | `Cmd+W` closed the tab | `Cmd+W` closes the pane, then the tab, then the window |
+| Close pane | `Cmd+Shift+W` | `Cmd+W` |
+| Close tab | smart close on `Cmd+W` | `Cmd+Opt+W` |
+| Resize pane | `Cmd+Opt+Shift+Arrow` | `Cmd+Ctrl+Arrow` |
+| Swap pane | `Cmd+Ctrl+Opt+Arrow` | `Cmd+Opt+Shift+Arrow` |
+| Move tab | `Cmd+Shift+Left/Right` | `Cmd+Opt+Shift+[ / ]` (arrows kept) |
+| Reopen closed tab | `Cmd+Z` | `Cmd+Shift+T` (`Cmd+Z` kept) |
+| Throughput mode | `Cmd+Shift+T` | command palette |
+| Command history | `Cmd+R` | `Cmd+Shift+;` (`Cmd+R` goes to the shell) |
+| tmux session picker | `Cmd+Opt+T` | `Cmd+Ctrl+S` |
+| Command palette | none | `Cmd+Shift+P` |
+| Profile drawer | `Cmd+Shift+P` | `Cmd+O` |
+| Command marks | `Cmd+Up/Down` | `Cmd+Shift+Up/Down` (`Cmd+Up/Down` kept) |
+| Fullscreen | `F11` | `F11` or `Cmd+Ctrl+F` |
+
+**Moved chords, Linux and Windows:**
+
+| Action | Before | Now |
+|---|---|---|
+| Split down | `Ctrl+Shift+D` | `Ctrl+Shift+O` (`Ctrl+Shift+D` kept) |
+| Close pane | `Ctrl+Shift+X` | `Ctrl+Shift+W` (`Ctrl+Shift+X` kept), cascading to tab and window |
+| Close tab | `Ctrl+Shift+W` | `Ctrl+Alt+W` |
+| Swap pane | `Alt+Shift+Arrow` | unbound |
+| Command palette | none | `Ctrl+Shift+P` |
+| Profile drawer | `Ctrl+Shift+P` | unbound (Profiles menu, palette) |
+| tmux session picker | `Ctrl+Alt+T` | `Ctrl+Alt+T` or `Ctrl+Alt+S` |
 
 ---
 

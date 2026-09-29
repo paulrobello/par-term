@@ -1,7 +1,109 @@
+use crate::command_palette::catalog::chord_display;
 use crate::config::Config;
 use crate::ui_constants::{HELP_WINDOW_DEFAULT_HEIGHT, HELP_WINDOW_DEFAULT_WIDTH};
 use egui::{Color32, Context, Frame, RichText, Window, epaint::Shadow};
+use par_term_keybindings::KeybindingRegistry;
 use std::cell::Cell;
+
+/// Registry-bound shortcuts the help panel lists, as `(section, rows)` with
+/// each row `(action id, description)`. The chord column is read from the
+/// live registry when the panel draws (UX.md K6), so a rebind or a default
+/// change shows here without editing this table.
+const REGISTRY_SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
+    (
+        "Windows & Tabs",
+        &[
+            ("new_window", "New window"),
+            ("new_tab", "New tab"),
+            ("duplicate_tab", "Duplicate tab"),
+            ("close_tab", "Close tab"),
+            ("reopen_closed_tab", "Reopen closed tab"),
+            ("next_tab", "Next tab"),
+            ("prev_tab", "Previous tab"),
+            ("move_tab_left", "Move tab left"),
+            ("move_tab_right", "Move tab right"),
+            ("switch_to_tab_1", "Go to tab 1 (2–9 likewise)"),
+            ("quit", "Quit"),
+        ],
+    ),
+    (
+        "Panes",
+        &[
+            ("split_right", "Split right"),
+            ("split_down", "Split down"),
+            ("close_pane", "Close pane (then tab, then window)"),
+            ("navigate_pane_left", "Focus pane left (arrows likewise)"),
+            ("resize_pane_left", "Resize pane left (arrows likewise)"),
+            ("swap_pane_left", "Swap pane left (arrows likewise)"),
+            ("select_pane_hint", "Select pane by letter"),
+            ("toggle_broadcast_input", "Toggle broadcast input"),
+        ],
+    ),
+    (
+        "Sessions & Profiles",
+        &[
+            ("toggle_command_palette", "Command palette"),
+            ("toggle_profile_drawer", "Profile drawer"),
+            ("toggle_tmux_session_picker", "tmux session picker"),
+            ("ssh_quick_connect", "SSH quick connect"),
+        ],
+    ),
+    (
+        "Search & History",
+        &[
+            ("toggle_search", "Open search"),
+            ("toggle_command_history", "Fuzzy command history"),
+            ("toggle_clipboard_history", "Clipboard history"),
+            ("paste_special", "Paste special"),
+            ("toggle_copy_mode", "Toggle copy mode"),
+        ],
+    ),
+    (
+        "Scrolling",
+        &[
+            ("scroll_up_page", "Scroll up one page"),
+            ("scroll_down_page", "Scroll down one page"),
+            ("scroll_to_top", "Scroll to top"),
+            ("scroll_to_bottom", "Scroll to bottom"),
+            ("scroll_to_previous_mark", "Previous command mark"),
+            ("scroll_to_next_mark", "Next command mark"),
+        ],
+    ),
+    (
+        "Window & Display",
+        &[
+            ("toggle_help", "Toggle this help panel"),
+            ("toggle_fps_overlay", "Toggle FPS overlay"),
+            ("reload_config", "Reload configuration"),
+            ("toggle_fullscreen", "Toggle fullscreen"),
+            ("maximize_vertically", "Maximize vertically"),
+            ("open_settings", "Open settings"),
+            ("increase_font_size", "Increase font size"),
+            ("decrease_font_size", "Decrease font size"),
+            ("reset_font_size", "Reset font size"),
+            ("toggle_background_shader", "Toggle background shader"),
+            ("toggle_cursor_shader", "Toggle cursor shader"),
+        ],
+    ),
+    (
+        "Terminal",
+        &[
+            ("clear_screen", "Clear screen"),
+            ("clear_scrollback", "Clear scrollback"),
+            ("toggle_session_logging", "Toggle session logging"),
+            ("toggle_ai_inspector", "Toggle assistant panel"),
+        ],
+    ),
+];
+
+/// The chord the registry currently binds to `action`, formatted the way the
+/// palette formats it, or `"unbound"`.
+fn live_chord(registry: &KeybindingRegistry, action: &str) -> String {
+    registry
+        .chord_for_action(action)
+        .map(|combo| chord_display(&combo))
+        .unwrap_or_else(|| "unbound".to_string())
+}
 
 /// Help UI manager using egui
 pub struct HelpUI {
@@ -20,8 +122,8 @@ impl HelpUI {
         self.visible = !self.visible;
     }
 
-    /// Show the help window
-    pub fn show(&mut self, ctx: &Context) {
+    /// Show the help window. Chords come from `registry`, the live bindings.
+    pub fn show(&mut self, ctx: &Context, registry: &KeybindingRegistry) {
         if !self.visible {
             return;
         }
@@ -114,88 +216,53 @@ impl HelpUI {
                     ui.heading("Keyboard Shortcuts");
                     ui.separator();
 
+                    ui.label(
+                        RichText::new(
+                            "Chords shown are your current bindings; change them in \
+                             Settings ▸ Input ▸ Keybindings.",
+                        )
+                        .weak(),
+                    );
+                    ui.add_space(4.0);
+
                     // Use a grid for clean alignment
                     egui::Grid::new("shortcuts_grid")
                         .num_columns(2)
                         .spacing([20.0, 4.0])
                         .striped(true)
                         .show(ui, |ui| {
-                            // Navigation
-                            ui.label(RichText::new("Navigation").strong().underline());
-                            ui.end_row();
+                            for (section, rows) in REGISTRY_SHORTCUTS {
+                                ui.label(RichText::new(*section).strong().underline());
+                                ui.end_row();
+                                for (action, description) in *rows {
+                                    shortcut_row(ui, &live_chord(registry, action), description);
+                                }
+                                ui.end_row();
+                            }
 
-                            shortcut_row(ui, "PageUp", "Scroll up one page");
-                            shortcut_row(ui, "PageDown", "Scroll down one page");
-                            shortcut_row(ui, "Shift+Home", "Scroll to top");
-                            shortcut_row(ui, "Shift+End", "Scroll to bottom");
-                            shortcut_row(ui, "Mouse wheel", "Scroll up/down");
-
-                            ui.end_row();
-
-                            // Window & Display
-                            ui.label(RichText::new("Window & Display").strong().underline());
-                            ui.end_row();
-
-                            shortcut_row(ui, "F1", "Toggle this help panel");
-                            shortcut_row(ui, "F3", "Toggle FPS overlay");
-                            shortcut_row(ui, "F5", "Reload configuration");
-                            shortcut_row(ui, "F11", "Toggle fullscreen / Shader editor");
-                            shortcut_row(ui, "F12", "Toggle settings panel");
-
-                            ui.end_row();
-
-                            // Font & Text
-                            ui.label(RichText::new("Font & Text").strong().underline());
-                            ui.end_row();
-
-                            shortcut_row(ui, "Ctrl++", "Increase font size");
-                            shortcut_row(ui, "Ctrl+-", "Decrease font size");
-                            shortcut_row(ui, "Ctrl+0", "Reset font size to default");
-
-                            ui.end_row();
-
-                            // Selection & Clipboard
+                            // Built-in keys that are not registry bindings.
                             ui.label(RichText::new("Selection & Clipboard").strong().underline());
                             ui.end_row();
 
+                            #[cfg(target_os = "macos")]
+                            shortcut_row(ui, "Cmd+C / Cmd+V", "Copy / paste");
+                            #[cfg(not(target_os = "macos"))]
+                            shortcut_row(ui, "Ctrl+Shift+C / Ctrl+Shift+V", "Copy / paste");
                             shortcut_row(ui, "Click + Drag", "Select text");
                             shortcut_row(ui, "Double-click", "Select word");
                             shortcut_row(ui, "Triple-click", "Select line");
-                            shortcut_row(ui, "Ctrl+Shift+C", "Copy selection");
-                            shortcut_row(ui, "Ctrl+Shift+V", "Paste from clipboard");
-                            shortcut_row(ui, "Ctrl+Shift+H", "Toggle clipboard history");
-                            shortcut_row(ui, "Cmd/Ctrl+R", "Fuzzy command history search");
                             shortcut_row(ui, "Middle-click", "Paste (if enabled)");
+                            shortcut_row(ui, "Mouse wheel", "Scroll up/down");
+                            shortcut_row(ui, "Cmd/Ctrl+Click URL", "Open URL in browser");
 
                             ui.end_row();
 
-                            // Search
-                            ui.label(RichText::new("Search").strong().underline());
+                            ui.label(RichText::new("In the search bar").strong().underline());
                             ui.end_row();
 
-                            shortcut_row(ui, "Cmd/Ctrl+F", "Open search");
                             shortcut_row(ui, "Enter", "Find next match");
                             shortcut_row(ui, "Shift+Enter", "Find previous match");
                             shortcut_row(ui, "Escape", "Close search");
-
-                            ui.end_row();
-
-                            // Terminal
-                            ui.label(RichText::new("Terminal").strong().underline());
-                            ui.end_row();
-
-                            shortcut_row(ui, "Ctrl+L", "Clear screen");
-                            shortcut_row(ui, "Ctrl+Shift+S", "Take screenshot");
-                            shortcut_row(ui, "Ctrl+Shift+R", "Toggle session recording");
-                            shortcut_row(ui, "Ctrl+Shift+F5", "Fix rendering (after monitor change)");
-
-                            ui.end_row();
-
-                            // URL Handling
-                            ui.label(RichText::new("URL Handling").strong().underline());
-                            ui.end_row();
-
-                            shortcut_row(ui, "Ctrl+Click URL", "Open URL in browser");
                         });
 
                     ui.add_space(12.0);
@@ -216,10 +283,11 @@ impl HelpUI {
                             ui.label(RichText::new("Enter / Exit").strong().underline());
                             ui.end_row();
 
-                            #[cfg(target_os = "macos")]
-                            shortcut_row(ui, "Cmd+Shift+C", "Toggle copy mode");
-                            #[cfg(not(target_os = "macos"))]
-                            shortcut_row(ui, "Ctrl+Shift+Space", "Toggle copy mode");
+                            shortcut_row(
+                                ui,
+                                &live_chord(registry, "toggle_copy_mode"),
+                                "Toggle copy mode",
+                            );
                             shortcut_row(ui, "q / Escape", "Exit copy mode");
 
                             ui.end_row();
@@ -288,11 +356,16 @@ impl HelpUI {
                     ui.heading("Tips");
                     ui.separator();
 
-                    ui.label("• Configuration changes made via F12 settings are saved to the config file.");
-                    ui.label("• Press F5 to reload config without restarting the terminal.");
+                    ui.label("• Configuration changes made in Settings are saved to the config file.");
+                    ui.label(format!(
+                        "• Press {} to reload config without restarting the terminal.",
+                        live_chord(registry, "reload_config")
+                    ));
                     ui.label("• Custom shaders can be placed in the shaders folder.");
-                    ui.label("• The shader editor (F11) allows live editing when a shader is configured.");
-                    ui.label("• If display looks corrupted after moving between monitors, press Ctrl+Shift+F5.");
+                    ui.label(format!(
+                        "• {} opens the command palette: every action, searchable by name.",
+                        live_chord(registry, "toggle_command_palette")
+                    ));
 
                     ui.add_space(12.0);
 
@@ -325,4 +398,62 @@ fn shortcut_row(ui: &mut egui::Ui, shortcut: &str, description: &str) {
     ui.label(RichText::new(shortcut).monospace().strong());
     ui.label(description);
     ui.end_row();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every action the help panel lists must be dispatchable, or its row is
+    /// a shortcut that does nothing.
+    #[test]
+    fn every_listed_action_has_a_handler() {
+        use crate::app::input_events::keybinding_actions::ACTION_HANDLERS;
+        use crate::app::input_events::keybinding_display_actions::DISPLAY_ACTION_HANDLERS;
+        let live: Vec<&str> = ACTION_HANDLERS
+            .iter()
+            .map(|(id, _)| *id)
+            .chain(DISPLAY_ACTION_HANDLERS.iter().map(|(id, _)| *id))
+            .collect();
+        let dead: Vec<&str> = REGISTRY_SHORTCUTS
+            .iter()
+            .flat_map(|(_, rows)| rows.iter().map(|(id, _)| *id))
+            .filter(|id| !live.contains(id))
+            .collect();
+        assert!(dead.is_empty(), "help rows with no handler: {dead:?}");
+    }
+
+    /// The chord column is the live registry binding: with the shipped
+    /// defaults each listed action shows its primary (first) default chord,
+    /// and a rebind shows the new chord.
+    #[test]
+    fn chords_come_from_the_live_registry() {
+        let defaults = par_term_config::defaults::keybindings();
+        let registry = KeybindingRegistry::from_config(&defaults);
+        let primary = |action: &str| {
+            defaults
+                .iter()
+                .find(|kb| kb.action == action)
+                .map(|kb| {
+                    chord_display(
+                        &par_term_keybindings::parser::parse_key_combo(&kb.key)
+                            .expect("default parses")
+                            .platform_normalized(),
+                    )
+                })
+                .unwrap_or_else(|| "unbound".to_string())
+        };
+        for (_, rows) in REGISTRY_SHORTCUTS {
+            for (action, _) in *rows {
+                assert_eq!(live_chord(&registry, action), primary(action), "{action}");
+            }
+        }
+
+        let rebound = KeybindingRegistry::from_config(&[par_term_config::KeyBinding {
+            key: "F9".to_string(),
+            action: "split_right".to_string(),
+        }]);
+        assert_eq!(live_chord(&rebound, "split_right"), "F9");
+        assert_eq!(live_chord(&rebound, "split_down"), "unbound");
+    }
 }

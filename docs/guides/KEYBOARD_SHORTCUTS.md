@@ -2,21 +2,24 @@
 
 Complete reference for all par-term keyboard shortcuts.
 
-> **📝 Note:** On macOS, keybindings use `Cmd` as the primary modifier. On Linux and Windows, keybindings use `Ctrl+Shift` combinations to avoid conflicts with standard terminal control codes (Ctrl+C for SIGINT, Ctrl+D for EOF, etc.). This follows conventions from WezTerm, Kitty, GNOME Terminal, and Windows Terminal.
+> **📝 Note:** On macOS, the defaults follow iTerm2 wherever par-term has the matching action, with `Cmd` as the primary modifier. On Linux and Windows, the same letters use the K1 family: `Ctrl+Shift` where macOS uses `Cmd` (window and tab), and `Ctrl+Alt` where macOS uses `Cmd+Opt` (panes). Plain `Ctrl+letter` stays with the shell (Ctrl+C for SIGINT, Ctrl+D for EOF, etc.). The **F1** help panel always shows your *current* bindings.
 
 > **📝 Linux:** par-term cannot attach a *native* menu bar on Linux — `muda`
 > requires a `gtk::Window` that winit does not create — so Linux gets an in-app
 > menu instead, opened from the `☰` button in the tab bar or by binding
 > `toggle_menu`. It offers the same commands as the macOS and Windows menus,
-> because all three are built from one shared model.
->
-> `new_window`, `close_window`, `quit` and `select_all` are now bindable actions
-> on every platform. None ships with a default chord — bind them in
-> **Settings ▸ Input ▸ Keybindings**. Binding `toggle_menu` matters if you run
-> with `tab_bar_mode: never`, since there is then no tab bar to hold the button.
+> because all three are built from one shared model. Every chord in the tables
+> below is a registry default, so it works on Linux without the native menu.
+> Binding `toggle_menu` matters if you run with `tab_bar_mode: never`, since
+> there is then no tab bar to hold the button.
 >
 > Set `PAR_TERM_IN_APP_MENU=1` to force the in-app menu on any platform, or `0`
 > to disable it.
+
+> **📝 Upgrading:** these defaults changed in the iTerm2 alignment (see
+> [Migration](MIGRATION.md#unreleased--default-shortcuts-aligned-with-iterm2)).
+> A chord you had already bound keeps its old action; a moved default reaches
+> an existing config only once its chord is free (delete the saved row).
 
 ## Table of Contents
 - [Window & Tab Management](#window--tab-management)
@@ -36,23 +39,25 @@ Complete reference for all par-term keyboard shortcuts.
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| New window | `Cmd + N` *(menu)* | `Ctrl + Shift + N` *(menu)* |
-| New tab | `Cmd + T` | `Ctrl + Shift + T` |
-| Duplicate tab | `Cmd+Shift+J` | `Ctrl+Shift+J` |
-| Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
+| New window | `Cmd + N` (alias `Cmd + Ctrl + Shift + N`) | `Ctrl + Shift + N` |
+| New tab | `Cmd + T` (alias `Cmd + Ctrl + Shift + T`) | `Ctrl + Shift + T` |
+| Duplicate tab | `Cmd + Shift + J` | `Ctrl + Shift + J` |
+| Close (pane, then tab, then window) | `Cmd + W` | `Ctrl + Shift + W` (alias `Ctrl + Shift + X`) |
+| Close tab | `Cmd + Opt + W` | `Ctrl + Alt + W` |
 | Minimize window | `Cmd + M` *(menu)* | — |
 | Next tab | `Cmd + Shift + ]` | `Ctrl + Shift + ]` |
 | Previous tab | `Cmd + Shift + [` | `Ctrl + Shift + [` |
 | Next tab (alt) | `Ctrl + Tab` | `Ctrl + Tab` |
 | Previous tab (alt) | `Ctrl + Shift + Tab` | `Ctrl + Shift + Tab` |
 | Switch to tab 1-9 | `Cmd + 1-9` | `Alt + 1-9` |
-| Move tab left | `Cmd + Shift + Left` | `Ctrl + Shift + Left` |
-| Move tab right | `Cmd + Shift + Right` | `Ctrl + Shift + Right` |
-| Reopen closed tab | `Cmd + Z` | `Ctrl + Shift + Z` |
+| Move tab left | `Cmd + Opt + Shift + [` (alias `Cmd + Shift + Left`) | `Ctrl + Shift + Left` |
+| Move tab right | `Cmd + Opt + Shift + ]` (alias `Cmd + Shift + Right`) | `Ctrl + Shift + Right` |
+| Reopen closed tab | `Cmd + Shift + T` (alias `Cmd + Z`) | `Ctrl + Shift + Z` |
+| Quit | `Cmd + Q` | `Ctrl + Shift + Q` |
 | Move tab to new window | *(unbound)* | *(unbound)* |
 | Save window arrangement | View menu: "Save Window Arrangement..." | View menu: "Save Window Arrangement..." |
 
-> **📝 Note:** A *(menu)* chord is dispatched by the **native** menu bar, which Linux does not have — its in-app menu prints the accelerator label beside the command but does not handle the chord. On Linux, open the menu from the `☰` button or bind `new_window`, `close_window`, `quit` and `select_all` directly (see [Available Actions](#available-actions)).
+> **📝 Note:** **Close** follows iTerm2: it closes the focused pane; closing a tab's last pane closes the tab, and closing the last tab closes the window. The running-job confirmation and the par-mux last-tab dialog apply before the cascade. **Close tab** closes every pane in the tab at once. The *(menu)* Minimize chord is dispatched by the **native** menu bar, which Linux does not have.
 
 ## Navigation & Scrolling
 
@@ -64,8 +69,8 @@ Complete reference for all par-term keyboard shortcuts.
 | `Shift + PageDown` | Scroll down one page in scrollback |
 | `Shift + Home` | Jump to top of scrollback |
 | `Shift + End` | Jump to bottom |
-| `Cmd/Super + Up` | Jump to previous command mark |
-| `Cmd/Super + Down` | Jump to next command mark |
+| `Cmd + Shift + Up` (macOS, alias `Cmd + Up`) / `Super + Up` | Jump to previous command mark |
+| `Cmd + Shift + Down` (macOS, alias `Cmd + Down`) / `Super + Down` | Jump to next command mark |
 | `Mouse Wheel` | Scroll up/down |
 
 ### Modifier Keys With Special Keys
@@ -83,9 +88,7 @@ Modifier keys (`Shift`, `Ctrl`, `Alt`, and combinations) work with special keys 
 | Paste (X11 fallback) | — | `Shift + Insert` |
 | Paste Special | `Cmd + Shift + V` | `Ctrl + Alt + V` |
 | Clipboard history | `Cmd + Shift + H` | `Ctrl + Shift + H` |
-| Select all | `Cmd + A` *(menu)* | `Ctrl + Shift + A` *(menu)* |
-
-> **📝 Note:** A *(menu)* chord is dispatched by the **native** menu bar, which Linux does not have — its in-app menu prints the accelerator label beside the command but does not handle the chord. On Linux, open the menu from the `☰` button or bind `new_window`, `close_window`, `quit` and `select_all` directly (see [Available Actions](#available-actions)).
+| Select all | `Cmd + A` | `Ctrl + Shift + A` |
 
 **Mouse Selection:**
 
@@ -132,9 +135,9 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | Find next match | `Enter` | `Enter` |
 | Find previous match | `Shift + Enter` | `Shift + Enter` |
 | Close search | `Escape` | `Escape` |
-| Open command history | `Cmd + R` | `Ctrl + Alt + R` |
+| Open command history | `Cmd + Shift + ;` | `Ctrl + Alt + R` |
 
-> **📝 Note:** Command history uses `toggle_command_history` action (fuzzy search). This is separate from shell's built-in reverse search (Ctrl+R).
+> **📝 Note:** Command history uses the `toggle_command_history` action (fuzzy search), on iTerm2's `Cmd + Shift + ;`. `Cmd + R` is no longer bound, so it reaches the shell. In `config.yaml` the macOS chord is written `CmdOrCtrl+Shift+:`, the character that key press produces.
 
 ## Terminal Operations
 
@@ -143,9 +146,9 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | `Ctrl + L` | Clear visible screen |
 | `Cmd/Ctrl + Shift + K` | Clear scrollback buffer |
 | `Cmd/Ctrl + Shift + R` | Toggle session logging |
-| `Cmd + Shift + T` (macOS) / `Ctrl + Shift + M` (Linux/Win) | Toggle maximize throughput mode |
+| Command palette (macOS) / `Ctrl + Shift + M` (Linux/Win) | Toggle maximize throughput mode |
 
-> **📝 Note:** Session logging uses the `toggle_session_logging` action (see [Session Logging](../features/SESSION_LOGGING.md)). Throughput mode uses `toggle_throughput_mode`. Screenshots are taken via the `--screenshot` CLI option or MCP server tool, not a keyboard shortcut.
+> **📝 Note:** Session logging uses the `toggle_session_logging` action (see [Session Logging](../features/SESSION_LOGGING.md)). Throughput mode uses `toggle_throughput_mode`; on macOS it has no default chord since `Cmd + Shift + T` became Reopen Closed Tab, so run it from the command palette or bind it. Screenshots are taken via the `--screenshot` CLI option or MCP server tool, not a keyboard shortcut.
 
 ## Font & Text Sizing
 
@@ -162,7 +165,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | `F1` | Toggle Help panel |
 | `F3` | Toggle FPS overlay |
 | `F5` | Reload configuration |
-| `F11` | Toggle fullscreen |
+| `F11` (macOS also `Cmd + Ctrl + F`) | Toggle fullscreen |
 | `Shift + F11` | Maximize vertically. Unlike `F11`, this is an exact-chord registry binding: modifier variants of `F11` itself no longer toggle fullscreen — rebind or free the chord in Settings. |
 | `F12` | Open Settings |
 | `Cmd + ,` (macOS) | Open Settings |
@@ -172,20 +175,24 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| Split horizontally | `Cmd + D` | `Ctrl + Shift + D` |
-| Split vertically | `Cmd + Shift + D` | `Ctrl + Shift + E` |
-| Close focused pane | `Cmd + Shift + W` | `Ctrl + Shift + X` |
-| Navigate pane left | `Cmd + Alt + Left` | `Ctrl + Alt + Left` |
-| Navigate pane right | `Cmd + Alt + Right` | `Ctrl + Alt + Right` |
-| Navigate pane up | `Cmd + Alt + Up` | `Ctrl + Alt + Up` |
-| Navigate pane down | `Cmd + Alt + Down` | `Ctrl + Alt + Down` |
-| Resize pane left | `Cmd + Alt + Shift + Left` | `Ctrl + Alt + Shift + Left` |
-| Resize pane right | `Cmd + Alt + Shift + Right` | `Ctrl + Alt + Shift + Right` |
-| Resize pane up | `Cmd + Alt + Shift + Up` | `Ctrl + Alt + Shift + Up` |
-| Resize pane down | `Cmd + Alt + Shift + Down` | `Ctrl + Alt + Shift + Down` |
+| Split right (new pane beside) | `Cmd + D` | `Ctrl + Shift + E` |
+| Split down (new pane below) | `Cmd + Shift + D` | `Ctrl + Shift + O` (alias `Ctrl + Shift + D`) |
+| Close focused pane | `Cmd + W` | `Ctrl + Shift + W` (alias `Ctrl + Shift + X`) |
+| Navigate pane left | `Cmd + Opt + Left` | `Ctrl + Alt + Left` |
+| Navigate pane right | `Cmd + Opt + Right` | `Ctrl + Alt + Right` |
+| Navigate pane up | `Cmd + Opt + Up` | `Ctrl + Alt + Up` |
+| Navigate pane down | `Cmd + Opt + Down` | `Ctrl + Alt + Down` |
+| Resize pane left | `Cmd + Ctrl + Left` | `Ctrl + Alt + Shift + Left` |
+| Resize pane right | `Cmd + Ctrl + Right` | `Ctrl + Alt + Shift + Right` |
+| Resize pane up | `Cmd + Ctrl + Up` | `Ctrl + Alt + Shift + Up` |
+| Resize pane down | `Cmd + Ctrl + Down` | `Ctrl + Alt + Shift + Down` |
+| Swap pane left / right / up / down | `Cmd + Opt + Shift + Arrow` | *(unbound)* |
 | Promote pane to tab | *(unbound)* | *(unbound)* |
 | Demote tab to pane | *(unbound)* | *(unbound)* |
-| Select pane by letter | `Cmd + Alt + P` | `Ctrl + Alt + P` |
+| Select pane by letter | `Cmd + Opt + P` | `Ctrl + Alt + P` |
+| Toggle broadcast input | `Cmd + Opt + I` | `Ctrl + Alt + I` |
+
+> **📝 Note:** Pane swap ships unbound on Linux and Windows: editors use `Alt + Shift + Arrow`, and Windows switches the input language on `Alt + Shift`. Bind `swap_pane_*` yourself if you want it.
 
 > **📝 Note:** Promote and demote actions have no default keybinding. Bind them in Settings → Input → Keybindings or via config YAML using the `promote_pane_to_tab` and `demote_tab_to_pane` action names. See [Tabs](../features/TABS.md#promoting-and-demoting-panes) for details.
 
@@ -195,16 +202,18 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 
 | Shortcut | Action |
 |----------|--------|
+| `Cmd/Ctrl + Shift + P` | Open the command palette (`toggle_command_palette`) |
+| `Cmd + O` (macOS) / Profiles menu (Linux/Win) | Toggle the profile drawer (`toggle_profile_drawer`) |
 | `Cmd/Ctrl + Shift + B` | Toggle background shader |
 | `Cmd/Ctrl + Shift + U` | Toggle cursor shader |
-| `Cmd/Ctrl + Shift + P` | Toggle the profile drawer (`toggle_profile_drawer`) |
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
-| `Cmd/Ctrl + Alt + I` | Toggle broadcast input |
-| `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
+| `Cmd + Ctrl + S` (macOS) / `Ctrl + Alt + T` or `Ctrl + Alt + S` (Linux/Win) | Toggle tmux session picker |
 | `Cmd + ,` (macOS) / `F12` | Open the Settings window |
 | `Ctrl + ,` (all platforms) | Cycle cursor style (Block → Beam → Underline) |
 
-> **📝 Note:** `Cmd/Ctrl + Shift + P` previously carried the **Manage Profiles...** menu accelerator, which meant the native menu bar on macOS and Windows consumed the chord before it could reach the profile drawer it is documented for. The accelerator now belongs to the drawer on all three platforms. Reach **Manage Profiles...** from the Profiles menu, or from **Settings ▸ Profiles**.
+> **📝 Note:** The command palette owns `Cmd/Ctrl + Shift + P` (the VS Code convention). The profile drawer moved to iTerm2's **Open Profiles** chord, `Cmd + O`, on macOS. On Linux and Windows it ships unbound, because the matching `Ctrl + Shift + O` is Split Down there; open it from the Profiles menu or the palette. Reach **Manage Profiles...** from the Profiles menu, or from **Settings ▸ Profiles**.
+
+> **📝 Note:** The tmux session picker moved off `Cmd + Opt + T` on macOS, which iTerm2 uses for New Tab Next to Current. On Linux, Ubuntu opens a terminal on `Ctrl + Alt + T`, so `Ctrl + Alt + S` is offered as well.
 
 > **📝 Note:** Cursor style cycles on `Ctrl + ,` on **every** platform, macOS included — the cycler accepts either Ctrl or Cmd, and nothing higher in the dispatch chain claims `Ctrl + ,`. On macOS it is specifically **not** `Cmd + ,`: that is the `Settings...` key equivalent on the application menu and opens the Settings window instead.
 
@@ -221,8 +230,12 @@ keybindings:
   - key: "CmdOrCtrl+Shift+V"
     action: "paste_special"
   - key: "CmdOrCtrl+D"
-    action: "split_horizontal"
+    action: "split_right"
 ```
+
+A binding saved under a renamed action id keeps working: `split_horizontal` is
+migrated to `split_down` and `split_vertical` to `split_right` when the config
+loads, with the chord unchanged.
 
 #### Passing a chord through to the shell
 
@@ -264,29 +277,19 @@ reference.
 ### Available Actions
 
 **Application & Windows:**
-- `new_window`, `close_window` (closes the tab when the window has several), `quit`
+- `new_window`, `quit`
+- `close_window` - Smart close: the active tab when the window has several, otherwise the window. No default chord since `Cmd + W` became the pane-cascading `close_pane`.
 - `select_all` - Select the whole terminal buffer (scrollback plus visible screen), or the focused text field when Settings or an overlay has focus
 - `toggle_menu` - Open the in-app application menu
 
 `new_window`, `quit` and `select_all` ship with default `keybindings` entries
-mirroring the native menu accelerators (`Cmd + N` / `Ctrl + N`, `+ Q`, `+ A`),
-as does `close_window` on macOS (`Cmd + W`; no non-macOS default ships for
-it). `toggle_menu` has no default. Bind it if you run with
+mirroring the menu accelerators (`Cmd + N` / `Ctrl + Shift + N`, `+ Q`,
+`+ A`). `toggle_menu` has no default. Bind it if you run with
 `tab_bar_mode: never` — the tab bar is what normally holds the `☰` button, so
 without a binding there is no way to open the in-app menu.
 
 **Command Palette:**
-- `toggle_command_palette` - Open the fuzzy action launcher over every bindable action
-
-This ships with no default chord. Every obvious candidate is already claimed by a
-higher-precedence key layer, so bind it yourself in Settings > Input >
-Keybindings, or in `config.yaml`:
-
-```yaml
-keybindings:
-  - key: "CmdOrCtrl+Alt+K"
-    action: "toggle_command_palette"
-```
+- `toggle_command_palette` - Open the fuzzy action launcher over every bindable action (`Cmd/Ctrl + Shift + P`)
 
 **Tab Management:**
 - `new_tab`, `close_tab`, `duplicate_tab`, `next_tab`, `prev_tab`
@@ -300,7 +303,8 @@ keybindings:
 - `restore_arrangement:<name>` - Restore a previously saved arrangement by name
 
 **Pane Management:**
-- `split_horizontal`, `split_vertical`, `close_pane`
+- `split_right`, `split_down` (the old ids `split_vertical` and `split_horizontal` still work as aliases)
+- `close_pane` - Close the focused pane, cascading to the tab and window
 - `navigate_pane_left`, `navigate_pane_right`
 - `navigate_pane_up`, `navigate_pane_down`
 - `select_pane_hint`

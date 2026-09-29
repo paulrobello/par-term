@@ -39,27 +39,11 @@ use par_term_settings_ui::input_tab::actions_table::AVAILABLE_ACTIONS;
 
 /// Advertised chords whose first claimer runs a different action.
 ///
-/// Frozen deliberately: these are pre-existing and this gate exists to stop new
-/// ones, not to change what any chord does today. Each entry is
-/// `action -> first claiming source / action it actually runs`.
-#[cfg(target_os = "macos")]
-const KNOWN_MISMATCHES: &[(&str, &str)] = &[
-    // The `Close` item in the File menu is a deliberate "smart close": it closes
-    // the active tab when more than one is open and the window otherwise. The
-    // native accelerator therefore claims Cmd+W before `tab_shortcuts` does, and
-    // its `MenuAction` is named for the window case.
-    ("close_tab", "native_menu/close_window"),
-];
-
-/// Windows attaches a native muda menu bar too, so it has the same smart-close
-/// conflict; `cmd_or_ctrl` is Ctrl+Shift there, making the chord Ctrl+Shift+W.
-#[cfg(target_os = "windows")]
-const KNOWN_MISMATCHES: &[(&str, &str)] = &[("close_tab", "native_menu/close_window")];
-
-/// Linux/BSD cannot attach a native menu bar (muda needs a `gtk::Window` winit
-/// never creates), so the in-app egui menu only *draws* accelerator labels and
-/// claims nothing. The smart-close conflict is therefore absent here.
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+/// Frozen deliberately: this gate exists to stop new ones. Each entry is
+/// `action -> first claiming source / action it actually runs`. Empty on every
+/// platform since UX.md I15 gave the File menu's Close item (Cmd+W /
+/// Ctrl+Shift+W) the `close_pane` action and Close Tab its own chord; the
+/// smart-close mismatch that used to sit here is gone.
 const KNOWN_MISMATCHES: &[(&str, &str)] = &[];
 
 /// Actions the table advertises as having no default, which some modeled source
@@ -69,20 +53,9 @@ const KNOWN_MISMATCHES: &[(&str, &str)] = &[];
 /// dispatch defect, and correcting the table is a separate decision.
 ///
 /// The menu-advertised chords became registry defaults (`defaults::menu_chords`,
-/// UX K2), so every action the menus accelerate is now advertised with its
-/// default and this set is empty on macOS.
-#[cfg(target_os = "macos")]
-const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &[];
-
-/// Only `close_window` remains: no non-macOS default ships for it, so its
-/// native menu-bar accelerator is still a chord par-term's own key handling
-/// never dispatches.
-#[cfg(target_os = "windows")]
-const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &["close_window (native_menu)"];
-
-/// No native menu here, so every menu-only entry disappears and nothing modeled
-/// claims a chord the table advertises as having none.
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+/// UX K2), so every action the menus accelerate is advertised with its default.
+/// Windows used to list `close_window (native_menu)`; since UX.md I15 no menu
+/// item carries the smart close, so the set is empty on every platform.
 const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &[];
 
 fn advertised() -> Vec<(&'static str, Chord)> {

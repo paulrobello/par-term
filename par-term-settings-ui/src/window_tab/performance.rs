@@ -250,7 +250,7 @@ pub(super) fn show_performance_section(
                 .checkbox(&mut settings.config.rendering.maximize_throughput, {
                     #[cfg(target_os = "macos")]
                     {
-                        "Maximize throughput (Cmd+Shift+T)"
+                        "Maximize throughput (command palette)"
                     }
                     #[cfg(not(target_os = "macos"))]
                     {

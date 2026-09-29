@@ -76,6 +76,10 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "select_pane_hint",
     "split_horizontal",
     "split_vertical",
+    // UX.md T7 renamed the two above; they stay here because the old ids must
+    // keep dispatching (as aliases, via `current_action_id`).
+    "split_down",
+    "split_right",
     "ssh_quick_connect",
     "swap_pane_down",
     "swap_pane_left",
@@ -188,9 +192,13 @@ fn dispatch_tables_cover_the_frozen_action_inventory() {
     live.extend(display_keys());
     live.sort_unstable();
 
+    // A renamed id is dispatchable only while the id it resolves to is a
+    // live table key — an alias to nothing would be a dropped action.
     let missing: Vec<&&str> = FROZEN_ACTION_INVENTORY
         .iter()
-        .filter(|name| !live.contains(name))
+        .filter(|name| {
+            !live.contains(&par_term_config::config::keybindings_methods::current_action_id(name))
+        })
         .collect();
     assert!(
         missing.is_empty(),
@@ -246,6 +254,24 @@ fn every_default_keybinding_resolves_to_a_handler() {
         "default keybindings whose action has no handler (the chord would do \
          nothing): {unhandled:?}"
     );
+}
+
+/// UX.md T7: every renamed id resolves to a live handler and is itself no
+/// longer a table key, so the old and new ids cannot drift apart.
+#[test]
+fn renamed_action_ids_alias_a_live_handler() {
+    let mut live: Vec<&str> = action_keys();
+    live.extend(display_keys());
+    for (previous, current) in par_term_config::config::keybindings_methods::ACTION_RENAMES {
+        assert!(
+            live.contains(current),
+            "{previous} is renamed to {current}, which no handler claims"
+        );
+        assert!(
+            !live.contains(previous),
+            "{previous} is renamed but still has its own handler"
+        );
+    }
 }
 
 /// Ordering tripwire, deliberately a change-detector: `KEY_LAYERS` is ordered

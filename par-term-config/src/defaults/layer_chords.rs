@@ -6,8 +6,9 @@
 //! (`pass_to_terminal`). The chords match what the hardcoded layers already
 //! do; where a layer accepted any modifier combination (an unguarded
 //! `matches!` on the logical key), the default pins the exact combination the
-//! layer was written for. UX.md 3.3a moves them later, through the 3.3
-//! migration rule (a moved default is added only if its chord is unclaimed).
+//! layer was written for. UX.md 3.3a moves are applied here too; a moved
+//! chord reaches an existing config only through the 3.3 migration rule (a
+//! moved default is added only if its chord is unclaimed).
 
 use crate::types::KeyBinding;
 
@@ -30,6 +31,10 @@ pub fn layer_chords() -> Vec<KeyBinding> {
         kb("Shift+PageDown", "scroll_down_page"),
         kb("Shift+Home", "scroll_to_top"),
         kb("Shift+End", "scroll_to_bottom"),
+        // iTerm2's Previous / Next Mark (UX.md I33); the old Cmd+Up/Down
+        // chords stay as aliases.
+        kb("Cmd+Shift+Up", "scroll_to_previous_mark"),
+        kb("Cmd+Shift+Down", "scroll_to_next_mark"),
         kb("Cmd+Up", "scroll_to_previous_mark"),
         kb("Cmd+Down", "scroll_to_next_mark"),
         // utility.rs tail (UX K2 dissolution): Ctrl+L and the Ctrl+Comma arm

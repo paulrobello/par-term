@@ -13,6 +13,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ### Changed
 
+- **Default shortcuts aligned with iTerm2** (UX.md 3.3a). On macOS: `Cmd+D` splits right and `Cmd+Shift+D` splits down; `Cmd+W` closes the focused pane, then the tab, then the window, and `Cmd+Opt+W` closes the tab; `Cmd+Ctrl+Arrow` resizes and `Cmd+Opt+Shift+Arrow` swaps panes; `Cmd+Opt+Shift+[ / ]` moves tabs; `Cmd+Shift+T` reopens a closed tab; `Cmd+Shift+;` opens command history (`Cmd+R` goes back to the shell); `Cmd+Shift+P` opens the command palette and `Cmd+O` the profile drawer; `Cmd+Ctrl+S` opens the tmux session picker; `Cmd+Shift+Up/Down` jumps between marks; `Cmd+Ctrl+F` toggles fullscreen. Linux and Windows apply the same letters with `Ctrl+Shift` / `Ctrl+Alt`: `Ctrl+Shift+E` / `Ctrl+Shift+O` split right / down, `Ctrl+Shift+W` closes the pane (cascading), `Ctrl+Alt+W` closes the tab, and `Ctrl+Shift+P` opens the palette. Previous chords stay as aliases where nothing else took them. Saved configs keep every chord they already bind; see [Migration](docs/guides/MIGRATION.md#unreleased--default-shortcuts-aligned-with-iterm2).
+- **Split actions renamed `split_right` / `split_down`** (UX.md T7), named for where the new pane goes. `split_vertical` and `split_horizontal` in a saved config are migrated on load and still dispatch as aliases.
+- **The F1 help panel shows your live bindings** (UX.md K6) instead of a hard-coded list, and gains window, tab, pane, and session sections.
+
 - **Closing the last attached par-mux tab now asks before ending the session** (UX.md M1). The close key, tab-bar close, and menu close on the only tab still attached to a daemon session open a dialog: **Detach (Keep Running)** (the default) drops the attach and leaves the session in `par-mux list-sessions`, **End session** kills every window and pane in the session, and Cancel keeps the tab. Before, the close silently sent `kill-window`, and the daemon deleted the emptied session — losing every pane in it. A close that leaves another mux tab mapped still kills just that window without asking. End session is implemented as a kill-window per window the client maps, because the daemon's `kill-session` command is not in the published core pin yet; a daemon window dropped by `max_tabs` overflow would survive it.
 
 - **Closing a par-mux tab's last pane now hides the tab instead of dropping it** (UX.md D7/M4). The daemon window keeps running with its window↔tab mapping live, so daemon layout pushes and roster rows keep working instead of finding a dead tab. Reopen Closed Tab (Cmd+Z) re-shows the hidden tab through a typed undo entry, and selecting an agent-roster row whose pane lives in the hidden tab re-shows it. When the hidden tab was the only tab, the window closes instead (the detach shape) and the daemon window survives it. The roster jump also now lands on the right tab: its index was computed 0-based over all tabs and fed to the 1-based visible-tab switch (UX.md M13/B5).
@@ -25,6 +29,7 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ### Fixed
 
+- **Closing the last pane of the last tab with the close-pane shortcut closes the window** instead of leaving an empty window. The File menu's Close item uses the same pane-first cascade.
 - **macOS brightness strobe on external displays** — a fully opaque window now uses an opaque Metal surface, so macOS draws it directly instead of blending every frame, and the Metal layer is tagged sRGB after every surface configure (wgpu 30 cleared the tag). The debug log records the layer's state after each configure. Colors on a display with a wide-gamut profile may look slightly different now that macOS color-matches the frame.
 
 ### Removed

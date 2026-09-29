@@ -136,7 +136,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Tab bar position | ✅ Top/Bottom/Left | ✅ `tab_bar_position` (top/bottom/left) | ✅ | - | - | Vertical sidebar for Left with configurable width |
 | Tab bar height | ✅ | ✅ `tab_bar_height` | ✅ | - | - | - |
 | Tab close button | ✅ `Tabs Have Close Button` | ✅ `tab_show_close_button` | ✅ | - | - | - |
-| Smart close (Cmd+W) | ✅ | ✅ `Cmd/Ctrl+W` | ✅ | - | - | Closes tab if multiple, window if single |
+| Close pane → tab → window (Cmd+W) | ✅ | ✅ `Cmd+W` / `Ctrl+Shift+W` | ✅ | - | - | Closes the focused pane, cascading to the tab and then the window; Close Tab is `Cmd+Opt+W` / `Ctrl+Alt+W` |
 | Tab index numbers | ✅ `Hide Tab Number` | ✅ Hotkey indicators (⌘1-9) | ✅ | - | - | Shows shortcut on tab right side |
 | New output indicator | ✅ `Show New Output Indicator` | ✅ Activity indicator | ✅ | - | - | - |
 | Bell indicator | ✅ | ✅ `tab_bell_indicator` | ✅ | - | - | - |
@@ -149,7 +149,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | New tabs at end | ✅ `New Tabs Open at End` | ✅ | ✅ | - | - | Default behavior |
 | Inherit working directory | ✅ | ✅ `tab_inherit_cwd` | ✅ | - | - | - |
 | Max tabs limit | ❌ | ✅ `max_tabs` | ✅ | - | - | par-term exclusive |
-| Duplicate tab | ✅ | ✅ Context menu + `Cmd/Ctrl+Shift+D` | ✅ | - | - | Copies working directory and tab color |
+| Duplicate tab | ✅ | ✅ Context menu + `Cmd/Ctrl+Shift+J` | ✅ | - | - | Copies working directory and tab color |
 | Drag-and-drop tab reorder | ✅ | ✅ Drag tabs to reorder | ✅ | - | - | Visual ghost tab + insertion indicator |
 | Tab style (visual theme) | ✅ Light/Dark/Minimal/Compact | ✅ `tab_style` | ✅ | - | - | 6 presets: Automatic/Dark/Light/Compact/Minimal/High Contrast |
 | HTML tab titles | ✅ `HTML Tab Titles` | ✅ `tab_html_titles` | ✅ | ⭐ | 🟡 | Limited tags: <b>, <i>, <u>, <span style=\"color\"> |
@@ -171,7 +171,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Timestamps | ✅ `Show Timestamps` | 🔶 via tooltips | 🔶 | - | - | Hover scrollbar marks for timing info |
 | Mark indicators | ✅ `Show Mark Indicators` | ✅ `scrollbar_command_marks` | ✅ | - | - | Color-coded marks on scrollbar (green=success, red=fail) |
 | Mark tooltips | ❌ | ✅ `scrollbar_mark_tooltips` | ✅ | - | - | **par-term exclusive** - command, time, duration, exit code |
-| Mark navigation | ✅ | ✅ Cmd+Up/Down | ✅ | - | - | Jump between command marks |
+| Mark navigation | ✅ | ✅ Cmd+Shift+Up/Down (alias Cmd+Up/Down) | ✅ | - | - | Jump between command marks |
 | Command separator lines | ❌ | ✅ `command_separator_enabled` | ✅ | - | - | Horizontal lines between commands, color-coded by exit code; works with any prompt height |
 
 ---
@@ -309,8 +309,8 @@ This document compares features between iTerm2 and par-term, including assessmen
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Horizontal split | ✅ | ✅ `Cmd+D` | ✅ | - | - | Split terminal vertically |
-| Vertical split | ✅ | ✅ `Cmd+Shift+D` | ✅ | - | - | Split terminal horizontally |
+| Split right | ✅ | ✅ `Cmd+D` / `Ctrl+Shift+E` | ✅ | - | - | New pane beside the focused one (`split_right`) |
+| Split down | ✅ | ✅ `Cmd+Shift+D` / `Ctrl+Shift+O` | ✅ | - | - | New pane below the focused one (`split_down`) |
 | Pane navigation | ✅ | ✅ `Cmd+Opt+Arrow` | ✅ | - | - | Move between panes |
 | Pane resizing | ✅ | ✅ keyboard + mouse drag | ✅ | - | - | Resize pane boundaries |
 | Dim inactive panes | ✅ `Dim Inactive Split Panes` | ✅ `dim_inactive_panes` | ✅ | - | - | Visual focus indicator |
@@ -383,7 +383,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | **tmux control mode (`-CC`)** | ✅ Full protocol | ✅ | ✅ | - | - | Core protocol for native integration |
 | tmux windows as native tabs | ✅ | ✅ | ✅ | - | - | %window-add/%window-close handling |
 | tmux panes as native splits | ✅ | ✅ | ✅ | - | - | %layout-change parsing |
-| tmux session picker UI | ✅ | ✅ `Cmd+Opt+T` | ✅ | - | - | List/attach sessions from GUI |
+| tmux session picker UI | ✅ | ✅ `Cmd+Ctrl+S` | ✅ | - | - | List/attach sessions from GUI |
 | **Bidirectional pane resize** | ✅ | ✅ | ✅ | - | - | Resize in par-term updates tmux and vice versa |
 | **Multi-client size sync** | ✅ | ✅ `window-size smallest` | ✅ | - | - | Sets smallest mode on connect for proper sizing |
 | tmux status bar in UI | ✅ Native display | ✅ `tmux_show_status_bar` | ✅ | - | - | Display status outside terminal area |
@@ -429,7 +429,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | VSync mode | ❌ | ✅ `vsync_mode` | ✅ | - | - | par-term exclusive |
 | Pause shaders when unfocused | ❌ | ✅ `pause_shaders_on_blur` | ✅ | - | - | par-term exclusive |
 | Reduce FPS when unfocused | ❌ | ✅ `pause_refresh_on_blur`, `unfocused_fps` | ✅ | - | - | par-term exclusive |
-| Maximize throughput | ✅ | ✅ `maximize_throughput` | ✅ | - | - | Toggle with Cmd+Shift+T |
+| Maximize throughput | ✅ | ✅ `maximize_throughput` | ✅ | - | - | Toggle from the command palette (Ctrl+Shift+M on Linux/Windows) |
 | Disable GPU when unplugged | ✅ | ❌ | ❌ | ➖ | ➖ | Won't implement - par-term requires GPU |
 | Prefer integrated GPU | ✅ | ✅ `power_preference` | ✅ | - | - | None/LowPower/HighPerformance GPU selection |
 | Reduce flicker | ✅ `Reduce Flicker` | ✅ `reduce_flicker` | ✅ | - | - | Delay redraws while cursor hidden (DECTCEM off) |
@@ -504,7 +504,7 @@ iTerm2's Composer provides intelligent command completion suggestions.
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Composer UI | ✅ `Enable Composer` | ❌ | ❌ | ⭐⭐ | 🔵 | AI-style command completion |
-| Command history search | ✅ | ✅ Fuzzy search overlay | ✅ | ⭐⭐ | 🟡 | Cmd+R / Ctrl+Alt+R, fuzzy matching, ranked results, persistent history |
+| Command history search | ✅ | ✅ Fuzzy search overlay | ✅ | ⭐⭐ | 🟡 | Cmd+Shift+; / Ctrl+Alt+R, fuzzy matching, ranked results, persistent history |
 | Suggestion ranking | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Smart relevance scoring |
 | Man page integration | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Show man info inline |
 | Command preview | ✅ | ❌ | ❌ | ⭐ | 🟡 | Preview command output |
@@ -642,7 +642,7 @@ iTerm2 has sophisticated window state management.
 | Prompt on quit | ✅ `Prompt When Quitting` | ✅ `prompt_on_quit` | ✅ | ⭐⭐ | 🟢 | Confirm before closing app with sessions |
 | Confirm closing multiple sessions | ✅ `Confirm Closing Multiple Sessions` | ✅ Partial | ✅ | ⭐⭐ | 🟢 | Partial - jobs confirmation exists |
 | Only confirm when there are jobs | ✅ | ✅ | ✅ | - | - | Already implemented |
-| Session undo timeout | ✅ | ✅ `session_undo_timeout_secs` | ✅ | - | - | Reopen closed tabs within timeout; Cmd+Z / Ctrl+Shift+Z; `session_undo_preserve_shell` option |
+| Session undo timeout | ✅ | ✅ `session_undo_timeout_secs` | ✅ | - | - | Reopen closed tabs within timeout; Cmd+Shift+T (alias Cmd+Z) / Ctrl+Shift+Z; `session_undo_preserve_shell` option |
 | Session restore on launch | ✅ `Restore Arrangement on Launch` | ✅ `restore_session` | ✅ | - | - | Saves windows/tabs/panes on exit, restores on launch |
 | Session restore at startup | ✅ | ✅ `restore_session` | ✅ | - | - | Auto-restore last session with pane layouts |
 | Open saved arrangement | ✅ `Open Arrangement` | ✅ `arrangements` | ✅ | - | - | Load saved window arrangement from settings UI |
@@ -1014,7 +1014,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Status Bar~~ | ~~⭐⭐⭐~~ | ~~🔴 High~~ | ✅ Complete (§23 - configurable status bar with 11 built-in widgets) |
 | ~~Snippets system~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§27 - snippets & actions) |
 | ~~Directory-based profile switching~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§32 - `directory_patterns` on profiles) |
-| ~~Session undo timeout~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (reopen closed tabs with Cmd+Z / Ctrl+Shift+Z) |
+| ~~Session undo timeout~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (reopen closed tabs with Cmd+Shift+T / Ctrl+Shift+Z) |
 | ~~Window arrangements~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Complete (§28 arrangements + §29 session restore) |
 | ~~Progress bars (OSC 934)~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (OSC 9;4 + OSC 934) |
 | Composer (auto-complete) | ⭐⭐ | 🔵 Very High | AI-style command completion |

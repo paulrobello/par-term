@@ -132,26 +132,29 @@ graph LR
 
 ## Essential Keyboard Shortcuts
 
-These are the shortcuts you use most often. On macOS, the primary modifier is `Cmd`. On Linux and Windows, it is `Ctrl+Shift` (to avoid conflicts with terminal control codes like Ctrl+C).
+These are the shortcuts you use most often. On macOS they follow iTerm2, with `Cmd` as the primary modifier. On Linux and Windows the same letters use `Ctrl+Shift` (and `Ctrl+Alt` for panes), so plain `Ctrl` keys like Ctrl+C stay with the shell.
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
+| **Command palette** | `Cmd + Shift + P` | `Ctrl + Shift + P` |
 | **New tab** | `Cmd + T` | `Ctrl + Shift + T` |
-| **Close tab** | `Cmd + W` | `Ctrl + Shift + W` |
-| **Next tab** | `Cmd + Shift + ]` or `Ctrl + Tab` | `Ctrl + Tab` |
-| **Previous tab** | `Cmd + Shift + [` or `Ctrl + Shift + Tab` | `Ctrl + Shift + Tab` |
+| **Close (pane, then tab, then window)** | `Cmd + W` | `Ctrl + Shift + W` |
+| **Close tab** | `Cmd + Opt + W` | `Ctrl + Alt + W` |
+| **Reopen closed tab** | `Cmd + Shift + T` | `Ctrl + Shift + Z` |
+| **Next tab** | `Cmd + Shift + ]` or `Ctrl + Tab` | `Ctrl + Shift + ]` or `Ctrl + Tab` |
+| **Previous tab** | `Cmd + Shift + [` or `Ctrl + Shift + Tab` | `Ctrl + Shift + [` or `Ctrl + Shift + Tab` |
 | **Switch to tab 1-9** | `Cmd + 1-9` | `Alt + 1-9` |
 | **Copy** | `Cmd + C` | `Ctrl + Shift + C` |
 | **Paste** | `Cmd + V` | `Ctrl + Shift + V` |
 | **Search** | `Cmd + F` | `Ctrl + Shift + F` |
-| **Split horizontal** | `Cmd + D` | `Ctrl + Shift + D` |
-| **Split vertical** | `Cmd + Shift + D` | `Ctrl + Shift + E` |
+| **Split right** | `Cmd + D` | `Ctrl + Shift + E` |
+| **Split down** | `Cmd + Shift + D` | `Ctrl + Shift + O` |
 | **Open Settings** | `F12` or `Cmd + ,` | `F12` |
-| **Toggle fullscreen** | `F11` | `F11` |
+| **Toggle fullscreen** | `F11` or `Cmd + Ctrl + F` | `F11` |
 | **Reload config** | `F5` | `F5` |
 | **Toggle help panel** | `F1` | `F1` |
 
-> **✅ Tip:** Press `F1` at any time to toggle the help panel, which shows available shortcuts in context.
+> **✅ Tip:** Press `F1` at any time to toggle the help panel, which shows your current bindings. The command palette (`Cmd/Ctrl + Shift + P`) lists every action by name, with its chord.
 
 See [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) for the complete reference.
 
@@ -210,7 +213,7 @@ Press `F12` (or `Cmd + ,` on macOS) to open the Settings window. Settings are or
 
 Profiles save terminal configurations for quick access. Each profile can specify a working directory, shell, custom command, SSH connection, tab name, and icon.
 
-1. Press `Cmd/Ctrl + Shift + P` to open the **Profile Drawer** on the right edge of the window
+1. Press `Cmd + O` on macOS to open the **Profile Drawer** on the right edge of the window. On Linux and Windows, open it from the **Profiles** menu or the command palette
 2. Click **Manage** to create, edit, or reorder profiles in Settings
 3. Double-click a profile in the drawer to launch it in a new tab
 
@@ -236,38 +239,38 @@ Split panes let you run multiple terminal sessions side by side within a single 
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| Split horizontally (left/right) | `Cmd + D` | `Ctrl + Shift + D` |
-| Split vertically (top/bottom) | `Cmd + Shift + D` | `Ctrl + Shift + E` |
+| Split right (new pane beside) | `Cmd + D` | `Ctrl + Shift + E` |
+| Split down (new pane below) | `Cmd + Shift + D` | `Ctrl + Shift + O` |
 
 Each new pane starts a fresh shell session. You can split panes further to create any layout you need.
 
 ### Navigating Panes
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + Alt + Left` | Move focus to pane on the left |
-| `Cmd/Ctrl + Alt + Right` | Move focus to pane on the right |
-| `Cmd/Ctrl + Alt + Up` | Move focus to pane above |
-| `Cmd/Ctrl + Alt + Down` | Move focus to pane below |
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| Move focus to pane on the left | `Cmd + Opt + Left` | `Ctrl + Alt + Left` |
+| Move focus to pane on the right | `Cmd + Opt + Right` | `Ctrl + Alt + Right` |
+| Move focus to pane above | `Cmd + Opt + Up` | `Ctrl + Alt + Up` |
+| Move focus to pane below | `Cmd + Opt + Down` | `Ctrl + Alt + Down` |
 
 ### Resizing Panes
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + Alt + Shift + Left` | Shrink pane from the right |
-| `Cmd/Ctrl + Alt + Shift + Right` | Grow pane to the right |
-| `Cmd/Ctrl + Alt + Shift + Up` | Shrink pane from the bottom |
-| `Cmd/Ctrl + Alt + Shift + Down` | Grow pane downward |
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| Shrink pane from the right | `Cmd + Ctrl + Left` | `Ctrl + Alt + Shift + Left` |
+| Grow pane to the right | `Cmd + Ctrl + Right` | `Ctrl + Alt + Shift + Right` |
+| Shrink pane from the bottom | `Cmd + Ctrl + Up` | `Ctrl + Alt + Shift + Up` |
+| Grow pane downward | `Cmd + Ctrl + Down` | `Ctrl + Alt + Shift + Down` |
 
-You can also drag pane dividers with the mouse.
+You can also drag pane dividers with the mouse. On macOS, `Cmd + Opt + Shift + Arrow` swaps the focused pane with its neighbor.
 
 ### Closing Panes
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| Close focused pane | `Cmd + Shift + W` | `Ctrl + Shift + X` |
+| Close focused pane | `Cmd + W` | `Ctrl + Shift + W` |
 
-When only one pane remains, the tab reverts to a single terminal session.
+When only one pane remains, the tab reverts to a single terminal session. Closing a tab's last pane closes the tab, and closing the last tab closes the window.
 
 ## Next Steps
 

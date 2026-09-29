@@ -15,11 +15,11 @@
 //! `Config::default().keybindings` entry, or a hardcoded key layer. The
 //! menu-advertised chords became registry defaults (`defaults::menu_chords`,
 //! UX K2), so they are real defaults the user can rebind and appear here.
-//! `close_window` on the not-macOS side stays `None`: no non-macOS default
-//! ships for it, and a chord that exists *only* as a native menu-bar
-//! accelerator is deliberately left `None` — the not-macOS half is shared
-//! with Linux, whose in-app menu only draws accelerator labels, so such a
-//! chord would do nothing there.
+//! `close_window` (the smart close) is `None` on both platforms: `Cmd+W` /
+//! `Ctrl+Shift+W` belong to the pane-cascading `close_pane` (UX.md I15). A
+//! chord that exists *only* as a native menu-bar accelerator is deliberately
+//! left `None` — the not-macOS half is shared with Linux, whose in-app menu
+//! only draws accelerator labels, so such a chord would do nothing there.
 
 /// All available keybinding actions with their descriptions and default key combos.
 /// macOS uses Cmd as the primary modifier (safe for terminals).
@@ -28,7 +28,9 @@
 pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
     ("new_window", "New Window", Some("Cmd+N")),
-    ("close_window", "Close Window", Some("Cmd+W")),
+    // Smart close (tab, else window) keeps its id but no chord: Cmd+W is
+    // iTerm2's pane-cascading Close (`close_pane`, UX.md I15).
+    ("close_window", "Close Window", None),
     ("save_arrangement", "Save Window Arrangement", None),
     ("quit", "Quit par-term", Some("Cmd+Q")),
     ("select_all", "Select All", Some("Cmd+A")),
@@ -41,7 +43,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     (
         "toggle_profile_drawer",
         "Toggle Profile Drawer",
-        Some("Cmd+Shift+P"),
+        Some("Cmd+O"),
     ),
     ("reload_dynamic_profiles", "Reload Dynamic Profiles", None),
     (
@@ -49,10 +51,12 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Clipboard History",
         Some("Cmd+Shift+H"),
     ),
+    // iTerm2's Cmd+Shift+; — spelled with the shifted character the key
+    // press produces, which is what the registry matches.
     (
         "toggle_command_history",
         "Toggle Command History",
-        Some("Cmd+R"),
+        Some("Cmd+Shift+:"),
     ),
     (
         "toggle_ai_inspector",
@@ -86,14 +90,18 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         None,
     ),
     ("new_tab", "New Tab", Some("Cmd+T")),
-    ("close_tab", "Close Tab", Some("Cmd+W")),
+    ("close_tab", "Close Tab", Some("Cmd+Alt+W")),
     ("duplicate_tab", "Duplicate Tab", Some("Cmd+Shift+J")),
-    ("reopen_closed_tab", "Reopen Closed Tab", Some("Cmd+Z")),
+    (
+        "reopen_closed_tab",
+        "Reopen Closed Tab",
+        Some("Cmd+Shift+T"),
+    ),
     ("move_tab_to_new_window", "Move Tab to New Window", None),
     ("next_tab", "Next Tab", Some("Cmd+Shift+]")),
     ("prev_tab", "Previous Tab", Some("Cmd+Shift+[")),
-    ("move_tab_left", "Move Tab Left", Some("Cmd+Shift+Left")),
-    ("move_tab_right", "Move Tab Right", Some("Cmd+Shift+Right")),
+    ("move_tab_left", "Move Tab Left", Some("Cmd+Alt+Shift+[")),
+    ("move_tab_right", "Move Tab Right", Some("Cmd+Alt+Shift+]")),
     ("switch_to_tab_1", "Switch to Tab 1", Some("Cmd+1")),
     ("switch_to_tab_2", "Switch to Tab 2", Some("Cmd+2")),
     ("switch_to_tab_3", "Switch to Tab 3", Some("Cmd+3")),
@@ -103,9 +111,9 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("switch_to_tab_7", "Switch to Tab 7", Some("Cmd+7")),
     ("switch_to_tab_8", "Switch to Tab 8", Some("Cmd+8")),
     ("switch_to_tab_9", "Switch to Tab 9", Some("Cmd+9")),
-    ("split_horizontal", "Split Pane Horizontal", Some("Cmd+D")),
-    ("split_vertical", "Split Pane Vertical", Some("Cmd+Shift+D")),
-    ("close_pane", "Close Pane", Some("Cmd+Shift+W")),
+    ("split_right", "Split Right", Some("Cmd+D")),
+    ("split_down", "Split Down", Some("Cmd+Shift+D")),
+    ("close_pane", "Close Pane", Some("Cmd+W")),
     ("promote_pane_to_tab", "Promote Pane to Tab", None),
     ("rename_pane", "Rename Pane", None),
     ("demote_tab_to_pane", "Demote Tab to Pane", None),
@@ -128,18 +136,18 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     (
         "swap_pane_left",
         "Swap Pane Left",
-        Some("Cmd+Ctrl+Alt+Left"),
+        Some("Cmd+Alt+Shift+Left"),
     ),
     (
         "swap_pane_right",
         "Swap Pane Right",
-        Some("Cmd+Ctrl+Alt+Right"),
+        Some("Cmd+Alt+Shift+Right"),
     ),
-    ("swap_pane_up", "Swap Pane Up", Some("Cmd+Ctrl+Alt+Up")),
+    ("swap_pane_up", "Swap Pane Up", Some("Cmd+Alt+Shift+Up")),
     (
         "swap_pane_down",
         "Swap Pane Down",
-        Some("Cmd+Ctrl+Alt+Down"),
+        Some("Cmd+Alt+Shift+Down"),
     ),
     (
         "select_pane_hint",
@@ -149,18 +157,18 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     (
         "resize_pane_left",
         "Resize Pane Left",
-        Some("Cmd+Alt+Shift+Left"),
+        Some("Cmd+Ctrl+Left"),
     ),
     (
         "resize_pane_right",
         "Resize Pane Right",
-        Some("Cmd+Alt+Shift+Right"),
+        Some("Cmd+Ctrl+Right"),
     ),
-    ("resize_pane_up", "Resize Pane Up", Some("Cmd+Alt+Shift+Up")),
+    ("resize_pane_up", "Resize Pane Up", Some("Cmd+Ctrl+Up")),
     (
         "resize_pane_down",
         "Resize Pane Down",
-        Some("Cmd+Alt+Shift+Down"),
+        Some("Cmd+Ctrl+Down"),
     ),
     // The font-size layer in the root crate uses the super key on macOS
     // (`font_mod = super_key` under `#[cfg(target_os = "macos")]`), so Ctrl does
@@ -199,15 +207,12 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Broadcast Input",
         Some("Cmd+Alt+I"),
     ),
-    (
-        "toggle_throughput_mode",
-        "Toggle Throughput Mode",
-        Some("Cmd+Shift+T"),
-    ),
+    // Palette only: Cmd+Shift+T reopens a closed tab (UX.md I17).
+    ("toggle_throughput_mode", "Toggle Throughput Mode", None),
     (
         "toggle_tmux_session_picker",
         "Toggle tmux Session Picker",
-        Some("Cmd+Alt+T"),
+        Some("Cmd+Ctrl+S"),
     ),
     (
         "ssh_quick_connect",
@@ -216,7 +221,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("toggle_copy_mode", "Toggle Copy Mode", Some("Cmd+Shift+C")),
     ("enter_copy_mode", "Enter Copy Mode", None),
-    ("toggle_command_palette", "Open Command Palette", None),
+    (
+        "toggle_command_palette",
+        "Open Command Palette",
+        Some("Cmd+Shift+P"),
+    ),
     ("toggle_agent_usage_panel", "Toggle Agent Usage Panel", None),
 ];
 
@@ -234,11 +243,10 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_fullscreen", "Toggle Fullscreen", Some("F11")),
     ("open_settings", "Open Settings", Some("F12")),
     ("toggle_search", "Toggle Search", Some("Ctrl+Shift+F")),
-    (
-        "toggle_profile_drawer",
-        "Toggle Profile Drawer",
-        Some("Ctrl+Shift+P"),
-    ),
+    // No chord here: Ctrl+Shift+P is the command palette (UX.md D2) and the
+    // K1 translation of iTerm2's Cmd+O, Ctrl+Shift+O, is split down. The
+    // Profiles menu and the palette still reach the drawer.
+    ("toggle_profile_drawer", "Toggle Profile Drawer", None),
     ("reload_dynamic_profiles", "Reload Dynamic Profiles", None),
     (
         "toggle_clipboard_history",
@@ -282,7 +290,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         None,
     ),
     ("new_tab", "New Tab", Some("Ctrl+Shift+T")),
-    ("close_tab", "Close Tab", Some("Ctrl+Shift+W")),
+    ("close_tab", "Close Tab", Some("Ctrl+Alt+W")),
     ("duplicate_tab", "Duplicate Tab", Some("Ctrl+Shift+J")),
     (
         "reopen_closed_tab",
@@ -303,17 +311,9 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("switch_to_tab_7", "Switch to Tab 7", Some("Alt+7")),
     ("switch_to_tab_8", "Switch to Tab 8", Some("Alt+8")),
     ("switch_to_tab_9", "Switch to Tab 9", Some("Alt+9")),
-    (
-        "split_horizontal",
-        "Split Pane Horizontal",
-        Some("Ctrl+Shift+D"),
-    ),
-    (
-        "split_vertical",
-        "Split Pane Vertical",
-        Some("Ctrl+Shift+E"),
-    ),
-    ("close_pane", "Close Pane", Some("Ctrl+Shift+X")),
+    ("split_right", "Split Right", Some("Ctrl+Shift+E")),
+    ("split_down", "Split Down", Some("Ctrl+Shift+O")),
+    ("close_pane", "Close Pane", Some("Ctrl+Shift+W")),
     ("promote_pane_to_tab", "Promote Pane to Tab", None),
     ("rename_pane", "Rename Pane", None),
     ("demote_tab_to_pane", "Demote Tab to Pane", None),
@@ -358,14 +358,12 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Resize Pane Down",
         Some("Ctrl+Alt+Shift+Down"),
     ),
-    ("swap_pane_left", "Swap Pane Left", Some("Alt+Shift+Left")),
-    (
-        "swap_pane_right",
-        "Swap Pane Right",
-        Some("Alt+Shift+Right"),
-    ),
-    ("swap_pane_up", "Swap Pane Up", Some("Alt+Shift+Up")),
-    ("swap_pane_down", "Swap Pane Down", Some("Alt+Shift+Down")),
+    // Unbound here (UX.md K16): editors use Alt+Shift+Arrow and Windows
+    // switches input language on Alt+Shift.
+    ("swap_pane_left", "Swap Pane Left", None),
+    ("swap_pane_right", "Swap Pane Right", None),
+    ("swap_pane_up", "Swap Pane Up", None),
+    ("swap_pane_down", "Swap Pane Down", None),
     (
         "increase_font_size",
         "Increase Font Size",
@@ -420,6 +418,10 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Ctrl+Shift+Space"),
     ),
     ("enter_copy_mode", "Enter Copy Mode", None),
-    ("toggle_command_palette", "Open Command Palette", None),
+    (
+        "toggle_command_palette",
+        "Open Command Palette",
+        Some("Ctrl+Shift+P"),
+    ),
     ("toggle_agent_usage_panel", "Toggle Agent Usage Panel", None),
 ];

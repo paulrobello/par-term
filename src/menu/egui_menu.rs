@@ -241,7 +241,7 @@ mod tests {
             .collect();
         for required in [
             crate::menu::MenuAction::NewWindow,
-            crate::menu::MenuAction::CloseWindow,
+            crate::menu::MenuAction::ClosePane,
             crate::menu::MenuAction::Quit,
             crate::menu::MenuAction::SelectAll,
             crate::menu::MenuAction::MaximizeVertically,

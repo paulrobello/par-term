@@ -122,7 +122,7 @@ The profile drawer's **Manage** button and the menu's **Manage Profiles** action
 The profile drawer provides quick access to your profiles from the right side of the window.
 
 **Opening the Drawer:**
-- Press `Cmd+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux)
+- Press `Cmd+O` (macOS; iTerm2's Open Profiles). On Windows/Linux it ships unbound, so use the **Profiles** menu or the command palette, or bind `toggle_profile_drawer`
 - Or click the toggle button on the right edge of the window
 
 **Drawer Features:**
@@ -157,7 +157,7 @@ flowchart LR
 
 **Step-by-step:**
 
-1. Open the profile drawer (`Cmd/Ctrl+Shift+P`)
+1. Open the profile drawer (`Cmd+O` on macOS, or the Profiles menu)
 2. Click **Manage**
 3. Click **+ New Profile**
 4. Fill in the profile settings:
@@ -207,7 +207,7 @@ Click any icon to set it as the profile icon, or type a custom value directly in
 
 **Launch a Profile:**
 
-1. Open the profile drawer (`Cmd/Ctrl+Shift+P`)
+1. Open the profile drawer (`Cmd+O` on macOS, or the Profiles menu)
 2. Double-click a profile, or
 3. Select a profile and click **Open**
 

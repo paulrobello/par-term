@@ -11,8 +11,13 @@ pub enum MenuAction {
     // File menu
     /// Create a new terminal window
     NewWindow,
-    /// Close the current window
+    /// Smart close: the active tab when the window has several, else the
+    /// window. Emitted by the `close_window` keybinding action; no menu item
+    /// carries it since File › Close became [`Self::ClosePane`].
     CloseWindow,
+    /// iTerm2's Close (UX.md I15): the focused pane, cascading to the tab
+    /// when it was the tab's last pane and to the window after the last tab.
+    ClosePane,
     /// Quit the application (only used on Windows/Linux - macOS handles quit via system menu)
     Quit,
 
@@ -113,6 +118,7 @@ impl MenuAction {
         let id = match self {
             Self::NewWindow => "new_window",
             Self::CloseWindow => "close_window",
+            Self::ClosePane => "close_pane",
             Self::Quit => "quit",
             Self::ToggleProfileDrawer => "toggle_profile_drawer",
             Self::NewTab => "new_tab",

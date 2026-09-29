@@ -54,18 +54,16 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+R".to_string(),
             action: "toggle_session_logging".to_string(),
         },
-        // Split pane shortcuts (Cmd+D / Cmd+Shift+D matches iTerm2)
+        // Split pane shortcuts with iTerm2's meaning (UX.md I1/I2): Cmd+D puts
+        // the new pane to the right, Cmd+Shift+D below. Close pane is Cmd+W
+        // (I15), in `defaults::menu_chords` with the File menu's Close item.
         crate::types::KeyBinding {
             key: "CmdOrCtrl+D".to_string(),
-            action: "split_horizontal".to_string(),
+            action: "split_right".to_string(),
         },
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Shift+D".to_string(),
-            action: "split_vertical".to_string(),
-        },
-        crate::types::KeyBinding {
-            key: "CmdOrCtrl+Shift+W".to_string(),
-            action: "close_pane".to_string(),
+            action: "split_down".to_string(),
         },
         // Pane navigation shortcuts
         crate::types::KeyBinding {
@@ -89,53 +87,50 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Alt+P".to_string(),
             action: "select_pane_hint".to_string(),
         },
-        // Pane resize shortcuts
+        // Pane resize on iTerm2's Move Divider chords (UX.md I6)
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+Alt+Shift+Left".to_string(),
+            key: "CmdOrCtrl+Ctrl+Left".to_string(),
             action: "resize_pane_left".to_string(),
         },
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+Alt+Shift+Right".to_string(),
+            key: "CmdOrCtrl+Ctrl+Right".to_string(),
             action: "resize_pane_right".to_string(),
         },
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+Alt+Shift+Up".to_string(),
+            key: "CmdOrCtrl+Ctrl+Up".to_string(),
             action: "resize_pane_up".to_string(),
         },
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+Alt+Shift+Down".to_string(),
+            key: "CmdOrCtrl+Ctrl+Down".to_string(),
             action: "resize_pane_down".to_string(),
         },
-        // Pane swap shortcuts (swap with the neighbor in that direction)
+        // Pane swap with the neighbor in that direction, on the chord resize
+        // used to hold (UX.md I7)
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+Ctrl+Alt+Left".to_string(),
+            key: "CmdOrCtrl+Alt+Shift+Left".to_string(),
             action: "swap_pane_left".to_string(),
         },
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+Ctrl+Alt+Right".to_string(),
+            key: "CmdOrCtrl+Alt+Shift+Right".to_string(),
             action: "swap_pane_right".to_string(),
         },
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+Ctrl+Alt+Up".to_string(),
+            key: "CmdOrCtrl+Alt+Shift+Up".to_string(),
             action: "swap_pane_up".to_string(),
         },
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+Ctrl+Alt+Down".to_string(),
+            key: "CmdOrCtrl+Alt+Shift+Down".to_string(),
             action: "swap_pane_down".to_string(),
         },
-        // Broadcast input mode
+        // Broadcast input mode (iTerm2's "all panes in current tab", I18)
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Alt+I".to_string(),
             action: "toggle_broadcast_input".to_string(),
         },
-        // Throughput mode toggle
+        // Session picker moves off Cmd+Opt+T, which UX.md I14 reserves for
+        // New Tab Next to Current (I24).
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+Shift+T".to_string(),
-            action: "toggle_throughput_mode".to_string(),
-        },
-        // tmux session picker
-        crate::types::KeyBinding {
-            key: "CmdOrCtrl+Alt+T".to_string(),
+            key: "CmdOrCtrl+Ctrl+S".to_string(),
             action: "toggle_tmux_session_picker".to_string(),
         },
         // Copy mode (vi-style keyboard-driven selection) - matches iTerm2
@@ -143,12 +138,20 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+C".to_string(),
             action: "toggle_copy_mode".to_string(),
         },
-        // Command history fuzzy search
+        // Command history on iTerm2's Cmd+Shift+; (UX.md I28), which gives
+        // Cmd+R back to the shell. Spelled with the shifted character: the
+        // matcher compares logical keys and macOS reports Cmd+Shift+; as ':'.
         crate::types::KeyBinding {
-            key: "CmdOrCtrl+R".to_string(),
+            key: "CmdOrCtrl+Shift+:".to_string(),
             action: "toggle_command_history".to_string(),
         },
-        // Reopen recently closed tab
+        // Reopen recently closed tab: iTerm2's Undo Close (UX.md I17, D4),
+        // with the previous Cmd+Z kept as an alias. Throughput mode moved to
+        // the palette.
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+T".to_string(),
+            action: "reopen_closed_tab".to_string(),
+        },
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Z".to_string(),
             action: "reopen_closed_tab".to_string(),
@@ -158,20 +161,22 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+S".to_string(),
             action: "ssh_quick_connect".to_string(),
         },
-        // Duplicate Tab. Cmd+D / Cmd+Shift+D (the natural mnemonic) are the two
-        // split actions and Cmd+Shift+T is throughput mode, so J — free in both
-        // the default keybindings and every hardcoded key layer.
+        // Duplicate Tab. Cmd+D / Cmd+Shift+D are the two splits and
+        // Cmd+Shift+T reopens a closed tab, so J — free in both the default
+        // keybindings and every hardcoded key layer.
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Shift+J".to_string(),
             action: "duplicate_tab".to_string(),
         },
-        // Profile drawer. The chord was only ever a hardcoded key layer, so it
-        // was invisible in Settings and could not be rebound; shipping it as a
-        // default makes it a first-class binding. The Profiles menu used to
-        // give this accelerator to `Manage Profiles...`, which meant the native
-        // menu bar consumed it before this registry ever ran.
+        // Command palette (UX.md I35, D2); the profile drawer moves to
+        // iTerm2's Open Profiles chord (I36). Both are advertised by the
+        // Profiles / View menus through `registry_accel`.
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Shift+P".to_string(),
+            action: "toggle_command_palette".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+O".to_string(),
             action: "toggle_profile_drawer".to_string(),
         },
     ];
@@ -195,21 +200,21 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "Ctrl+Shift+R".to_string(),
             action: "toggle_session_logging".to_string(),
         },
-        // Split pane shortcuts
-        // Ctrl+D is EOF/logout - use Ctrl+Shift+D for horizontal split
-        crate::types::KeyBinding {
-            key: "Ctrl+Shift+D".to_string(),
-            action: "split_horizontal".to_string(),
-        },
-        // Ctrl+Shift+E for vertical split (Tilix/Terminator convention)
+        // Split pane shortcuts: Terminator's pair (UX.md D1, K11/K12) —
+        // Ctrl+Shift+E splits right, Ctrl+Shift+O splits down, and the
+        // previous Ctrl+Shift+D stays as a split-down alias. Close pane is
+        // Ctrl+Shift+W (I15 in the K1 family), in `defaults::menu_chords`.
         crate::types::KeyBinding {
             key: "Ctrl+Shift+E".to_string(),
-            action: "split_vertical".to_string(),
+            action: "split_right".to_string(),
         },
-        // Ctrl+Shift+W is standard close tab - use Ctrl+Shift+X for close pane
         crate::types::KeyBinding {
-            key: "Ctrl+Shift+X".to_string(),
-            action: "close_pane".to_string(),
+            key: "Ctrl+Shift+O".to_string(),
+            action: "split_down".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "Ctrl+Shift+D".to_string(),
+            action: "split_down".to_string(),
         },
         // Pane navigation shortcuts
         crate::types::KeyBinding {
@@ -250,23 +255,8 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "Ctrl+Alt+Shift+Down".to_string(),
             action: "resize_pane_down".to_string(),
         },
-        // Pane swap shortcuts (swap with the neighbor in that direction)
-        crate::types::KeyBinding {
-            key: "Alt+Shift+Left".to_string(),
-            action: "swap_pane_left".to_string(),
-        },
-        crate::types::KeyBinding {
-            key: "Alt+Shift+Right".to_string(),
-            action: "swap_pane_right".to_string(),
-        },
-        crate::types::KeyBinding {
-            key: "Alt+Shift+Up".to_string(),
-            action: "swap_pane_up".to_string(),
-        },
-        crate::types::KeyBinding {
-            key: "Alt+Shift+Down".to_string(),
-            action: "swap_pane_down".to_string(),
-        },
+        // Pane swap ships unbound here (UX.md K16): editors use Alt+Shift+Arrow
+        // and Windows uses Alt+Shift to switch the input language.
         // Broadcast input mode
         crate::types::KeyBinding {
             key: "Ctrl+Alt+I".to_string(),
@@ -277,9 +267,14 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "Ctrl+Shift+M".to_string(),
             action: "toggle_throughput_mode".to_string(),
         },
-        // tmux session picker
+        // tmux session picker. Ubuntu opens a terminal on Ctrl+Alt+T, so
+        // Ctrl+Alt+S is the alternative UX.md K18 names.
         crate::types::KeyBinding {
             key: "Ctrl+Alt+T".to_string(),
+            action: "toggle_tmux_session_picker".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "Ctrl+Alt+S".to_string(),
             action: "toggle_tmux_session_picker".to_string(),
         },
         // Copy mode (vi-style keyboard-driven selection)
@@ -305,20 +300,19 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "Ctrl+Shift+S".to_string(),
             action: "ssh_quick_connect".to_string(),
         },
-        // Duplicate Tab. Ctrl+Shift+D is the horizontal split here, and the menu
+        // Duplicate Tab. Ctrl+Shift+D is a split-down alias here, and the menu
         // model's `cmd_or_ctrl` is itself Ctrl+Shift off macOS, so every letter
         // it uses (N, W, Q, T, C, V, A) is spoken for too. J is free on both.
         crate::types::KeyBinding {
             key: "Ctrl+Shift+J".to_string(),
             action: "duplicate_tab".to_string(),
         },
-        // Profile drawer — see the macOS list above. Ctrl+Shift+P already
-        // reached the drawer here through the hardcoded key layer, because
-        // Linux cannot attach a native menu bar; the menu merely mislabelled it
-        // as `Manage Profiles...`.
+        // Command palette (UX.md K10, D2). The profile drawer gives this chord
+        // up and ships unbound here — its menu item stays (D2) — because the
+        // K1 translation of iTerm2's Cmd+O, Ctrl+Shift+O, is split down.
         crate::types::KeyBinding {
             key: "Ctrl+Shift+P".to_string(),
-            action: "toggle_profile_drawer".to_string(),
+            action: "toggle_command_palette".to_string(),
         },
     ];
 

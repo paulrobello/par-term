@@ -45,6 +45,10 @@ fn is_removed_action(action: &str) -> bool {
 pub struct KeybindingRegistry {
     /// Map of parsed key combos to action names
     bindings: HashMap<KeyCombo, String>,
+    /// Config-order position of each registered combo, so the chord an
+    /// action advertises is its first binding (the primary), not whichever
+    /// alias sorts first.
+    order: HashMap<KeyCombo, usize>,
 }
 
 impl KeybindingRegistry {
@@ -102,6 +106,8 @@ impl KeybindingRegistry {
                         binding.action,
                         combo
                     );
+                    let position = registry.bindings.len();
+                    registry.order.insert(combo.clone(), position);
                     registry.bindings.insert(combo, binding.action.clone());
                 }
                 Err(e) => {
@@ -219,15 +225,16 @@ impl KeybindingRegistry {
     /// Look up the live chord bound to an action, if any (UX.md B22).
     ///
     /// The registry maps chord → action, so this is a reverse lookup over the
-    /// whole map. Actions shipped with two chords (`next_tab` has both
-    /// `Ctrl+Tab` and the bracket chord) yield the lexicographically smallest
-    /// normalized spelling, so the choice is deterministic despite the
-    /// HashMap's random iteration order.
+    /// whole map. An action bound to several chords (`next_tab` has both the
+    /// bracket chord and `Ctrl+Tab`; `reopen_closed_tab` keeps `Cmd+Z` as an
+    /// alias) yields the one registered first in config order — the primary,
+    /// the same chord the menu displays — so the choice is deterministic
+    /// despite the HashMap's random iteration order.
     pub fn chord_for_action(&self, action: &str) -> Option<parser::KeyCombo> {
         self.bindings
             .iter()
             .filter(|(_, bound)| bound.as_str() == action)
-            .min_by(|(a, _), (b, _)| a.to_string().cmp(&b.to_string()))
+            .min_by_key(|(combo, _)| self.order.get(*combo).copied().unwrap_or(usize::MAX))
             .map(|(combo, _)| combo.clone())
     }
 
@@ -392,7 +399,7 @@ mod tests {
             },
             KeyBinding {
                 key: "Ctrl+D".to_string(),
-                action: "split_horizontal".to_string(),
+                action: "split_down".to_string(),
             },
         ];
 
@@ -405,7 +412,7 @@ mod tests {
         );
         assert_eq!(
             registry
-                .chord_for_action("split_horizontal")
+                .chord_for_action("split_down")
                 .map(|combo| combo.to_string()),
             Some("Ctrl+D".to_string())
         );

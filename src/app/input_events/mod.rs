@@ -29,4 +29,5 @@ mod key_handler;
 pub(crate) mod keybinding_actions;
 pub(crate) mod keybinding_display_actions;
 pub(crate) mod keybinding_helpers;
+pub(crate) mod keybinding_view_actions;
 mod snippet_actions;

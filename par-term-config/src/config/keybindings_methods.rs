@@ -12,10 +12,26 @@ use std::collections::{BTreeSet, HashSet};
 ///
 /// Applied in place at load: the user's chord moves to the current id instead
 /// of a default for the new id being added alongside it (UX.md §3.3 migration
-/// rule 2). Empty until an action rename ships — D1 plans
-/// `split_horizontal` → `split_down`; add the pair here in the same release
-/// that renames the default.
-const ACTION_RENAMES: &[(&str, &str)] = &[];
+/// rule 2). Dispatch also resolves the previous ids through
+/// [`current_action_id`], so a binding that bypasses the load-time migration
+/// (a hand-edited reload, a snippet-generated row) still runs.
+///
+/// UX.md T7: split actions name where the new pane goes. `split_horizontal`
+/// stacked the panes (new pane below) and `split_vertical` placed them side
+/// by side (new pane to the right).
+pub const ACTION_RENAMES: &[(&str, &str)] = &[
+    ("split_horizontal", "split_down"),
+    ("split_vertical", "split_right"),
+];
+
+/// The current id for `action`, following [`ACTION_RENAMES`]; any other id is
+/// returned unchanged.
+pub fn current_action_id(action: &str) -> &str {
+    ACTION_RENAMES
+        .iter()
+        .find(|(previous, _)| *previous == action)
+        .map_or(action, |(_, current)| current)
+}
 
 /// Canonical comparison form of a chord string, for duplicate-chord detection
 /// at config-load time (UX.md §3.3 rule 1).
@@ -448,6 +464,28 @@ mod migration_tests {
     }
 
     #[test]
+    fn split_renames_resolve_to_placement_ids() {
+        assert_eq!(current_action_id("split_horizontal"), "split_down");
+        assert_eq!(current_action_id("split_vertical"), "split_right");
+        assert_eq!(current_action_id("split_right"), "split_right");
+        assert_eq!(current_action_id("new_tab"), "new_tab");
+
+        let mut config = config_with(&[
+            ("Ctrl+Shift+D", "split_horizontal"),
+            ("Ctrl+Shift+E", "split_vertical"),
+        ]);
+        config.migrate_renamed_keybinding_actions();
+        assert_eq!(
+            bound_chord(&config, "split_down"),
+            Some("Ctrl+Shift+D".to_string())
+        );
+        assert_eq!(
+            bound_chord(&config, "split_right"),
+            Some("Ctrl+Shift+E".to_string())
+        );
+    }
+
+    #[test]
     fn renamed_action_migrates_in_place() {
         // D1's planned rename: split_horizontal -> split_down. The user's
         // chord moves to the new id; the new default is not added alongside.
@@ -497,11 +535,13 @@ keybindings:
 
         config.merge_default_keybindings();
 
-        // Every previous-release binding survives on its own chord.
+        // Every previous-release binding survives on its own chord — the
+        // renamed split action under its current id (T7 migration).
         assert_eq!(
-            bound_chord(&config, "split_horizontal"),
+            bound_chord(&config, "split_down"),
             Some("CmdOrCtrl+D".to_string())
         );
+        assert!(bound_chord(&config, "split_horizontal").is_none());
         assert_eq!(
             bound_chord(&config, "toggle_profile_drawer"),
             Some("CmdOrCtrl+Shift+P".to_string())
@@ -520,6 +560,146 @@ keybindings:
         // Missing defaults are still filled in (an action with no binding at
         // all gains the default, as before).
         assert!(bound_chord(&config, "toggle_background_shader").is_some());
+    }
+
+    /// UX.md 3.3a: the shipped defaults bind every canonical chord to exactly
+    /// one action on this platform. The registry resolves a duplicate by
+    /// first-wins, so a collision here would make one default silently dead.
+    #[test]
+    fn shipped_defaults_bind_each_chord_once() {
+        let mut owner: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        let mut collisions = Vec::new();
+        for kb in crate::defaults::keybindings() {
+            let chord = canonical_chord(&kb.key)
+                .unwrap_or_else(|| panic!("default chord {:?} does not canonicalize", kb.key));
+            if let Some(previous) = owner.insert(chord.clone(), kb.action.clone()) {
+                collisions.push(format!("{chord}: {previous} and {}", kb.action));
+            }
+        }
+        assert!(
+            collisions.is_empty(),
+            "default chords bound more than once: {collisions:#?}"
+        );
+    }
+
+    /// UX.md 3.3a moved chords between actions (splits swap, resize and swap
+    /// trade chords, Cmd+W becomes pane close, Cmd+Shift+T becomes reopen,
+    /// Cmd+R goes back to the shell). A config saved before the move keeps
+    /// every chord on its old action, and the merge adds no duplicate.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn pre_iterm2_alignment_config_keeps_every_moved_chord() {
+        let previous_release_yaml = r#"
+keybindings:
+  - key: CmdOrCtrl+D
+    action: split_horizontal
+  - key: CmdOrCtrl+Shift+D
+    action: split_vertical
+  - key: CmdOrCtrl+Shift+W
+    action: close_pane
+  - key: CmdOrCtrl+W
+    action: close_window
+  - key: CmdOrCtrl+Alt+Shift+Left
+    action: resize_pane_left
+  - key: CmdOrCtrl+Ctrl+Alt+Left
+    action: swap_pane_left
+  - key: CmdOrCtrl+Shift+T
+    action: toggle_throughput_mode
+  - key: CmdOrCtrl+Z
+    action: reopen_closed_tab
+  - key: CmdOrCtrl+R
+    action: toggle_command_history
+  - key: CmdOrCtrl+Shift+P
+    action: toggle_profile_drawer
+  - key: CmdOrCtrl+Alt+T
+    action: toggle_tmux_session_picker
+"#;
+        let mut config: Config =
+            serde_yaml_ng::from_str(previous_release_yaml).expect("fixture YAML parses");
+        config.merge_default_keybindings();
+
+        for (chord, action) in [
+            ("CmdOrCtrl+D", "split_down"),
+            ("CmdOrCtrl+Shift+D", "split_right"),
+            ("CmdOrCtrl+Shift+W", "close_pane"),
+            ("CmdOrCtrl+W", "close_window"),
+            ("CmdOrCtrl+Alt+Shift+Left", "resize_pane_left"),
+            ("CmdOrCtrl+Ctrl+Alt+Left", "swap_pane_left"),
+            ("CmdOrCtrl+Shift+T", "toggle_throughput_mode"),
+            ("CmdOrCtrl+Z", "reopen_closed_tab"),
+            ("CmdOrCtrl+R", "toggle_command_history"),
+            ("CmdOrCtrl+Shift+P", "toggle_profile_drawer"),
+            ("CmdOrCtrl+Alt+T", "toggle_tmux_session_picker"),
+        ] {
+            let bound: Vec<&str> = config
+                .keybindings
+                .iter()
+                .filter(|kb| canonical_chord(&kb.key) == canonical_chord(chord))
+                .map(|kb| kb.action.as_str())
+                .collect();
+            assert_eq!(bound, vec![action], "{chord} must keep its saved action");
+        }
+        assert!(
+            no_duplicate_chords(&config),
+            "merged config must not contain duplicate chords"
+        );
+        // A default whose action and chord are both new still arrives.
+        assert_eq!(
+            bound_chord(&config, "toggle_command_palette"),
+            None,
+            "Cmd+Shift+P is claimed by the saved drawer binding, so the palette \
+             default must not take it"
+        );
+        assert_eq!(
+            bound_chord(&config, "close_tab"),
+            Some("CmdOrCtrl+Alt+W".to_string())
+        );
+    }
+
+    /// Same guarantee for the Linux/Windows K1-family moves.
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn pre_k1_alignment_config_keeps_every_moved_chord() {
+        let previous_release_yaml = r#"
+keybindings:
+  - key: Ctrl+Shift+D
+    action: split_horizontal
+  - key: Ctrl+Shift+E
+    action: split_vertical
+  - key: Ctrl+Shift+X
+    action: close_pane
+  - key: Ctrl+Shift+W
+    action: close_tab
+  - key: Alt+Shift+Left
+    action: swap_pane_left
+  - key: Ctrl+Shift+P
+    action: toggle_profile_drawer
+"#;
+        let mut config: Config =
+            serde_yaml_ng::from_str(previous_release_yaml).expect("fixture YAML parses");
+        config.merge_default_keybindings();
+
+        for (chord, action) in [
+            ("Ctrl+Shift+D", "split_down"),
+            ("Ctrl+Shift+E", "split_right"),
+            ("Ctrl+Shift+X", "close_pane"),
+            ("Ctrl+Shift+W", "close_tab"),
+            ("Alt+Shift+Left", "swap_pane_left"),
+            ("Ctrl+Shift+P", "toggle_profile_drawer"),
+        ] {
+            let bound: Vec<&str> = config
+                .keybindings
+                .iter()
+                .filter(|kb| canonical_chord(&kb.key) == canonical_chord(chord))
+                .map(|kb| kb.action.as_str())
+                .collect();
+            assert_eq!(bound, vec![action], "{chord} must keep its saved action");
+        }
+        assert!(
+            no_duplicate_chords(&config),
+            "merged config must not contain duplicate chords"
+        );
+        assert_eq!(bound_chord(&config, "toggle_command_palette"), None);
     }
 
     /// UX.md K27/B20: a `pass_to_terminal` row claims its chord, so the

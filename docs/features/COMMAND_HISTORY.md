@@ -50,9 +50,9 @@ graph TD
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| Open command history | `Cmd + R` | `Ctrl + Alt + R` |
+| Open command history | `Cmd + Shift + ;` | `Ctrl + Alt + R` |
 
-> **Note:** On Linux/Windows, `Ctrl+R` is reserved for the shell's own reverse search. par-term uses `Ctrl+Alt+R` by default; you can reassign this in keybindings.
+> **Note:** `Ctrl+R` (and on macOS `Cmd+R`) is left to the shell's own reverse search. The macOS default is iTerm2's `Cmd + Shift + ;`, written `CmdOrCtrl+Shift+:` in `config.yaml`; you can reassign either in keybindings.
 
 The overlay appears over the terminal with a search input field and a scrollable list of previous commands.
 

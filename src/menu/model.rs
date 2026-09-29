@@ -116,7 +116,29 @@ fn hardcoded_menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
     #[cfg(not(target_os = "macos"))]
     let tab_switch_mod = Modifiers::ALT;
 
+    // Close Tab: Cmd+Opt+W (iTerm2) / Ctrl+Alt+W (K1 family)
+    #[cfg(target_os = "macos")]
+    let close_tab_mods = Modifiers::META | Modifiers::ALT;
+    #[cfg(not(target_os = "macos"))]
+    let close_tab_mods = Modifiers::CONTROL | Modifiers::ALT;
+
+    // Move tab: Cmd+Opt+Shift+[ / ] (iTerm2) / Ctrl+Shift+Left/Right
+    #[cfg(target_os = "macos")]
+    let (move_tab_mods, move_tab_left_key, move_tab_right_key) = (
+        Modifiers::META | Modifiers::ALT | Modifiers::SHIFT,
+        Code::BracketLeft,
+        Code::BracketRight,
+    );
+    #[cfg(not(target_os = "macos"))]
+    let (move_tab_mods, move_tab_left_key, move_tab_right_key) =
+        (cmd_or_ctrl_shift, Code::ArrowLeft, Code::ArrowRight);
+
     let accel = |mods: Modifiers, code: Code| Some(Accelerator::new(mods, code));
+
+    #[cfg(target_os = "macos")]
+    let profile_drawer_accel = accel(cmd_or_ctrl, Code::KeyO);
+    #[cfg(not(target_os = "macos"))]
+    let profile_drawer_accel = None;
 
     let mut file = vec![
         item(
@@ -125,12 +147,13 @@ fn hardcoded_menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
             accel(cmd_or_ctrl, Code::KeyN),
             MenuAction::NewWindow,
         ),
-        // Smart close: closes tab if multiple, window if single
+        // iTerm2's Close (UX.md I15): the focused pane, cascading to the tab
+        // and then the window. The id is kept so the native item is stable.
         item(
             "close_window",
             "Close",
             accel(cmd_or_ctrl, Code::KeyW),
-            MenuAction::CloseWindow,
+            MenuAction::ClosePane,
         ),
         MenuEntry::Separator,
     ];
@@ -159,8 +182,14 @@ fn hardcoded_menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
             accel(cmd_or_ctrl_shift, Code::KeyJ),
             MenuAction::DuplicateTab,
         ),
-        // No accelerator: same as Close in the File menu (smart close)
-        item("close_tab", "Close Tab", None, MenuAction::CloseTab),
+        // iTerm2's "Close All Panes in Tab" (UX.md I15): Cmd+Opt+W, and the
+        // K1 family's Ctrl+Alt+W elsewhere.
+        item(
+            "close_tab",
+            "Close Tab",
+            accel(close_tab_mods, Code::KeyW),
+            MenuAction::CloseTab,
+        ),
         MenuEntry::Separator,
         item(
             "next_tab",
@@ -175,20 +204,20 @@ fn hardcoded_menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
             MenuAction::PreviousTab,
         ),
         // Reordering is dispatched by the `move_tab_left`/`move_tab_right`
-        // registry defaults (the old hardcoded Cmd/Ctrl+Shift+Arrow layer
-        // dissolved, UX K2). The accelerators here name those same chords,
-        // and the settings window's `AVAILABLE_ACTIONS` advertises them —
-        // `key_handler::chord_tests` checks all three agree.
+        // registry defaults. The accelerators here name the primary chords —
+        // iTerm2's Cmd+Opt+Shift+[ / ] on macOS (UX.md I9), the arrows
+        // elsewhere — and the settings window's `AVAILABLE_ACTIONS` advertises
+        // them; `key_handler::chord_tests` checks all three agree.
         item(
             "move_tab_left",
             "Move Tab Left",
-            accel(cmd_or_ctrl_shift, Code::ArrowLeft),
+            accel(move_tab_mods, move_tab_left_key),
             MenuAction::MoveTabLeft,
         ),
         item(
             "move_tab_right",
             "Move Tab Right",
-            accel(cmd_or_ctrl_shift, Code::ArrowRight),
+            accel(move_tab_mods, move_tab_right_key),
             MenuAction::MoveTabRight,
         ),
         MenuEntry::Separator,
@@ -269,18 +298,15 @@ fn hardcoded_menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
                     None,
                     MenuAction::ManageProfiles,
                 ),
-                // The drawer owns Cmd/Ctrl+Shift+P: the settings table
-                // advertises it, `Config::default().keybindings` binds it, and
-                // the hardcoded `profile_drawer_toggle` layer dispatches it.
-                // While `Manage Profiles...` held the accelerator the native
-                // menu bar ate the chord on macOS and Windows, and on Linux —
-                // where the in-app menu only *labels* accelerators — the same
-                // chord already reached the drawer while the menu named the
-                // manager. See `key_handler::chord_tests`.
+                // The drawer is iTerm2's Open Profiles, Cmd+O on macOS (UX.md
+                // I36). Cmd/Ctrl+Shift+P belongs to the command palette (D2),
+                // so this item must not carry it: a native accelerator would
+                // eat the chord before the registry runs. Off macOS the
+                // drawer ships unbound (Ctrl+Shift+O is split down there).
                 item(
                     "toggle_profile_drawer",
                     "Toggle Profile Drawer",
-                    accel(cmd_or_ctrl_shift, Code::KeyP),
+                    profile_drawer_accel,
                     MenuAction::ToggleProfileDrawer,
                 ),
                 MenuEntry::Separator,
@@ -521,7 +547,7 @@ mod tests {
         assert!(actions.contains(&MenuAction::Quit));
         assert!(actions.contains(&MenuAction::OpenSettings));
         assert!(actions.contains(&MenuAction::NewWindow));
-        assert!(actions.contains(&MenuAction::CloseWindow));
+        assert!(actions.contains(&MenuAction::ClosePane));
         assert!(actions.contains(&MenuAction::SelectAll));
         assert!(actions.contains(&MenuAction::MaximizeVertically));
     }
@@ -695,8 +721,9 @@ mod tests {
     }
 
     /// Which commands carry a keyboard accelerator is part of the contract the
-    /// in-app menu advertises, and is platform-independent even though the
-    /// modifiers are not.
+    /// in-app menu advertises. It is platform-independent except for the
+    /// profile drawer, which carries iTerm2's Cmd+O on macOS and ships
+    /// unbound elsewhere (Ctrl+Shift+O is split down there, UX.md K12).
     #[test]
     fn the_same_commands_carry_accelerators() {
         let accelerated: Vec<&str> = items(&menu_model(false))
@@ -704,44 +731,46 @@ mod tests {
             .filter(|spec| spec.accelerator.is_some())
             .map(|spec| spec.id)
             .collect();
-        assert_eq!(
-            accelerated,
-            vec![
-                "new_window",
-                "close_window",
-                "quit",
-                "new_tab",
-                "duplicate_tab",
-                "next_tab",
-                "prev_tab",
-                "move_tab_left",
-                "move_tab_right",
-                "tab_1",
-                "tab_2",
-                "tab_3",
-                "tab_4",
-                "tab_5",
-                "tab_6",
-                "tab_7",
-                "tab_8",
-                "tab_9",
-                "toggle_profile_drawer",
-                "copy",
-                "paste",
-                "select_all",
-                "clear_scrollback",
-                "clipboard_history",
-                "preferences",
-                "toggle_fullscreen",
-                "maximize_vertically",
-                "increase_font",
-                "decrease_font",
-                "reset_font",
-                "fps_overlay",
-                "settings",
-                "keyboard_shortcuts",
-            ]
-        );
+        let mut expected = vec![
+            "new_window",
+            "close_window",
+            "quit",
+            "new_tab",
+            "duplicate_tab",
+            "close_tab",
+            "next_tab",
+            "prev_tab",
+            "move_tab_left",
+            "move_tab_right",
+            "tab_1",
+            "tab_2",
+            "tab_3",
+            "tab_4",
+            "tab_5",
+            "tab_6",
+            "tab_7",
+            "tab_8",
+            "tab_9",
+            "toggle_profile_drawer",
+            "copy",
+            "paste",
+            "select_all",
+            "clear_scrollback",
+            "clipboard_history",
+            "preferences",
+            "toggle_fullscreen",
+            "maximize_vertically",
+            "increase_font",
+            "decrease_font",
+            "reset_font",
+            "fps_overlay",
+            "settings",
+            "keyboard_shortcuts",
+        ];
+        if !cfg!(target_os = "macos") {
+            expected.retain(|id| *id != "toggle_profile_drawer");
+        }
+        assert_eq!(accelerated, expected);
     }
 
     #[test]

@@ -73,10 +73,10 @@ graph TD
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
 | New tab | `Cmd+T` | `Ctrl+Shift+T` |
-| Close (smart) | `Cmd+W` | `Ctrl+Shift+W` |
-| Close pane | `Cmd+Shift+W` | `Ctrl+Shift+X` |
+| Close (pane, then tab, then window) | `Cmd+W` | `Ctrl+Shift+W` |
+| Close tab | `Cmd+Opt+W` | `Ctrl+Alt+W` |
 
-`Close` is a smart action: it closes the current tab, and closes the window when that was the last remaining tab. `Close pane` closes the active split pane when the tab has splits, or falls through to closing the tab when there is only one pane. On Linux/Windows, the window close button or window manager shortcut closes the window.
+`Close` follows iTerm2: it closes the focused split pane, falls through to closing the tab when that was the tab's only pane, and closes the window when that was the last tab. `Close tab` closes every pane in the current tab at once. The previous Linux/Windows pane-close chord `Ctrl+Shift+X` still works as an alias.
 
 New tabs inherit the working directory from the current tab (if shell integration is installed) or start in the configured startup directory.
 
@@ -124,7 +124,7 @@ Accidentally closed tabs can be recovered using session undo:
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| Reopen closed tab | `Cmd + Z` | `Ctrl + Shift + Z` |
+| Reopen closed tab | `Cmd + Shift + T` (alias `Cmd + Z`) | `Ctrl + Shift + Z` |
 
 A toast notification appears after closing a tab, showing the undo keybinding and a countdown timer. Undo restores the tab at its original position with its title, custom color, and split pane layout.
 

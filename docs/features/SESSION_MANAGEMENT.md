@@ -27,7 +27,7 @@ graph TD
     Session --> Restore
 
     Undo --> CloseCapture[Capture on Tab Close]
-    Undo --> ReopenTab[Reopen with Cmd+Z]
+    Undo --> ReopenTab[Reopen with Cmd+Shift+T]
     Undo --> Timeout[Auto-Expire Queue]
 
     Restore --> SaveExit[Save on Clean Exit]
@@ -53,7 +53,7 @@ Recover accidentally closed tabs by reopening them with their original metadata.
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| Reopen closed tab | `Cmd + Z` | `Ctrl + Shift + Z` |
+| Reopen closed tab | `Cmd + Shift + T` (alias `Cmd + Z`) | `Ctrl + Shift + Z` |
 
 When a tab closes, par-term captures its metadata (working directory, title, position, pane layout, custom color) and adds it to an undo queue. A toast notification appears showing the undo keybinding hint and the expiry timeout in seconds.
 

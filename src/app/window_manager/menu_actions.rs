@@ -34,6 +34,15 @@ impl WindowManager {
                     self.close_window(window_id);
                 }
             }
+            MenuAction::ClosePane => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                    && window_state.close_focused_pane()
+                {
+                    // Last pane of the last tab closed, close the window
+                    self.close_window(window_id);
+                }
+            }
             MenuAction::NewTab => {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
