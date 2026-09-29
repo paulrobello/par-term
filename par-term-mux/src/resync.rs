@@ -184,6 +184,31 @@ fn warn_skipped(skipped: &[String]) {
     }
 }
 
+/// The foreground command name in a `pane-info -t %N` reply, or `None`
+/// when the daemon did not report one.
+///
+/// Wire contract (core `docs/MUX.md`): one line, `%N @W COLSxROWS
+/// [cmd=<standard base64>]`, where `cmd` is the basename of the deepest
+/// descendant of the pane's child process (an idle shell reports itself).
+/// The token is optional: a daemon that predates it replies without it, and
+/// one that predates `pane-info` entirely replies an `%error` body that
+/// never starts with the pane id, so both read as "unknown". Unknown must
+/// never be treated as idle by a caller that wants to protect a job, only
+/// as "no evidence to prompt on".
+pub fn pane_foreground_command(reply: &[String], pane: TmuxPaneId) -> Option<String> {
+    use base64::Engine as _;
+    let prefix = format!("%{pane} ");
+    let line = reply.iter().find(|line| line.starts_with(&prefix))?;
+    let encoded = line
+        .split_whitespace()
+        .find_map(|token| token.strip_prefix("cmd="))?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .ok()?;
+    let name = String::from_utf8(bytes).ok()?;
+    (!name.is_empty()).then_some(name)
+}
+
 /// Parse `sigil`N`: `name` (the `@N: name` / `$N: name` wire shapes).
 fn parse_id_name_line(line: &str, sigil: char) -> io::Result<(u64, String)> {
     let rest = line
@@ -206,6 +231,44 @@ fn invalid_line(kind: &str, line: &str) -> io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn lines(reply: &[&str]) -> Vec<String> {
+        reply.iter().map(|l| l.to_string()).collect()
+    }
+
+    #[test]
+    fn pane_info_reply_yields_the_foreground_command() {
+        // "c2xlZXA=" is base64("sleep").
+        assert_eq!(
+            pane_foreground_command(&lines(&["%3 @1 80x24 cmd=c2xlZXA="]), 3).as_deref(),
+            Some("sleep")
+        );
+    }
+
+    #[test]
+    fn pane_info_reply_without_a_command_is_unknown() {
+        // A daemon that predates the cmd token, an unknown-command error,
+        // a reply for a different pane, an empty reply, and bad base64 all
+        // read as "no foreground command known".
+        assert_eq!(pane_foreground_command(&lines(&["%3 @1 80x24"]), 3), None);
+        assert_eq!(
+            pane_foreground_command(&lines(&["unknown command: pane-info"]), 3),
+            None
+        );
+        assert_eq!(
+            pane_foreground_command(&lines(&["%4 @1 80x24 cmd=c2xlZXA="]), 3),
+            None
+        );
+        assert_eq!(pane_foreground_command(&[], 3), None);
+        assert_eq!(
+            pane_foreground_command(&lines(&["%3 @1 80x24 cmd=!!!"]), 3),
+            None
+        );
+        assert_eq!(
+            pane_foreground_command(&lines(&["%3 @1 80x24 cmd="]), 3),
+            None
+        );
+    }
 
     #[test]
     fn parses_session_and_window_reply_lines() {

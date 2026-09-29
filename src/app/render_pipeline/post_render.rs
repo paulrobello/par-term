@@ -115,7 +115,7 @@ impl WindowState {
                     {
                         pm.focus_pane(pane_id);
                     }
-                    let was_last = self.close_focused_pane_immediately();
+                    let was_last = self.close_focused_pane_confirmed();
                     log::info!("Force-closed pane {} in tab {}", pane_id, tab_id);
                     was_last
                 } else {

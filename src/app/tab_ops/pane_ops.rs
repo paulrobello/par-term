@@ -203,6 +203,9 @@ impl WindowState {
                 );
                 return self.hide_active_mux_tab();
             }
+            if self.confirm_mux_pane_close() {
+                return false; // the dialog decides
+            }
             if self.close_pane_via_mux() {
                 // Consumed: the daemon's %layout-change drives the local
                 // removal, so the window-close answer is "not yet".
@@ -262,6 +265,87 @@ impl WindowState {
             return false; // Don't close yet, waiting for confirmation
         }
 
+        self.close_focused_pane_immediately()
+    }
+
+    /// The running foreground job in the focused attached (par-mux) pane
+    /// that should hold a close for confirmation, if any.
+    ///
+    /// The job runs daemon-side, so the local hidden shell cannot answer:
+    /// this asks the daemon (`pane-info`, foreground command name) and
+    /// applies the same `jobs_to_ignore` list as the local check. Every
+    /// failure to learn the answer (no transport, transport error, an
+    /// `%error` reply from a daemon without `pane-info`, a reply without
+    /// the `cmd=` token) yields `None`: the close then proceeds exactly as
+    /// it did before this gate existed.
+    #[cfg(feature = "mux")]
+    fn check_mux_pane_running_job(&self) -> Option<String> {
+        let transport = self.tmux_state.transport.as_ref()?;
+        let pane = self.focused_mux_pane_from_native()?;
+        let reply = transport
+            .send_command(&format!("pane-info -t %{pane}"))
+            .inspect_err(|e| log::warn!("par-mux pane-info failed, not confirming close: {e}"))
+            .ok()?;
+        let name = par_term_mux::pane_foreground_command(&reply, pane)?;
+        mux_foreground_job(&name, &self.config.load().shell.jobs_to_ignore)
+    }
+
+    /// Show the running-job close confirmation for the focused attached
+    /// pane. Returns true when the dialog is now up and the close must wait
+    /// for its answer; false when the close may proceed.
+    #[cfg(feature = "mux")]
+    fn confirm_mux_pane_close(&mut self) -> bool {
+        if !self.config.load().shell.confirm_close_running_jobs {
+            return false;
+        }
+        let Some(command_name) = self.check_mux_pane_running_job() else {
+            return false;
+        };
+        let Some(tab) = self.tab_manager.active_tab() else {
+            return false;
+        };
+        let Some(pane_id) = tab.focused_pane_id() else {
+            return false;
+        };
+        let tab_id = tab.id;
+        let tab_title = if tab.title.is_empty() {
+            "Terminal".to_string()
+        } else {
+            tab.title.clone()
+        };
+        self.overlay_ui.close_confirmation_ui.show_for_pane(
+            tab_id,
+            pane_id,
+            &tab_title,
+            &command_name,
+        );
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
+        true
+    }
+
+    /// Close the focused pane after the running-job dialog was confirmed.
+    ///
+    /// An attached pane must die daemon-side (`kill-pane`), the same route
+    /// as an unconfirmed close: the immediate local close would delete the
+    /// mirror pane while the daemon process lives on. A mux tab that has
+    /// meanwhile shrunk to its last pane takes the last-pane route (hide
+    /// the tab, keep the daemon window). Local panes close as before.
+    pub(crate) fn close_focused_pane_confirmed(&mut self) -> bool {
+        #[cfg(feature = "mux")]
+        if self.tmux_state.transport.is_some() && self.focused_mux_pane_from_native().is_some() {
+            if self
+                .tab_manager
+                .active_tab()
+                .is_some_and(|tab| tab.has_multiple_panes())
+            {
+                if self.close_pane_via_mux() {
+                    return false;
+                }
+            } else {
+                return self.hide_active_mux_tab();
+            }
+        }
         self.close_focused_pane_immediately()
     }
 
@@ -382,5 +466,51 @@ impl WindowState {
             self.focus_state.needs_redraw = true;
             self.request_redraw();
         }
+    }
+}
+
+/// The job name to confirm a close for, given the daemon's foreground
+/// command basename: an idle pane reports its shell (a login shell's argv0
+/// carries a leading `-`), and anything on `jobs_to_ignore` is not a job.
+#[cfg(feature = "mux")]
+fn mux_foreground_job(name: &str, jobs_to_ignore: &[String]) -> Option<String> {
+    let name = name.trim_start_matches('-');
+    if name.is_empty() {
+        return None;
+    }
+    let lower = name.to_lowercase();
+    if jobs_to_ignore
+        .iter()
+        .any(|ignored| ignored.to_lowercase() == lower)
+    {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+#[cfg(all(test, feature = "mux"))]
+mod tests {
+    use super::mux_foreground_job;
+
+    fn ignore() -> Vec<String> {
+        par_term_config::defaults::jobs_to_ignore()
+    }
+
+    #[test]
+    fn an_idle_shell_is_not_a_job() {
+        assert_eq!(mux_foreground_job("-zsh", &ignore()), None);
+        assert_eq!(mux_foreground_job("bash", &ignore()), None);
+        assert_eq!(mux_foreground_job("Fish", &ignore()), None);
+    }
+
+    #[test]
+    fn a_foreground_program_is_a_job_unless_ignored() {
+        assert_eq!(mux_foreground_job("vim", &ignore()).as_deref(), Some("vim"));
+        // sleep is on the default ignore list, exactly as for local tabs.
+        assert_eq!(mux_foreground_job("sleep", &ignore()), None);
+        assert_eq!(
+            mux_foreground_job("sleep", &["cat".to_string()]).as_deref(),
+            Some("sleep")
+        );
     }
 }

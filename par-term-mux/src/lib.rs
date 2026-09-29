@@ -43,4 +43,4 @@ mod resync;
 pub use agents::{AgentEntry, AgentSource};
 pub use client::{MuxSessionClient, VersionCheck, check_daemon_version};
 pub use env::{is_wire_safe, new_session_env_args, quote_env_value};
-pub use resync::{AttachOutcome, SessionSummary, WindowSummary};
+pub use resync::{AttachOutcome, SessionSummary, WindowSummary, pane_foreground_command};
