@@ -467,8 +467,13 @@ mod tests {
         }
     }
 
+    /// Fixture git commands take ~0.1s idle but have exceeded the 10s
+    /// READ_TIMEOUT under full-suite parallel load (load avg >100 observed
+    /// 2026-09-28); 60s still bounds a hung git.
+    const FIXTURE_TIMEOUT: Duration = Duration::from_secs(60);
+
     fn git_ok(cwd: &Path, args: &[&str]) -> String {
-        run_git_ok(Some(cwd), args, READ_TIMEOUT, "git").expect("git fixture command")
+        run_git_ok(Some(cwd), args, FIXTURE_TIMEOUT, "git").expect("git fixture command")
     }
 
     fn git_commit(cwd: &Path, msg: &str) {
@@ -769,7 +774,7 @@ mod tests {
                 r#"alias.prompt-check=!sh -c 'printf %s "$GIT_TERMINAL_PROMPT"'"#,
                 "prompt-check",
             ],
-            READ_TIMEOUT,
+            FIXTURE_TIMEOUT,
             "git alias",
         )
         .expect("alias should run");
