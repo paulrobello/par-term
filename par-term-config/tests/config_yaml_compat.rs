@@ -898,3 +898,25 @@ fn agent_skill_alone_can_trigger_the_welcome_dialog() {
         "only the agent skill is uninstalled: dialog must still show",
     );
 }
+
+/// D6 close-safety defaults (iTerm2 alignment, UX.md Section 10): a fresh
+/// config — and equally a config.yaml that omits the keys — asks before
+/// quitting, asks before closing a multi-tab window, and preserves the
+/// shell through the 5 s session-undo window; single-job close confirm
+/// stays off.
+#[test]
+fn d6_close_safety_defaults_match_iterm2() {
+    for cfg in [Config::default(), parse("{}")] {
+        assert!(cfg.shell.prompt_on_quit, "prompt_on_quit defaults true");
+        assert!(
+            cfg.shell.confirm_close_multiple_tabs,
+            "confirm_close_multiple_tabs defaults true"
+        );
+        assert!(
+            cfg.session_restore.session_undo_preserve_shell,
+            "session_undo_preserve_shell defaults true"
+        );
+        assert!(!cfg.shell.confirm_close_running_jobs);
+        assert_eq!(cfg.session_restore.session_undo_timeout_secs, 5);
+    }
+}

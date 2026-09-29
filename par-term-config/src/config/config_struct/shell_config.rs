@@ -84,10 +84,19 @@ pub struct ShellConfig {
 
     /// Show confirmation dialog before quitting the application
     /// When enabled, closing the window will show a confirmation dialog
-    /// if there are any open terminal sessions.
-    /// Default: false (close immediately without confirmation)
-    #[serde(default = "crate::defaults::bool_false")]
+    /// if there are any open terminal sessions. Only applies when
+    /// `confirm_close_multiple_tabs` is off — with the multi-tab guard
+    /// on, only a multi-tab close asks (D6, iTerm2 alignment).
+    /// Default: true
+    #[serde(default = "crate::defaults::bool_true")]
     pub prompt_on_quit: bool,
+
+    /// Show confirmation dialog before closing a window that holds more
+    /// than one tab. A single-tab window closes silently — the
+    /// session-undo window (5 s, shell preserved) can restore the tab.
+    /// Default: true
+    #[serde(default = "crate::defaults::bool_true")]
+    pub confirm_close_multiple_tabs: bool,
 
     /// Show confirmation dialog before closing a tab with running jobs
     /// When enabled, closing a tab that has a running command will show a confirmation dialog.
@@ -119,7 +128,8 @@ impl Default for ShellConfig {
             initial_text_delay_ms: crate::defaults::initial_text_delay_ms(),
             initial_text_send_newline: crate::defaults::initial_text_send_newline(),
             answerback_string: crate::defaults::answerback_string(),
-            prompt_on_quit: crate::defaults::bool_false(),
+            prompt_on_quit: crate::defaults::bool_true(),
+            confirm_close_multiple_tabs: crate::defaults::bool_true(),
             confirm_close_running_jobs: crate::defaults::bool_false(),
             jobs_to_ignore: crate::defaults::jobs_to_ignore(),
         }

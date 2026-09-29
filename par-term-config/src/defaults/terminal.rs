@@ -195,7 +195,9 @@ pub fn session_undo_max_entries() -> usize {
     10
 }
 
-/// Default flag controlling whether the shell process is preserved on session undo.
+/// Default flag controlling whether the shell process is preserved on session
+/// undo. True (D6, iTerm2 alignment): a closed tab's live process survives the
+/// undo window, so Reopen Closed Tab restores it rather than a fresh shell.
 pub fn session_undo_preserve_shell() -> bool {
-    false
+    true
 }
