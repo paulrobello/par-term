@@ -65,6 +65,27 @@ impl KeybindingRegistry {
 
             match parser::parse_key_combo(&binding.key) {
                 Ok(combo) => {
+                    // UX.md §3.3: the registry rejects duplicate chords at
+                    // load. Chords are compared in platform-normalized form
+                    // so two spellings of the same combination cannot
+                    // silently coexist (B23); the first binding in config
+                    // order wins and later claimants are skipped with a
+                    // warning.
+                    let combo = combo.platform_normalized();
+                    if let Some(existing) = registry.bindings.get(&combo) {
+                        if existing != &binding.action {
+                            log::warn!(
+                                "Duplicate chord '{}' for action '{}' (parsed as: {}): already \
+                                 bound to '{}', keeping the first binding",
+                                binding.key,
+                                binding.action,
+                                combo,
+                                existing
+                            );
+                        }
+                        continue;
+                    }
+
                     log::info!(
                         "Registered keybinding: {} -> {} (parsed as: {:?})",
                         binding.key,
@@ -173,6 +194,18 @@ impl KeybindingRegistry {
         self.bindings.is_empty()
     }
 
+    /// Look up the action bound to a chord string, if any.
+    ///
+    /// Chord spellings that resolve to the same platform combination (for
+    /// example `Cmd+D` and `CmdOrCtrl+D` on macOS) share one entry, matching
+    /// the equivalence [`KeybindingRegistry::from_config`] enforces.
+    pub fn find_by_chord(&self, key: &str) -> Option<&str> {
+        parser::parse_key_combo(key)
+            .ok()
+            .map(parser::KeyCombo::platform_normalized)
+            .and_then(|combo| self.bindings.get(&combo).map(String::as_str))
+    }
+
     /// Get the number of registered bindings.
     pub fn len(&self) -> usize {
         self.bindings.len()
@@ -240,5 +273,70 @@ mod tests {
         let registry = KeybindingRegistry::from_config(&bindings);
         // Only valid bindings should be registered
         assert_eq!(registry.len(), 1);
+    }
+
+    #[test]
+    fn test_duplicate_chord_first_binding_wins() {
+        // Two spellings of the same chord must collapse to one entry, with
+        // the first binding in config order winning (B23: HashMap iteration
+        // order used to decide).
+        let bindings = vec![
+            KeyBinding {
+                key: "Ctrl+D".to_string(),
+                action: "first_action".to_string(),
+            },
+            KeyBinding {
+                key: "Control+D".to_string(),
+                action: "second_action".to_string(),
+            },
+        ];
+
+        let registry = KeybindingRegistry::from_config(&bindings);
+        assert_eq!(registry.len(), 1);
+        assert_eq!(registry.find_by_chord("CTRL+d"), Some("first_action"));
+    }
+
+    #[test]
+    fn test_duplicate_chord_same_action_deduplicated() {
+        let bindings = vec![
+            KeyBinding {
+                key: "Ctrl+D".to_string(),
+                action: "same_action".to_string(),
+            },
+            KeyBinding {
+                key: "Control+D".to_string(),
+                action: "same_action".to_string(),
+            },
+        ];
+
+        let registry = KeybindingRegistry::from_config(&bindings);
+        assert_eq!(registry.len(), 1);
+        assert_eq!(registry.find_by_chord("Ctrl+D"), Some("same_action"));
+    }
+
+    #[test]
+    fn test_cmd_or_ctrl_spellings_share_one_entry_on_macos() {
+        let bindings = vec![
+            KeyBinding {
+                key: "Cmd+D".to_string(),
+                action: "user_binding".to_string(),
+            },
+            KeyBinding {
+                key: "CmdOrCtrl+D".to_string(),
+                action: "default_binding".to_string(),
+            },
+        ];
+
+        let registry = KeybindingRegistry::from_config(&bindings);
+        if cfg!(target_os = "macos") {
+            // CmdOrCtrl resolves to Cmd on macOS: same chord, first wins.
+            assert_eq!(registry.len(), 1);
+            assert_eq!(registry.find_by_chord("Command+D"), Some("user_binding"));
+        } else {
+            // Distinct modifiers: both entries coexist.
+            assert_eq!(registry.len(), 2);
+            assert_eq!(registry.find_by_chord("Cmd+D"), Some("user_binding"));
+            assert_eq!(registry.find_by_chord("Ctrl+D"), Some("default_binding"));
+        }
     }
 }

@@ -43,6 +43,25 @@ pub struct KeyCombo {
     pub key: ParsedKey,
 }
 
+impl KeyCombo {
+    /// Fold the `CmdOrCtrl` flag into the platform modifier it resolves to
+    /// (Super on macOS, Ctrl elsewhere), so that two spellings of the same
+    /// chord (`Cmd+D` / `CmdOrCtrl+D`) compare and hash equal. The matcher
+    /// resolves the flag the same way at match time, so a normalized combo
+    /// matches exactly the events the original did.
+    pub fn platform_normalized(mut self) -> Self {
+        let (ctrl, super_key) = platform::resolve_cmd_or_ctrl(
+            self.modifiers.cmd_or_ctrl,
+            self.modifiers.ctrl,
+            self.modifiers.super_key,
+        );
+        self.modifiers.ctrl = ctrl;
+        self.modifiers.super_key = super_key;
+        self.modifiers.cmd_or_ctrl = false;
+        self
+    }
+}
+
 impl fmt::Display for KeyCombo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut parts = Vec::new();
