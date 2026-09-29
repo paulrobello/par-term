@@ -33,6 +33,7 @@ impl WindowState {
             inspector,
             profile_drawer,
             close_confirm,
+            mux_last_tab,
             quit_confirm,
             remote_install,
             ssh_connect,
@@ -132,6 +133,9 @@ impl WindowState {
             }
             CloseConfirmAction::None => {}
         }
+
+        // Handle par-mux last-tab close dialog actions (UX.md M1)
+        self.handle_mux_last_tab_action(mux_last_tab);
 
         // Handle quit confirmation dialog actions
         match quit_confirm {

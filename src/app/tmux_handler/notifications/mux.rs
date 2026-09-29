@@ -719,6 +719,67 @@ impl WindowState {
         true
     }
 
+    /// Dispatch a choice made in the last-tab close dialog (UX.md M1).
+    /// Both destructive arms are session-scoped, not tab-scoped: Detach
+    /// drops the attach connection, End session kills every window and
+    /// pane in the session on the daemon.
+    pub(crate) fn handle_mux_last_tab_action(
+        &mut self,
+        action: crate::mux_last_tab_ui::MuxLastTabAction,
+    ) {
+        match action {
+            crate::mux_last_tab_ui::MuxLastTabAction::Detach => {
+                self.detach_mux_session();
+            }
+            crate::mux_last_tab_ui::MuxLastTabAction::EndSession => {
+                self.end_attached_mux_session();
+            }
+            crate::mux_last_tab_ui::MuxLastTabAction::Cancel
+            | crate::mux_last_tab_ui::MuxLastTabAction::None => {}
+        }
+    }
+
+    /// "End session" from the last-tab close dialog (UX.md M1). The
+    /// daemon's `kill-session` (UP2) exists on core main but is not in
+    /// the published 0.55 pin, so this kills every daemon window the
+    /// client maps — emptying the session makes the daemon delete it,
+    /// the same end state `kill-session` produces. No local teardown
+    /// runs here: the `%window-close` / `%sessions-changed` broadcasts
+    /// tear the view down through the same path as a session killed by
+    /// another client. The gap versus a real kill-session: a daemon
+    /// window dropped by `max_tabs` overflow (UX.md M14) is unknown here
+    /// and would survive.
+    pub(crate) fn end_attached_mux_session(&mut self) {
+        let Some(transport) = self.tmux_state.transport.as_ref() else {
+            return; // the view already ended; there is nothing to kill
+        };
+        let mut failures = Vec::new();
+        let windows: Vec<crate::tmux::TmuxWindowId> = self
+            .tab_manager
+            .tabs()
+            .iter()
+            .filter_map(|t| self.tmux_state.tmux_sync.get_window(t.id))
+            .collect();
+        for window in windows {
+            match transport.send_command(&format!("kill-window -t @{window}")) {
+                Ok(_) => {
+                    log::info!("MUX: end session — kill-window @{window} sent");
+                }
+                Err(e) => {
+                    log::error!("MUX: end session — kill-window @{window} failed: {e}");
+                    failures.push(e.to_string());
+                }
+            }
+        }
+        if !failures.is_empty() {
+            self.show_toast(format!(
+                "par-mux: kill-window failed ({} windows) — {}",
+                failures.len(),
+                failures[0]
+            ));
+        }
+    }
+
     /// Push the current theme colors to the daemon — the theme-change hook
     /// (config propagation) and nothing else calls this; attach reports the
     /// colors inside [`attach_sequence`]. No-op without a transport.
@@ -2658,6 +2719,220 @@ pub(crate) mod tests {
                 .contains("re-shown"),
             "the re-show names what happened: {:?}",
             ws.overlay_state.toast_message
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// UX.md M1: closing the LAST attached tab no longer kills the
+    /// session silently — the close gates on the Detach / End session /
+    /// Cancel dialog, and Detach leaves the session listed by a fresh
+    /// `list-sessions` client (the criterion's survival half).
+    #[test]
+    fn last_tab_close_gates_on_dialog_and_detach_keeps_the_session() {
+        let path = socket_path("last-tab");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(&transport, "lasttab", Some((80, 24)), &Default::default())
+            .expect("attach");
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("lasttab".to_string());
+        ws.tmux_state.mux_session_id = Some(match &attach.outcome {
+            AttachOutcome::Created(s) | AttachOutcome::Attached(s) => s.id,
+        });
+        ws.tmux_state.tmux_sync.enable();
+
+        // A CREATED session reports its only window via the daemon's own
+        // %window-add push; pump until it became a tab with a mirror pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() >= 1 && !ws.tmux_state.tmux_pane_owners.is_empty() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created the tab: {} tabs, panes {:?}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // The close GATES: dialog up, tab intact, daemon window alive —
+        // the pre-M1 behavior (kill-window, session deleted by the
+        // daemon) is what this pins out of existence.
+        assert!(!ws.close_current_tab(), "waiting on the dialog");
+        assert!(
+            ws.overlay_ui.mux_last_tab_ui.is_visible(),
+            "the last-tab dialog must be showing"
+        );
+        assert_eq!(
+            ws.tab_manager.tab_count(),
+            1,
+            "the tab stays until a choice"
+        );
+        let windows = ws
+            .tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command("list-windows")
+            .expect("list-windows while gated");
+        assert!(
+            windows.iter().any(|l| l.contains('@')),
+            "the daemon window survived the gated close: {windows:?}"
+        );
+
+        // The dialog hides itself when it returns an action; mirror that
+        // ordering before dispatching the handler.
+        ws.overlay_ui.mux_last_tab_ui.hide();
+        ws.handle_mux_last_tab_action(crate::mux_last_tab_ui::MuxLastTabAction::Detach);
+        assert_eq!(ws.tab_manager.tab_count(), 0, "the mux view tore down");
+        assert!(ws.tmux_state.transport.is_none(), "the attach dropped");
+        let mut checker = MuxSessionClient::connect(&path).expect("checker client connects");
+        let sessions = checker.list_sessions().expect("list-sessions after detach");
+        assert!(
+            sessions.iter().any(|s| s.name == "lasttab"),
+            "detach leaves the session listed: {sessions:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// UX.md M1, second half: End session kills the session on the daemon
+    /// (a fresh `list-sessions` sees it gone and the view tears down via
+    /// the kill notifications), and a close that does NOT empty the
+    /// session — another mux tab still maps a window — never gates.
+    #[test]
+    fn last_tab_close_end_session_kills_it_and_multi_window_close_never_gates() {
+        let path = socket_path("end-session");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(&transport, "endsess", Some((80, 24)), &Default::default())
+            .expect("attach");
+        // A second window so the first close leaves another mux tab
+        // mapped; background layouts are not pushed on their own, so
+        // force the %layout-change broadcast per pane.
+        transport.send_command("new-window").expect("new-window");
+        std::thread::sleep(Duration::from_millis(50));
+        for pane in transport.client().list_panes().expect("list panes") {
+            transport
+                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
+                .expect("refresh-client");
+        }
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("endsess".to_string());
+        ws.tmux_state.mux_session_id = Some(match &attach.outcome {
+            AttachOutcome::Created(s) | AttachOutcome::Attached(s) => s.id,
+        });
+        ws.tmux_state.tmux_sync.enable();
+
+        // Two windows = two mux tabs.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() >= 2 && ws.tmux_state.tmux_pane_owners.len() >= 2 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created 2 tabs: {} tabs, panes {:?}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // Not the last attached tab: the close kills the window directly,
+        // no dialog.
+        assert!(!ws.close_current_tab());
+        assert!(
+            !ws.overlay_ui.mux_last_tab_ui.is_visible(),
+            "a close that leaves another mux tab must not gate"
+        );
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() == 1 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the killed window's tab never closed: {} tabs",
+                ws.tab_manager.tab_count()
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        let windows = ws
+            .tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command("list-windows")
+            .expect("list-windows after first close");
+        assert_eq!(
+            windows.iter().filter(|l| l.contains('@')).count(),
+            1,
+            "one daemon window left: {windows:?}"
+        );
+
+        // Now the survivor IS the last attached tab: the close gates.
+        assert!(!ws.close_current_tab());
+        assert!(ws.overlay_ui.mux_last_tab_ui.is_visible());
+
+        // End session: kill-session on the daemon, the broadcast
+        // notifications tear the view down, and a fresh client sees the
+        // session gone.
+        ws.overlay_ui.mux_last_tab_ui.hide();
+        ws.handle_mux_last_tab_action(crate::mux_last_tab_ui::MuxLastTabAction::EndSession);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tmux_state.transport.is_none() && ws.tab_manager.tab_count() == 0 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the view never tore down after kill-session: {} tabs, transport {}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.transport.is_some()
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        let mut checker = MuxSessionClient::connect(&path).expect("checker client connects");
+        let sessions = checker.list_sessions().expect("list-sessions after kill");
+        assert!(
+            sessions.iter().all(|s| s.name != "endsess"),
+            "end session removes it from the daemon: {sessions:?}"
         );
 
         let _ = std::fs::remove_file(&path);

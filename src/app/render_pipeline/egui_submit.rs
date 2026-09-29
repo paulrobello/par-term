@@ -493,6 +493,9 @@ impl WindowState {
                     // Show close confirmation dialog if visible
                     actions.close_confirm = self.overlay_ui.close_confirmation_ui.show(ctx);
 
+                    // Show par-mux last-tab close dialog if visible
+                    actions.mux_last_tab = self.overlay_ui.mux_last_tab_ui.show(ctx);
+
                     // Show quit confirmation dialog if visible
                     actions.quit_confirm = self.overlay_ui.quit_confirmation_ui.show(ctx);
 

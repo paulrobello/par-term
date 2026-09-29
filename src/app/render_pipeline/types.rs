@@ -9,6 +9,7 @@ use crate::clipboard_history_ui::ClipboardHistoryAction;
 use crate::close_confirmation_ui::CloseConfirmAction;
 use crate::command_history_ui::CommandHistoryAction;
 use crate::integrations_ui::IntegrationsResponse;
+use crate::mux_last_tab_ui::MuxLastTabAction;
 use crate::pane::{PaneId, SplitDirection};
 use crate::paste_special_ui::PasteSpecialAction;
 use crate::profile_drawer_ui::ProfileDrawerAction;
@@ -129,6 +130,7 @@ pub(super) struct PostRenderActions {
     pub(super) inspector: InspectorAction,
     pub(super) profile_drawer: ProfileDrawerAction,
     pub(super) close_confirm: CloseConfirmAction,
+    pub(super) mux_last_tab: MuxLastTabAction,
     pub(super) quit_confirm: QuitConfirmAction,
     pub(super) remote_install: RemoteShellInstallAction,
     pub(super) ssh_connect: SshConnectAction,
@@ -153,6 +155,7 @@ impl Default for PostRenderActions {
             inspector: InspectorAction::None,
             profile_drawer: ProfileDrawerAction::None,
             close_confirm: CloseConfirmAction::None,
+            mux_last_tab: MuxLastTabAction::None,
             quit_confirm: QuitConfirmAction::None,
             remote_install: RemoteShellInstallAction::None,
             ssh_connect: SshConnectAction::None,

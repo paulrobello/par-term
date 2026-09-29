@@ -32,6 +32,27 @@ impl WindowState {
         self.tmux_state.tmux_sync.get_window(tab_id)
     }
 
+    /// Whether closing the ACTIVE tab would end the attached par-mux
+    /// session (UX.md M1): the tab mirrors a daemon window and no other
+    /// tab maps to one, so the `kill-window` the close sends would empty
+    /// the session and the daemon deletes it. The count is client-side:
+    /// hidden mux tabs count (their windows survive through them), and a
+    /// daemon window dropped by `max_tabs` overflow (UX.md M14) can only
+    /// make this a false positive — an extra dialog, never a silent kill.
+    pub(crate) fn closing_active_tab_ends_mux_session(&self) -> bool {
+        let Some(tab_id) = self.tab_manager.active_tab_id() else {
+            return false;
+        };
+        if self.mux_window_for_tab(tab_id).is_none() {
+            return false;
+        }
+        !self
+            .tab_manager
+            .tabs()
+            .iter()
+            .any(|t| t.id != tab_id && self.mux_window_for_tab(t.id).is_some())
+    }
+
     /// Create a new tab
     pub fn new_tab(&mut self) {
         // Check max tabs limit
@@ -247,6 +268,23 @@ impl WindowState {
         log::info!(
             "[CLOSE_TAB] No running job detected or confirmation disabled, closing immediately"
         );
+
+        // UX.md M1: closing the LAST attached tab would end the whole
+        // session — kill-window on the session's only window empties it
+        // and the daemon deletes the session. Detach / End session /
+        // Cancel is the user's call, not the close key's.
+        if self.closing_active_tab_ends_mux_session() {
+            let session = self
+                .tmux_state
+                .tmux_session_name
+                .clone()
+                .unwrap_or_else(|| "session".to_string());
+            self.overlay_ui.mux_last_tab_ui.show_for_session(&session);
+            self.focus_state.needs_redraw = true;
+            self.request_redraw();
+            return false; // the dialog decides
+        }
+
         self.close_current_tab_immediately()
     }
 
