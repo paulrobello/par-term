@@ -684,6 +684,8 @@ impl WindowState {
             }
             log::warn!("par-mux detach requested but no transport is attached");
             false
+        } else if action == "mux-restart-pane" {
+            self.palette_restart_mux_pane()
         } else {
             log::warn!("Unknown keybinding action: {}", action);
             false

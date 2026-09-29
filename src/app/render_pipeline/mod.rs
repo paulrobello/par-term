@@ -15,6 +15,8 @@
 mod egui_dialogs;
 mod egui_overlays;
 mod egui_submit;
+#[cfg(feature = "mux")]
+pub(crate) mod exited_pane_overlay;
 mod frame_setup;
 mod gather_data;
 mod gather_phases;

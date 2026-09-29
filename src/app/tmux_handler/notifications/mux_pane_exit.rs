@@ -1,0 +1,422 @@
+//! par-mux held-pane lifecycle: `%pane-exited %N [code]` marks a daemon
+//! pane whose process exited (the daemon HOLDS it — remain-on-exit — with
+//! its frozen screen), `%pane-respawned %N` clears that state after a
+//! `respawn-pane`. The exited-pane overlay and the restart key read
+//! `TmuxState::mux_exited_panes`; restart sends `respawn-pane`.
+//!
+//! Both pushes are consumed string-level so the code compiles against a
+//! core that predates them: the published pin parses them as
+//! `Unknown { line }`, a newer core as named variants that `emit`
+//! serializes back to the same wire line. An older daemon never sends
+//! either, so the feature is dormant there.
+
+use crate::app::window_state::WindowState;
+use par_term_emu_core_rust::tmux_control::TmuxNotification as CoreNotification;
+use par_term_tmux::TmuxPaneId;
+
+/// One held-pane lifecycle push, parsed from its wire line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PaneLifecycle {
+    /// The pane's process exited; `code` is `None` for a signal death or
+    /// a code the daemon could not read.
+    Exited { pane: TmuxPaneId, code: Option<i32> },
+    /// The pane's process was restarted in place by `respawn-pane`.
+    Respawned { pane: TmuxPaneId },
+}
+
+/// Parse a `%pane-exited %N [code]` / `%pane-respawned %N` wire line.
+/// Anything else (including a malformed pane id) is `None`.
+pub(crate) fn parse_pane_lifecycle_line(line: &str) -> Option<PaneLifecycle> {
+    let mut fields = line.split_whitespace();
+    let kind = fields.next()?;
+    let pane = fields.next()?.strip_prefix('%')?.parse().ok()?;
+    match kind {
+        "%pane-exited" => Some(PaneLifecycle::Exited {
+            pane,
+            code: fields.next().and_then(|c| c.parse().ok()),
+        }),
+        "%pane-respawned" => Some(PaneLifecycle::Respawned { pane }),
+        _ => None,
+    }
+}
+
+/// The lifecycle push a core notification carries, if any: the raw line
+/// of an `Unknown` (published pin), else the named variant re-serialized
+/// by the core's own emitter (newer core). `emit` yields an empty string
+/// for every variant it does not serialize, which parses to `None`.
+pub(crate) fn pane_lifecycle_of(notification: &CoreNotification) -> Option<PaneLifecycle> {
+    if let CoreNotification::Unknown { line } = notification {
+        return parse_pane_lifecycle_line(line);
+    }
+    match notification.notification_type() {
+        "pane-exited" | "pane-respawned" => {
+            parse_pane_lifecycle_line(&par_term_emu_core_rust::mux::emit(notification))
+        }
+        _ => None,
+    }
+}
+
+/// The `respawn-pane` command for a restart: a held (dead) pane restarts
+/// with no flag; a live pane needs `-k` or the daemon refuses it as
+/// "still running".
+pub(crate) fn respawn_command(pane: TmuxPaneId, dead: bool) -> String {
+    if dead {
+        format!("respawn-pane -t %{pane}")
+    } else {
+        format!("respawn-pane -k -t %{pane}")
+    }
+}
+
+impl WindowState {
+    /// Apply lifecycle pushes. Runs before the output group of the same
+    /// drain: a respawned pane's mirror reset must land before the new
+    /// process's first output, or the reset would wipe it.
+    pub(super) fn apply_pane_lifecycle(&mut self, events: Vec<PaneLifecycle>) -> bool {
+        let mut needs_redraw = false;
+        for event in events {
+            match event {
+                PaneLifecycle::Exited { pane, code } => {
+                    log::info!("MUX: pane %{pane} exited (code {code:?}); held daemon-side");
+                    self.tmux_state.mux_exited_panes.insert(pane, code);
+                }
+                PaneLifecycle::Respawned { pane } => {
+                    log::info!("MUX: pane %{pane} respawned");
+                    self.tmux_state.mux_exited_panes.remove(&pane);
+                    self.reset_respawned_mux_mirror(pane);
+                }
+            }
+            needs_redraw = true;
+        }
+        needs_redraw
+    }
+
+    /// A respawned pane runs a fresh daemon terminal, but the native
+    /// mirror still holds the dead process's state (alt screen, cursor and
+    /// keypad modes, mouse reporting). RIS resets it, then the daemon's
+    /// current screen is re-seeded: output the new process wrote before
+    /// this push arrived was already applied to the old state and is lost
+    /// to the reset, so the seed is what restores it.
+    fn reset_respawned_mux_mirror(&mut self, pane: TmuxPaneId) {
+        if let Some((tab_id, native)) = self.tmux_state.tmux_pane_owner(pane)
+            && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+            && let Some(pm) = tab.pane_manager_mut()
+            && let Some(pane_obj) = pm.get_pane_mut(native)
+        {
+            // blocking_read, not try_read: a skipped reset would leave the
+            // dead TUI's modes on the new shell's screen for good.
+            pane_obj
+                .terminal
+                .blocking_read()
+                .process_mux_output(b"\x1bc");
+        }
+        let Some(transport) = &self.tmux_state.transport else {
+            return;
+        };
+        match transport.send_command(&format!("refresh-client -t %{pane}")) {
+            Ok(reply) => {
+                let mut bytes = b"\x1b[H\x1b[2J".to_vec();
+                bytes.extend_from_slice(reply.join("\n").as_bytes());
+                self.tmux_state.mux_screen_seeds.insert(pane, bytes);
+                self.deliver_pending_mux_seed(pane);
+            }
+            Err(e) => log::warn!("par-mux: re-seed of respawned pane %{pane} failed: {e}"),
+        }
+    }
+
+    /// Restart a daemon pane's process in place via `respawn-pane`. The
+    /// exited chrome is NOT cleared here — only the `%pane-respawned`
+    /// push clears it, so a rejected restart leaves the overlay truthful.
+    /// Returns whether a command was sent.
+    pub(crate) fn restart_mux_pane(&mut self, pane: TmuxPaneId) -> bool {
+        let Some(transport) = &self.tmux_state.transport else {
+            return false;
+        };
+        let dead = self.tmux_state.mux_exited_panes.contains_key(&pane);
+        let cmd = respawn_command(pane, dead);
+        let result = transport.send_command(&cmd);
+        // Success is an empty body; an %error block (unknown command on a
+        // pre-respawn daemon, "still running", a bad target) arrives as an
+        // Ok body — non-empty IS the failure signal.
+        match result {
+            Ok(body) if body.is_empty() => {
+                log::info!("MUX: sent {cmd}");
+                true
+            }
+            Ok(body) => {
+                let text = body.join("\n");
+                log::error!("par-mux {cmd} rejected: {text}");
+                self.show_toast(format!("par-mux: restart failed — {text}"));
+                true
+            }
+            Err(e) => {
+                log::error!("par-mux {cmd} failed: {e}");
+                self.show_toast(format!("par-mux: restart failed — {e}"));
+                true
+            }
+        }
+    }
+
+    /// Restart the focused daemon pane (palette row, Enter on a held pane).
+    /// False when no mux pane is focused.
+    pub(crate) fn restart_focused_mux_pane(&mut self) -> bool {
+        match self.focused_mux_pane_from_native() {
+            Some(pane) => self.restart_mux_pane(pane),
+            None => false,
+        }
+    }
+
+    /// Key routing for a focused HELD daemon pane: Enter restarts it and
+    /// every other key is swallowed (the daemon's pane has no process to
+    /// receive it) — the same contract as the local `RestartWithPrompt`
+    /// prompt. `None` when the focused pane is not a held mux pane, so the
+    /// caller routes the key normally.
+    pub(crate) fn handle_key_for_exited_mux_pane(&mut self, bytes: &[u8]) -> Option<()> {
+        let pane = self.focused_mux_pane_from_native()?;
+        if !self.tmux_state.mux_exited_panes.contains_key(&pane) {
+            return None;
+        }
+        if matches!(bytes, b"\r" | b"\n" | b"\r\n") {
+            self.restart_mux_pane(pane);
+        }
+        Some(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unknown(line: &str) -> CoreNotification {
+        CoreNotification::Unknown {
+            line: line.to_string(),
+        }
+    }
+
+    #[test]
+    fn parses_exited_with_and_without_a_code_and_respawned() {
+        assert_eq!(
+            parse_pane_lifecycle_line("%pane-exited %3 7"),
+            Some(PaneLifecycle::Exited {
+                pane: 3,
+                code: Some(7)
+            })
+        );
+        assert_eq!(
+            parse_pane_lifecycle_line("%pane-exited %12\n"),
+            Some(PaneLifecycle::Exited {
+                pane: 12,
+                code: None
+            })
+        );
+        assert_eq!(
+            parse_pane_lifecycle_line("%pane-exited %1 -1"),
+            Some(PaneLifecycle::Exited {
+                pane: 1,
+                code: Some(-1)
+            })
+        );
+        assert_eq!(
+            parse_pane_lifecycle_line("%pane-respawned %4"),
+            Some(PaneLifecycle::Respawned { pane: 4 })
+        );
+    }
+
+    #[test]
+    fn rejects_other_lines_and_malformed_ids() {
+        for line in [
+            "",
+            "%pane-exited",
+            "%pane-exited 3 0",
+            "%pane-exited %x 0",
+            "%pane-respawned",
+            "%window-add @1",
+            "%pane-exitedx %1",
+        ] {
+            assert_eq!(parse_pane_lifecycle_line(line), None, "{line:?}");
+        }
+    }
+
+    /// The published pin delivers both pushes as `Unknown { line }`.
+    #[test]
+    fn unknown_notifications_carry_the_lifecycle_pushes() {
+        assert_eq!(
+            pane_lifecycle_of(&unknown("%pane-exited %0 42")),
+            Some(PaneLifecycle::Exited {
+                pane: 0,
+                code: Some(42)
+            })
+        );
+        assert_eq!(
+            pane_lifecycle_of(&unknown("%pane-respawned %0")),
+            Some(PaneLifecycle::Respawned { pane: 0 })
+        );
+        assert_eq!(pane_lifecycle_of(&unknown("%something-else %0")), None);
+        assert_eq!(pane_lifecycle_of(&CoreNotification::SessionsChanged), None);
+    }
+
+    #[test]
+    fn respawn_uses_k_only_for_a_live_pane() {
+        assert_eq!(respawn_command(5, true), "respawn-pane -t %5");
+        assert_eq!(respawn_command(5, false), "respawn-pane -k -t %5");
+    }
+
+    /// Pump the drain until `done` holds, re-pushing the client size so a
+    /// layout arrives even when the daemon is otherwise quiet.
+    fn pump_until(
+        ws: &mut crate::app::window_state::WindowState,
+        what: &str,
+        timeout: std::time::Duration,
+        done: impl Fn(&crate::app::window_state::WindowState) -> bool,
+    ) {
+        let deadline = std::time::Instant::now() + timeout;
+        while !done(ws) {
+            assert!(std::time::Instant::now() < deadline, "timed out: {what}");
+            ws.check_mux_notifications();
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    /// Criteria 1+2 end to end against the daemon surface that HOLDS an
+    /// exited pane (core fea7bdc+): the shell exits with a known code, the
+    /// `%pane-exited` push lands in the held state with that code while
+    /// the pane stays mapped (the frozen screen is kept), the overlay
+    /// gather reports "Process exited (code 7)", Enter sends `respawn-pane`
+    /// without `-k`, `%pane-respawned` clears the chrome, and a restart of
+    /// the now-live pane needs (and uses) `-k`.
+    #[test]
+    #[ignore = "needs a fea7bdc+ core: scripts/with-local-core.sh cargo test --lib -- --ignored mux_pane_exit"]
+    fn exited_pane_shows_code_and_restart_respawns_it() {
+        use super::super::mux::MuxAttachPending;
+        use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
+        use std::time::Duration;
+
+        let path = socket_path("pane-exit");
+        spawn_daemon(&path);
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "exitme".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        ws.handle_tmux_window_add(0);
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the layout consumer never mapped %0"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let send = |ws: &crate::app::window_state::WindowState, cmd: &str| {
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_command(cmd)
+                .unwrap_or_else(|e| panic!("{cmd}: {e}"))
+        };
+
+        // The shell exits with a known code.
+        send(&ws, "send-keys -t %0 -l 'exit 7'");
+        send(&ws, "send-keys -t %0 Enter");
+        pump_until(
+            &mut ws,
+            "%pane-exited for %0",
+            Duration::from_secs(30),
+            |ws| ws.tmux_state.mux_exited_panes.contains_key(&0),
+        );
+        assert_eq!(
+            ws.tmux_state.mux_exited_panes.get(&0),
+            Some(&Some(7)),
+            "the held state carries the daemon-reported exit code"
+        );
+        // HELD, not removed: the daemon keeps the pane and the client keeps
+        // its mapping (the frozen screen stays under the overlay).
+        assert!(ws.tmux_state.tmux_pane_owners.contains_key(&0));
+        let panes = send(&ws, "list-panes");
+        assert!(
+            panes.iter().any(|l| l.contains("%0")),
+            "the daemon holds the dead pane: {panes:?}"
+        );
+        let banners = crate::app::render_pipeline::exited_pane_overlay::gather_exited_pane_banners(
+            &ws.tmux_state,
+            ws.tab_manager.active_tab(),
+            1.0,
+        );
+        assert_eq!(banners.len(), 1, "one banner for the held pane");
+        assert_eq!(banners[0].tmux_pane, 0);
+        assert_eq!(
+            crate::app::render_pipeline::exited_pane_overlay::exited_label(banners[0].code),
+            "Process exited (code 7)"
+        );
+
+        // Clear the attach toast so a restart rejection toast is visible.
+        ws.overlay_state.toast_message = None;
+
+        // A non-Enter key on the held pane is swallowed, not routed.
+        assert_eq!(ws.handle_key_for_exited_mux_pane(b"x"), Some(()));
+        assert!(ws.tmux_state.mux_exited_panes.contains_key(&0));
+
+        // Enter restarts: respawn-pane WITHOUT -k (the pane is dead). The
+        // chrome clears only on the %pane-respawned push.
+        assert_eq!(ws.handle_key_for_exited_mux_pane(b"\r"), Some(()));
+        assert_eq!(
+            ws.overlay_state.toast_message, None,
+            "the dead-pane respawn was accepted"
+        );
+        pump_until(
+            &mut ws,
+            "%pane-respawned clears the chrome",
+            Duration::from_secs(15),
+            |ws| ws.tmux_state.mux_exited_panes.is_empty(),
+        );
+        assert!(
+            ws.tmux_state.tmux_pane_owners.contains_key(&0),
+            "the respawned pane keeps its id and mapping"
+        );
+        assert_eq!(
+            ws.handle_key_for_exited_mux_pane(b"\r"),
+            None,
+            "a live pane's keys route normally again"
+        );
+
+        // A live pane refuses a bare respawn (negative control for -k)...
+        let refused = send(&ws, "respawn-pane -t %0");
+        assert!(
+            !refused.is_empty(),
+            "a running pane must refuse respawn without -k"
+        );
+        // ...and the restart path uses -k for it.
+        assert!(ws.restart_focused_mux_pane());
+        assert_eq!(
+            ws.overlay_state.toast_message, None,
+            "the live-pane restart (-k) was accepted"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn exited_then_respawned_sets_and_clears_the_held_state() {
+        let mut ws = super::super::mux::tests::manners_state();
+        assert!(ws.apply_pane_lifecycle(vec![PaneLifecycle::Exited {
+            pane: 2,
+            code: Some(3)
+        }]));
+        assert_eq!(ws.tmux_state.mux_exited_panes.get(&2), Some(&Some(3)));
+        assert!(ws.apply_pane_lifecycle(vec![PaneLifecycle::Respawned { pane: 2 }]));
+        assert!(ws.tmux_state.mux_exited_panes.is_empty());
+    }
+}

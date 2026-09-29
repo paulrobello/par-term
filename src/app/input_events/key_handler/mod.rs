@@ -590,6 +590,14 @@ impl WindowState {
                 return;
             }
 
+            // A focused par-mux pane whose process exited is HELD by the
+            // daemon: Enter restarts it (respawn-pane), other keys have no
+            // process to reach — the mux twin of RestartWithPrompt below.
+            #[cfg(feature = "mux")]
+            if self.handle_key_for_exited_mux_pane(&bytes).is_some() {
+                return;
+            }
+
             // Try to send via tmux if connected (check before borrowing tab)
             if self.send_input_via_tmux(&bytes) {
                 // Still need to reset anti-idle timer

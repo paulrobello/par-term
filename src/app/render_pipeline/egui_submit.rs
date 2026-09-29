@@ -151,6 +151,13 @@ impl WindowState {
             .context_menu_tab_id()
             .and_then(|tid| self.tab_manager.get_tab(tid))
             .is_some_and(|tab: &crate::tab::Tab| tab.has_multiple_panes());
+        #[cfg(feature = "mux")]
+        let context_demote_refusal = self
+            .tab_bar_ui
+            .context_menu_tab_id()
+            .and_then(|tid| self.mux_demote_refusal(tid, None));
+        #[cfg(not(feature = "mux"))]
+        let context_demote_refusal = None;
 
         // Collect pane bounds for identify overlay (before egui borrow)
         let pane_identify_bounds: Vec<(usize, crate::pane::PaneBounds)> =
@@ -284,6 +291,21 @@ impl WindowState {
             )
         });
 
+        // par-mux held panes (`%pane-exited`) in the active tab: the
+        // exited banner's geometry, captured before the egui borrow; a
+        // Restart click is applied after the closure.
+        #[cfg(feature = "mux")]
+        let exited_pane_banners = super::exited_pane_overlay::gather_exited_pane_banners(
+            &self.tmux_state,
+            self.tab_manager.active_tab(),
+            self.window
+                .as_ref()
+                .map(|w| w.scale_factor() as f32)
+                .unwrap_or(1.0),
+        );
+        #[cfg(feature = "mux")]
+        let mut exited_pane_restart: Option<par_term_tmux::TmuxPaneId> = None;
+
         let result = if let Some(window) = self.window.as_ref() {
             if let (Some(egui_ctx), Some(egui_state)) = (&self.egui.ctx, &mut self.egui.state) {
                 let mut raw_input = egui_state.take_egui_input(window);
@@ -379,6 +401,7 @@ impl WindowState {
                         move_tab_count,
                         move_candidates.clone(),
                         context_tab_has_multiple_panes,
+                        context_demote_refusal,
                     );
                     actions.tab_action = self.tab_bar_ui.render(
                         ctx,
@@ -558,6 +581,16 @@ impl WindowState {
                     // Pane identify overlay (large index numbers centered on each pane)
                     egui_overlays::render_pane_identify_overlay(ctx, &pane_identify_bounds);
 
+                    // par-mux held-pane banners over the frozen screens.
+                    #[cfg(feature = "mux")]
+                    {
+                        exited_pane_restart =
+                            super::exited_pane_overlay::render_exited_pane_banners(
+                                ctx,
+                                &exited_pane_banners,
+                            );
+                    }
+
                     // Plugin overlays (overlay kind) sit above terminal
                     // content but below modal-mode chrome (mode-stack
                     // contract, docs/plans/2026-09-24-overlay-plugin-design.md).
@@ -652,6 +685,11 @@ impl WindowState {
         // ended here).
         if let Some((pane_id, name)) = pane_rename_submit {
             self.rename_pane(pane_id, &name);
+        }
+
+        #[cfg(feature = "mux")]
+        if let Some(pane) = exited_pane_restart {
+            self.restart_mux_pane(pane);
         }
 
         // Apply the interactions the interactive overlays collected: focus

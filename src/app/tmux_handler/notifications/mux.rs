@@ -156,12 +156,22 @@ impl TmuxState {
             Some(name) => format!("Detach par-mux Session '{name}' (keeps running)"),
             None => "Detach par-mux Session (keeps running)".to_string(),
         };
-        vec![crate::command_palette::catalog::PaletteEntry {
-            action_id: "mux-detach".to_string(),
-            label,
-            chord: None,
-            priority: 0,
-        }]
+        vec![
+            crate::command_palette::catalog::PaletteEntry {
+                action_id: "mux-detach".to_string(),
+                label,
+                chord: None,
+                priority: 0,
+            },
+            // Restart the focused daemon pane's process in place
+            // (`respawn-pane`; `-k` when it is still running).
+            crate::command_palette::catalog::PaletteEntry {
+                action_id: "mux-restart-pane".to_string(),
+                label: "Restart Pane Process (par-mux)".to_string(),
+                chord: None,
+                priority: 0,
+            },
+        ]
     }
 }
 
@@ -405,6 +415,7 @@ impl WindowState {
         self.tmux_state.mux_focused_pane = None;
         self.tmux_state.mux_screen_seeds.clear();
         self.tmux_state.mux_pane_titles.clear();
+        self.tmux_state.mux_exited_panes.clear();
         self.tmux_state.agent_roster.clear();
         self.handle_tmux_session_ended();
         // Overwrite the shared cleanup's "tmux: Session ended" toast: the
@@ -487,6 +498,7 @@ impl WindowState {
         self.tmux_state.mux_focused_pane = None;
         self.tmux_state.mux_screen_seeds.clear();
         self.tmux_state.mux_pane_titles.clear();
+        self.tmux_state.mux_exited_panes.clear();
         self.tmux_state.agent_roster.clear();
         self.handle_tmux_session_ended();
         self.show_toast("par-mux: session ended on the daemon");
@@ -2124,8 +2136,9 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_session_name = Some("rows".to_string());
 
         let rows = ws.tmux_state.mux_palette_rows();
-        assert_eq!(rows.len(), 1, "exactly one detach row while attached");
+        assert_eq!(rows.len(), 2, "the detach and restart rows while attached");
         assert_eq!(rows[0].action_id, "mux-detach");
+        assert_eq!(rows[1].action_id, "mux-restart-pane");
         assert!(
             rows[0].label.contains("rows"),
             "the label names the attached session: {}",
@@ -5313,7 +5326,7 @@ out.flush()
     /// A `WindowState` with no window, renderer, or tabs — the same seam
     /// `dispatch_tests::test_window_state` uses — so the manners test can
     /// hold the real `apply_agent_pushes` receiver without a live daemon.
-    fn manners_state() -> crate::app::window_state::WindowState {
+    pub(crate) fn manners_state() -> crate::app::window_state::WindowState {
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()

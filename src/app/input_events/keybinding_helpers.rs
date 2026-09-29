@@ -11,6 +11,18 @@ use crate::app::window_state::WindowState;
 use crate::config::resolve_shader_config;
 
 impl WindowState {
+    /// The `mux-restart-pane` palette row: restart the focused daemon
+    /// pane's process. Offered only while a transport is attached; with no
+    /// daemon pane focused (a local tab) there is nothing to respawn.
+    pub(crate) fn palette_restart_mux_pane(&mut self) -> bool {
+        #[cfg(feature = "mux")]
+        if self.restart_focused_mux_pane() {
+            return true;
+        }
+        log::warn!("par-mux pane restart requested but no daemon pane is focused");
+        false
+    }
+
     /// Show a toast notification with the given message.
     ///
     /// The toast will be displayed for 2 seconds and then automatically hidden.

@@ -40,6 +40,10 @@ mod mux_attach;
 #[cfg(feature = "mux")]
 mod mux_drain;
 #[cfg(feature = "mux")]
+pub(crate) mod mux_pane_exit;
+#[cfg(feature = "mux")]
+mod mux_pane_moves;
+#[cfg(feature = "mux")]
 mod mux_panes;
 #[cfg(feature = "mux")]
 mod mux_transport;

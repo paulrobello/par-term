@@ -192,6 +192,18 @@ impl WindowState {
                 )
             });
 
+        // `%pane-exited` / `%pane-respawned` (held-pane lifecycle): the
+        // published pin parses them as `Unknown`, a newer core as named
+        // variants — both are ParserBridge drops, so partition them out
+        // string-level here (see `mux_pane_exit`).
+        let (lifecycle, core_notifications): (Vec<_>, Vec<_>) = core_notifications
+            .into_iter()
+            .partition(|n| super::mux_pane_exit::pane_lifecycle_of(n).is_some());
+        let lifecycle: Vec<_> = lifecycle
+            .iter()
+            .filter_map(super::mux_pane_exit::pane_lifecycle_of)
+            .collect();
+
         // `%sessions-changed` is also a ParserBridge drop (a named arm there
         // cannot compile against the published pin): the session SET moved
         // — a session was created or destroyed anywhere on the daemon. The
@@ -229,6 +241,7 @@ impl WindowState {
         {
             self.tmux_state.agent_roster.clear();
             self.tmux_state.mux_pane_titles.clear();
+            self.tmux_state.mux_exited_panes.clear();
         }
 
         crate::debug_info!("MUX", "Processing {} notifications", notifications.len());
@@ -305,11 +318,35 @@ impl WindowState {
         }
 
         // --- TmuxSync dispatch: group 1 — session/window structure ---
+        let added_windows: Vec<_> = session_sync
+            .iter()
+            .filter_map(|n| match n {
+                TmuxNotification::WindowAdd(id) => Some(*id),
+                _ => None,
+            })
+            .collect();
+        // Grouped dispatch runs a batch's closes before its layouts, so a
+        // layout queued ahead of its window's close would otherwise reach
+        // the unmapped-window fallback below and resurrect the closed tab.
+        let closed_windows: std::collections::HashSet<_> = session_sync
+            .iter()
+            .filter_map(|n| match n {
+                TmuxNotification::WindowClose(id) => Some(*id),
+                _ => None,
+            })
+            .collect();
         let session_actions = self
             .tmux_state
             .tmux_sync
             .process_notifications(&session_sync);
         needs_redraw |= self.process_sync_actions(session_actions);
+        // A window added mid-session gets no layout broadcast of its own:
+        // pump one so its panes map (see `mux_pane_moves`).
+        for window_id in added_windows {
+            if self.tmux_state.tmux_sync.get_tab(window_id).is_some() {
+                self.adopt_new_mux_window(window_id);
+            }
+        }
 
         // --- TmuxSync dispatch: group 2 — layout changes ---
         let layout_actions = self
@@ -322,6 +359,7 @@ impl WindowState {
         for notification in &layout_sync {
             if let TmuxNotification::LayoutChange { window_id, layout } = notification
                 && self.tmux_state.tmux_sync.get_tab(*window_id).is_none()
+                && !closed_windows.contains(window_id)
             {
                 self.handle_tmux_layout_change(*window_id, layout);
                 needs_redraw = true;
@@ -334,6 +372,11 @@ impl WindowState {
             self.tmux_state.agent_roster.mark_seen(pane_id);
             self.handle_tmux_pane_focus_changed(pane_id);
         }
+
+        // Held-pane lifecycle after the layout groups (a respawned pane is
+        // mapped) and before output: the mirror reset of a respawn must
+        // precede the new process's output in this same batch.
+        needs_redraw |= self.apply_pane_lifecycle(lifecycle);
 
         // --- TmuxSync dispatch: group 3 — pane output ---
         let output_actions = self

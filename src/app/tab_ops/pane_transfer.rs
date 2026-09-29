@@ -35,6 +35,11 @@ impl PaneTransferState {
 impl WindowState {
     /// Promote the focused pane in the current tab to its own tab.
     pub fn promote_pane_to_tab(&mut self) {
+        // A daemon pane moves daemon-side (break-pane); see mux_pane_moves.
+        #[cfg(feature = "mux")]
+        if self.promote_mux_pane_to_tab() {
+            return;
+        }
         let source_tab_id = match self.tab_manager.active_tab_id() {
             Some(id) => id,
             None => return,
@@ -157,6 +162,11 @@ impl WindowState {
             return;
         }
         if let Some(tab_id) = self.tab_manager.active_tab_id() {
+            #[cfg(feature = "mux")]
+            if let Some(reason) = self.mux_demote_refusal(tab_id, None) {
+                self.show_toast(reason);
+                return;
+            }
             self.pane_transfer_state = PaneTransferState::DemotePickTab {
                 source_tab_id: tab_id,
             };
@@ -183,6 +193,11 @@ impl WindowState {
         target_pane_id: PaneId,
         direction: SplitDirection,
     ) {
+        #[cfg(feature = "mux")]
+        if self.demote_mux_tab(source_tab_id, target_tab_id, target_pane_id, direction) {
+            self.pane_transfer_state = PaneTransferState::Idle;
+            return;
+        }
         // Check max_panes on target tab
         let config = self.config.load();
         if config.panes.max_panes > 0 {

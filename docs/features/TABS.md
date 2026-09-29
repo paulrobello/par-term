@@ -233,6 +233,7 @@ The focused pane in the current tab is extracted and wrapped in a new tab. The n
 - If the source tab has multiple panes, the focused pane is extracted and the remaining panes stay in the source tab
 - If the source tab has a single pane, the new tab is created and the source tab is removed (equivalent to repositioning the tab)
 - All processes in the promoted pane continue running uninterrupted
+- In a par-mux tab the pane moves daemon-side into a new daemon window (`break-pane`); see [par-mux](MUX.md#working-in-a-mux-pane)
 
 ### Demote Tab to Pane
 
@@ -253,6 +254,7 @@ Press **Escape** or right-click at any step to cancel.
 - The source tab is removed after the merge
 - All `is_active` flags on transplanted panes are updated to match the target tab's state
 - The merge is rejected if it would exceed the configured `max_panes` limit
+- For par-mux tabs only a single-pane mux tab can be demoted, into another mux tab (`join-pane`); a split mux tab and mux/local mixes are refused (see [par-mux](MUX.md#working-in-a-mux-pane))
 
 ## Selecting a Pane by Letter
 

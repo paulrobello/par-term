@@ -263,13 +263,21 @@ impl TabBarUI {
                         });
 
                         // "Demote Tab to Pane" — only when there are other tabs to receive it
+                        // — and never for a par-mux tab `join-pane` cannot move.
                         let has_other_tabs = self.move_source_tab_count >= 2;
-                        ui.add_enabled_ui(has_other_tabs, |ui| {
-                            if menu_item(ui, "Demote Tab to Pane") {
-                                action = TabBarAction::DemoteTabToPane(tab_id);
-                                close_menu = true;
-                            }
-                        });
+                        let refusal = self.demote_refusal;
+                        let response = ui.add_enabled_ui(
+                            has_other_tabs && refusal.is_none(),
+                            |ui| {
+                                if menu_item(ui, "Demote Tab to Pane") {
+                                    action = TabBarAction::DemoteTabToPane(tab_id);
+                                    close_menu = true;
+                                }
+                            },
+                        );
+                        if let Some(reason) = refusal {
+                            response.response.on_disabled_hover_text(reason);
+                        }
 
                         // Tab Color section
                         ui.horizontal(|ui| {

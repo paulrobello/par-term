@@ -243,6 +243,30 @@ impl WindowState {
             );
         }
 
+        // A pane this layout lists that another tab still owns MOVED here
+        // (join-pane / move-pane). When the destination's layout arrives
+        // before the source's, the source tab's own layout no longer counts
+        // the pane as its own (the owner map moved it), so its native
+        // mirror would linger there as an orphan — drop it now.
+        let mut moved_in = Vec::new();
+        for pane in pane_ids {
+            if let Some((owner, native)) = self.tmux_state.tmux_pane_owner(*pane)
+                && owner != tab_id
+            {
+                moved_in.push(*pane);
+                if let Some(pm) = self
+                    .tab_manager
+                    .get_tab_mut(owner)
+                    .and_then(|t| t.pane_manager_mut())
+                    && pm.pane_count() > 1
+                {
+                    pm.close_pane(native);
+                }
+                self.tmux_state.remove_tmux_pane_mapping(*pane);
+                crate::debug_info!("TMUX", "%{pane} moved from tab {owner} to tab {tab_id}");
+            }
+        }
+
         // Compute set deltas between existing and new tmux pane IDs —
         // scoped to this tab: another daemon window's panes are not
         // "existing" here, or its layout update would be read as a full
@@ -250,6 +274,13 @@ impl WindowState {
         let existing_tmux_ids: std::collections::HashSet<_> =
             self.tmux_state.tab_tmux_pane_ids(tab_id);
         let new_tmux_ids: std::collections::HashSet<_> = pane_ids.iter().copied().collect();
+
+        // The moved pane's new mirror in this tab starts blank: re-seed it
+        // from the daemon's screen.
+        #[cfg(feature = "mux")]
+        self.queue_mux_pane_seeds(&moved_in);
+        #[cfg(not(feature = "mux"))]
+        let _ = moved_in;
 
         if existing_tmux_ids == new_tmux_ids && !existing_tmux_ids.is_empty() {
             // Same panes - preserve terminals but update layout structure

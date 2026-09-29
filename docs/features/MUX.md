@@ -89,6 +89,9 @@ While attached, the pane is daemon-driven:
 - Input goes to the daemon's **focused** pane; splits, divider drags, and pane closes are routed **daemon-side** so the layout stays negotiated with the session, not just local.
 - Paste is routed daemon-side, mouse reports reach mouse-aware TUIs (htop, vim with mouse support), and resizes push to the daemon.
 - The scrollbar draws in a reserved strip, so pane content never renders under it.
+- **Exited panes are held, not closed.** When a pane's process exits, the daemon keeps the pane with its frozen screen, and par-term shows a **Process exited (code N)** banner over it (no code for a signal death). Press **Enter** in the pane, click **Restart** on the banner, or pick **Restart Pane Process (par-mux)** in the command palette to run it again in place (`respawn-pane`; on a pane whose process is still running, the palette row restarts it with `-k`). Other keys are ignored while the pane is held. Close a held pane like any other. A session whose panes have all exited keeps its windows, so it is saved and restored like a live one, and its panes come back as fresh shells. A daemon older than the held-pane surface still closes the pane on exit.
+- **Promote Pane to Tab** moves the focused pane into its own daemon window (`break-pane`), and **Demote Tab to Pane** joins a single-pane mux tab's pane into another mux tab (`join-pane`), so both keep the pane's process and daemon link. Demote is refused, and greyed out in the tab menu with the reason on hover, for a mux tab with several panes, and between a mux tab and a local tab.
+- Moves made elsewhere (the `par-mux` CLI, another client) are mirrored the same way: a window that appears gets its tab and panes, and a pane that moves between windows follows into the right tab with its screen.
 
 ## Pane environment
 

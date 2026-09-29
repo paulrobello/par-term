@@ -93,6 +93,14 @@ pub(crate) struct TmuxState {
     /// user-named; an OSC-sourced title is just the initial title.
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) mux_pane_titles: std::collections::HashMap<TmuxPaneId, (String, bool)>,
+    /// Daemon panes whose process exited and are HELD daemon-side
+    /// (`%pane-exited %N [code]`), keyed by the daemon pane id so the
+    /// state follows the pane through break/join. The value is the exit
+    /// code (`None` = signal death or unreadable). `%pane-respawned`
+    /// removes the entry; the exited-pane overlay and the restart key
+    /// read it. Lives for the session like `mux_pane_titles`.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_exited_panes: std::collections::HashMap<TmuxPaneId, Option<i32>>,
     /// Cached par-mux agent roster (A2b task 1): the single owner of
     /// agent state on the app side — filled by `list-agents` on
     /// attach/reattach, updated by `%agent-state-changed` pushes, read by
@@ -142,6 +150,7 @@ impl TmuxState {
             mux_session_id: None,
             mux_screen_seeds: std::collections::HashMap::new(),
             mux_pane_titles: std::collections::HashMap::new(),
+            mux_exited_panes: std::collections::HashMap::new(),
             #[cfg(feature = "mux")]
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),
             #[cfg(feature = "mux")]
@@ -172,10 +181,11 @@ impl TmuxState {
     pub(crate) fn persisted_session_names(&self) -> (Option<String>, Option<String>) {
         match (&self.tmux_session_name, self.transport.is_some()) {
             (Some(name), true) => {
-                // An emptied session must not come back on restore:
-                // exiting every daemon shell closes and unmaps each
-                // window, so an empty sync table at save time means the
-                // session's contents ended. Persisting the name would
+                // An emptied session must not come back on restore: an
+                // empty sync table at save time means every window was
+                // closed and unmapped. On a daemon that holds exited panes
+                // (core 0.57+) exiting the shells no longer empties it —
+                // held windows stay mapped and restore as fresh shells. Persisting the name would
                 // make the next launch create-or-attach to the emptied
                 // session and hand back a fresh window the user
                 // deliberately closed (observed live 2026-09-26).

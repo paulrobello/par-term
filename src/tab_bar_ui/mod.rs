@@ -460,10 +460,12 @@ impl TabBarUI {
         tab_count: usize,
         candidates: Vec<(winit::window::WindowId, String)>,
         context_tab_has_multiple_panes: bool,
+        demote_refusal: Option<&'static str>,
     ) {
         self.move_gateway_active = gateway_active;
         self.move_source_tab_count = tab_count;
         self.move_candidates = candidates;
         self.tab_has_multiple_panes = context_tab_has_multiple_panes;
+        self.demote_refusal = demote_refusal;
     }
 }

@@ -66,6 +66,10 @@ pub struct TabBarUI {
     pub(crate) move_source_tab_count: usize,
     /// Set per-frame: true when the context-menu tab has multiple panes.
     pub(crate) tab_has_multiple_panes: bool,
+    /// Set per-frame: why Demote is refused for the context-menu tab (a
+    /// par-mux tab that cannot `join-pane`), shown as the disabled item's
+    /// hover text. `None` = the standard enable rule applies.
+    pub(crate) demote_refusal: Option<&'static str>,
     /// The in-app menu, drawn in the tab bar strip on platforms that cannot
     /// attach a native menu bar. Inert elsewhere — see [`crate::menu::AppMenuUi`].
     pub(super) app_menu: crate::menu::AppMenuUi,
@@ -103,6 +107,7 @@ impl TabBarUI {
             move_gateway_active: false,
             move_source_tab_count: 0,
             tab_has_multiple_panes: false,
+            demote_refusal: None,
             app_menu: crate::menu::AppMenuUi::new(),
         }
     }
