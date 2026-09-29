@@ -163,6 +163,7 @@ impl WindowManager {
                 records: Vec::new(),
                 failed: 0,
                 passed: 0,
+                captured: std::collections::HashMap::new(),
             },
         }
     }

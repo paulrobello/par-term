@@ -61,7 +61,7 @@ crate::debug_trace!("CATEGORY", "message");          // DEBUG_LEVEL=4
 ```
 Use these for high-frequency render/input logging: they cost nothing at the default `DEBUG_LEVEL=0`, and the category tag makes the output filterable.
 
-**2. The standard `log` crate** — `log::info!()`, `log::warn!()`, etc. **These do reach the debug log.** `src/debug.rs` defines `LogCrateBridge` (an `impl log::Log`) and `src/main.rs` installs it via `init_log_bridge()`. Level precedence is CLI/config override → `RUST_LOG` → `Info` default. Setting `RUST_LOG` additionally mirrors output to stderr — but note it is parsed as a single token, so per-module syntax such as `RUST_LOG=par_term=debug` silently falls back to `Info`. Third-party crates (wgpu, tokio, egui) emit through this path too, and noisy targets are level-capped in `LogCrateBridge::new()`.
+**2. The standard `log` crate** — `log::info!()`, `log::warn!()`, etc. **These do reach the debug log.** `src/debug.rs` defines `LogCrateBridge` (an `impl log::Log`) and `src/main.rs` installs it via `init_log_bridge()`. Level precedence is CLI/config override → `RUST_LOG` → `Warn` default (fault warns are visible without any config; see docs/LOGGING.md "Precedence"). Setting `RUST_LOG` additionally mirrors output to stderr — but note it is parsed as a single token, so per-module syntax such as `RUST_LOG=par_term=debug` silently falls back to the default. Third-party crates (wgpu, tokio, egui) emit through this path too, and noisy targets are level-capped in `LogCrateBridge::new()`.
 
 **Sub-crates must use `log::`.** `crate::debug_info!` resolves against the *calling* crate's root, so it does not exist anywhere under `par-term-*/src/`. In a sub-crate, `log::` is the only option — and it works.
 

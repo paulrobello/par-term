@@ -1,0 +1,9 @@
+{
+  "steps": [
+    { "wait_ms": 1500, "chord": "CmdOrCtrl+Alt+N" },
+    { "wait_ms": 800, "capture": "tab_shell_pid" },
+    { "wait_ms": 400, "chord": "CmdOrCtrl+Alt+W" },
+    { "wait_ms": 400, "chord": "CmdOrCtrl+Z" },
+    { "wait_ms": 600, "assert_eq_captured": "tab_shell_pid" }
+  ]
+}

@@ -72,6 +72,13 @@ pub(crate) enum UiTestAction {
     /// `["file_empty", "/tmp/capture.txt"]`,
     /// `["mux_pane_grid", "97x29"]`.
     AssertEq { assert_eq: (String, String) },
+    /// Stash a keyed operand's current value for a later
+    /// `assert_eq_captured` step — for values a script cannot know up
+    /// front, like a spawned shell's PID.
+    Capture { capture: String },
+    /// Assert a keyed operand's current value equals the one an earlier
+    /// `capture` step stashed for it.
+    AssertEqCaptured { assert_eq_captured: String },
 }
 
 /// Load and parse a script file. Fails loudly on bad JSON so typos never
@@ -104,6 +111,8 @@ pub(crate) struct UiTestRun {
     pub(crate) failed: usize,
     /// Count of passed assertions.
     pub(crate) passed: usize,
+    /// Operand values stashed by `capture` steps, keyed by operand name.
+    pub(crate) captured: std::collections::HashMap<String, String>,
 }
 
 /// What one step did, with the observation taken after it.
@@ -425,6 +434,37 @@ impl WindowManager {
                     },
                 }
             }
+            UiTestAction::Capture { capture } => match self.ui_test_operand(capture) {
+                Ok(actual) => {
+                    self.ui_test
+                        .captured
+                        .insert(capture.clone(), actual.clone());
+                    StepOutcome::Performed(format!("capture {capture} = {actual}"))
+                }
+                Err(err) => StepOutcome::Failed(format!("capture {capture}: {err}")),
+            },
+            UiTestAction::AssertEqCaptured { assert_eq_captured } => {
+                let what = assert_eq_captured.as_str();
+                let Some(expected) = self.ui_test.captured.get(what).cloned() else {
+                    return StepOutcome::Asserted {
+                        desc: format!("assert_eq_captured {what}"),
+                        passed: false,
+                        detail: format!("no captured value for operand '{what}'"),
+                    };
+                };
+                match self.ui_test_operand(what) {
+                    Ok(actual) => StepOutcome::Asserted {
+                        desc: format!("assert_eq_captured {what}"),
+                        passed: actual == expected,
+                        detail: format!("{what} = {actual:?} (captured {expected:?})"),
+                    },
+                    Err(err) => StepOutcome::Asserted {
+                        desc: format!("assert_eq_captured {what}"),
+                        passed: false,
+                        detail: err,
+                    },
+                }
+            }
         }
     }
 
@@ -541,6 +581,34 @@ impl WindowManager {
                 }
             }
         })
+    }
+
+    /// Current value of a capture-capable keyed operand — the ones whose
+    /// value a script cannot know up front (a spawned shell's PID). The
+    /// literal-comparison operands stay in [`Self::ui_test_value`].
+    fn ui_test_operand(&self, what: &str) -> Result<String, String> {
+        match what {
+            // The focused terminal's PTY child PID: the identity a
+            // preserve-shell close/reopen must keep (card 01a0eafef7ee7490a7c9bce3cc52ddcd).
+            "tab_shell_pid" => {
+                let Some(ws) = self.ui_test_window_state() else {
+                    return Err("tab_shell_pid: no terminal window".into());
+                };
+                let Some(tab) = ws.tab_manager.active_tab() else {
+                    return Err("tab_shell_pid: no active tab".into());
+                };
+                match tab.try_with_read_terminal(|t| t.get_shell_pid()) {
+                    Some(Some(pid)) => Ok(pid.to_string()),
+                    Some(None) => {
+                        Err("tab_shell_pid: PTY child pid unavailable (session exited?)".into())
+                    }
+                    None => Err("tab_shell_pid: terminal lock contention".into()),
+                }
+            }
+            _ => Err(format!(
+                "operand '{what}' has no capturable value (see AGENT_UI_VERIFICATION.md)"
+            )),
+        }
     }
 
     /// Evaluate a keyed assert operand, returning (actual, passed).
@@ -779,5 +847,24 @@ mod tests {
             "chord Ctrl+P -> blocked by modal guard (overlay open)".into(),
         ));
         assert_eq!(ok, None);
+    }
+
+    #[test]
+    fn ui_test_action_parses_capture_steps() {
+        let step: UiTestStep =
+            serde_json::from_str(r#"{"capture": "tab_shell_pid"}"#).expect("parses");
+        assert!(matches!(
+            step.action,
+            UiTestAction::Capture { ref capture } if capture == "tab_shell_pid"
+        ));
+
+        let step: UiTestStep =
+            serde_json::from_str(r#"{"assert_eq_captured": "tab_shell_pid"}"#).expect("parses");
+        assert!(matches!(
+            step.action,
+            UiTestAction::AssertEqCaptured {
+                ref assert_eq_captured
+            } if assert_eq_captured == "tab_shell_pid"
+        ));
     }
 }

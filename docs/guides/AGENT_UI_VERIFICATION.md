@@ -57,6 +57,8 @@ A JSON object with a `steps` array. Each step is one object with an optional
 | `{"press": "Enter"}` | Press a named key on the egui side. Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). |
 | `{"assert": "X"}` / `{"assert_not": "X"}` | Boolean conditions, below. |
 | `{"assert_eq": ["what", "expected"]}` | Keyed values, below. |
+| `{"capture": "what"}` | Stash a capture-capable operand's current value. |
+| `{"assert_eq_captured": "what"}` | Assert the operand's current value equals the stashed one — for values a script cannot know up front, like a spawned shell's PID. |
 
 ### Boolean operands
 
@@ -77,6 +79,10 @@ A JSON object with a `steps` array. Each step is one object with an optional
 
 - `["top_action", "toggle_fullscreen"]` — top-ranked palette action for the current query
 - `["file_empty", "/path"]` — file is absent or zero bytes (a missing file counts as empty)
+
+Capture-capable operands (usable with `capture`/`assert_eq_captured`):
+
+- `tab_shell_pid` — the focused terminal's PTY child PID
 
 Unknown operands fail the step (and the run) loudly — a typo never passes
 silently.
@@ -102,7 +108,7 @@ par-term honors `XDG_CONFIG_HOME`, so a script's keybindings and shell never
 touch the real config:
 
 ```bash
-mkdir -p /tmp/pt-ui-test/cfg/par-term
+mkdir -p /tmp/pt-ui-test/cfg/par-term /tmp/pt-ui-test/home
 cat > /tmp/pt-ui-test/cfg/par-term/config.yaml <<'EOF'
 custom_shell: /bin/sh
 shell_args:
@@ -110,18 +116,27 @@ shell_args:
   - cat > /tmp/pt-ui-test/pty-capture.txt
 shader_install_prompt: never
 shell_integration_state: never
+agent_skill_state: never
 keybindings:
   - key: "Ctrl+Alt+Cmd+P"
     action: "toggle_command_palette"
 EOF
-XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg par-term --ui-test script.json --ui-test-report report.json
+HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg par-term --ui-test script.json --ui-test-report report.json
 ```
 
-Two first-run prompts defeat a clean run otherwise — `integrations_ui` opens
-at startup and holds the modal guard — so both suppression keys go in the
-config. They are **top-level** keys (the integrations sub-config is
+`HOME` must be isolated too: with only `XDG_CONFIG_HOME` redirected, the
+startup config migration treats the real `~/.config/par-term` as a legacy
+location and **moves its contents into the throwaway dir** (observed
+2026-09-28 — 11 entries relocated before the run was stopped and manually
+recovered). A scratch `HOME` removes both legacy-source candidates.
+
+Three first-run prompts defeat a clean run otherwise — `integrations_ui`
+opens at startup and holds the modal guard — so all three suppression keys go
+in the config. They are **top-level** keys (the integrations sub-config is
 `#[serde(flatten)]`-ed) and their enum values are **lowercase** (`never`,
-not `Never`).
+not `Never`). `shader_install_prompt` and `shell_integration_state` alone are
+not enough: `agent_skill_state` defaults to `ask` and opens the same dialog
+(observed 2026-09-28).
 
 ## PTY-leak capture
 
@@ -140,3 +155,41 @@ type, Escape close, settings window open, PTY empty — and caught a live
 keystroke-leak bug in its pre-fix run (`modal_guard=false` with the palette
 open; fixed the same day). Pre/post-fix reports for that run:
 `report-prefix4.json` vs `report-postfix.json` (10/3 fail → 13/0 pass).
+
+## Checked-in script: session-undo preserves the shell
+
+`tests/ui/d6_reopen_preserves_shell.json` proves the D6 close-safety default
+`session_undo_preserve_shell: true` end to end: open a second tab, capture its
+`tab_shell_pid`, close it, reopen it, and assert the PID is unchanged — the
+restored tab is the same live process, not a fresh shell. On macOS new tab /
+close tab are menu accelerators, not registry keybindings, so the config binds
+them to chord-injectable keys; reopen rides its default `CmdOrCtrl+Z`. Run it
+with the shell replaced by a long-lived process:
+
+```bash
+mkdir -p /tmp/pt-ui-test/cfg/par-term /tmp/pt-ui-test/home
+cat > /tmp/pt-ui-test/cfg/par-term/config.yaml <<'EOF'
+custom_shell: /bin/sleep
+shell_args:
+  - "100"
+login_shell: false
+shader_install_prompt: never
+shell_integration_state: never
+agent_skill_state: never
+keybindings:
+  - key: "CmdOrCtrl+Alt+N"
+    action: "new_tab"
+  - key: "CmdOrCtrl+Alt+W"
+    action: "close_tab"
+EOF
+HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
+  target/dev-release/par-term \
+  --ui-test tests/ui/d6_reopen_preserves_shell.json \
+  --ui-test-report /tmp/pt-ui-test/d6-report.json
+```
+
+`login_shell: false` keeps the spawn `/bin/sleep 100` (a login shell appends
+`-l`, which sleep rejects). The report's `all_passed` must be true. Setting
+`session_undo_preserve_shell: false` in the same config flips the assert to a
+failure (the reopen spawns a fresh shell with a new PID) — the negative
+control proving the assertion has teeth.
