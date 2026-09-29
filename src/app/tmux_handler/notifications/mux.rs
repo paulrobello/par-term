@@ -645,19 +645,31 @@ impl WindowState {
                         ));
                     }
                 }
-                for window_id in existing_windows {
-                    if self.tmux_state.tmux_sync.get_tab(window_id).is_none() {
-                        self.handle_tmux_window_add(window_id);
+                for window_id in &existing_windows {
+                    if self.tmux_state.tmux_sync.get_tab(*window_id).is_none() {
+                        self.handle_tmux_window_add(*window_id);
                     }
                 }
-                // Swap the placeholder "tmux @N" titles for the daemon's own
-                // window names — same setter the %window-renamed push uses,
-                // so a daemon rename later lands identically.
-                for (window_id, name) in window_names {
-                    if let Some(tab_id) = self.tmux_state.tmux_sync.get_tab(window_id)
+                // Swap the placeholder titles for the daemon's own window
+                // names — same setter the %window-renamed push uses, so a
+                // daemon rename later lands identically. This closure runs
+                // BEFORE the transport is installed, so the placeholders
+                // above still read "tmux @N" here; a window the daemon did
+                // not name keeps its placeholder, and UX.md T8 bars "tmux"
+                // on a mux path — rewrite those (T8/M11).
+                for (window_id, name) in &window_names {
+                    if let Some(tab_id) = self.tmux_state.tmux_sync.get_tab(*window_id)
                         && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
                     {
-                        tab.set_title(&name);
+                        tab.set_title(name);
+                    }
+                }
+                for window_id in existing_windows {
+                    if !window_names.iter().any(|(id, _)| id == &window_id)
+                        && let Some(tab_id) = self.tmux_state.tmux_sync.get_tab(window_id)
+                        && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                    {
+                        tab.set_title(&format!("par-mux @{}", window_id));
                     }
                 }
                 // Screens land once the layout consumers create the panes
@@ -2757,6 +2769,36 @@ pub(crate) mod tests {
         }
     }
 
+    /// A transport already dead — drain reports the disconnect, the T8
+    /// daemon-death tests. The drain's `true` is what synthesizes the
+    /// `SessionEnded` that tears the mux view down.
+    struct DeadTransport;
+
+    impl TmuxTransport for DeadTransport {
+        fn drain(
+            &self,
+        ) -> (
+            Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
+            bool,
+        ) {
+            (Vec::new(), true)
+        }
+
+        fn send_command(&self, _command: &str) -> io::Result<Vec<String>> {
+            Err(io::Error::new(
+                io::ErrorKind::ConnectionAborted,
+                "daemon is dead",
+            ))
+        }
+
+        fn send_command_no_wait(&self, _command: &str) -> io::Result<()> {
+            Err(io::Error::new(
+                io::ErrorKind::ConnectionAborted,
+                "daemon is dead",
+            ))
+        }
+    }
+
     /// UX.md M6: a failed par-mux split must not fall through to a LOCAL
     /// split — the transport error consumes the call (no stray local
     /// pane inside the attached tab) and surfaces a persistent error.
@@ -2817,6 +2859,153 @@ pub(crate) mod tests {
             ws.overlay_state.toast_hide_time.is_none(),
             "the error is persistent (no auto-hide): {toast}"
         );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// UX.md T8: when the daemon dies, the drain synthesizes a
+    /// `SessionEnded` AFTER the transport is dropped, so the wording must
+    /// come from the remembered mux session — "tmux: Session ended" on a
+    /// par-mux path is the exact defect the criterion bans.
+    #[test]
+    fn daemon_death_toasts_par_mux_wording_not_tmux() {
+        let path = socket_path("t8-death");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(&transport, "t8death", Some((80, 24)), &Default::default())
+            .expect("attach");
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("t8death".to_string());
+        ws.tmux_state.mux_session_id = Some(match &attach.outcome {
+            AttachOutcome::Created(s) | AttachOutcome::Attached(s) => s.id,
+        });
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.focused_mux_pane_from_native().is_some() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never focused a daemon-mirrored pane"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // Kill the transport: drain reports the abrupt disconnect, which
+        // synthesizes the SessionEnded that runs the shared teardown.
+        ws.tmux_state.transport = Some(Box::new(DeadTransport));
+        ws.check_mux_notifications();
+
+        let toast = ws
+            .overlay_state
+            .toast_message
+            .as_deref()
+            .expect("daemon death surfaces a toast");
+        assert!(
+            toast.contains("par-mux"),
+            "the death toast must say par-mux, got: {toast}"
+        );
+        assert!(
+            !toast.contains("tmux"),
+            "T8 — no tmux wording on a par-mux path, got: {toast}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// UX.md T8/M11: a tab created for a daemon window is titled
+    /// "par-mux @N" under a transport and "tmux @N" without one — the
+    /// real-tmux gateway keeps its wording, the mux path never shows it.
+    #[test]
+    fn window_add_titles_discriminate_par_mux_from_tmux() {
+        let mut mux_ws = manners_state();
+        mux_ws.tmux_state.transport = Some(Box::new(FailingTransport));
+        mux_ws.handle_tmux_window_add(7);
+        let tab = mux_ws
+            .tab_manager
+            .active_tab()
+            .expect("daemon window becomes a tab");
+        assert_eq!(tab.title, "par-mux @7");
+
+        let mut tmux_ws = manners_state();
+        tmux_ws.handle_tmux_window_add(3);
+        let tab = tmux_ws
+            .tab_manager
+            .active_tab()
+            .expect("tmux window becomes a tab");
+        assert_eq!(tab.title, "tmux @3");
+    }
+
+    /// UX.md T8 end-to-end: a real attach (attach closure included — it
+    /// creates the display tabs BEFORE the transport is installed) leaves
+    /// no "tmux"-worded tab title behind, named or not.
+    #[test]
+    fn real_attach_leaves_no_tmux_worded_tab_titles() {
+        let path = socket_path("t8-titles");
+        spawn_daemon(&path);
+
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "t8titles".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(
+            ws.tmux_state.transport.is_some(),
+            "the attach must have succeeded"
+        );
+
+        // No renderer in a headless test → attach carries no client size →
+        // the daemon never pushes the layout that mirrors panes. The
+        // wording claim under test is about TITLES: waiting for the
+        // %window-add push to create its mapped tab is enough.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws
+                .tab_manager
+                .tabs()
+                .iter()
+                .any(|t| ws.tmux_state.tmux_sync.get_window(t.id).is_some())
+            {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the daemon window never became a mapped tab"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        for tab in ws.tab_manager.tabs() {
+            assert!(
+                !tab.title.contains("tmux"),
+                "T8 — tab title must not say tmux, got: {}",
+                tab.title
+            );
+        }
 
         let _ = std::fs::remove_file(&path);
     }

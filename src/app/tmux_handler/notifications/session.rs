@@ -141,6 +141,13 @@ impl WindowState {
     pub(super) fn handle_tmux_session_ended(&mut self) {
         crate::debug_info!("TMUX", "Session ended");
 
+        // UX.md T8: this handler also ends the par-mux view — daemon death
+        // synthesizes SessionEnded AFTER the transport is dropped, so the
+        // discriminant must survive the teardown below; mux_session_id and
+        // transport are both cleared inside this handler.
+        let mux_view_ended =
+            self.tmux_state.mux_session_id.is_some() || self.tmux_state.is_mux_attached();
+
         // Restore gateway tab visibility before tearing down tmux state
         self.show_gateway_tab();
 
@@ -220,6 +227,11 @@ impl WindowState {
         self.tmux_state.tmux_sync = crate::tmux::TmuxSync::new();
 
         // Show toast
-        self.show_toast("tmux: Session ended");
+        let message = if mux_view_ended {
+            "par-mux: daemon connection lost"
+        } else {
+            "tmux: Session ended"
+        };
+        self.show_toast(message);
     }
 }

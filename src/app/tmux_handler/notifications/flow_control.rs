@@ -38,8 +38,14 @@ impl WindowState {
     pub(super) fn handle_tmux_error(&mut self, msg: &str) {
         crate::debug_error!("TMUX", "Error from tmux: {}", msg);
 
-        // Show notification to user
-        self.deliver_notification("tmux Error", msg);
+        // UX.md T8: the mux drain and the tmux gateway both dispatch here;
+        // the notification title must not say "tmux" on a par-mux path.
+        let title = if self.tmux_state.is_mux_attached() {
+            "par-mux error"
+        } else {
+            "tmux Error"
+        };
+        self.deliver_notification(title, msg);
     }
 
     /// Handle pause notification (for slow connections)

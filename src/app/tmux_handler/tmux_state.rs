@@ -153,6 +153,16 @@ impl TmuxState {
         }
     }
 
+    /// UX.md T8: whether the attached control session is par-mux. Only
+    /// the par-mux attach installs a `transport` (the real-tmux gateway
+    /// does not), so a set transport means user-facing strings must say
+    /// "par-mux", never "tmux". During a teardown the transport may
+    /// already be gone — pair with `mux_session_id` there (see
+    /// `handle_tmux_session_ended`).
+    pub(crate) fn is_mux_attached(&self) -> bool {
+        self.transport.is_some()
+    }
+
     /// The attached session name for persistence, split by kind:
     /// `(tmux_session_name, mux_session_name)`. Only the par-mux attach
     /// installs a `transport`, so a set transport means the name belongs to

@@ -195,7 +195,14 @@ impl WindowState {
                         if let Some(tab) = self.tab_manager.get_tab_mut(new_tab_id) {
                             // Associate this tab with the tmux pane
                             tab.tmux.tmux_pane_id = Some(pane_id);
-                            tab.set_title(&format!("tmux %{}", pane_id));
+                            // UX.md T8: the placeholder title must not say
+                            // "tmux" when the pane belongs to the daemon.
+                            let prefix = if self.tmux_state.is_mux_attached() {
+                                "par-mux"
+                            } else {
+                                "tmux"
+                            };
+                            tab.set_title(&format!("{} %{}", prefix, pane_id));
 
                             // Start refresh task
                             if let Some(window) = &self.window {

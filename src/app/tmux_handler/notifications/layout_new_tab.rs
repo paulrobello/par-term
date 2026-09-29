@@ -50,7 +50,14 @@ impl WindowState {
 
                 if let Some(tab) = self.tab_manager.get_tab_mut(new_tab_id) {
                     tab.init_pane_manager();
-                    tab.set_title(&format!("tmux @{}", window_id));
+                    // UX.md T8/M11: no "tmux" wording on a par-mux path —
+                    // same placeholder rule as handle_tmux_window_add.
+                    let prefix = if self.tmux_state.is_mux_attached() {
+                        "par-mux"
+                    } else {
+                        "tmux"
+                    };
+                    tab.set_title(&format!("{} @{}", prefix, window_id));
 
                     if let Some(window) = &self.window {
                         tab.start_refresh_task(

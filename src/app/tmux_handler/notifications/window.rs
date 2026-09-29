@@ -50,7 +50,15 @@ impl WindowState {
                 // is where the actual tmux control connection lives. We store the tmux pane ID
                 // on the tab so we know which pane to route input to.
                 if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
-                    tab.set_title(&format!("tmux @{}", window_id));
+                    // UX.md T8/M11: the placeholder must not say "tmux" on
+                    // a par-mux path; the daemon's own name (or the
+                    // attach's window-name swap) replaces it.
+                    let prefix = if self.tmux_state.is_mux_attached() {
+                        "par-mux"
+                    } else {
+                        "tmux"
+                    };
+                    tab.set_title(&format!("{} @{}", prefix, window_id));
                     // Note: Don't set tmux_gateway_active here - only the gateway tab is the gateway
 
                     // Start refresh task for the new tab
