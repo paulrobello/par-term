@@ -22,6 +22,7 @@ The plan answers two questions the owner asked: how do we make par-term **easier
 - [Appendix C: current keybinding inventory](#appendix-c-current-keybinding-inventory)
 - [Appendix D: upstream daemon gaps](#appendix-d-upstream-daemon-gaps-par-term-emu-core-rust)
 - [Appendix E: items to confirm at runtime](#appendix-e-items-to-confirm-at-runtime)
+- [Part II: Settings window](#part-ii-settings-window) (sections 12–19)
 
 **Reference codes** are stable for discussion: `T` terminology, `K` keymap, `L` leader key table, `A` new actions, `M` par-mux safety, `U` local/mux unification, `V` visibility and discoverability, `PN` pane behavior, `TW` tab/window behavior, `D` decisions, `P` phases, `B` bugs, `DOC` doc drift, `UP` upstream daemon work, `RT` runtime checks.
 
@@ -640,3 +641,243 @@ These follow from the code but nobody ran the app. Confirm each before building 
 | RT12 | Ctrl+Shift+] / [ switch tabs on Linux |
 | RT13 | In a tmux gateway window, keys typed after keyboard pane navigation go to the newly focused pane |
 | RT14 | After detach or daemon death, a window is left with zero tabs |
+
+---
+
+# Part II: Settings window
+
+Research date: 2026-09-28, `main` at `803ac98b`. Scope: the standalone Settings window (`src/settings_window/`, crate `par-term-settings-ui`), its 13 sidebar tabs, search, save model, and config coverage. Same evidence rules as Part I. Codes continue Part I: bugs from **B35**, runtime checks from **RT15**; new prefixes are `SX` (Settings findings), `SS` (save model), `SQ` (search), `IA` (information architecture), `SC` (consistency rules), `SD` (decisions), `SP` (phases).
+
+## 12. Summary
+
+The Settings window has three structural problems, in order of cost to the user:
+
+1. **Nobody can tell what is saved (SS).** Edits apply live to every window on every frame, Discard reverts nothing, and closing the window writes everything to disk, including edits never saved and a "Reset to Defaults". Profiles use a separate two-stage save that can wipe every profile (B35). Five other editors write straight to disk. This is also where the data-loss bugs are.
+2. **Search mostly doesn't find things (SQ).** It matches hand-written keyword lists, not control labels, as one whole phrase. Tab and section keyword lists are separate and have drifted, so a query can light a tab that then shows a blank page, or match a section on a tab it dims and makes unclickable. Collapsed sections stay collapsed. There is no "no results" state. Across 15 realistic queries, 8 fail outright and 2 more land on an empty page.
+3. **Things live where their code was merged, not where a user looks (IA).** Examples: quit and close confirmation under Terminal › Behavior; session restore in Terminal while arrangement auto-restore (which silently wins) is in Window; the badge and progress bar appended to Appearance as two sections both titled "General" plus a section called "Appearance"; three unrelated "agent" concepts across two tabs; par-mux configured only inside a collapsed sub-section of the profile editor; anti-idle keep-alive under Notifications.
+
+Around 470 controls sit on 13 tabs. The largest single section, Effects › "Background & Effects", holds about 45 controls before a shader is selected and about 85 plus N uniforms after.
+
+## 13. Save and apply model (SS)
+
+### 13.1 What happens today `[verified]`
+
+| Action | Behavior | Evidence |
+|---|---|---|
+| Any edit | Applied live to every terminal window on every frame; the full config is cloned per redraw | `par-term-settings-ui/src/settings_ui/display.rs:357-367` → `src/settings_window/render.rs:325` → `config_propagation.rs:44,291` |
+| Font edits | The one exception: staged until "Apply font changes" (Appearance › Fonts) or "Apply Font" (quick strip) | `quick_settings.rs:231-240` |
+| Save | Writes config.yaml; failure is only logged | `display.rs:339-350`; `app_handler_impl.rs:91-102` |
+| Discard | Clears the "unsaved" marker and reloads font fields. There is no baseline to revert to, so live edits stay | `display.rs:352-355` |
+| Close (X or Escape) | Saves the in-memory config, **including unsaved live edits**, with no prompt | `src/app/window_manager/settings_actions.rs:149-176` |
+| Reset to Defaults | Confirms, swaps in `Config::default()` live on every window; closing then persists it | `display.rs:14-73`; `state.rs:409-414` |
+| Profiles | "Save Profile" (in memory) then list "Save" (persist). Neither touches the global Save/Discard | `profile_modal_ui/list_view.rs:170-187` |
+| Prompts, agent commands, plugin git actions, shader install/uninstall, shell-integration install | Written to disk immediately | `ai_inspector_tab/prompt_library.rs:186`; `actions_tab/agent_commands_section.rs:150`; `integrations_tab.rs:397-420` |
+| Inline list editors (triggers, snippets, actions, coprocesses, scripts) | Their "Save" updates memory only; the global Save is still needed (or close, which saves) | per-editor |
+| config.yaml edited on disk while Settings is open | Ignored whenever `has_changes` is set | `state.rs:307-315` |
+
+### 13.2 Proposed model
+
+- **SS1. Baseline snapshot.** On open, snapshot the config and profiles. Live preview stays (it is valuable for colors, opacity, shaders).
+- **SS2. Revert, not Discard.** "Revert" restores the snapshot to every window. "Save" writes and moves the baseline.
+- **SS3. Close with unsaved changes asks:** Save / Revert / Cancel. Closing never silently persists. (`close_settings_window` keeps persisting collapsed-section state only.)
+- **SS4. Reset to Defaults resets the preview only**; it persists only on Save, and Revert undoes it. Add per-section "Reset section" and per-control "reset to default" (a small ↺ that appears when the value differs from default).
+- **SS5. One save for profiles.** The profile editor joins the global model: its edits mark the window dirty; Save persists config and profiles together; Revert restores both. Remove the list-level Save/Cancel pair.
+- **SS6. Disk-immediate editors say so.** Prompt library, agent commands, plugin install/remove, shader install/uninstall keep writing immediately (they manage files, not config), but show "Saved to ~/.config/par-term/…" next to the control and confirm every delete.
+- **SS7. Surface errors.** Save failure, Edit Config File failure, import/export failure, and profile save failure show an inline error banner, not a log line.
+- **SS8. Restart-required marker.** Settings that need a restart (GPU power preference, a few others) get one consistent badge; after Save, a banner lists what needs a restart.
+- **SS9. Fonts apply live** like everything else, or all staged font fields sit in one section with the Apply button (today Font Variants and Text Shaping stage changes but the button is in Fonts).
+- **SS10. Show the config path** in the footer with "Reveal" next to "Edit Config File", and reload changed-on-disk config into the baseline when there are no unsaved edits (prompt when there are).
+
+## 14. Search (SQ)
+
+### 14.1 What happens today `[verified]`
+
+- The sidebar lights a tab if the query is a substring of the tab name or one of its `keywords()` (`sidebar.rs:176-187`, dispatched by `search_keywords.rs:13-28`). Each section is filtered separately by `section_matches(query, title, &[inline keywords])` (`section.rs:131-139`). The two lists are maintained by hand and have drifted:
+
+  | Tab | Tab keywords that show no section |
+  |---|---|
+  | Appearance | 25 of 113 |
+  | Window | 62 of 170 |
+  | Effects | 37 of 71 |
+  | Input | ~29 (incl. every keybinding action name) |
+  | Terminal | 39 of 106 |
+  | Status Bar | 19 of 61 |
+  | Notifications | 26 of 54 |
+  | Profiles, Integrations, Automation, Snippets, Assistant, Advanced | Similar; e.g. "par-mux", "tmux", "gateway", "export", "run command" light a tab and show nothing |
+
+- The reverse also happens: a section keyword matches but the tab is dimmed, and **dimmed tabs cannot be clicked** (`sidebar.rs:161`). Examples: "notify", "command complete", "mouse" (Status Bar auto-hide), "general", "custom actions", "observer scripts", "prompt library".
+- Visible section titles differ from their search titles ("Position & Size" vs "Position", "State Colors" vs "Colors", "Background & Effects" vs "Background", "Anti-Idle Keep-Alive" vs "Anti-Idle", "Custom Actions" vs "Actions", "Observer Scripts" vs "Scripts"), so typing what you see hides it.
+- Matching is whole-phrase substring over keywords only; control labels and tooltips are never searched. "cursor blink", "option as meta", "copy on select", "close confirmation", "prompt on quit", "leader", "detach", "par-mux" all fail.
+- Collapsed sections stay collapsed. `CollapsibleSection` (`section.rs:20-119`), which auto-expands on search, has zero call sites; every tab uses `collapsing_section`, which ignores the query.
+- No "no results" state; no cross-tab results; no highlight; no auto-switch to a matching tab.
+- macOS-only keywords (blur, Spaces) light the Window tab on Linux/Windows where the controls are compiled out.
+- `ssh_tab::keywords()` and `scripts_tab::keywords()` are never called.
+
+### 14.2 Proposed search
+
+- **SQ1. One source of truth.** Each section declares `{title, keywords}` once, and each control registers its label (and optionally its YAML key) with the section. Tab match = union of its sections. Delete the per-tab `keywords()` lists.
+- **SQ2. Search labels, tooltips, and YAML keys**, not just keywords. Typing `prompt_on_quit` or "Confirm before quitting" both work.
+- **SQ3. Token AND matching**, case-insensitive, with light stemming ("shortcuts" = "shortcut").
+- **SQ4. Results view.** A non-empty query replaces the sidebar content with a grouped result list: `Tab › Section › Control`. Selecting one switches tab, expands the section, scrolls to the control, and flashes it. Matching sections auto-expand in place too.
+- **SQ5. Never dim-and-lock.** Non-matching tabs are dimmed but clickable. Empty query result shows "No settings match '…'" plus a hint to try the command palette.
+- **SQ6. Platform-aware keywords.** Controls compiled out for a platform don't register.
+- **SQ7. Cmd+F / Ctrl+F focuses search** whenever the Settings window has focus (today only on open).
+- **SQ8. Test gate.** A unit test builds the registry and asserts: every section keyword and every control label resolves to at least one visible, reachable result on its own tab; no visible title is unfindable by its own text; and the 15 queries from this audit resolve to the expected control. This replaces the hand-run keyword analysis.
+
+## 15. Information architecture (IA)
+
+### 15.1 iTerm2 reference `[verified]`
+
+iTerm2's Settings toolbar (`sources/Settings/Base.lproj/PreferencePanel.xib`): **General, Appearance, Profiles, Keys, Pointer, Arrangements, Advanced** (+ Shortcuts). Its sub-tabs include General › Startup / Closing / Magic / AI / Selection / Window / tmux / Software Update; Appearance › General / Windows / Tabs / Panes / Dimming; Keys › Key Bindings / Navigation Shortcuts / Hotkey / Remap Modifiers; Profiles › General / Colors / Text / Window / Terminal / Session / Keys / Advanced.
+
+par-term's settings are global with per-profile overrides, which is the reverse of iTerm2 (profile-first), so the plan borrows iTerm2's names and groupings where the concepts match and does not move global settings into profiles.
+
+### 15.2 Proposed sidebar (12 tabs, with sub-pages)
+
+Each tab uses a second-level segmented control (like iTerm2's sub-tabs) instead of one long page of collapsibles. Every tab keeps collapsible sections inside a sub-page only when the sub-page is long.
+
+| New tab | Sub-pages | Replaces |
+|---|---|---|
+| **General** | Startup & Restore · Closing & Quitting · Selection & Clipboard · Updates | Parts of Terminal, Window › Arrangements auto-restore, Input › Selection, Advanced › Updates |
+| **Appearance** | Theme · Text & Fonts · Cursor · Badge · Progress Bar | Appearance (minus nothing), Effects › cursor shader moves to Cursor |
+| **Windows & Tabs** | Window · Tab Bar · Tab Bar Colors · Scrollbar | Window › Display, Transparency, Behavior, Tab Bar (x2), Scrollbar |
+| **Panes** | Layout & Dividers · Focus & Dimming · Pane Titles · Pane Backgrounds | Window › Split Panes, Pane Appearance; Effects › Per-Pane Background |
+| **Sessions (par-mux & tmux)** | par-mux · tmux · Arrangements | Advanced › tmux, profile par-mux/tmux defaults, Window › Arrangements (save/restore list) |
+| **Profiles** | (list) + editor with sub-tabs General · Session · Text & Badge · Shader · SSH · Auto-Switch | Profiles |
+| **Keys** | Key Bindings · Leader · Modifiers · Option/Alt | Input › Keyboard, Modifier Remapping, Keybindings |
+| **Pointer** | Mouse · Word Selection · Copy Mode | Input › Mouse, Word Selection, Copy Mode |
+| **Effects & Shaders** | Background · Background Shader · Channel Textures · Shader Performance · Inline Images | Effects (split), Window › Performance shader items |
+| **Automation** | Triggers · Snippets · Custom Actions · Coprocesses · Observer Scripts · Plugins | Automation + Snippets & Actions (minus agents) |
+| **Assistant & Agents** | Panel · Agents (CLI launchers + ACP custom agents + default agent) · Agent Commands · Prompt Library · Permissions · Agent Usage | Assistant, Snippets › Agents / Agent Commands, Status Bar › Agent Usage |
+| **Advanced** | Terminal Emulation (Unicode, answerback, anti-idle) · Notifications & Bell · Status Bar · Performance & Power · Logging · Import/Export · Security | Advanced remainder, Notifications, Status Bar, Window › Performance |
+
+Notifications and Status Bar sit under Advanced here; they could stay top-level (14 tabs) if the owner prefers fewer levels. See SD2.
+
+### 15.3 Section mapping (current → proposed)
+
+| Current tab › section | Proposed home | Note |
+|---|---|---|
+| Quick settings strip (above every tab) | Removed, or becomes General › "Common" page | SD3 |
+| Appearance › Theme, Auto Dark Mode | Appearance › Theme | Tab-bar light/dark style (Window › Tab Bar) moves here too |
+| Appearance › Fonts, Font Variants, Text Shaping, Font Rendering | Appearance › Text & Fonts | Text Shaping is dead (B39); hide until wired |
+| Appearance › Cursor, Cursor Locks, Cursor Effects | Appearance › Cursor | Plus Effects › Cursor Shader; resolves `cursor_color` vs `cursor_shader_color` labels |
+| Appearance › badge "General/Appearance/Position & Size/Available Variables" | Appearance › Badge | Titles prefixed; profile badge overrides link here |
+| Appearance › progress bar "General/State Colors" | Appearance › Progress Bar | |
+| Window › Display, Transparency, Window Behavior | Windows & Tabs › Window | Always-on-top gets a toggle action (A20) |
+| Window › Performance | Advanced › Performance & Power | Shader-pause moves to Effects › Shader Performance |
+| Window › Tab Bar, Tab Bar Appearance | Windows & Tabs › Tab Bar / Tab Bar Colors | `tab_min_width` moves to Tab Bar; `show_profile_drawer_button` shown once |
+| Window › Split Panes, Pane Appearance | Panes | Divider width/style and divider colors on one page |
+| Window › Scrollbar | Windows & Tabs › Scrollbar | Add `scrollbar_position` |
+| Window › Save Layout, Saved Arrangements | Sessions › Arrangements | |
+| Window › Auto-Restore on Startup | General › Startup & Restore | Beside `restore_session`, with "Arrangement takes precedence" stated |
+| Input › Keyboard, Modifier Remapping | Keys › Option/Alt, Modifiers | Platform-gated text |
+| Input › Mouse | Pointer › Mouse | Add pane focus-follows-mouse (PN14) |
+| Input › Selection & Clipboard, Clipboard Limits | General › Selection & Clipboard | OSC 52 and its limits together |
+| Input › Word Selection, Copy Mode | Pointer | |
+| Input › Keybindings | Keys › Key Bindings | K23–K28 |
+| Terminal › Behavior (scrollback) | Advanced › Terminal Emulation | Or Windows & Tabs; scrollback is per-terminal |
+| Terminal › Behavior (shell exit action, close confirmation, jobs to ignore) | General › Closing & Quitting | Plus D6 `confirm_close_multiple_tabs` and par-mux last-tab policy (M1) |
+| Terminal › Unicode | Advanced › Terminal Emulation | Answerback moves here as its own row |
+| Terminal › Shell | Profiles › Default profile / General › Startup | Use the detected-shell picker the profile editor already has |
+| Terminal › Startup (restore, undo close, initial text) | General › Startup & Restore; undo-close to Closing & Quitting | |
+| Terminal › Search, Semantic History, Command History, Command Separators | General (Search, Links & Files), Appearance (separator and highlight colors) | Split "Semantic History" into "Links" (URL opener) and "Open files in editor" |
+| Effects › Background & Effects | Effects & Shaders › Background / Background Shader / Channel Textures | Per-shader overrides render below the globals they override, clearly labelled |
+| Effects › Per-Pane Background | Panes › Pane Backgrounds | |
+| Effects › Inline Images | Effects & Shaders › Inline Images | |
+| Effects › Cursor Shader | Appearance › Cursor | |
+| Status Bar (all) | Advanced › Status Bar, or top-level (SD2) | Agent Usage moves to Assistant & Agents |
+| Notifications › Bell, Alert Sounds | Advanced › Notifications & Bell | One bell model (B40) |
+| Notifications › Activity, Behavior | Advanced › Notifications & Bell | Test Notification button at the top |
+| Notifications › Anti-Idle | Advanced › Terminal Emulation | |
+| Profiles (all) | Profiles, editor split into sub-tabs | Per-profile par-mux/tmux fields stay, with a link to Sessions |
+| Integrations › Shell Integration | General (or Advanced) › Shell Integration | Required by several features; show status wherever they depend on it |
+| Integrations › Custom Shaders install | Effects & Shaders › Background Shader | Install beside the picker |
+| Integrations › SSH | Profiles › SSH defaults, or Sessions | Connection settings already live in profiles |
+| Automation (all) + Snippets & Actions › Snippets, Variables, Custom Actions | Automation | Coprocess and Observer Script share one editor component |
+| Snippets & Actions › Agent Commands, Agents | Assistant & Agents | |
+| Assistant (all) | Assistant & Agents | Rename every visible "AI Inspector" to Assistant |
+| Advanced › Import/Export | Advanced › Import/Export | Replace confirms first |
+| Advanced › tmux | Sessions › tmux | |
+| Advanced › Session Logging, Debug Logging | Advanced › Logging | Together |
+| Advanced › Screenshots, File Transfers | General (or Advanced) | |
+| Advanced › Security | Advanced › Security | Trigger/script permission defaults cross-link here |
+
+### 15.4 New content the plan needs a home for
+
+- **SX1. par-mux global section** (Sessions › par-mux): default session name, `mux_auto_attach` (M15), close-last-tab policy (M1 `mux_last_tab_close`), leader key (K7), daemon path and "Restart daemon" button, hook installer status per agent.
+- **SX2. Closing & Quitting page** (General): `prompt_on_quit`, `confirm_close_multiple_tabs` (D6), `confirm_close_running_jobs`, `jobs_to_ignore`, `shell_exit_action`, undo-close timeout and preserve-process, par-mux last-tab policy.
+- **SX3. Coverage rule.** Every config field is rendered in exactly one place, or tagged `#[yaml_only]`/internal in the config crate. A test enforces it. Today's YAML-only user-facing fields that need a control or a tag: `font_ranges`, `cursor_shader_trail_duration`, `cursor_shader_glow_radius`, `cursor_shader_glow_intensity`, `warn_paste_control_chars`, `scrollbar_position`, `shell_env`, `shell.working_directory`, `pane_title_font` (B7), `tmux_profile`, `tmux_status_bar_use_native_format`, `status_bar_font`, `allow_http_profiles`.
+
+## 16. Consistency rules (SC)
+
+- **SC1. Dependencies.** A dependent control is indented under its parent and **disabled** (not hidden) when the parent is off, with the parent named in its tooltip. Today three patterns coexist (hide, disable, nothing); about 25 dependents do nothing, e.g. every status-bar control when the status bar is off, every badge control when the badge is off, blink interval with blink off, thresholds with their toggles off, all shader controls with no shader.
+- **SC2. Units.** Every numeric control shows its unit as a suffix with a space (" px", " ms", " s", " %"). Opacity and brightness are shown as percentages everywhere. Multipliers show "×".
+- **SC3. Colors.** One helper per storage type: RGB fields get an opaque picker; RGBA fields get an alpha picker that preserves alpha. No picker shows an alpha channel it discards.
+- **SC4. List editors.** One pattern for triggers, snippets, actions, coprocesses, scripts, profiles, dynamic sources, prompts, agents: list with enabled toggle, Edit opens the editor in place of the row, Save/Cancel at the bottom, validation messages next to the field and a reason when Save is disabled, delete always confirms, drag or ↑↓ to reorder, Duplicate everywhere.
+- **SC5. Labels.** Every control's tooltip shows its YAML key. Labels say what the setting does in user terms; no raw YAML values in combos (`recent_5`, `list_detail`); jargon (coprocess, gateway, OSC, ACP, zone, iChannel) gets a one-line explanation.
+- **SC6. No hard-coded shortcuts** in labels or tooltips; render the live binding (K6).
+- **SC7. No duplicate control for one field**, except a deliberate summary on a "Common" page that links to the owning page.
+- **SC8. Platform gating.** Platform-only controls and their text are compiled out or labelled "(macOS only)".
+- **SC9. Nesting depth.** No scroll area inside a scroll area; at most two levels of collapsible.
+
+## 17. Settings bugs and dead controls
+
+Continues Appendix A numbering.
+
+| Code | Bug | Evidence |
+|---|---|---|
+| B35 | **Profile list Cancel, then Save, persists an empty profile set.** Cancel calls `close()`, which clears `working_profiles`; the Cancel action is a no-op in the host; profiles reload only when the Settings window is first opened; list Save hands the empty vector to `apply_profile_changes`, which replaces and saves the profile file | `profile_modal_ui/list_view.rs:179-182`; `profile_modal_ui/mod.rs:184-191`; `profiles_tab/management.rs:32`; `settings_actions.rs:62-65,128`; `profile_ops.rs:336-338` [verified code path; RT15] |
+| B36 | Closing Settings persists unsaved live edits (and a Reset to Defaults) without asking | `settings_actions.rs:149-176` [verified] |
+| B37 | Discard reverts nothing | `display.rs:352-355` [verified] |
+| B38 | "Wrap around when navigating" (`search_wrap_around`) has no reader; search always wraps | `src/search/mod.rs:189`; zero non-UI references [verified] |
+| B39 | Text Shaping checkboxes (shaping, ligatures, kerning) reach `CellRenderer` but are `#[allow(dead_code)]` "not yet consumed"; shaping always uses `ShapingOptions::default()` | `par-term-render/src/cell_renderer/font.rs:15-24`; `par-term-fonts/src/text_shaper.rs:82-85` [verified] |
+| B40 | Bell volume and Alert Sounds "Bell" override each other: any Bell alert entry (even disabled) silences the volume slider; volume 0 with visual and desktop off skips a configured Alert Sounds bell | `src/app/window_state/notifications.rs:381-386, 428-446` [inferred; RT16] |
+| B41 | `tmux_default_session` and `archive_on_close` have Settings controls and no runtime reader | zero non-UI references [verified] |
+| B42 | Editing a disabled snippet re-enables it (Save hard-codes `enabled: true`) | `snippets_tab/editor.rs:37` [verified] |
+| B43 | Saving a custom action wipes fields the form doesn't show: ShellCommand `timeout_secs` → 30 and `notify_on_success` → false, every type's `description` → None, and `keybinding_enabled` forced true for NewTab/InsertText/KeySequence/SplitPane | `actions_tab/action_editor.rs:31-195` [verified for ShellCommand and NewTab] |
+| B44 | Scrollbar thumb/track pickers use `Alpha::Opaque` on RGBA fields; opening them likely forces alpha to 1.0 | `window_tab/scrollbar.rs:87-112` [inferred; RT17] |
+| B45 | RGB fields shown with an alpha picker that discards alpha (badge, progress bar, pane colors, background, status bar, visual bell) | e.g. `badge_tab.rs:142`, `panes.rs:114` [verified] |
+| B46 | Cmd+W with Settings focused acts on a terminal window (menu Close has no Settings-focus check, unlike Copy/Paste/Select All) | `menu_actions.rs:27-35` vs `:104,135,204` [inferred; RT18] |
+| B47 | Trigger Highlight foreground picker can never appear (only shown when fg is already set; no toggle) | `automation_tab/triggers_section/action_fields.rs:11-49` [verified] |
+| B48 | Two SplitPane actions in one trigger share fixed combo IDs | `action_fields.rs:141,163,205` [verified] |
+| B49 | Custom-action tmux-prefix clash warning never fires (compares "Ctrl+…" to "C-b") | `actions_tab/action_list.rs:79-90` [verified] |
+| B50 | Two controls write `anti_idle_code` (combo and the always-visible ASCII drag value) | `notifications_tab/anti_idle.rs` [verified] |
+| B51 | `save_arrangement` keybinding opens Settings without choosing a tab (comment says Arrangements); menu version opens Window, whose Arrangements section is last | `keybinding_display_actions.rs:147-153`; `menu_actions.rs:472-478` [verified] |
+| B52 | Shader Uninstall, prompt delete, trigger/snippet/action/coprocess/script/dynamic-source delete, Import & Replace, and Fetch & Replace have no confirmation | per-editor [verified] |
+| B53 | Hard-coded shortcut text is wrong off macOS or after rebinding: "Cmd/Ctrl+F", "(Cmd+R / Ctrl+Alt+R)", "Press Cmd+Shift+S", throughput "(Cmd+Shift+T / Ctrl+Shift+M)", pane shortcut hint | `terminal_tab/search.rs:105,129`; `ssh_tab.rs:108`; `window_tab/performance.rs`; `panes.rs:172-200` [verified] |
+| B54 | Settings opens on Appearance every time; last tab, scroll, and search are not remembered | `state.rs:212` [verified] |
+| B55 | Snippet export/import errors only reach the log; import silently drops duplicate IDs and conflicting keybindings | `snippets_tab/io.rs:30-103` [verified] |
+| B56 | Action "Enter Copy Mode" and "Toggle Copy Mode" are adjacent and unexplained; keybinding grid order differs by platform (swap vs resize) | `actions_table.rs:126-161` vs `:335-362` [verified] |
+| B57 | Per-profile tmux settings silently require global `tmux_enabled`, even "Normal" mode | `src/app/tab_ops/profile_ops.rs:145-147` [verified] |
+
+Existing codes that also live in Settings: B3 (`tab_show_index`), B6 (`pane_min_size`), B7 (`pane_title_font`), B18–B23 (keybinding recorder and legend).
+
+Also noted, not bugs: `CollapsibleSection` (auto-expand on search) and the modal `ProfileModalUI::show()` are dead code; the unused overlay `SettingsUI::show()` duplicates the panel header/footer and has already drifted (`display.rs:77-244`); `SLIDER_HEIGHT` is re-declared in 20 files; sidebar tooltips are stale for Terminal, Advanced, Automation, Snippets, Assistant, Integrations.
+
+## 18. Decisions for the owner (SD)
+
+- **SD1. How far to follow iTerm2's layout.** (a) Borrow its tab names and groupings (General, Appearance, Profiles, Keys, Pointer, Arrangements, Advanced) while keeping par-term's global-with-overrides model, as in 15.2. (b) Go profile-first like iTerm2, moving most per-terminal settings into the profile editor. **Recommendation: (a).** par-term users configure globally and override per profile; (b) would bury common settings.
+- **SD2. Number of top-level tabs.** 12 as in 15.2 (with Notifications and Status Bar under Advanced), or keep them top-level for 14. **Recommendation: 12, with Status Bar top-level if you use it often**; the sidebar stays short and search (SQ4) makes depth cheap.
+- **SD3. Quick-settings strip.** It duplicates 10 settings above every tab and eats vertical space. Options: remove it; or turn it into a General › "Common" page. **Recommendation: turn it into a page.**
+- **SD4. Live preview vs explicit apply.** Keep live preview with Save/Revert (SS1–SS3), or switch to Apply/OK/Cancel. **Recommendation: keep live preview** (it is the better experience for visual settings) and add the baseline and close prompt.
+
+## 19. Phased plan (SP)
+
+- **SP0. Data loss and dead controls** (no IA change). B35, B36, B37 via SS1–SS3 minimal version, B42, B43, B44/B45 color helpers (SC3), B52 delete confirmations, B38/B41 remove or wire dead controls, B39 hide Text Shaping until wired.
+  - Acceptance: Cancel then Save in the profile list keeps every profile (test). Closing with unsaved edits prompts; Revert restores every window to the snapshot (test on a changed opacity). Editing a disabled snippet keeps it disabled; saving a ShellCommand action preserves `timeout_secs` and `description` (tests). No picker shows alpha for an RGB field; RGBA fields round-trip alpha (test). Every delete asks.
+- **SP1. Search.** SQ1–SQ8.
+  - Acceptance: SQ8 test green; the 15 audit queries resolve to their controls; no tab is dimmed-and-unclickable; empty results show a message.
+- **SP2. Save model and consistency.** SS4–SS10, SC1, SC2, SC5–SC9.
+  - Acceptance: every dependent control is disabled when its parent is off (spot-test list from SC1); every numeric control shows a unit; no tooltip or label contains a hard-coded chord; per-control reset appears when a value differs from default.
+- **SP3. Information architecture.** 15.2 and 15.3 after SD1–SD3, plus SX1–SX3, profile editor sub-tabs, one list-editor component (SC4).
+  - Acceptance: every current section appears in exactly one new home (mapping test over the section registry from SQ1); SX3 coverage test green; `save_arrangement` and every other deep link open the right page and section (B51); last tab and search are remembered (B54).
+- **SP4. Docs.** A `docs/features/SETTINGS.md` page generated from the section registry (tab › section › control › YAML key), and `docs/CONFIG_REFERENCE.md` gains a "Settings location" column; fix GETTING_STARTED's "Save applies changes" paragraph.
+
+## Appendix E (continued): runtime checks for Part II
+
+| Code | Check |
+|---|---|
+| RT15 | With Settings open: Profiles › Cancel, then Save → profiles.yaml is empty afterwards |
+| RT16 | Tick then untick Alert Sounds › Bell; the audio bell volume slider no longer produces sound |
+| RT17 | Open the scrollbar track color picker without changing anything; `scrollbar_track_color` alpha becomes 1.0 on save |
+| RT18 | Focus Settings and press Cmd+W; a terminal tab closes |
