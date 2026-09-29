@@ -4086,6 +4086,7 @@ dependencies = [
 name = "par-term-mux"
 version = "0.2.0"
 dependencies = [
+ "base64 0.23.1",
  "log",
  "par-term-config",
  "par-term-emu-core-rust",

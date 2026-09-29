@@ -24,6 +24,9 @@ par-term-emu-core-rust.workspace = true
 # Logging
 log.workspace = true
 
+# Roster reason tokens arrive as reason=<standard base64> (ARC-060 grammar)
+base64.workspace = true
+
 [features]
 # Client for the core's par-mux daemon (core >= 0.50 ships the `mux`
 # feature; the pin was raised in card 01a0d1cbc649).

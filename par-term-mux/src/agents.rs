@@ -6,9 +6,12 @@
 //! not a collector. Wire shapes:
 //!
 //! - `list-agents` replies one line per pane a hook has CLAIMED or a rule
-//!   has MATCHED: `%N <agent> <state> <source>`, source `hook` or
-//!   `scrape`. Panes without either are absent outright — `unknown` means
-//!   no report ever happened, never "idle".
+//!   has MATCHED: `%N <agent> <state> <source>` (fixed positions; source
+//!   `hook` or `scrape`), then zero or more whitespace-free trailing
+//!   tokens — `key=value` per the ARC-060 grammar (`reason=<standard
+//!   base64>`, `telemetry=`, `host_telemetry=`, …) or free reason words
+//!   from a pre-ARC-060 daemon. Panes without either are absent outright
+//!   — `unknown` means no report ever happened, never "idle".
 //! - `%agent-state-changed` pushes `{pane} {agent} {state} source={s}`;
 //!   core's parser extracts the fields (the pane id keeps its `%` sigil,
 //!   the state may be multi-word, `source` is empty when the line carried
@@ -59,36 +62,57 @@ pub struct AgentEntry {
     /// Provenance: a hook CLAIM or a scrape GUESS. Surfaces render them
     /// differently; a guess never shows with a claim's confidence.
     pub source: AgentSource,
-    /// Why a blocked agent is waiting. The wire cannot carry this yet —
-    /// the daemon drops the `message` field pi/omp send until core card
-    /// 01a0c77378997ba3bd3016b8db8df98a lands, and claude/codex/grok send
-    /// none even then — so every parse today yields `None`. The field
-    /// exists so the fill/push paths and their readers are already shaped
-    /// for the day it arrives.
+    /// Why a blocked agent is waiting. `list-agents` rows carry it as
+    /// `reason=<standard base64>` (the ARC-060 grammar; decoded here) or,
+    /// from a pre-ARC-060 daemon, as free trailing words. The
+    /// `%agent-state-changed` push carries no reason — core's
+    /// `AgentStateChanged` has no such field — so a push-refreshed entry
+    /// holds `None` until the next roster refetch.
     pub reason: Option<String>,
 }
 
 impl AgentEntry {
-    /// Parse a `list-agents` row: `%N <agent> <state> <source>`. The state
-    /// is everything between the agent and the trailing source token, so a
-    /// multi-word state survives the same way it does through the push
-    /// parser.
+    /// Parse a `list-agents` row: `%N <agent> <state> <source>` with
+    /// fixed positions (the state is a single validated token on the
+    /// wire), then zero or more trailing tokens: `key=value` tokens
+    /// (`reason=<standard base64>`, `telemetry=`, `host_telemetry=`, …)
+    /// per the ARC-060 grammar, or — from a pre-ARC-060 daemon — free
+    /// reason words. Fixed positions mean no trailing token can be
+    /// mistaken for a column; unknown `key=value` tokens are tolerated
+    /// and ignored, and only `reason=` is consumed.
     fn parse_list_line(line: &str) -> Option<Self> {
+        use base64::Engine as _;
+        use base64::engine::general_purpose::STANDARD;
+
         let mut parts = line.split_whitespace();
         let pane = parse_pane_id(parts.next()?)?;
         let agent = parts.next()?.to_string();
-        let tail: Vec<&str> = parts.collect();
-        // At least a state and the trailing source token.
-        if tail.len() < 2 {
-            return None;
+        let state = parts.next()?.to_string();
+        let source = AgentSource::parse(parts.next()?)?;
+        let mut reason = None;
+        let mut words: Vec<&str> = Vec::new();
+        for token in parts {
+            if let Some(encoded) = token.strip_prefix("reason=") {
+                reason = match STANDARD.decode(encoded) {
+                    Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
+                    Err(e) => {
+                        log::warn!("[MUX] undecodable reason token {token:?}: {e}");
+                        None
+                    }
+                };
+            } else if !token.contains('=') {
+                words.push(token);
+            }
         }
-        let source = AgentSource::parse(tail[tail.len() - 1])?;
+        if reason.is_none() && !words.is_empty() {
+            reason = Some(words.join(" "));
+        }
         Some(Self {
             pane,
             agent,
-            state: tail[..tail.len() - 1].join(" "),
+            state,
             source,
-            reason: None,
+            reason,
         })
     }
 
@@ -137,6 +161,7 @@ fn parse_pane_id(token: &str) -> Option<TmuxPaneId> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine as _;
 
     #[test]
     fn parses_list_lines_with_source() {
@@ -150,14 +175,44 @@ mod tests {
             ),
             (3, "kimi", "working", AgentSource::Hook)
         );
-        assert_eq!(entry.reason, None, "the wire carries no reason yet");
+        assert_eq!(entry.reason, None, "no reason token on this row");
     }
 
     #[test]
-    fn multi_word_state_survives_the_list_parse() {
-        let entry = AgentEntry::parse_list_line("%4 claude waiting for input scrape").unwrap();
-        assert_eq!(entry.state, "waiting for input");
+    fn trailing_reason_words_survive_the_list_parse() {
+        // Pre-ARC-060 daemon shape: free-text reason words after the
+        // source. Positions are fixed, so they cannot collide with a
+        // column the way the old last-token source parse did.
+        let entry =
+            AgentEntry::parse_list_line("%4 claude blocked scrape waiting for input").unwrap();
+        assert_eq!(entry.state, "blocked");
         assert_eq!(entry.source, AgentSource::Scrape);
+        assert_eq!(entry.reason.as_deref(), Some("waiting for input"));
+    }
+
+    #[test]
+    fn reason_token_decodes_base64() {
+        // ARC-060 grammar: `reason=<standard base64>`, one
+        // whitespace-free token — a reason containing `telemetry=` or
+        // ending in `hook` still cannot collide with a column.
+        let reason = "waiting on telemetry=x hook";
+        let encoded = base64::engine::general_purpose::STANDARD.encode(reason.as_bytes());
+        let entry =
+            AgentEntry::parse_list_line(&format!("%5 pi blocked hook reason={encoded}")).unwrap();
+        assert_eq!(entry.state, "blocked");
+        assert_eq!(entry.source, AgentSource::Hook);
+        assert_eq!(entry.reason.as_deref(), Some(reason));
+    }
+
+    #[test]
+    fn telemetry_tokens_do_not_drop_the_row() {
+        let entry = AgentEntry::parse_list_line(
+            "%6 claude working hook telemetry=eyJhIjoxfQ== host_telemetry=aG9zdA==",
+        )
+        .unwrap();
+        assert_eq!(entry.state, "working");
+        assert_eq!(entry.source, AgentSource::Hook);
+        assert_eq!(entry.reason, None);
     }
 
     #[test]
