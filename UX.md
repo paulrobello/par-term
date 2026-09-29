@@ -1029,6 +1029,8 @@ Rules:
 
 ## 25. Decisions for the owner (MD)
 
+**Owner answer (2026-09-29): MD1–MD5 accepted as recommended.**
+
 - **MD1. Menu structure.** Adopt iTerm2's Shell / Edit / View / Session / Profiles / Window / Help (21.2), replacing File and Tab. **Recommendation: yes** (owner rule D1).
 - **MD2. One profile launcher.** Replace the chevron window and the `new_tab_shortcut_shows_profiles` picker with Open Profiles… (PR1), and make the drawer an optional pinned view of it (PR2). **Recommendation: yes.**
 - **MD3. Per-profile shortcuts become registry bindings** (PR3), with a one-time migration of existing strings. **Recommendation: yes.** The current layer mostly cannot fire.
@@ -1036,6 +1038,8 @@ Rules:
 - **MD5. Destructive-dialog default.** Enter = safe choice everywhere, destructive action on its own key. **Recommendation: yes** (reverses the current Quit default).
 
 ## 26. Phased plan (MP)
+
+**Filed on the par-term board 2026-09-29:** MP0 `01a0ee6b0f1c717190a55b5d5971c982` (critical), MP1 `01a0ee6b133376c0abf815be48758269`, MP2 `01a0ee6b16f27730b1041aead2205490`, MP3 `01a0ee6b1a36773393ba4a5323b8c094`.
 
 - **MP0. Safety and correctness quick fixes.** B61 key guard (add every dialog, menu, and focused panel to the guard; consume Escape centrally), B63 no app exit on stray key, B64 Enter = safe choice, B58 menu clear scrollback on focused pane, B62 palette scroll, B69 tmux picker Escape and async load, B70 wire list keyboard nav, B68.
   - Acceptance: a `--ui-test` script opens each dialog in B61 and types "x", Enter, and Escape; the PTY capture sink receives nothing (RT22 becomes a test). Pressing a key in a tab whose panes all exited does not quit the app. Enter in quit/close-job/last-tab dialogs never takes the destructive action. ⌘⇧K in a split clears only the focused pane. Arrowing to the 20th palette match keeps it visible.
