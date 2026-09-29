@@ -417,6 +417,8 @@ Target: **the same key does the same thing** whether a tab is local or attached.
 
 ## 11. Phased roadmap with acceptance criteria
 
+**Filed on the par-term board 2026-09-28:** P0 `01a0ea7b391f7511a2d62b8667be10d7`, P1 `01a0ea7b3beb749085938c8fba01d9f2`, P2 keymap system `01a0ea7b3f657fa3922c30640ca88fc1`, iTerm2 alignment `01a0ea7b421c7810b3a6b61ad585bed2`, leader key `01a0ea7b44ad791188b2c670ced14034`, P3 `01a0ea7b474471c18348f207594d69f4`, P4 `01a0ea7b4af97e00a5c77c9a86dd0cb8`, P5 `01a0ea7b4da171a2adcaca0f48e53d58`. D6 is not filed until the owner answers.
+
 Each phase is independently shippable. Every phase ends with `make checkall` green and docs updated in the same change.
 
 ### P0. Correctness quick wins (small, no design risk)
