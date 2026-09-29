@@ -129,7 +129,10 @@ HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg par-term --ui-test
 startup config migration treats the real `~/.config/par-term` as a legacy
 location and **moves its contents into the throwaway dir** (observed
 2026-09-28 — 11 entries relocated before the run was stopped and manually
-recovered). A scratch `HOME` removes both legacy-source candidates.
+recovered). A scratch `HOME` removes both legacy-source candidates;
+`PAR_TERM_NO_MIGRATE=1` skips the migration outright and is the
+belt-and-braces fallback when `HOME` cannot be redirected (documented in
+the [Environment Variables Reference](ENVIRONMENT_VARIABLES.md)).
 
 Three first-run prompts defeat a clean run otherwise — `integrations_ui`
 opens at startup and holds the modal guard — so all three suppression keys go

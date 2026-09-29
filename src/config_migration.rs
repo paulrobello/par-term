@@ -24,10 +24,31 @@ use par_term_config::Config;
 /// it differs from `Config::config_dir()`, moves any entries present there but
 /// absent in the canonical location. Existing canonical files are never
 /// overwritten and failures never abort startup; see `migrate_between`.
+///
+/// `PAR_TERM_NO_MIGRATE` (any non-empty value) skips the migration entirely:
+/// the legacy-source design cannot tell a real migration from a run whose
+/// `XDG_CONFIG_HOME` merely points elsewhere (ui-test harnesses, wrappers), and
+/// such a run would relocate the user's real `~/.config/par-term` into the
+/// throwaway dir with no undo.
 pub fn migrate_legacy_config_dir() {
+    if migration_opted_out(std::env::var_os("PAR_TERM_NO_MIGRATE").as_deref()) {
+        log::info!("PAR_TERM_NO_MIGRATE is set — legacy config migration skipped");
+        return;
+    }
     let canonical = Config::config_dir();
-    for legacy in legacy_config_dirs(&canonical) {
-        let moved = migrate_between(&legacy, &canonical);
+    migrate_from_legacy_roots(legacy_config_dirs(&canonical), &canonical);
+}
+
+/// Whether `PAR_TERM_NO_MIGRATE` disables the startup migration. Set to any
+/// non-empty value; an empty value reads as unset so `VAR=` cannot brick the
+/// migration on hosts where the variable is exported empty.
+fn migration_opted_out(value: Option<&std::ffi::OsStr>) -> bool {
+    value.is_some_and(|v| !v.is_empty())
+}
+
+fn migrate_from_legacy_roots(legacies: Vec<PathBuf>, canonical: &Path) {
+    for legacy in legacies {
+        let moved = migrate_between(&legacy, canonical);
         if moved > 0 {
             log::info!(
                 "Migrated {moved} legacy config file(s)/dir(s) from {legacy:?} to {canonical:?}"
@@ -228,5 +249,40 @@ mod tests {
 
         assert_eq!(moved, 1);
         assert!(canonical.join("arrangements.yaml").exists());
+    }
+
+    /// The incident behind `PAR_TERM_NO_MIGRATE` (observed 2026-09-28): an
+    /// isolated-`XDG_CONFIG_HOME` run must be able to opt out, or the user's
+    /// real `~/.config/par-term` relocates into the throwaway dir with no
+    /// undo. The decision function is tested hermetically — no test here may
+    /// `set_var` (the shared-environ hazard documented in
+    /// tests/config/config_env_tests.rs).
+    #[test]
+    fn no_migrate_opt_out_decision() {
+        assert!(!migration_opted_out(None));
+        assert!(!migration_opted_out(Some(std::ffi::OsStr::new(""))));
+        assert!(migration_opted_out(Some(std::ffi::OsStr::new("1"))));
+    }
+
+    /// What the gate protects: `migrate_from_legacy_roots` is the operation
+    /// that drains a populated legacy root — pinned here so the opt-out has
+    /// a measurable stake (this is what a gated-out run must NOT do). The
+    /// gate itself is the two-line check in `migrate_legacy_config_dir`;
+    /// its end-to-end proof is the sandboxed binary repro on the card.
+    #[test]
+    fn legacy_roots_migration_drains_a_populated_root() {
+        let legacy = tempdir().unwrap();
+        let canonical = tempdir().unwrap();
+        fs::write(legacy.path().join("config.yaml"), "real user config").unwrap();
+        fs::create_dir_all(legacy.path().join("shaders")).unwrap();
+        fs::write(legacy.path().join("shaders").join("x.glsl"), "shader").unwrap();
+
+        migrate_from_legacy_roots(vec![legacy.path().to_path_buf()], canonical.path());
+
+        assert!(canonical.path().join("config.yaml").exists());
+        assert!(canonical.path().join("shaders").join("x.glsl").exists());
+        assert!(!legacy.path().join("config.yaml").exists());
+        // The emptied root is cleaned up (the rmtree half of the incident).
+        assert!(!legacy.path().exists());
     }
 }
