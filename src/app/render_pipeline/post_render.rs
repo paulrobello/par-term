@@ -106,8 +106,9 @@ impl WindowState {
             CloseConfirmAction::Close { tab_id, pane_id } => {
                 // Route through the proper cleanup path so session-undo capture,
                 // tab-bar resize, alert sounds, and is_shutting_down are all handled.
+                let prev_active = self.tab_manager.active_tab_id();
                 self.tab_manager.switch_to(tab_id);
-                if let Some(pane_id) = pane_id {
+                let was_last = if let Some(pane_id) = pane_id {
                     // Focus the confirmed pane then close it via the normal path.
                     if let Some(tab) = self.tab_manager.active_tab_mut()
                         && let Some(pm) = tab.pane_manager_mut()
@@ -115,16 +116,22 @@ impl WindowState {
                         pm.focus_pane(pane_id);
                     }
                     let was_last = self.close_focused_pane_immediately();
-                    if was_last {
-                        self.is_shutting_down = true;
-                    }
                     log::info!("Force-closed pane {} in tab {}", pane_id, tab_id);
+                    was_last
                 } else {
                     let was_last = self.close_current_tab_immediately();
-                    if was_last {
-                        self.is_shutting_down = true;
-                    }
                     log::info!("Force-closed tab {}", tab_id);
+                    was_last
+                };
+                if was_last {
+                    self.is_shutting_down = true;
+                } else if let Some(prev) = prev_active
+                    && prev != tab_id
+                    && self.tab_manager.get_tab(prev).is_some()
+                {
+                    // UX.md B13/TW1: a confirmed close of a background tab
+                    // or pane must not move the user either.
+                    self.tab_manager.switch_to(prev);
                 }
             }
             CloseConfirmAction::Cancel => {

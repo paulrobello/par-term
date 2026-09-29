@@ -46,10 +46,20 @@ impl WindowState {
                 // Switch to the tab first so close_current_tab() operates on it.
                 // This routes through the full close path: running-jobs confirmation,
                 // session undo capture, and preserve-shell logic.
+                let prev_active = self.tab_manager.active_tab_id();
                 self.tab_manager.switch_to(id);
                 let was_last = self.close_current_tab();
                 if was_last {
                     self.is_shutting_down = true;
+                } else if let Some(prev) = prev_active
+                    && prev != id
+                    && self.tab_manager.get_tab(prev).is_some()
+                {
+                    // UX.md B13/TW1: closing a background tab must not move
+                    // the user — focus returns to the tab they were on. The
+                    // id-addressed close dialogs stay valid: they target the
+                    // tab, not the active tab.
+                    self.tab_manager.switch_to(prev);
                 }
                 self.request_redraw();
             }

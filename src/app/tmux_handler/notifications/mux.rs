@@ -3645,6 +3645,81 @@ pub(crate) mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// UX.md B13/TW1: closing a background tab via its close button
+    /// leaves the active tab unchanged.
+    #[test]
+    fn closing_a_background_tab_keeps_the_active_tab() {
+        let path = socket_path("close-background");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(&transport, "closebg", Some((80, 24)), &Default::default())
+            .expect("attach");
+        transport.send_command("new-window").expect("new-window");
+        transport.send_command("new-window").expect("new-window");
+        std::thread::sleep(Duration::from_millis(50));
+        for pane in transport.client().list_panes().expect("list panes") {
+            transport
+                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
+                .expect("refresh-client");
+        }
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("closebg".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() >= 3 && ws.tmux_state.tmux_pane_owners.len() >= 3 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created 3 tabs: {} tabs, panes {:?}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        let first_id = ws.tab_manager.tabs()[0].id;
+        let third_id = ws.tab_manager.tabs()[2].id;
+        ws.tab_manager.switch_to(first_id);
+
+        ws.handle_tab_bar_action_after_render(crate::tab_bar_ui::TabBarAction::Close(third_id));
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.get_tab(third_id).is_none() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the background tab never closed: {} tabs",
+                ws.tab_manager.tab_count()
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert_eq!(
+            ws.tab_manager.active_tab_id(),
+            Some(first_id),
+            "closing a background tab must not change the active tab"
+        );
+        assert!(!ws.is_shutting_down, "two tabs remain, no shutdown");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
 
     fn a_fresh_daemon_yields_an_empty_roster() {
