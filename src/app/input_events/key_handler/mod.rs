@@ -6,14 +6,13 @@
 //! - `command_history`: Cmd/Ctrl+R command history UI
 //! - `command_palette`: Escape ownership for the command palette overlay
 //! - `search`: Cmd/Ctrl+F search UI
-//! - `tabs`: new/close/navigate/move/number-switch tab shortcuts
 //! - `profiles`: per-profile hotkeys and shortcut string building
 //!
-//! The chord shortcuts that used to live in dedicated layers (scroll
-//! navigation, F5 config reload, the AI inspector toggle, fullscreen/help/
-//! settings/FPS/profile-drawer toggles) resolve through the registry as
-//! default keybindings (`defaults::layer_chords`, UX K2); only the state
-//! machines above remain here.
+//! Every shipped chord resolves through the registry as a default keybinding
+//! (`defaults::menu_chords`, `defaults::layer_chords`, UX K2): the scroll,
+//! reload, UI-toggle, utility, and tab chord layers all dissolved into those
+//! defaults, and only the state machines above remain here. The paste/copy
+//! branch at the end of `handle_key_event` is the one deliberate exemption.
 
 mod agent_usage_panel;
 pub(crate) mod claims;
@@ -23,8 +22,6 @@ mod command_palette;
 mod config_reload;
 mod profiles;
 mod search;
-mod tabs;
-mod utility;
 
 #[cfg(test)]
 mod chord_tests;
@@ -51,11 +48,9 @@ pub(super) type KeyLayer = fn(&mut WindowState, &KeyEvent) -> bool;
 /// is what lets `chord_tests` answer "who gets this chord first?" without
 /// running the chain. Every entry here is a *state machine* — dialog
 /// navigation, consume-while-open modes — holding no chords of its own
-/// (UX K2: every shipped chord resolves through the registry).
-///
-/// Two further layers — `handle_utility_shortcuts` and `handle_tab_shortcuts` —
-/// continue this chain immediately after the last entry here but take the
-/// `ActiveEventLoop`, so they are invoked directly in `handle_key_event`.
+/// (UX K2: every shipped chord resolves through the registry). The utility
+/// and tab chord layers that used to continue this chain dissolved into
+/// registry defaults too.
 pub(super) static KEY_LAYERS: &[(&str, KeyLayer)] = &[
     // Clipboard history panel (consume-all while open; opened by the
     // toggle_clipboard_history action)
@@ -283,23 +278,14 @@ impl WindowState {
                     return;
                 }
             }
-
-            // These two layers continue the same precedence chain but need the
-            // event loop (they can exit the app / open windows), so they cannot
-            // live in KEY_LAYERS.  They run last, exactly as before.
-            //
-            // Check for utility shortcuts (clear scrollback, font size, etc.)
-            if self.handle_utility_shortcuts(&event, event_loop) {
-                return; // Key was handled by utility shortcut
-            }
-
-            // Check for tab shortcuts
-            if self.handle_tab_shortcuts(&event, event_loop) {
-                return; // Key was handled by tab shortcut
-            }
         }
 
-        // Handle paste shortcuts with bracketed paste support
+        // Paste/copy: the one deliberate hardcoded exemption from the
+        // registry-only chord rule (UX K2). These are OS clipboard
+        // conventions every native app answers to, not terminal actions —
+        // the menu's Copy/Paste accelerators are exempt from registry
+        // backing for the same reason, and `claims::PASTE_COPY` models this
+        // branch so chord precedence over it stays checkable.
         if event.state == ElementState::Pressed && !passthrough {
             // macOS: Cmd+V, NamedKey::Paste
             // Windows/Linux: Ctrl+Shift+V, Shift+Insert, NamedKey::Paste

@@ -234,10 +234,16 @@ mod tests {
     #[test]
     fn menu_accelerators_equal_default_registry_bindings() {
         let defaults = defaults();
-        let by_action: HashMap<String, &str> = defaults
-            .iter()
-            .map(|kb| (kb.action.clone(), kb.key.as_str()))
-            .collect();
+        // First binding per action wins, mirroring
+        // `apply_registry_accelerators` — an action may ship more than one
+        // chord (next_tab also carries Ctrl+Tab), and the menu shows the
+        // primary one.
+        let mut by_action: HashMap<String, &str> = HashMap::new();
+        for kb in &defaults {
+            by_action
+                .entry(kb.action.clone())
+                .or_insert(kb.key.as_str());
+        }
         for has_native_app_menu in [false, true] {
             let sections = model::menu_model_with(has_native_app_menu, &defaults);
             let mut checked = 0usize;

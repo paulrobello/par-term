@@ -70,10 +70,11 @@ pub(super) const NO_MODS: Mods = mods(false, false, false, false);
 
 /// A modifier *predicate*, not a modifier set.
 ///
-/// Layers are not uniform: `primary_modifier` demands an exact set (it excludes
-/// the cross modifier and Alt on purpose), while the font-size branches in
-/// `utility.rs` only test that one modifier is held and ignore the rest. Both
-/// shapes have to be representable or the precedence answer is wrong.
+/// Claims are not uniform: the registry, the menus, and `primary_modifier`
+/// demand an exact set (the cross modifier and Alt are excluded on purpose),
+/// while the paste/copy branch only tests that its modifier is held and
+/// ignores the rest. Both shapes have to be representable or the precedence
+/// answer is wrong.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct ModSpec {
     /// Must all be held.
@@ -178,15 +179,8 @@ impl Claim {
     }
 }
 
-// Shorthands for the two modifier shapes `crate::platform` provides.
-pub(super) const PRIMARY_MAC: ModSpec = ModSpec::exact(mods(false, false, false, true));
-// No layer uses the bare `primary_modifier` shape off macOS — every shortcut
-// that is Cmd+key there is Ctrl+Shift+key elsewhere — so there is no
-// `PRIMARY_OTHER`.
-pub(super) const PRIMARY_SHIFT_MAC: ModSpec = ModSpec::exact(mods(false, false, true, true));
-pub(super) const PRIMARY_SHIFT_OTHER: ModSpec = ModSpec::exact(mods(true, false, true, false));
 /// No modifier is required and none is rejected — an unguarded `matches!` on the
-/// logical key, which is how the function-key layers are written.
+/// logical key, which is how the paste/copy NamedKey branches are written.
 pub(super) const ANY_MODS: ModSpec = ModSpec::loose(NO_MODS, NO_MODS);
 
 pub(super) const fn ch(c: char) -> ChordKey {

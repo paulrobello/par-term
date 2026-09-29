@@ -174,11 +174,11 @@ fn hardcoded_menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
             accel(cmd_or_ctrl_shift, Code::BracketLeft),
             MenuAction::PreviousTab,
         ),
-        // Reordering is otherwise dispatched by the hardcoded
-        // Cmd/Ctrl+Shift+Arrow layer in `key_handler::tabs`. The accelerators
-        // here name that same chord, and the settings window's
-        // `AVAILABLE_ACTIONS` advertises it — `key_handler::chord_tests` checks
-        // all three agree.
+        // Reordering is dispatched by the `move_tab_left`/`move_tab_right`
+        // registry defaults (the old hardcoded Cmd/Ctrl+Shift+Arrow layer
+        // dissolved, UX K2). The accelerators here name those same chords,
+        // and the settings window's `AVAILABLE_ACTIONS` advertises them —
+        // `key_handler::chord_tests` checks all three agree.
         item(
             "move_tab_left",
             "Move Tab Left",

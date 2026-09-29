@@ -1,7 +1,11 @@
-//! Shader toggle and visual notification helpers for WindowState keybindings.
+//! Helper keybinding actions and WindowState helpers: visual notifications,
+//! shader toggles, and the clear actions.
 //!
 //! - `show_toast`, `show_pane_indices`: visual notification helpers
 //! - `toggle_background_shader`, `toggle_cursor_shader`: shader toggle helpers
+//! - `clear_scrollback`, `clear_screen`, `send_clear_screen_sequence`: the
+//!   clear family (moved here when keybinding_actions crossed the 800-line
+//!   gate)
 
 use crate::app::window_state::WindowState;
 use crate::config::resolve_shader_config;
@@ -222,5 +226,99 @@ impl WindowState {
                 "disabled"
             }
         );
+    }
+}
+
+// ── clear actions (moved from keybinding_actions to stay under the
+// 800-line gate) ──────────────────────────────────────────────────────────
+
+pub(crate) fn clear_scrollback(s: &mut WindowState) -> bool {
+    let cleared = if let Some(tab) = s.tab_manager.active_tab_mut() {
+        // The focused pane's terminal, so a split clears the pane the user is
+        // looking at (parity with the dissolved utility-layer branch).
+        let terminal = if let Some(ref pm) = tab.pane_manager
+            && let Some(focused_pane) = pm.focused_pane()
+        {
+            std::sync::Arc::clone(&focused_pane.terminal)
+        } else {
+            std::sync::Arc::clone(&tab.terminal)
+        };
+        // try_lock: intentional — keybinding action in sync event loop.
+        // On miss: scrollback not cleared this invocation. User can retry.
+        let did_clear = if let Ok(mut term) = terminal.try_write() {
+            term.clear_scrollback();
+            term.clear_scrollback_metadata();
+            true
+        } else {
+            false
+        };
+        if did_clear {
+            tab.active_cache_mut().scrollback_len = 0;
+            tab.scripting.trigger_marks.clear();
+            if let Some(pm) = tab.pane_manager_mut() {
+                for pane in pm.all_panes_mut() {
+                    if std::sync::Arc::ptr_eq(&pane.terminal, &terminal) {
+                        pane.cache.invalidate_pane_cells();
+                    }
+                }
+            }
+        }
+        did_clear
+    } else {
+        false
+    };
+    if cleared {
+        s.set_scroll_target(0);
+        log::info!("Cleared scrollback buffer via keybinding");
+    }
+    true
+}
+
+/// Send the Ctrl+L clear-screen byte (0x0C) to the focused pane. In a mux
+/// tab the focused pane is a daemon mirror, so the byte routes to the
+/// daemon — `tab.terminal` there is the hidden login shell the clear must
+/// never reach.
+pub(crate) fn clear_screen(s: &mut WindowState) -> bool {
+    s.send_clear_screen_sequence();
+    true
+}
+
+impl WindowState {
+    /// Send the Ctrl+L clear-screen byte (0x0C) to the focused pane.
+    ///
+    /// A method (not inline in the handler) so the tmux pane-write path and
+    /// tests can drive it without fabricating a winit `KeyEvent` (which has
+    /// a private field and no public constructor).
+    pub(crate) fn send_clear_screen_sequence(&self) {
+        let Some(tab) = self.tab_manager.active_tab() else {
+            return;
+        };
+        let clear_sequence = vec![0x0C]; // Ctrl+L character
+        if self.route_mux_tab_write(tab, &clear_sequence) {
+            return;
+        }
+        // Use the focused pane's terminal so Ctrl+L clears the correct
+        // pane in split-pane mode, falling back to the tab's root terminal.
+        let terminal_clone = if let Some(ref pm) = tab.pane_manager {
+            if let Some(focused_pane) = pm.focused_pane() {
+                std::sync::Arc::clone(&focused_pane.terminal)
+            } else {
+                std::sync::Arc::clone(&tab.terminal)
+            }
+        } else {
+            std::sync::Arc::clone(&tab.terminal)
+        };
+        self.runtime.spawn(async move {
+            // try_lock: intentional — spawned async task uses try-lock to avoid
+            // blocking the tokio worker. On miss: the Ctrl+L clear is silently
+            // dropped. User can press the shortcut again.
+            if let Ok(term) = terminal_clone.try_read() {
+                if let Err(e) = term.write(&clear_sequence) {
+                    crate::debug_error!("INPUT", "PTY write failed (clear screen): {e}");
+                } else {
+                    log::debug!("Sent clear screen sequence (Ctrl+L)");
+                }
+            }
+        });
     }
 }

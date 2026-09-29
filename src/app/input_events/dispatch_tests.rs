@@ -29,6 +29,7 @@ use crate::app::window_state::WindowState;
 /// Adding a genuinely new action means adding it here too, deliberately.
 const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "clear_scrollback",
+    "clear_screen",
     "close_pane",
     "close_tab",
     "close_window",

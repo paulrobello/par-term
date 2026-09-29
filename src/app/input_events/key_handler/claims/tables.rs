@@ -44,199 +44,10 @@ const HELP_TOGGLE: &[Claim] = &[];
 /// `chord_tests`.
 const PROFILE_SHORTCUTS: &[Claim] = &[];
 
-/// `utility.rs` — mirrored (the font and cursor-style branches accept several
-/// keys and tolerate extra modifiers, so converting them to driven matching
-/// would risk changing which chord does what).
-const UTILITY: &[Claim] = &[
-    Claim {
-        action: "clear_scrollback",
-        mac: Some(PRIMARY_SHIFT_MAC),
-        other: Some(PRIMARY_SHIFT_OTHER),
-        keys: &[ch('K')],
-    },
-    Claim {
-        action: "internal:clear_screen",
-        mac: Some(ModSpec::loose(
-            mods(true, false, false, false),
-            mods(false, false, true, false),
-        )),
-        other: Some(ModSpec::loose(
-            mods(true, false, false, false),
-            mods(false, false, true, false),
-        )),
-        keys: &[ch('L')],
-    },
-    // `font_mod` is the super key on macOS and Ctrl elsewhere, with nothing
-    // excluded. Both `+` and `=` are accepted so a shifted `=` cannot leak.
-    Claim {
-        action: "increase_font_size",
-        mac: Some(ModSpec::loose(mods(false, false, false, true), NO_MODS)),
-        other: Some(ModSpec::loose(mods(true, false, false, false), NO_MODS)),
-        keys: &[ch('+'), ch('=')],
-    },
-    Claim {
-        action: "decrease_font_size",
-        mac: Some(ModSpec::loose(mods(false, false, false, true), NO_MODS)),
-        other: Some(ModSpec::loose(mods(true, false, false, false), NO_MODS)),
-        keys: &[ch('-'), ch('_')],
-    },
-    Claim {
-        action: "reset_font_size",
-        mac: Some(ModSpec::loose(
-            mods(false, false, false, true),
-            mods(false, false, true, false),
-        )),
-        other: Some(ModSpec::loose(
-            mods(true, false, false, false),
-            mods(false, false, true, false),
-        )),
-        keys: &[ch('0')],
-    },
-    // `ctrl || super_key`, so this is two predicates, not one.
-    Claim {
-        action: "cycle_cursor_style",
-        mac: Some(ModSpec::loose(
-            mods(true, false, false, false),
-            mods(false, false, true, false),
-        )),
-        other: Some(ModSpec::loose(
-            mods(true, false, false, false),
-            mods(false, false, true, false),
-        )),
-        keys: &[ch(',')],
-    },
-    Claim {
-        action: "cycle_cursor_style",
-        mac: Some(ModSpec::loose(
-            mods(false, false, false, true),
-            mods(false, false, true, false),
-        )),
-        other: Some(ModSpec::loose(
-            mods(false, false, false, true),
-            mods(false, false, true, false),
-        )),
-        keys: &[ch(',')],
-    },
-];
-
-/// `tabs.rs` — mirrored.
-const TABS: &[Claim] = &[
-    Claim {
-        action: "new_tab",
-        mac: Some(PRIMARY_MAC),
-        other: Some(PRIMARY_SHIFT_OTHER),
-        keys: &[ch('T')],
-    },
-    Claim {
-        action: "close_tab",
-        mac: Some(PRIMARY_MAC),
-        other: Some(PRIMARY_SHIFT_OTHER),
-        keys: &[ch('W')],
-    },
-    Claim {
-        action: "next_tab",
-        mac: Some(PRIMARY_SHIFT_MAC),
-        other: Some(PRIMARY_SHIFT_OTHER),
-        keys: &[ch(']')],
-    },
-    Claim {
-        action: "prev_tab",
-        mac: Some(PRIMARY_SHIFT_MAC),
-        other: Some(PRIMARY_SHIFT_OTHER),
-        keys: &[ch('[')],
-    },
-    Claim {
-        action: "next_tab",
-        mac: Some(ModSpec::loose(
-            mods(true, false, false, false),
-            mods(false, false, true, false),
-        )),
-        other: Some(ModSpec::loose(
-            mods(true, false, false, false),
-            mods(false, false, true, false),
-        )),
-        keys: &[named(NamedKey::Tab)],
-    },
-    Claim {
-        action: "prev_tab",
-        mac: Some(ModSpec::loose(mods(true, false, true, false), NO_MODS)),
-        other: Some(ModSpec::loose(mods(true, false, true, false), NO_MODS)),
-        keys: &[named(NamedKey::Tab)],
-    },
-    Claim {
-        action: "move_tab_left",
-        mac: Some(PRIMARY_SHIFT_MAC),
-        other: Some(PRIMARY_SHIFT_OTHER),
-        keys: &[named(NamedKey::ArrowLeft)],
-    },
-    Claim {
-        action: "move_tab_right",
-        mac: Some(PRIMARY_SHIFT_MAC),
-        other: Some(PRIMARY_SHIFT_OTHER),
-        keys: &[named(NamedKey::ArrowRight)],
-    },
-    // Number switching: `primary_modifier` on macOS, `alt && !shift && !ctrl`
-    // (Super not excluded) elsewhere.
-    Claim {
-        action: "switch_to_tab_1",
-        mac: Some(PRIMARY_MAC),
-        other: Some(TAB_SWITCH_OTHER),
-        keys: &[ch('1')],
-    },
-    Claim {
-        action: "switch_to_tab_2",
-        mac: Some(PRIMARY_MAC),
-        other: Some(TAB_SWITCH_OTHER),
-        keys: &[ch('2')],
-    },
-    Claim {
-        action: "switch_to_tab_3",
-        mac: Some(PRIMARY_MAC),
-        other: Some(TAB_SWITCH_OTHER),
-        keys: &[ch('3')],
-    },
-    Claim {
-        action: "switch_to_tab_4",
-        mac: Some(PRIMARY_MAC),
-        other: Some(TAB_SWITCH_OTHER),
-        keys: &[ch('4')],
-    },
-    Claim {
-        action: "switch_to_tab_5",
-        mac: Some(PRIMARY_MAC),
-        other: Some(TAB_SWITCH_OTHER),
-        keys: &[ch('5')],
-    },
-    Claim {
-        action: "switch_to_tab_6",
-        mac: Some(PRIMARY_MAC),
-        other: Some(TAB_SWITCH_OTHER),
-        keys: &[ch('6')],
-    },
-    Claim {
-        action: "switch_to_tab_7",
-        mac: Some(PRIMARY_MAC),
-        other: Some(TAB_SWITCH_OTHER),
-        keys: &[ch('7')],
-    },
-    Claim {
-        action: "switch_to_tab_8",
-        mac: Some(PRIMARY_MAC),
-        other: Some(TAB_SWITCH_OTHER),
-        keys: &[ch('8')],
-    },
-    Claim {
-        action: "switch_to_tab_9",
-        mac: Some(PRIMARY_MAC),
-        other: Some(TAB_SWITCH_OTHER),
-        keys: &[ch('9')],
-    },
-];
-
-pub(super) const TAB_SWITCH_OTHER: ModSpec = ModSpec::loose(
-    mods(false, true, false, false),
-    mods(true, false, true, false),
-);
+// `utility.rs` and `tabs.rs` are gone (UX K2 dissolution): every chord they
+// claimed is a registry default in `defaults::menu_chords` /
+// `defaults::layer_chords` and arrives in the chain as a
+// `config_keybindings` rule.
 
 /// The paste and copy branches inlined at the end of `handle_key_event`.
 /// Mirrored. Neither has an `AVAILABLE_ACTIONS` row.
@@ -301,16 +112,18 @@ pub(super) const MACOS_APP_MENU: &[Claim] = &[
     },
 ];
 
-/// The hardcoded layers, in the order `handle_key_event` consults them.
+/// The hardcoded dispatch sources that remain, in the order
+/// `handle_key_event` consults them.
 ///
 /// The first eight mirror [`super::KEY_LAYERS`] one-for-one — `chord_tests`
 /// asserts that correspondence so a new layer cannot be added without declaring
-/// what it claims. The last three continue the same chain but are invoked
-/// directly (two need the `ActiveEventLoop`; the paste/copy branch is inline).
+/// what it claims. The last is the inline paste/copy branch, the one
+/// deliberate chord exemption.
 ///
-/// The chord-only layers (scroll, config reload, the UI toggles) dissolved into
-/// registry defaults (`defaults::layer_chords`, UX K2): their chords arrive in
-/// the chain as `config_keybindings` rules, derived from the shipped defaults.
+/// Every chord-only layer (scroll, config reload, the UI toggles, utility,
+/// tabs) dissolved into registry defaults (`defaults::layer_chords` and
+/// `defaults::menu_chords`, UX K2): their chords arrive in the chain as
+/// `config_keybindings` rules, derived from the shipped defaults.
 pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
     ("clipboard_history", CLIPBOARD_HISTORY),
     ("command_history", COMMAND_HISTORY),
@@ -320,8 +133,6 @@ pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
     ("search", SEARCH),
     ("help_toggle", HELP_TOGGLE),
     ("profile_shortcuts", PROFILE_SHORTCUTS),
-    ("utility_shortcuts", UTILITY),
-    ("tab_shortcuts", TABS),
     ("paste_copy", PASTE_COPY),
 ];
 

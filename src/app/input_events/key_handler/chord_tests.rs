@@ -157,9 +157,14 @@ fn advertised_chord_is_dispatched_by_its_own_action() {
 /// Marker used in place of `source/action` when no source claims the chord.
 const NOTHING_CLAIMS_IT: &str = "<nothing>";
 
-/// Complementary and cheap: where an action *does* ship a default keybinding,
-/// the advertised string must name the same chord. Compared as parsed chords,
-/// so `CmdOrCtrl` expansion and modifier ordering cannot cause a false failure.
+/// Complementary and cheap: where an action *does* ship default keybindings,
+/// the advertised string must name one of them. Compared as parsed chords,
+/// so `CmdOrCtrl` expansion, modifier ordering, and the word/literal
+/// punctuation spellings (`Ctrl+Comma` vs `Ctrl+,`) cannot cause a false
+/// failure. An action may ship more than one chord (next_tab: the bracket
+/// pair and Ctrl+Tab; the font keys: the base and shifted spellings); the
+/// advertised column names the primary one, which is also the chord the menu
+/// displays (`registry_accel` is first-wins).
 #[test]
 fn advertised_chord_agrees_with_the_shipped_default() {
     let defaults = par_term_config::Config::default().keybindings;
@@ -171,20 +176,32 @@ fn advertised_chord_agrees_with_the_shipped_default() {
     let mut checked = 0usize;
     let mut wrong: Vec<String> = Vec::new();
 
-    for kb in &defaults {
-        let Some((_, _, Some(shown))) = AVAILABLE_ACTIONS.iter().find(|(a, _, _)| *a == kb.action)
-        else {
+    for (action, default) in AVAILABLE_ACTIONS
+        .iter()
+        .filter_map(|(action, _, default)| default.map(|default| (*action, default)))
+    {
+        let shipped: Vec<claims::Chord> = defaults
+            .iter()
+            .filter(|kb| kb.action == action)
+            .map(|kb| {
+                claims::parse_chord(&kb.key)
+                    .unwrap_or_else(|e| panic!("shipped default {:?}: {e}", kb.key))
+            })
+            .collect();
+        if shipped.is_empty() {
             continue;
-        };
-        let expected = claims::parse_chord(&kb.key)
-            .unwrap_or_else(|e| panic!("shipped default {:?}: {e}", kb.key));
-        let actual = claims::parse_chord(shown)
-            .unwrap_or_else(|e| panic!("AVAILABLE_ACTIONS row {:?}: {e}", kb.action));
+        }
+        let shown = claims::parse_chord(default)
+            .unwrap_or_else(|e| panic!("AVAILABLE_ACTIONS row {action:?}: {e}"));
         checked += 1;
-        if expected != actual {
+        if !shipped.contains(&shown) {
             wrong.push(format!(
-                "{}: table says {shown:?}, default is {:?}",
-                kb.action, kb.key
+                "{action}: table says {default:?}, shipped defaults are {:?}",
+                defaults
+                    .iter()
+                    .filter(|kb| kb.action == action)
+                    .map(|kb| kb.key.as_str())
+                    .collect::<Vec<_>>()
             ));
         }
     }
@@ -229,10 +246,11 @@ fn every_key_layer_declares_its_claims() {
         .collect();
     assert_eq!(
         tail,
-        ["utility_shortcuts", "tab_shortcuts", "paste_copy"],
-        "the sources after KEY_LAYERS are the two event-loop layers and the \
-         inline paste/copy branch, in that order — `handle_key_event` runs them \
-         in exactly this sequence"
+        ["paste_copy"],
+        "the only source after KEY_LAYERS is the inline paste/copy branch, the \
+         one deliberate chord exemption — the utility and tab chord layers \
+         dissolved into registry defaults (UX K2), and a new entry here means \
+         a hardcoded chord layer came back"
     );
 }
 

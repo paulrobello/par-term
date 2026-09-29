@@ -204,6 +204,20 @@ fn parse_key(s: &str) -> Result<ParsedKey, ParseError> {
         return Ok(ParsedKey::Named(named));
     }
 
+    // Punctuation word forms — the same vocabulary the settings table and the
+    // menu docs spell. Each resolves to the identical chord its literal
+    // character produces, so `Ctrl+Comma` and `Ctrl+,` are one binding.
+    let punctuation = match s.to_lowercase().as_str() {
+        "plus" => Some('+'),
+        "minus" => Some('-'),
+        "comma" => Some(','),
+        "equal" | "equals" => Some('='),
+        _ => None,
+    };
+    if let Some(c) = punctuation {
+        return Ok(ParsedKey::Character(c));
+    }
+
     // Single character
     let chars: Vec<char> = s.chars().collect();
     if chars.len() == 1 {
@@ -434,6 +448,26 @@ mod tests {
 
         let combo = parse_key_combo("PgUp").unwrap();
         assert_eq!(combo.key, ParsedKey::Named(NamedKey::PageUp));
+    }
+
+    #[test]
+    fn test_punctuation_word_forms() {
+        // The word forms the settings table and docs spell; each is the same
+        // chord as its literal-character twin.
+        let plus = parse_key_combo("Ctrl+Shift+Plus").unwrap();
+        assert_eq!(plus.key, ParsedKey::Character('+'));
+        assert!(plus.modifiers.ctrl && plus.modifiers.shift);
+
+        let comma = parse_key_combo("Ctrl+Comma").unwrap();
+        assert_eq!(comma.key, ParsedKey::Character(','));
+        assert_eq!(parse_key_combo("Ctrl+,").unwrap().key, comma.key);
+
+        let minus = parse_key_combo("CmdOrCtrl+Minus").unwrap();
+        assert_eq!(minus.key, ParsedKey::Character('-'));
+
+        let equal = parse_key_combo("Ctrl+Equal").unwrap();
+        assert_eq!(equal.key, ParsedKey::Character('='));
+        assert_eq!(parse_key_combo("Ctrl+Equals").unwrap().key, equal.key);
     }
 
     #[test]

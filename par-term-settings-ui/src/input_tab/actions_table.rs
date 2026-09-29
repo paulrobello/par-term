@@ -173,11 +173,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("reset_font_size", "Reset Font Size", Some("Cmd+0")),
     ("clear_scrollback", "Clear Scrollback", Some("Cmd+Shift+K")),
+    ("clear_screen", "Clear Screen", Some("Ctrl+L")),
     // `Ctrl+,`, not `Cmd+,`, on macOS too. `Cmd+,` is the `Settings...` key
     // equivalent on the NSApp application menu (`menu/macos.rs`) and is
-    // consumed before winit delivers a key event at all, but `utility.rs`
-    // accepts `ctrl || super_key` for the cycle, so `Ctrl+,` reaches it — and
-    // nothing higher in the chain claims that chord. Same string as the
+    // consumed before winit delivers a key event at all; `Ctrl+Comma` is the
+    // shipped registry default on every platform. Same string as the
     // non-macOS table below.
     (
         "cycle_cursor_style",
@@ -378,6 +378,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("reset_font_size", "Reset Font Size", Some("Ctrl+Shift+0")),
     ("clear_scrollback", "Clear Scrollback", Some("Ctrl+Shift+K")),
+    ("clear_screen", "Clear Screen", Some("Ctrl+L")),
     (
         "cycle_cursor_style",
         "Cycle Cursor Style",

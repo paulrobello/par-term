@@ -3,8 +3,9 @@
 //! - `execute_keybinding_action`: dispatches named actions (toggle shaders,
 //!   new tab, copy, paste, etc.) through the [`ACTION_HANDLERS`] table.
 //!
-//! Visual notification helpers (`show_toast`, `show_pane_indices`) and shader
-//! toggle helpers (`toggle_background_shader`, `toggle_cursor_shader`) live in
+//! Visual notification helpers (`show_toast`, `show_pane_indices`), shader
+//! toggle helpers (`toggle_background_shader`, `toggle_cursor_shader`), and
+//! the clear actions (`clear_scrollback`, `clear_screen`) live in
 //! `keybinding_helpers`.
 //!
 //! Display/navigation actions (font size, cursor style, tab index switching,
@@ -26,6 +27,8 @@
 
 use crate::app::window_state::WindowState;
 use crate::command_palette::catalog::plugin_palette_entries;
+
+use super::keybinding_helpers::{clear_screen, clear_scrollback};
 
 /// Handler for one named keybinding action.
 ///
@@ -355,6 +358,7 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         true
     }),
     ("clear_scrollback", clear_scrollback),
+    ("clear_screen", clear_screen),
     ("scroll_up_page", |s: &mut WindowState| {
         s.scroll_up_page();
         s.request_redraw();
@@ -556,40 +560,6 @@ fn toggle_copy_mode(s: &mut WindowState) -> bool {
         s.exit_copy_mode();
     } else {
         s.enter_copy_mode();
-    }
-    true
-}
-
-fn clear_scrollback(s: &mut WindowState) -> bool {
-    let cleared = if let Some(tab) = s.tab_manager.active_tab_mut() {
-        // try_lock: intentional — keybinding action in sync event loop.
-        // On miss: scrollback not cleared this invocation. User can retry.
-        let did_clear = if let Ok(mut term) = tab.terminal.try_write() {
-            term.clear_scrollback();
-            term.clear_scrollback_metadata();
-            true
-        } else {
-            false
-        };
-        if did_clear {
-            tab.active_cache_mut().scrollback_len = 0;
-            tab.scripting.trigger_marks.clear();
-            let tab_terminal = std::sync::Arc::clone(&tab.terminal);
-            if let Some(pm) = tab.pane_manager_mut() {
-                for pane in pm.all_panes_mut() {
-                    if std::sync::Arc::ptr_eq(&pane.terminal, &tab_terminal) {
-                        pane.cache.invalidate_pane_cells();
-                    }
-                }
-            }
-        }
-        did_clear
-    } else {
-        false
-    };
-    if cleared {
-        s.set_scroll_target(0);
-        log::info!("Cleared scrollback buffer via keybinding");
     }
     true
 }
