@@ -65,13 +65,22 @@ impl AgentRoster {
     /// is per pane and a later push replaces the earlier state. A
     /// `working` → `idle` transition marks the pane done-unseen; the drain
     /// clears the mark for the pane the user is watching (the watching
-    /// case has no focus event to clear it later).
-    pub(crate) fn apply_push(&mut self, entry: AgentEntry) {
+    /// case has no focus event to clear it later). The push carries no
+    /// reason field, so a push that refreshes a still-blocked agent keeps
+    /// the reason the last `list-agents` refetch recorded — dropping it
+    /// would blank the "why is it blocked" line until the next refetch.
+    pub(crate) fn apply_push(&mut self, mut entry: AgentEntry) {
         let finished = self.entries.get(&entry.pane).is_some_and(|prev| {
             prev.state.eq_ignore_ascii_case("working") && entry.state.eq_ignore_ascii_case("idle")
         });
         if finished {
             self.done_unseen.insert(entry.pane);
+        }
+        if entry.reason.is_none() && entry.state.eq_ignore_ascii_case("blocked") {
+            entry.reason = self
+                .entries
+                .get(&entry.pane)
+                .and_then(|prev| prev.reason.clone());
         }
         self.entries.insert(entry.pane, entry);
     }
@@ -372,6 +381,30 @@ mod tests {
         let rendered = roster.iter().next().unwrap();
         assert_eq!(rendered.source, AgentSource::Scrape);
         assert_eq!(rendered.reason, None, "no reason on the wire yet");
+    }
+
+    /// The `%agent-state-changed` push carries no reason field, so a push
+    /// that refreshes a still-blocked agent must not wipe the reason the
+    /// last `list-agents` refetch recorded; leaving blocked ends the wait,
+    /// and the now-stale reason goes with it.
+    #[test]
+    fn push_preserves_a_fetched_blocked_reason() {
+        let mut roster = AgentRoster::new();
+        let mut fetched = entry(3, "claude", "blocked", AgentSource::Hook);
+        fetched.reason = Some("waiting on owner".to_string());
+        roster.fill_from_list(vec![fetched]);
+        roster.apply_push(entry(3, "claude", "blocked", AgentSource::Hook));
+        assert_eq!(
+            roster.iter().next().unwrap().reason.as_deref(),
+            Some("waiting on owner"),
+            "a reason-less push refreshes the state without dropping the reason"
+        );
+        roster.apply_push(entry(3, "claude", "working", AgentSource::Hook));
+        assert_eq!(
+            roster.iter().next().unwrap().reason,
+            None,
+            "a state change away from blocked must not keep the old reason"
+        );
     }
 
     #[test]

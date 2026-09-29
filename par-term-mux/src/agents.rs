@@ -66,8 +66,8 @@ pub struct AgentEntry {
     /// `reason=<standard base64>` (the ARC-060 grammar; decoded here) or,
     /// from a pre-ARC-060 daemon, as free trailing words. The
     /// `%agent-state-changed` push carries no reason — core's
-    /// `AgentStateChanged` has no such field — so a push-refreshed entry
-    /// holds `None` until the next roster refetch.
+    /// `AgentStateChanged` has no such field — so an entry built by
+    /// [`Self::from_push`] holds `None`.
     pub reason: Option<String>,
 }
 
