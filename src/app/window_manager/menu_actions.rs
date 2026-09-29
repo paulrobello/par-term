@@ -93,6 +93,10 @@ impl WindowManager {
                 }
             }
             MenuAction::Quit => {
+                // TW2: capture every window before the first close — the
+                // close loop below tears down one window at a time and the
+                // last-window save alone recorded only the final survivor.
+                self.save_session_for_quit();
                 // Close all windows
                 let window_ids: Vec<_> = self.windows.keys().copied().collect();
                 for window_id in window_ids {

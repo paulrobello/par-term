@@ -511,6 +511,14 @@ impl ApplicationHandler<AppEvent> for WindowManager {
             .map(|(id, _)| *id)
             .collect();
 
+        // TW2: when this batch empties the app, capture the full
+        // multi-window session before the first close — the deferred
+        // closes below tear down one window at a time and the
+        // last-window save alone records only the final survivor.
+        if !shutting_down.is_empty() && shutting_down.len() == self.windows.len() {
+            self.save_session_for_quit();
+        }
+
         for window_id in shutting_down {
             self.close_window(window_id);
         }

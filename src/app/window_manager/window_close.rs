@@ -15,9 +15,13 @@ impl WindowManager {
     /// Close a specific window
     pub fn close_window(&mut self, window_id: WindowId) {
         // Save session state before removing the last window (while data is still available).
+        // Skipped when a quit-time capture already wrote the full
+        // multi-window state (TW2) — this save would record only the
+        // final survivor of the teardown.
         if self.config.load().session_restore.restore_session
             && self.windows.len() == 1
             && self.windows.contains_key(&window_id)
+            && !self.session_saved_for_quit
         {
             self.save_session_state_background();
         }

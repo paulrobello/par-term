@@ -48,6 +48,29 @@ impl WindowManager {
             });
     }
 
+    /// Capture and write the session for a quit, BEFORE the first window
+    /// closes (TW2). Every window's state is still alive here; by the time
+    /// [`WindowManager::close_window`] reaches its last-window save, the
+    /// other windows are already dropped — a multi-window quit restored
+    /// only the final survivor, and the background write raced process
+    /// exit and could lose the file entirely. Synchronous on purpose:
+    /// this runs once, at quit, and correctness beats a few ms of I/O.
+    /// Idempotent, and sets the flag that suppresses the last-window
+    /// save so it cannot clobber this capture with the depleted set.
+    pub(crate) fn save_session_for_quit(&mut self) {
+        if !self.config.load().session_restore.restore_session
+            || self.windows.is_empty()
+            || self.session_saved_for_quit
+        {
+            return;
+        }
+        let state = crate::session::capture::capture_session(&self.windows);
+        if let Err(e) = crate::session::storage::save_session(&state) {
+            log::error!("Failed to save session state for quit: {}", e);
+        }
+        self.session_saved_for_quit = true;
+    }
+
     /// Hand the panic boundary a known-good snapshot of the current session.
     ///
     /// Call from the event loop, at a point where no par-term structure is

@@ -75,6 +75,11 @@ pub(crate) struct WindowManager {
     pub(crate) runtime: Arc<Runtime>,
     /// Flag to indicate if app should exit
     pub(crate) should_exit: bool,
+    /// Set once a quit-time session capture has written the full
+    /// multi-window state (TW2) — suppresses close_window's
+    /// last-window save, which would otherwise overwrite the file with
+    /// only the final survivor of the teardown.
+    pub(crate) session_saved_for_quit: bool,
     /// Counter for generating unique window IDs during creation
     pending_window_count: usize,
     /// Separate settings window (if open)
@@ -144,6 +149,7 @@ impl WindowManager {
             config: ArcSwap::from(Arc::new(config)),
             runtime,
             should_exit: false,
+            session_saved_for_quit: false,
             pending_window_count: 0,
             settings_window: None,
             runtime_options,
