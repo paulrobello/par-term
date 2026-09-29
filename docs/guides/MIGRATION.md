@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [Unreleased — Close-Safety Defaults Aligned with iTerm2](#unreleased--close-safety-defaults-aligned-with-iterm2)
 - [v0.45.0 — Core 0.48 and Kitty Placement Geometry (Library Consumers)](#v0450--core-048-and-kitty-placement-geometry-library-consumers)
 - [v0.43.0 — MSRV 1.98 and wgpu 30 for Library Consumers](#v0430--msrv-198-and-wgpu-30-for-library-consumers)
 - [v0.39.0 — MSRV 1.97 and the `mermaid` Feature Removed](#v0390--msrv-197-and-the-mermaid-feature-removed)
@@ -22,6 +23,26 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## Unreleased — Close-Safety Defaults Aligned with iTerm2
+
+Window-close behavior changes for configs that do not set these keys (saved configs that set them keep their values):
+
+- `prompt_on_quit` now defaults to `true` (was `false`).
+- New `confirm_close_multiple_tabs` (default `true`): closing a window that holds **more than one** tab asks for confirmation. With it on, `prompt_on_quit` no longer fires for single-tab windows — a single-tab close is silent and undoable.
+- `session_undo_preserve_shell` now defaults to `true` (was `false`): for 5 s after a tab closes (`session_undo_timeout_secs`), Reopen Closed Tab restores the tab **with its running processes** instead of spawning a fresh shell.
+
+To restore the old behavior, set:
+
+```yaml
+prompt_on_quit: false
+confirm_close_multiple_tabs: false
+session_undo_preserve_shell: false
+```
+
+`confirm_close_running_jobs` (still `false`) and attached par-mux tab close dialogs are unchanged.
 
 ---
 

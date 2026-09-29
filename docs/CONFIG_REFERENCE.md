@@ -339,7 +339,8 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `initial_text_delay_ms` | `u64` | `100` | Delay before sending initial text (ms) |
 | `initial_text_send_newline` | `bool` | `true` | Append newline after initial text |
 | `answerback_string` | `string` | `""` | Response to ENQ (terminal identification, disabled by default) |
-| `prompt_on_quit` | `bool` | `false` | Confirm before closing window with active sessions |
+| `prompt_on_quit` | `bool` | `true` | Confirm before closing a non-empty window when `confirm_close_multiple_tabs` is off |
+| `confirm_close_multiple_tabs` | `bool` | `true` | Confirm before closing a window that holds more than one tab |
 | `confirm_close_running_jobs` | `bool` | `false` | Confirm before closing tab with running commands |
 | `jobs_to_ignore` | `[string]` | (shell names) | Process names that don't trigger close confirmation |
 | `command_history_max_entries` | `usize` | `1000` | Max commands in fuzzy search history |
@@ -692,7 +693,7 @@ and types the command into the new daemon pane.
 | `auto_restore_arrangement` | `string?` | `null` | Name of arrangement to auto-restore on startup |
 | `session_undo_timeout_secs` | `u32` | `5` | Seconds to keep closed tab metadata for undo (0=disabled) |
 | `session_undo_max_entries` | `usize` | `10` | Maximum closed tabs remembered for undo |
-| `session_undo_preserve_shell` | `bool` | `false` | Preserve shell process on tab close for undo |
+| `session_undo_preserve_shell` | `bool` | `true` | Preserve shell process on tab close for undo |
 
 ---
 

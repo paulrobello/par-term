@@ -13,6 +13,8 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ### Changed
 
+- **Close-safety defaults aligned with iTerm2** (UX.md D6): `prompt_on_quit` is now `true`, the new `confirm_close_multiple_tabs` (also `true`) asks before closing a window that holds more than one tab, and `session_undo_preserve_shell` is now `true`, so Reopen Closed Tab restores the closed tab's live processes within the 5 s undo window instead of a fresh shell. A single-tab window closes silently — the undo window is the safety net. Configs that already set these keys keep their values; only absent keys pick up the new defaults. `confirm_close_running_jobs` (still `false`) and the undo timeout (still 5 s) are unchanged, and attached par-mux tabs keep their dialogs.
+
 - **Core bumped to `par-term-emu-core-rust` 0.55.** 0.55 removed the six deprecated `Terminal` screenshot/benchmark forwarders; par-term has zero call sites — trigger calls already moved to the core's `TriggerEngine` service ahead of the deprecated `Terminal` macro/trigger forwarders' removal in 0.56.
 
 ### Fixed
