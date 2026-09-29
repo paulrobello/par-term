@@ -299,15 +299,26 @@ impl WindowState {
         else {
             return false;
         };
-        let owning_tab_index = self
-            .tab_manager
-            .tabs()
-            .iter()
-            .position(|tab| tab.id == owner_tab_id);
-        let Some(tab_index) = owning_tab_index else {
+        // D7 (UX.md M4): the owning tab may be HIDDEN — its last pane was
+        // closed while the daemon window kept running. Selecting the agent
+        // is a request to see that pane again, so the tab re-shows.
+        let Some(tab) = self.tab_manager.get_tab_mut(owner_tab_id) else {
             return false;
         };
-        self.switch_to_tab_index(tab_index);
+        tab.is_hidden = false;
+        // 1-based over VISIBLE tabs, the switch_to_tab_index contract. The
+        // owner counts as visible now whether or not it was when the row
+        // was picked — and computing the index over all tabs, 0-based,
+        // landed one tab to the left of the intended one (UX.md M13/B5).
+        let Some(visible_index) = self
+            .tab_manager
+            .visible_tabs()
+            .iter()
+            .position(|t| t.id == owner_tab_id)
+        else {
+            return false;
+        };
+        self.switch_to_tab_index(visible_index + 1);
         if let Some(tab) = self.tab_manager.active_tab_mut()
             && let Some(pm) = tab.pane_manager_mut()
         {

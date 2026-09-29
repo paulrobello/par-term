@@ -2735,6 +2735,80 @@ pub(crate) mod tests {
 
         let _ = std::fs::remove_file(&path);
     }
+    /// D7 (UX.md M4): a roster row whose pane lives in a HIDDEN mux tab
+    /// re-shows the tab. The pre-D7 code could not reach a hidden tab at
+    /// all — and computed its index over all tabs, 0-based, so visible
+    /// rows landed one tab to the left (UX.md M13/B5).
+    #[test]
+    fn roster_row_reshows_hidden_mux_tab() {
+        let path = socket_path("hide-roster");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_test(&transport, "hiderost", Some((80, 24)), &Default::default())
+            .expect("attach");
+        transport.send_command("new-window").expect("new-window");
+        std::thread::sleep(Duration::from_millis(50));
+        for pane in transport.client().list_panes().expect("list panes") {
+            transport
+                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
+                .expect("refresh-client");
+        }
+
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        let mut ws =
+            crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime);
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("hiderost".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tab_manager.tab_count() >= 2 && ws.tmux_state.tmux_pane_owners.len() >= 2 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never created 2 tabs: {} tabs, panes {:?}",
+                ws.tab_manager.tab_count(),
+                ws.tmux_state.tmux_pane_owners
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        let tab_id = ws.tab_manager.tabs()[0].id;
+        ws.tab_manager.switch_to(tab_id);
+        assert!(!ws.hide_active_mux_tab(), "hiding keeps the window open");
+        assert!(ws.tab_manager.get_tab(tab_id).unwrap().is_hidden);
+
+        let pane_id = *ws
+            .tmux_state
+            .tmux_pane_owners
+            .iter()
+            .find(|(_, (owner, _))| *owner == tab_id)
+            .map(|(pane, _)| pane)
+            .expect("the hidden tab still owns its daemon pane");
+        assert!(
+            ws.focus_agent_roster_pane(pane_id),
+            "the roster row resolves to the hidden tab's pane"
+        );
+        assert!(
+            ws.tab_manager.get_tab(tab_id).is_some_and(|t| !t.is_hidden),
+            "the roster row re-shows the hidden tab"
+        );
+        assert_eq!(ws.tab_manager.active_tab_id(), Some(tab_id));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
 
     fn a_fresh_daemon_yields_an_empty_roster() {
         let path = socket_path("roster");

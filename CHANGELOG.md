@@ -13,6 +13,8 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ### Changed
 
+- **Closing a par-mux tab's last pane now hides the tab instead of dropping it** (UX.md D7/M4). The daemon window keeps running with its window↔tab mapping live, so daemon layout pushes and roster rows keep working instead of finding a dead tab. Reopen Closed Tab (Cmd+Z) re-shows the hidden tab through a typed undo entry, and selecting an agent-roster row whose pane lives in the hidden tab re-shows it. When the hidden tab was the only tab, the window closes instead (the detach shape) and the daemon window survives it. The roster jump also now lands on the right tab: its index was computed 0-based over all tabs and fed to the 1-based visible-tab switch (UX.md M13/B5).
+
 - **Close-safety defaults aligned with iTerm2** (UX.md D6): `prompt_on_quit` is now `true`, the new `confirm_close_multiple_tabs` (also `true`) asks before closing a window that holds more than one tab, and `session_undo_preserve_shell` is now `true`, so Reopen Closed Tab restores the closed tab's live processes within the 5 s undo window instead of a fresh shell. A single-tab window closes silently — the undo window is the safety net. Configs that already set these keys keep their values; only absent keys pick up the new defaults. `confirm_close_running_jobs` (still `false`) and the undo timeout (still 5 s) are unchanged, and attached par-mux tabs keep their dialogs.
 
 - **Core bumped to `par-term-emu-core-rust` 0.55.** 0.55 removed the six deprecated `Terminal` screenshot/benchmark forwarders; par-term has zero call sites — trigger calls already moved to the core's `TriggerEngine` service ahead of the deprecated `Terminal` macro/trigger forwarders' removal in 0.56.
