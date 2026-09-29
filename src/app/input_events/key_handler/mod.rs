@@ -128,7 +128,8 @@ impl WindowState {
 
         // When UI panels are visible, block ALL keys from going to terminal
         // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)
-        if self.any_modal_ui_visible() {
+        let modal_guard_active = self.any_modal_ui_visible();
+        if modal_guard_active {
             let is_ui_control_key = matches!(
                 event.logical_key,
                 Key::Named(NamedKey::F1)
@@ -449,6 +450,16 @@ impl WindowState {
         {
             tab.selection_mouse_mut().selection = None;
             self.request_redraw();
+        }
+
+        // B61: a key that fell through the modal guard as a UI control key
+        // (Escape, F1–F3) and was then claimed by no layer, keybinding, or
+        // clipboard branch has run out of legitimate consumers — while a
+        // modal overlay is open it must not reach the PTY. egui still sees
+        // the event through its own input path, so dialogs keep their Escape
+        // handling; the terminal does not.
+        if modal_guard_active {
+            return;
         }
 
         // Get terminal modes (if available).

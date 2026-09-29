@@ -423,3 +423,56 @@ fn stray_keypress_cannot_exit_the_event_loop_outside_the_last_tab_arm() {
          handle_shell_exit uses, not a bare loop exit"
     );
 }
+
+#[test]
+fn b61_dialogs_are_in_the_modal_guard() {
+    // B61: every dialog, menu, and pick-mode rendering above the terminal
+    // must be summed by any_modal_ui_visible, or keys typed while it is
+    // open fall through to the PTY (UX.md RT22). Source-scan pin — the
+    // guard reads live WindowState a unit test cannot construct, and a
+    // winit KeyEvent cannot be fabricated (foreign-struct UB). The e2e
+    // half of this pin is tests/ui/b61_modal_guard.json.
+    let source = include_str!("../../window_state/ui_query_helpers.rs");
+    let body = source
+        .split("fn any_modal_ui_visible")
+        .nth(1)
+        .expect("any_modal_ui_visible present in ui_query_helpers.rs");
+    let body = body.split('}').next().unwrap_or_default();
+    for needed in [
+        "close_confirmation_ui.is_visible()",
+        "mux_last_tab_ui.is_visible()",
+        "pending_trigger_actions.is_empty()",
+        "pending_confirmations.is_empty()",
+        "update_state.show_dialog",
+        "is_context_menu_open()",
+        "show_new_tab_profile_menu",
+        "pane_transfer_state.is_active()",
+    ] {
+        assert!(
+            body.contains(needed),
+            "{needed} missing from any_modal_ui_visible — keys typed while \
+             that dialog is open leak to the PTY (B61)"
+        );
+    }
+}
+
+#[test]
+fn unconsumed_keys_never_reach_the_pty_tail_while_a_modal_is_open() {
+    // B61 central consumption: the modal guard deliberately passes F1-F3
+    // and Escape through so shortcut layers and keybindings can claim them;
+    // whatever survives unclaimed must then be consumed before the PTY
+    // encoding tail, or an Escape closes nothing AND writes `1b` to the
+    // shell (UX.md RT22: observed leaking from quit, tmux picker, remote
+    // install, SSH connect).
+    let source = include_str!("mod.rs");
+    let tail_guard_pos = source
+        .rfind("if modal_guard_active")
+        .expect("the modal-guard tail consumption is missing from handle_key_event");
+    let encode_pos = source
+        .rfind("handle_key_event_with_mode(")
+        .expect("handle_key_event must keep its PTY encoding call");
+    assert!(
+        tail_guard_pos < encode_pos,
+        "the tail consumption must precede the PTY encoding call"
+    );
+}

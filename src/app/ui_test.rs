@@ -82,6 +82,16 @@ pub(crate) enum UiTestAction {
     /// Assert a keyed operand's current value equals the one an earlier
     /// `capture` step stashed for it.
     AssertEqCaptured { assert_eq_captured: String },
+    /// Seed one of the B61 modal dialogs open (`close_running_job`,
+    /// `mux_last_tab`, `trigger_confirm`, `agent_command_confirm`,
+    /// `update_dialog`, `tab_context_menu`, `new_tab_profile_menu`,
+    /// `demote_chooser`, `profile_drawer`, `quit_confirmation`) — the seam
+    /// standing in for the user interaction that opens each dialog, so a
+    /// script can prove typed keys stay off the PTY while it is open.
+    OpenModal { open_modal: String },
+    /// Close a dialog opened by `open_modal` (clears the seeded state; the
+    /// dialogs' own button/Escape handling is egui-side, via `press`).
+    CloseModal { close_modal: String },
 }
 
 /// Load and parse a script file. Fails loudly on bad JSON so typos never
@@ -177,6 +187,7 @@ fn visible_modal_names(ws: &WindowState) -> Vec<String> {
     push(o.command_history_ui.visible, "command_history_ui");
     push(o.search_ui.visible, "search_ui");
     push(o.command_palette.visible, "command_palette");
+    push(o.agent_usage_panel.visible, "agent_usage_panel");
     push(o.tmux_session_picker_ui.visible, "tmux_session_picker_ui");
     push(o.shader_install_ui.visible, "shader_install_ui");
     push(o.integrations_ui.visible, "integrations_ui");
@@ -186,6 +197,30 @@ fn visible_modal_names(ws: &WindowState) -> Vec<String> {
         "remote_shell_install_ui",
     );
     push(o.quit_confirmation_ui.is_visible(), "quit_confirmation_ui");
+    // B61 additions — same order as the guard's B61 block.
+    push(
+        o.close_confirmation_ui.is_visible(),
+        "close_confirmation_ui",
+    );
+    push(o.mux_last_tab_ui.is_visible(), "mux_last_tab_ui");
+    push(
+        !ws.trigger_state.pending_trigger_actions.is_empty(),
+        "trigger_confirm",
+    );
+    push(
+        !ws.agent_commands.pending_confirmations.is_empty(),
+        "agent_command_confirm",
+    );
+    push(
+        ws.update_state.show_dialog && ws.update_state.last_result.is_some(),
+        "update_dialog",
+    );
+    push(ws.tab_bar_ui.is_context_menu_open(), "tab_context_menu");
+    push(
+        ws.tab_bar_ui.show_new_tab_profile_menu,
+        "new_tab_profile_menu",
+    );
+    push(ws.pane_transfer_state.is_active(), "demote_chooser");
     names
 }
 
@@ -407,6 +442,20 @@ impl WindowManager {
                     },
                 }
             }
+            UiTestAction::OpenModal { open_modal } => {
+                let Some(id) = terminal_id else {
+                    return StepOutcome::Failed("open_modal: no terminal window yet".into());
+                };
+                let ws = self.windows.get_mut(&id).expect("id from keys()");
+                Self::seed_modal_state(ws, open_modal, true)
+            }
+            UiTestAction::CloseModal { close_modal } => {
+                let Some(id) = terminal_id else {
+                    return StepOutcome::Failed("close_modal: no terminal window yet".into());
+                };
+                let ws = self.windows.get_mut(&id).expect("id from keys()");
+                Self::seed_modal_state(ws, close_modal, false)
+            }
             UiTestAction::AssertNot { assert_not } => {
                 let value = self.ui_test_bool(assert_not);
                 match value {
@@ -469,6 +518,164 @@ impl WindowManager {
                 }
             }
         }
+    }
+
+    /// Seed (`open == true`) or clear (`open == false`) one B61 dialog's
+    /// state. Opening uses each dialog's real entry point so the seeded
+    /// state is exactly what the user interaction produces; closing restores
+    /// the hidden state without driving egui — buttons and Escape are the
+    /// egui-side `press` steps' job, this only arms/disarms the modal the
+    /// key guard sums over.
+    fn seed_modal_state(ws: &mut WindowState, name: &str, open: bool) -> StepOutcome {
+        use crate::app::window_state::PendingTriggerAction;
+        use par_term_config::agent_commands::CommandAuthor;
+
+        let verb = if open { "open_modal" } else { "close_modal" };
+        match name {
+            "close_running_job" => {
+                if open {
+                    let Some(tab_id) = ws.tab_manager.active_tab_id() else {
+                        return StepOutcome::Failed(format!("{verb} {name}: no active tab"));
+                    };
+                    ws.overlay_ui.close_confirmation_ui.show_for_tab(
+                        tab_id,
+                        "ui-test tab",
+                        "sleep 100",
+                    );
+                } else {
+                    ws.overlay_ui.close_confirmation_ui.hide();
+                }
+            }
+            "mux_last_tab" => {
+                if open {
+                    ws.overlay_ui.mux_last_tab_ui.show_for_session("ui-test");
+                } else {
+                    ws.overlay_ui.mux_last_tab_ui.hide();
+                }
+            }
+            "trigger_confirm" => {
+                if open {
+                    ws.trigger_state
+                        .pending_trigger_actions
+                        .push(PendingTriggerAction {
+                            trigger_id: 0,
+                            trigger_name: "ui-test trigger".to_string(),
+                            action: par_term_emu_core_rust::terminal::ActionResult::RunCommand {
+                                trigger_id: 0,
+                                command: "echo".to_string(),
+                                args: vec!["b61".to_string()],
+                            },
+                            description: "ui-test pending trigger action".to_string(),
+                            target: None,
+                        });
+                } else {
+                    ws.trigger_state.pending_trigger_actions.clear();
+                }
+            }
+            "agent_command_confirm" => {
+                if open {
+                    let file = par_term_config::agent_commands::AgentCommandFile {
+                        created_by: CommandAuthor::User,
+                        source_agent: None,
+                        created_at: None,
+                        action: par_term_config::CustomActionConfig::ShellCommand {
+                            id: "ui-test-b61".to_string(),
+                            title: "ui-test b61".to_string(),
+                            command: "echo".to_string(),
+                            args: vec!["b61".to_string()],
+                            notify_on_success: false,
+                            timeout_secs: 30,
+                            capture_output: false,
+                            keybinding: None,
+                            prefix_char: None,
+                            keybinding_enabled: true,
+                            description: None,
+                        },
+                    };
+                    ws.agent_commands.request_confirmation(file);
+                } else {
+                    ws.agent_commands.pending_confirmations.clear();
+                }
+            }
+            "update_dialog" => {
+                if open {
+                    ws.update_state.show_dialog = true;
+                    ws.update_state.last_result = Some(
+                        par_term_update::update_checker::UpdateCheckResult::UpdateAvailable(
+                            par_term_update::update_checker::UpdateInfo {
+                                version: "999.0.0".to_string(),
+                                release_notes: None,
+                                release_url: "https://example.invalid".to_string(),
+                                published_at: None,
+                            },
+                        ),
+                    );
+                } else {
+                    ws.update_state.show_dialog = false;
+                }
+            }
+            "tab_context_menu" => {
+                if open {
+                    let Some(tab_id) = ws.tab_manager.active_tab_id() else {
+                        return StepOutcome::Failed(format!("{verb} {name}: no active tab"));
+                    };
+                    ws.tab_bar_ui.test_open_context_menu(tab_id);
+                } else {
+                    ws.tab_bar_ui.test_close_context_menu();
+                }
+            }
+            "new_tab_profile_menu" => {
+                ws.tab_bar_ui.show_new_tab_profile_menu = open;
+            }
+            "demote_chooser" => {
+                if open {
+                    let Some(tab_id) = ws.tab_manager.active_tab_id() else {
+                        return StepOutcome::Failed(format!("{verb} {name}: no active tab"));
+                    };
+                    // Prefer the direction chooser (the B61 dialog); a
+                    // single-pane tab without a focused pane id falls back
+                    // to the first pick phase, which the same guard term
+                    // covers.
+                    let pane_id = ws
+                        .tab_manager
+                        .active_tab()
+                        .and_then(|t| t.focused_pane_id());
+                    ws.pane_transfer_state = match pane_id {
+                        Some(target_pane_id) => {
+                            crate::app::tab_ops::pane_transfer::PaneTransferState::DemoteChooseDirection {
+                                source_tab_id: tab_id,
+                                target_tab_id: tab_id,
+                                target_pane_id,
+                            }
+                        }
+                        None => crate::app::tab_ops::pane_transfer::PaneTransferState::DemotePickTab {
+                            source_tab_id: tab_id,
+                        },
+                    };
+                } else {
+                    ws.cancel_pane_transfer();
+                }
+            }
+            "profile_drawer" => {
+                ws.overlay_ui.profile_drawer_ui.expanded = open;
+            }
+            "quit_confirmation" => {
+                if open {
+                    ws.overlay_ui
+                        .quit_confirmation_ui
+                        .show_confirmation(1, None);
+                } else {
+                    ws.overlay_ui.quit_confirmation_ui.hide();
+                }
+            }
+            _ => {
+                return StepOutcome::Failed(format!(
+                    "{verb}: unknown dialog '{name}' (see UiTestAction::OpenModal docs)"
+                ));
+            }
+        }
+        ws.request_redraw();
+        StepOutcome::Performed(format!("{verb} {name}"))
     }
 
     /// Inject a chord through the real keybinding registry + action dispatch.
@@ -564,6 +771,17 @@ impl WindowManager {
         logical: Key,
         physical: PhysicalKey,
     ) -> StepOutcome {
+        // B61 mirror: the real key handler consumes any key that survives to
+        // its encoding tail while a modal overlay is open (an Escape or
+        // F1–F3 that no layer or keybinding claimed). The injector must
+        // refuse the PTY write under the same condition, or an Escape chord
+        // while a dialog is open would write `1b` the real handler now
+        // never writes.
+        if ws.any_modal_ui_visible() {
+            return StepOutcome::Performed(format!(
+                "chord {chord} -> {via} -> consumed by modal guard tail (no PTY write)"
+            ));
+        }
         // Same mode priority as the keyboard path: focused pane's terminal,
         // else the tab's cached modes. Scoped — the encoder needs &mut
         // input_handler, which cannot alias the tab borrow.

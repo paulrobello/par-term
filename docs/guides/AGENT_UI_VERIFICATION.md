@@ -59,6 +59,8 @@ A JSON object with a `steps` array. Each step is one object with an optional
 | `{"assert_eq": ["what", "expected"]}` | Keyed values, below. |
 | `{"capture": "what"}` | Stash a capture-capable operand's current value. |
 | `{"assert_eq_captured": "what"}` | Assert the operand's current value equals the stashed one — for values a script cannot know up front, like a spawned shell's PID. |
+| `{"open_modal": "D"}` | Seed dialog `D` open through its real entry point (`close_running_job`, `mux_last_tab`, `trigger_confirm`, `agent_command_confirm`, `update_dialog`, `tab_context_menu`, `new_tab_profile_menu`, `demote_chooser`, `profile_drawer`, `quit_confirmation`) — the seam standing in for the user interaction that opens it, so a script can prove typed keys stay off the PTY while it is open (worked example: `tests/ui/b61_modal_guard.json`). |
+| `{"close_modal": "D"}` | Clear the state `open_modal` seeded. Buttons and Escape are the dialog's own egui handling (`press` steps); this only arms/disarms the modal the key guard sums over. |
 
 ### Boolean operands
 

@@ -1,0 +1,78 @@
+{
+  "steps": [
+    { "open_modal": "close_running_job" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "x" },
+    { "chord": "Enter" },
+    { "chord": "Escape" },
+    { "close_modal": "close_running_job" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "mux_last_tab" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "x" },
+    { "chord": "Enter" },
+    { "chord": "Escape" },
+    { "close_modal": "mux_last_tab" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "trigger_confirm" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "x" },
+    { "chord": "Enter" },
+    { "chord": "Escape" },
+    { "close_modal": "trigger_confirm" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "agent_command_confirm" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "x" },
+    { "chord": "Enter" },
+    { "chord": "Escape" },
+    { "close_modal": "agent_command_confirm" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "update_dialog" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "x" },
+    { "chord": "Enter" },
+    { "chord": "Escape" },
+    { "close_modal": "update_dialog" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "tab_context_menu" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "x" },
+    { "chord": "Enter" },
+    { "chord": "Escape" },
+    { "close_modal": "tab_context_menu" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "new_tab_profile_menu" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "x" },
+    { "chord": "Enter" },
+    { "chord": "Escape" },
+    { "close_modal": "new_tab_profile_menu" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "demote_chooser" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "x" },
+    { "chord": "Enter" },
+    { "chord": "Escape" },
+    { "close_modal": "demote_chooser" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "open_modal": "quit_confirmation" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "x" },
+    { "chord": "Enter" },
+    { "chord": "Escape" },
+    { "close_modal": "quit_confirmation" },
+    { "wait_ms": 300, "assert_not": "modal_guard" },
+
+    { "chord": "Enter" },
+    { "wait_ms": 400, "assert_eq": ["file_bytes", "/tmp/pt-b61-sink.bin:0a"] }
+  ]
+}

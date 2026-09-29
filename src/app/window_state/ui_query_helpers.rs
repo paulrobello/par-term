@@ -38,9 +38,12 @@ impl WindowState {
     /// This is the single source of truth for "should input be blocked from the terminal
     /// because a modal dialog is open?" When adding a new modal panel, add it here.
     ///
-    /// Note: Side panels (ai_inspector, profile drawer) and inline edit states
+    /// Note: Side panels (ai_inspector) and inline edit states
     /// (tab_bar_ui.is_renaming()) are NOT modals — they are checked separately
     /// at call sites that need them. The resize overlay is also not a modal.
+    /// The profile drawer is a side panel, not a modal: it joins
+    /// `is_egui_using_keyboard`'s list so egui reports keyboard ownership only
+    /// while one of its text fields is focused.
     pub(crate) fn any_modal_ui_visible(&self) -> bool {
         self.overlay_ui.help_ui.visible
             || self.overlay_ui.clipboard_history_ui.visible
@@ -54,6 +57,17 @@ impl WindowState {
             || self.overlay_ui.ssh_connect_ui.is_visible()
             || self.overlay_ui.remote_shell_install_ui.is_visible()
             || self.overlay_ui.quit_confirmation_ui.is_visible()
+            // B61: every dialog, menu, and pick-mode that renders above the
+            // terminal is modal — keys typed while any of them is open must
+            // not reach the PTY.
+            || self.overlay_ui.close_confirmation_ui.is_visible()
+            || self.overlay_ui.mux_last_tab_ui.is_visible()
+            || !self.trigger_state.pending_trigger_actions.is_empty()
+            || !self.agent_commands.pending_confirmations.is_empty()
+            || (self.update_state.show_dialog && self.update_state.last_result.is_some())
+            || self.tab_bar_ui.is_context_menu_open()
+            || self.tab_bar_ui.show_new_tab_profile_menu
+            || self.pane_transfer_state.is_active()
     }
 
     /// Check if any egui overlay with text input is visible.
@@ -67,10 +81,12 @@ impl WindowState {
     pub(crate) fn is_egui_using_keyboard(&self) -> bool {
         // If any UI panel is visible, check if egui wants keyboard input
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
-        // Note: Profile drawer does NOT block input - only modal dialogs do
-        // Also check ai_inspector (side panel with text input) and tab/pane rename (inline edit)
+        // Note: Profile drawer does NOT block input as a modal — but while it
+        // is expanded, egui must be asked whether it owns the keyboard (the
+        // tag-filter text field does), so typed keys stay off the PTY (B61).
         let any_ui_visible = self.any_modal_ui_visible()
             || self.overlay_ui.ai_inspector.open
+            || self.overlay_ui.profile_drawer_ui.expanded
             || self.tab_bar_ui.is_renaming()
             || self.overlay_ui.pane_rename_ui.is_open()
             || self.tab_bar_ui.is_app_menu_open();
