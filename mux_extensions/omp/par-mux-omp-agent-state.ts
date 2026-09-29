@@ -59,7 +59,14 @@ async function sendRequestNow(request: unknown): Promise<void> {
   if (await sendRequestAttempt(request, 500)) {
     return;
   }
-  await sendRequestAttempt(request, 1500);
+  if (await sendRequestAttempt(request, 1500)) {
+    return;
+  }
+  // Third, longer rung: under heavy machine load a reply can outlive both
+  // budgets and a report abandoned that way drops its broadcast outright
+  // (e2e saw 73/74 at load ~130). Duplicate replies are already inert —
+  // the daemon drops a seq that does not advance.
+  await sendRequestAttempt(request, 4000);
 }
 
 function sendRequest(request: unknown): Promise<void> {

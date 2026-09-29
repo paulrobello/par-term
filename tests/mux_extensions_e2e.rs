@@ -172,11 +172,13 @@ fn installed_extension_drives_the_daemon(
         String::from_utf8_lossy(&run.stderr)
     );
 
-    // 20s, not 10s: under full-`cargo test --workspace` load the daemon
-    // spawn + bun driver + reports can outlive a 10s budget outright (saw 0
-    // broadcasts in 10s, 5/5 green in isolation — the same flake class the
-    // agent-usage watcher tolerance was widened for at f36db8a9).
-    let deadline = Instant::now() + Duration::from_secs(20);
+    // 30s, not 10s or 20s: under full-`cargo test --workspace` load the
+    // daemon spawn + bun driver + reports can outlive shorter budgets
+    // outright (saw 0 broadcasts in 10s; 73/74 at 20s under load ~130 —
+    // the same flake class the agent-usage watcher tolerance was widened
+    // for at f36db8a9). The asset's retry ladder can also hold its queue
+    // for up to 6s per slow report, which the budget must absorb.
+    let deadline = Instant::now() + Duration::from_secs(30);
     // The acceptance proof, exactly countable because the asset serializes
     // its sends: the state report's own push, plus the REBROADCAST only an
     // ACCEPTED session report produces, per the per-asset `expected`. A
