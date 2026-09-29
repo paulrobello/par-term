@@ -16,13 +16,12 @@ pub fn show_styling_section(
         // Background color
         ui.horizontal(|ui| {
             ui.label("Background color:");
-            let mut color = egui::Color32::from_rgb(
-                settings.config.status_bar.status_bar_bg_color[0],
-                settings.config.status_bar.status_bar_bg_color[1],
-                settings.config.status_bar.status_bar_bg_color[2],
-            );
-            if ui.color_edit_button_srgba(&mut color).changed() {
-                settings.config.status_bar.status_bar_bg_color = [color.r(), color.g(), color.b()];
+            if crate::color_helpers::rgb_color_button(
+                ui,
+                &mut settings.config.status_bar.status_bar_bg_color,
+            )
+            .changed()
+            {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -52,13 +51,12 @@ pub fn show_styling_section(
         // Foreground color
         ui.horizontal(|ui| {
             ui.label("Text color:");
-            let mut color = egui::Color32::from_rgb(
-                settings.config.status_bar.status_bar_fg_color[0],
-                settings.config.status_bar.status_bar_fg_color[1],
-                settings.config.status_bar.status_bar_fg_color[2],
-            );
-            if ui.color_edit_button_srgba(&mut color).changed() {
-                settings.config.status_bar.status_bar_fg_color = [color.r(), color.g(), color.b()];
+            if crate::color_helpers::rgb_color_button(
+                ui,
+                &mut settings.config.status_bar.status_bar_fg_color,
+            )
+            .changed()
+            {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }

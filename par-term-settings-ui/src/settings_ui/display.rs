@@ -37,8 +37,10 @@ impl SettingsUI {
                     ui.label("This will reset ALL settings to their default values.");
                     ui.add_space(5.0);
                     ui.label(
-                        egui::RichText::new("Unsaved changes will be lost. This cannot be undone.")
-                            .color(egui::Color32::GRAY),
+                        egui::RichText::new(
+                            "Nothing is written until you Save. Revert undoes the reset.",
+                        )
+                        .color(egui::Color32::GRAY),
                     );
                     ui.add_space(15.0);
 
@@ -110,7 +112,7 @@ impl SettingsUI {
         ctx.set_global_style(style);
 
         let mut save_requested = false;
-        let mut discard_requested = false;
+        let mut revert_requested = false;
         let mut close_requested = false;
         let mut open = true;
         let mut changes_this_frame = false;
@@ -161,8 +163,12 @@ impl SettingsUI {
                         if ui.button("Save").clicked() {
                             save_requested = true;
                         }
-                        if ui.button("Discard").clicked() {
-                            discard_requested = true;
+                        if ui
+                            .button("Revert")
+                            .on_hover_text("Restore every window to the last saved settings")
+                            .clicked()
+                        {
+                            revert_requested = true;
                         }
                         if ui.button("Close").clicked() {
                             close_requested = true;
@@ -185,7 +191,7 @@ impl SettingsUI {
                         {
                             self.show_reset_defaults_dialog = true;
                         }
-                        if self.has_changes {
+                        if self.has_unsaved_changes() {
                             ui.colored_label(egui::Color32::YELLOW, "* Unsaved changes");
                         }
                     });
@@ -204,21 +210,13 @@ impl SettingsUI {
         }
 
         let config_to_save = if save_requested {
-            if self.font_pending_changes {
-                self.apply_font_changes();
-            }
-            self.has_changes = false;
-            self.sync_collapsed_sections_to_config();
-            let mut config = self.config.clone();
-            config.generate_snippet_action_keybindings();
-            Some(config)
+            Some(self.commit_save())
         } else {
             None
         };
 
-        if discard_requested {
-            self.has_changes = false;
-            self.sync_font_temps_from_config();
+        if revert_requested {
+            self.revert_to_baseline();
         }
 
         let config_for_live_update = if self.visible {
@@ -254,7 +252,9 @@ impl SettingsUI {
         Option<CursorShaderEditorResult>,
     ) {
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            if self.cursor_shader_editor_visible {
+            if self.show_close_prompt {
+                self.cancel_close_prompt();
+            } else if self.cursor_shader_editor_visible {
                 self.cursor_shader_editor_visible = false;
                 self.cursor_shader_editor_error = None;
             } else if self.shader_editor_visible {
@@ -271,7 +271,7 @@ impl SettingsUI {
         ctx.set_global_style(style);
 
         let mut save_requested = false;
-        let mut discard_requested = false;
+        let mut revert_requested = false;
         let mut changes_this_frame = false;
 
         egui::CentralPanel::default()
@@ -302,8 +302,12 @@ impl SettingsUI {
                     if ui.button("Save").clicked() {
                         save_requested = true;
                     }
-                    if ui.button("Discard").clicked() {
-                        discard_requested = true;
+                    if ui
+                        .button("Revert")
+                        .on_hover_text("Restore every window to the last saved settings")
+                        .clicked()
+                    {
+                        revert_requested = true;
                     }
                     ui.separator();
                     if ui
@@ -323,7 +327,7 @@ impl SettingsUI {
                     {
                         self.show_reset_defaults_dialog = true;
                     }
-                    if self.has_changes {
+                    if self.has_unsaved_changes() {
                         ui.colored_label(egui::Color32::YELLOW, "* Unsaved changes");
                     }
                 });
@@ -335,23 +339,16 @@ impl SettingsUI {
         self.show_create_shader_dialog_window(ctx);
         self.show_delete_shader_dialog_window(ctx);
         self.show_reset_defaults_dialog_window(ctx);
+        let close_prompt_save = self.show_close_prompt_window(ctx);
 
         let config_to_save = if save_requested {
-            if self.font_pending_changes {
-                self.apply_font_changes();
-            }
-            self.has_changes = false;
-            self.sync_collapsed_sections_to_config();
-            let mut config = self.config.clone();
-            config.generate_snippet_action_keybindings();
-            Some(config)
+            Some(self.commit_save())
         } else {
-            None
+            close_prompt_save
         };
 
-        if discard_requested {
-            self.has_changes = false;
-            self.sync_font_temps_from_config();
+        if revert_requested {
+            self.revert_to_baseline();
         }
 
         let config_for_live_update = {

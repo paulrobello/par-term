@@ -276,9 +276,30 @@ impl SettingsWindow {
 
     /// Sync shader enabled states from external source (e.g., keybinding toggle)
     /// This prevents the settings window from overwriting externally toggled states
+    ///
+    /// A value that differs from the working config was toggled outside
+    /// Settings, so it moves the baseline too: it is not an unsaved Settings
+    /// edit, and Revert must not undo it.
     pub fn sync_shader_states(&mut self, custom_shader_enabled: bool, cursor_shader_enabled: bool) {
-        self.settings_ui.config.shader.custom_shader_enabled = custom_shader_enabled;
-        self.settings_ui.config.shader.cursor_shader_enabled = cursor_shader_enabled;
+        let ui = &mut self.settings_ui;
+        if ui.config.shader.custom_shader_enabled != custom_shader_enabled {
+            ui.config.shader.custom_shader_enabled = custom_shader_enabled;
+            ui.set_baseline_shader_states(Some(custom_shader_enabled), None);
+        }
+        if ui.config.shader.cursor_shader_enabled != cursor_shader_enabled {
+            ui.config.shader.cursor_shader_enabled = cursor_shader_enabled;
+            ui.set_baseline_shader_states(None, Some(cursor_shader_enabled));
+        }
+    }
+
+    /// Ask to close. With unsaved changes this shows the Save / Revert /
+    /// Cancel prompt and keeps the window open.
+    fn request_close(&mut self) {
+        if self.settings_ui.request_close() {
+            self.should_close = true;
+        } else {
+            self.window.request_redraw();
+        }
     }
 
     /// Handle a window event
@@ -288,8 +309,12 @@ impl SettingsWindow {
 
         match event {
             WindowEvent::CloseRequested => {
-                self.should_close = true;
-                return SettingsWindowAction::Close;
+                self.request_close();
+                return if self.should_close {
+                    SettingsWindowAction::Close
+                } else {
+                    SettingsWindowAction::None
+                };
             }
 
             WindowEvent::Resized(new_size)
@@ -313,9 +338,12 @@ impl SettingsWindow {
                     // Only close if no shader editor is open
                     && !self.settings_ui.shader_editor_visible
                         && !self.settings_ui.cursor_shader_editor_visible
+                        && !self.settings_ui.is_close_prompt_visible()
                     => {
-                        self.should_close = true;
-                        return SettingsWindowAction::Close;
+                        self.request_close();
+                        if self.should_close {
+                            return SettingsWindowAction::Close;
+                        }
                     }
 
             WindowEvent::RedrawRequested => {

@@ -19,35 +19,7 @@ pub(super) fn show_snippet_edit_form(
     // Buttons at TOP - always visible first
     ui.horizontal(|ui| {
         if ui.button("Save").clicked() {
-            let snippet = SnippetConfig {
-                id: settings.snippets_tab.temp_snippet_id.clone(),
-                title: settings.snippets_tab.temp_snippet_title.clone(),
-                content: settings.snippets_tab.temp_snippet_content.clone(),
-                keybinding: if settings.snippets_tab.temp_snippet_keybinding.is_empty() {
-                    None
-                } else {
-                    Some(settings.snippets_tab.temp_snippet_keybinding.clone())
-                },
-                keybinding_enabled: settings.snippets_tab.temp_snippet_keybinding_enabled,
-                folder: if settings.snippets_tab.temp_snippet_folder.is_empty() {
-                    None
-                } else {
-                    Some(settings.snippets_tab.temp_snippet_folder.clone())
-                },
-                enabled: true,
-                description: if settings.snippets_tab.temp_snippet_description.is_empty() {
-                    None
-                } else {
-                    Some(settings.snippets_tab.temp_snippet_description.clone())
-                },
-                auto_execute: settings.snippets_tab.temp_snippet_auto_execute,
-                variables: settings
-                    .snippets_tab
-                    .temp_snippet_variables
-                    .iter()
-                    .cloned()
-                    .collect(),
-            };
+            let snippet = build_snippet_from_form(settings, edit_index);
 
             if let Some(i) = edit_index {
                 // Update existing snippet
@@ -312,4 +284,78 @@ pub(super) fn show_snippet_edit_form(
         });
 
     ui.separator();
+}
+
+/// Build the snippet the form describes. `enabled` has no control in the
+/// form, so an edited snippet keeps its value; a new snippet starts enabled.
+pub(super) fn build_snippet_from_form(
+    settings: &SettingsUI,
+    edit_index: Option<usize>,
+) -> SnippetConfig {
+    SnippetConfig {
+        id: settings.snippets_tab.temp_snippet_id.clone(),
+        title: settings.snippets_tab.temp_snippet_title.clone(),
+        content: settings.snippets_tab.temp_snippet_content.clone(),
+        keybinding: if settings.snippets_tab.temp_snippet_keybinding.is_empty() {
+            None
+        } else {
+            Some(settings.snippets_tab.temp_snippet_keybinding.clone())
+        },
+        keybinding_enabled: settings.snippets_tab.temp_snippet_keybinding_enabled,
+        folder: if settings.snippets_tab.temp_snippet_folder.is_empty() {
+            None
+        } else {
+            Some(settings.snippets_tab.temp_snippet_folder.clone())
+        },
+        // The form has no enabled toggle: keep the list's value.
+        enabled: edit_index
+            .and_then(|i| settings.config.snippets.get(i))
+            .is_none_or(|existing| existing.enabled),
+        description: if settings.snippets_tab.temp_snippet_description.is_empty() {
+            None
+        } else {
+            Some(settings.snippets_tab.temp_snippet_description.clone())
+        },
+        auto_execute: settings.snippets_tab.temp_snippet_auto_execute,
+        variables: settings
+            .snippets_tab
+            .temp_snippet_variables
+            .iter()
+            .cloned()
+            .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use par_term_config::Config;
+
+    #[test]
+    fn editing_a_disabled_snippet_keeps_it_disabled() {
+        let mut snippet = SnippetConfig::new(
+            "s1".to_string(),
+            "Greeting".to_string(),
+            "hello".to_string(),
+        );
+        snippet.enabled = false;
+        let config = Config {
+            snippets: vec![snippet],
+            ..Config::default()
+        };
+        let mut settings = SettingsUI::new_for_tests(config);
+        settings.snippets_tab.temp_snippet_id = "s1".to_string();
+        settings.snippets_tab.temp_snippet_title = "Greeting (edited)".to_string();
+
+        let saved = build_snippet_from_form(&settings, Some(0));
+
+        assert!(!saved.enabled);
+        assert_eq!(saved.title, "Greeting (edited)");
+    }
+
+    #[test]
+    fn a_new_snippet_starts_enabled() {
+        let settings = SettingsUI::new_for_tests(Config::default());
+        assert!(build_snippet_from_form(&settings, None).enabled);
+    }
 }

@@ -29,11 +29,6 @@ pub struct SessionLogConfig {
     #[serde(default = "crate::defaults::session_log_directory")]
     pub session_log_directory: String,
 
-    /// Automatically save session log when tab/window closes
-    /// When true, ensures the session is fully written before the tab closes
-    #[serde(default = "crate::defaults::bool_true")]
-    pub archive_on_close: bool,
-
     /// Redact input during password prompts in session logs.
     /// When enabled, the session logger detects password prompts (sudo, ssh, etc.)
     /// by monitoring terminal output for common prompt patterns, and replaces
@@ -53,7 +48,6 @@ impl Default for SessionLogConfig {
             auto_log_sessions: crate::defaults::bool_false(),
             session_log_format: SessionLogFormat::default(),
             session_log_directory: crate::defaults::session_log_directory(),
-            archive_on_close: crate::defaults::bool_true(),
             session_log_redact_passwords: crate::defaults::bool_true(),
         }
     }

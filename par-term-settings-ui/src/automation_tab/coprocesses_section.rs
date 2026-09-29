@@ -87,13 +87,13 @@ fn show_coprocesses_collapsing(
                         // Right-align buttons
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             // Delete button (rightmost)
-                            if ui
-                                .small_button(
-                                    egui::RichText::new("Delete")
-                                        .color(egui::Color32::from_rgb(200, 80, 80)),
-                                )
-                                .clicked()
-                            {
+                            if crate::delete_confirm::confirm_delete_button(
+                                ui,
+                                &mut settings.pending_list_delete,
+                                "coprocess",
+                                &format!("{i}:{}", coproc.name),
+                                "Delete",
+                            ) {
                                 delete_index = Some(i);
                             }
 

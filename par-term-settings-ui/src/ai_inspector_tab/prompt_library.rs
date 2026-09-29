@@ -66,7 +66,14 @@ pub(super) fn show_prompt_library_section(
                         if ui.button("Edit").clicked() {
                             edit_index = Some(index);
                         }
-                        if ui.button("Delete").clicked() {
+                        // Deletes the prompt file immediately, so it asks first.
+                        if crate::delete_confirm::confirm_action_button(
+                            ui,
+                            &mut settings.pending_list_delete,
+                            "prompt",
+                            &prompt.path.display().to_string(),
+                            "Delete",
+                        ) {
                             delete_index = Some(index);
                         }
                     });

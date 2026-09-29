@@ -180,6 +180,7 @@ fn show_triggers_collapsing(
                         &mut toggle_index,
                         &mut start_edit_index,
                         &mut delete_index,
+                        &mut settings.pending_list_delete,
                     );
                 }
             }
@@ -244,6 +245,7 @@ fn show_trigger_row(
     toggle_index: &mut Option<usize>,
     start_edit_index: &mut Option<usize>,
     delete_index: &mut Option<usize>,
+    pending_delete: &mut crate::delete_confirm::PendingDelete,
 ) {
     ui.horizontal(|ui| {
         // Enabled checkbox
@@ -292,11 +294,14 @@ fn show_trigger_row(
             *start_edit_index = Some(i);
         }
 
-        // Delete button
-        if ui
-            .small_button(egui::RichText::new("Delete").color(egui::Color32::from_rgb(200, 80, 80)))
-            .clicked()
-        {
+        // Delete button (asks before deleting)
+        if crate::delete_confirm::confirm_delete_button(
+            ui,
+            pending_delete,
+            "trigger",
+            &format!("{i}:{}", trigger.name),
+            "Delete",
+        ) {
             *delete_index = Some(i);
         }
     });

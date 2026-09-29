@@ -1,6 +1,6 @@
 //! Session Logging section for the advanced settings tab.
 //!
-//! Covers: auto-log enable, log format, log directory, archive on close, redact passwords.
+//! Covers: auto-log enable, log format, log directory, redact passwords.
 
 use crate::SettingsUI;
 use crate::section::collapsing_section;
@@ -100,19 +100,6 @@ pub(super) fn show_logging_section(
                     .weak()
                     .small(),
             );
-
-            ui.add_space(8.0);
-
-            let mut archive = settings.config.session_log.archive_on_close;
-            if ui
-                .checkbox(&mut archive, "Archive session on tab close")
-                .on_hover_text("Ensures session is fully written when tab closes")
-                .changed()
-            {
-                settings.config.session_log.archive_on_close = archive;
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
 
             ui.add_space(8.0);
 

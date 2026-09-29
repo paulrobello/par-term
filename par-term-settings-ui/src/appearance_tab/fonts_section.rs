@@ -1,7 +1,10 @@
 //! Font-related sections of the appearance settings tab.
 //!
-//! Covers: Theme, Auto Dark Mode, Fonts, Font Variants, Text Shaping,
-//! and Font Rendering sections.
+//! Covers: Theme, Auto Dark Mode, Fonts, Font Variants, and Font Rendering.
+//!
+//! Text Shaping (ligatures, kerning) has no section: the renderer does not
+//! read those settings yet (UX bug B39), so a control for them would do
+//! nothing. They stay YAML-configurable.
 
 use crate::SettingsUI;
 use crate::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, section_matches};
@@ -271,59 +274,6 @@ pub(super) fn show_font_variants_section(
                         settings.font_pending_changes = true;
                     }
                 });
-            },
-        );
-    }
-}
-
-pub(super) fn show_text_shaping_section(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    _changes_this_frame: &mut bool,
-    collapsed: &mut HashSet<String>,
-) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
-        "Text Shaping",
-        &[
-            "shaping",
-            "ligatures",
-            "kerning",
-            "harfbuzz",
-            "complex scripts",
-            "opentype",
-        ],
-    ) {
-        collapsing_section(
-            ui,
-            "Text Shaping",
-            "appearance_text_shaping",
-            false,
-            collapsed,
-            |ui| {
-                if ui
-                    .checkbox(
-                        &mut settings.temp_enable_text_shaping,
-                        "Enable text shaping",
-                    )
-                    .changed()
-                {
-                    settings.font_pending_changes = true;
-                }
-
-                if ui
-                    .checkbox(&mut settings.temp_enable_ligatures, "Enable ligatures")
-                    .changed()
-                {
-                    settings.font_pending_changes = true;
-                }
-
-                if ui
-                    .checkbox(&mut settings.temp_enable_kerning, "Enable kerning")
-                    .changed()
-                {
-                    settings.font_pending_changes = true;
-                }
             },
         );
     }

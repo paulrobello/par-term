@@ -81,14 +81,12 @@ pub fn show_background(
                     // Solid color settings
                     ui.horizontal(|ui| {
                         ui.label("Background color:");
-                        // Convert [u8; 3] to egui Color32 for color picker
-                        let mut color = Color32::from_rgb(
-                            settings.temp_background_color[0],
-                            settings.temp_background_color[1],
-                            settings.temp_background_color[2],
-                        );
-                        if ui.color_edit_button_srgba(&mut color).changed() {
-                            settings.temp_background_color = [color.r(), color.g(), color.b()];
+                        if crate::color_helpers::rgb_color_button(
+                            ui,
+                            &mut settings.temp_background_color,
+                        )
+                        .changed()
+                        {
                             settings.config.image.background_color = settings.temp_background_color;
                             settings.has_changes = true;
                             *changes_this_frame = true;

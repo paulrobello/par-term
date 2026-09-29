@@ -441,7 +441,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `tmux_path` | `string` | `"tmux"` | Path to tmux executable |
 | `tmux_auto_attach` | `bool` | `false` | Auto-attach to existing tmux session on startup |
 | `tmux_auto_attach_session` | `string?` | `null` | Session name to auto-attach to |
-| `tmux_default_session` | `string?` | `null` | Default session name for new sessions |
+| `tmux_default_session` | `string?` | `null` | Session used when a tmux session is started without a name (auto-attach with no session name, session picker "new"); attaches if it already exists, creates it otherwise |
 | `tmux_clipboard_sync` | `bool` | `true` | Sync clipboard with tmux paste buffer |
 | `tmux_hide_gateway_tab` | `bool` | `false` | Hide the control-mode gateway tab from the tab bar while tmux windows are active; the tab is restored when the session ends |
 | `tmux_profile` | `string?` | `null` | Profile to use for tmux sessions |
@@ -494,7 +494,6 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `auto_log_sessions` | `bool` | `false` | Automatically record all terminal sessions |
 | `session_log_format` | `enum` | `asciicast` | Log format: `plain`, `html`, `asciicast`, `asciicast_v3` |
 | `session_log_directory` | `string` | `"~/.local/share/par-term/logs/"` | Directory for session log files |
-| `archive_on_close` | `bool` | `true` | Flush session log when tab closes |
 | `session_log_redact_passwords` | `bool` | `true` | Redact password prompt input in session logs |
 
 ---

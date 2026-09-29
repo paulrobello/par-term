@@ -29,6 +29,8 @@ pub struct SearchUI {
     use_regex: bool,
     /// Whether to match whole words only.
     whole_word: bool,
+    /// Whether next/previous wrap past the last/first match (`search_wrap_around`).
+    wrap_around: bool,
     /// All matches found.
     matches: Vec<SearchMatch>,
     /// Index of the currently highlighted match.
@@ -68,6 +70,7 @@ impl SearchUI {
             case_sensitive: false,
             use_regex: false,
             whole_word: false,
+            wrap_around: true,
             matches: Vec::new(),
             current_match_index: 0,
             engine: SearchEngine::new(),
@@ -129,7 +132,14 @@ impl SearchUI {
             return None;
         }
 
-        self.current_match_index = (self.current_match_index + 1) % self.matches.len();
+        let last = self.matches.len() - 1;
+        self.current_match_index = if self.current_match_index < last {
+            self.current_match_index + 1
+        } else if self.wrap_around {
+            0
+        } else {
+            last
+        };
         self.matches.get(self.current_match_index)
     }
 
@@ -142,7 +152,9 @@ impl SearchUI {
         }
 
         if self.current_match_index == 0 {
-            self.current_match_index = self.matches.len() - 1;
+            if self.wrap_around {
+                self.current_match_index = self.matches.len() - 1;
+            }
         } else {
             self.current_match_index -= 1;
         }
@@ -186,7 +198,7 @@ impl SearchUI {
             case_sensitive: self.case_sensitive,
             use_regex: self.use_regex,
             whole_word: self.whole_word,
-            wrap_around: true,
+            wrap_around: self.wrap_around,
         };
 
         // Validate regex before searching
@@ -486,8 +498,39 @@ impl SearchUI {
     }
 
     /// Initialize search settings from config.
-    pub fn init_from_config(&mut self, case_sensitive: bool, use_regex: bool) {
+    pub fn init_from_config(&mut self, case_sensitive: bool, use_regex: bool, wrap_around: bool) {
         self.case_sensitive = case_sensitive;
         self.use_regex = use_regex;
+        self.wrap_around = wrap_around;
+    }
+}
+
+#[cfg(test)]
+mod wrap_tests {
+    use super::*;
+
+    fn ui_with_matches(wrap_around: bool) -> SearchUI {
+        let mut ui = SearchUI::new();
+        ui.init_from_config(false, false, wrap_around);
+        ui.matches = (0..3).map(|line| SearchMatch::new(line, 0, 1)).collect();
+        ui
+    }
+
+    #[test]
+    fn navigation_wraps_when_search_wrap_around_is_on() {
+        let mut ui = ui_with_matches(true);
+        ui.current_match_index = 2;
+        assert_eq!(ui.next_match().map(|m| m.line), Some(0));
+        assert_eq!(ui.prev_match().map(|m| m.line), Some(2));
+    }
+
+    #[test]
+    fn navigation_stops_at_the_ends_when_search_wrap_around_is_off() {
+        let mut ui = ui_with_matches(false);
+        ui.current_match_index = 2;
+        assert_eq!(ui.next_match().map(|m| m.line), Some(2));
+        ui.current_match_index = 0;
+        assert_eq!(ui.prev_match().map(|m| m.line), Some(0));
+        assert_eq!(ui.next_match().map(|m| m.line), Some(1));
     }
 }

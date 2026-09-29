@@ -360,6 +360,80 @@ fn test_profile_modal_close_hides_modal_and_drops_working_profiles() {
 }
 
 // ============================================================================
+// B35: list Cancel then Save must never persist an empty profile set
+// ============================================================================
+
+fn inline_editor_with(names: &[&str]) -> ProfileModalUI {
+    let mut modal = ProfileModalUI::new();
+    modal.load_profiles(names.iter().map(|n| Profile::new(*n)).collect());
+    modal
+}
+
+#[test]
+fn test_list_cancel_then_save_keeps_every_profile() {
+    let mut modal = inline_editor_with(&["Alpha", "Beta", "Gamma"]);
+
+    modal.cancel_list_changes();
+    let action = modal.request_list_save();
+
+    assert_eq!(action, ProfileModalAction::Save);
+    let names: Vec<&str> = modal
+        .get_working_profiles()
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
+    assert_eq!(names, ["Alpha", "Beta", "Gamma"]);
+}
+
+#[test]
+fn test_list_cancel_recovers_a_working_set_emptied_by_close() {
+    let mut modal = inline_editor_with(&["Alpha", "Beta"]);
+    // close() was the pre-fix Cancel handler; it empties the working set.
+    modal.close();
+    assert!(modal.get_working_profiles().is_empty());
+    assert!(modal.has_unsaved_changes());
+
+    modal.cancel_list_changes();
+
+    assert_eq!(modal.get_working_profiles().len(), 2);
+    assert!(!modal.has_unsaved_changes());
+}
+
+#[test]
+fn test_list_save_with_empty_working_set_arms_confirmation() {
+    let mut modal = ProfileModalUI::new();
+    let mut manager = ProfileManager::new();
+    manager.add(Profile::new("Keep me"));
+    modal.open(&manager);
+    // close() is the pre-fix Cancel path: it empties the working set but
+    // leaves the baseline, which is exactly the state B35 persisted.
+    modal.close();
+
+    let action = modal.request_list_save();
+    assert_eq!(action, ProfileModalAction::None);
+    assert!(modal.is_confirming_empty_save());
+
+    assert_eq!(modal.confirm_empty_list_save(), ProfileModalAction::Save);
+    assert!(!modal.is_confirming_empty_save());
+}
+
+#[test]
+fn test_list_save_of_empty_set_when_there_were_none_needs_no_confirmation() {
+    let mut modal = inline_editor_with(&[]);
+    assert_eq!(modal.request_list_save(), ProfileModalAction::Save);
+    assert!(!modal.is_confirming_empty_save());
+}
+
+#[test]
+fn test_mark_saved_moves_the_baseline() {
+    let mut modal = inline_editor_with(&["A"]);
+    modal.mark_saved();
+    modal.cancel_list_changes();
+    assert_eq!(modal.get_working_profiles().len(), 1);
+    assert!(!modal.has_unsaved_changes());
+}
+
+// ============================================================================
 // Profile Builder Comprehensive Tests
 // ============================================================================
 

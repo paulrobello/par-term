@@ -34,17 +34,7 @@ impl ProfileModalUI {
                                 }
                             }
                             if let Some(ref mut color) = self.temp_badge_color {
-                                let mut egui_color =
-                                    egui::Color32::from_rgb(color[0], color[1], color[2]);
-                                if egui::color_picker::color_edit_button_srgba(
-                                    ui,
-                                    &mut egui_color,
-                                    egui::color_picker::Alpha::Opaque,
-                                )
-                                .changed()
-                                {
-                                    *color = [egui_color.r(), egui_color.g(), egui_color.b()];
-                                }
+                                crate::color_helpers::rgb_color_button(ui, color);
                             } else {
                                 ui.label(
                                     egui::RichText::new("(use global)")

@@ -277,7 +277,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Automatic session logging | ✅ `Automatically Log` | ✅ `auto_log_sessions` | ✅ | - | - | Record all terminal output |
 | Log format (plain/HTML/asciicast) | ✅ Multiple formats | ✅ `session_log_format` | ✅ | - | - | Plain, HTML, asciicast formats |
 | Log directory | ✅ `Log Directory` | ✅ `session_log_directory` | ✅ | - | - | XDG-compliant default |
-| Archive on closure | ✅ `Archive on Closure` | ✅ `archive_on_close` | ✅ | - | - | Save session when tab closes |
+| Archive on closure | ✅ `Archive on Closure` | ✅ Always on | ✅ | - | - | Closing a tab always finalizes its session log; not configurable |
 | Screenshot | ✅ | ✅ Ctrl+Shift+S | ✅ | - | - | - |
 | Screenshot format | ✅ | ✅ `screenshot_format` | ✅ | - | - | png/jpeg/svg/html |
 

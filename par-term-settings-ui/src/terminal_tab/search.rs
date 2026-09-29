@@ -24,15 +24,12 @@ pub(super) fn show_search_section(
         // Match highlight color
         ui.horizontal(|ui| {
             ui.label("Match highlight:");
-            let mut color = egui::Color32::from_rgba_unmultiplied(
-                settings.config.search.search_highlight_color[0],
-                settings.config.search.search_highlight_color[1],
-                settings.config.search.search_highlight_color[2],
-                settings.config.search.search_highlight_color[3],
-            );
-            if ui.color_edit_button_srgba(&mut color).changed() {
-                settings.config.search.search_highlight_color =
-                    [color.r(), color.g(), color.b(), color.a()];
+            if crate::color_helpers::rgba_color_button(
+                ui,
+                &mut settings.config.search.search_highlight_color,
+            )
+            .changed()
+            {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -41,15 +38,12 @@ pub(super) fn show_search_section(
         // Current match highlight color
         ui.horizontal(|ui| {
             ui.label("Current match:");
-            let mut color = egui::Color32::from_rgba_unmultiplied(
-                settings.config.search.search_current_highlight_color[0],
-                settings.config.search.search_current_highlight_color[1],
-                settings.config.search.search_current_highlight_color[2],
-                settings.config.search.search_current_highlight_color[3],
-            );
-            if ui.color_edit_button_srgba(&mut color).changed() {
-                settings.config.search.search_current_highlight_color =
-                    [color.r(), color.g(), color.b(), color.a()];
+            if crate::color_helpers::rgba_color_button(
+                ui,
+                &mut settings.config.search.search_current_highlight_color,
+            )
+            .changed()
+            {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -243,20 +237,12 @@ pub(super) fn show_command_separator_section(
                         |ui| {
                             ui.horizontal(|ui| {
                                 ui.label("Custom color:");
-                                let mut color = egui::Color32::from_rgb(
-                                    settings.config.command_separator.command_separator_color[0],
-                                    settings.config.command_separator.command_separator_color[1],
-                                    settings.config.command_separator.command_separator_color[2],
-                                );
-                                if egui::color_picker::color_edit_button_srgba(
+                                if crate::color_helpers::rgb_color_button(
                                     ui,
-                                    &mut color,
-                                    egui::color_picker::Alpha::Opaque,
+                                    &mut settings.config.command_separator.command_separator_color,
                                 )
                                 .changed()
                                 {
-                                    settings.config.command_separator.command_separator_color =
-                                        [color.r(), color.g(), color.b()];
                                     settings.has_changes = true;
                                     *changes_this_frame = true;
                                 }

@@ -5,7 +5,6 @@
 //! Contains:
 //! - Theme selection
 //! - Font settings (family, size, spacing, variants)
-//! - Text shaping (ligatures, kerning)
 //! - Font rendering options
 //! - Cursor appearance and behavior
 //! - Badge overlay settings
@@ -16,7 +15,7 @@
 //! | File | Contents |
 //! |------|----------|
 //! | `mod.rs` (this file) | `show()` dispatcher and `keywords()` |
-//! | `fonts_section.rs` | Theme, Auto Dark Mode, Fonts, Font Variants, Text Shaping, Font Rendering |
+//! | `fonts_section.rs` | Theme, Auto Dark Mode, Fonts, Font Variants, Font Rendering |
 //! | `cursor_section.rs` | Cursor, Cursor Locks, Cursor Effects |
 
 use crate::SettingsUI;
@@ -36,7 +35,6 @@ pub fn show(
     fonts_section::show_auto_dark_mode_section(ui, settings, changes_this_frame, collapsed);
     fonts_section::show_fonts_section(ui, settings, changes_this_frame, collapsed);
     fonts_section::show_font_variants_section(ui, settings, changes_this_frame, collapsed);
-    fonts_section::show_text_shaping_section(ui, settings, changes_this_frame, collapsed);
     fonts_section::show_font_rendering_section(ui, settings, changes_this_frame, collapsed);
     cursor_section::show_cursor_section(ui, settings, changes_this_frame, collapsed);
     cursor_section::show_cursor_locks_section(ui, settings, changes_this_frame, collapsed);
@@ -71,11 +69,6 @@ pub fn keywords() -> &'static [&'static str] {
         "italic",
         "line spacing",
         "char spacing",
-        // Text shaping
-        "text shaping",
-        "shaping",
-        "ligatures",
-        "kerning",
         // Font rendering
         "anti-alias",
         "antialias",

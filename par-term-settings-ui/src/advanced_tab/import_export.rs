@@ -47,11 +47,13 @@ pub(super) fn show_import_export_section(
             ui.add_space(4.0);
 
             ui.horizontal(|ui| {
-                if ui
-                    .button("Import & Replace")
-                    .on_hover_text("Replace the entire configuration with settings from a file")
-                    .clicked()
-                {
+                if crate::delete_confirm::confirm_action_button(
+                    ui,
+                    &mut settings.pending_list_delete,
+                    "import",
+                    "file_replace",
+                    "Import & Replace",
+                ) {
                     import_preferences_from_file(settings, changes_this_frame, ImportMode::Replace);
                 }
 
@@ -89,11 +91,18 @@ pub(super) fn show_import_export_section(
                 // `file://` URL told the user nothing.
                 let url_valid = !settings.advanced_tab.temp_import_url.trim().is_empty();
 
-                if ui
-                    .add_enabled(url_valid, egui::Button::new("Fetch & Replace"))
-                    .on_hover_text("Download and replace the current configuration (https:// only)")
-                    .clicked()
-                {
+                let fetch_replace = ui
+                    .add_enabled_ui(url_valid, |ui| {
+                        crate::delete_confirm::confirm_action_button(
+                            ui,
+                            &mut settings.pending_list_delete,
+                            "import",
+                            "url_replace",
+                            "Fetch & Replace",
+                        )
+                    })
+                    .inner;
+                if fetch_replace {
                     import_preferences_from_url(settings, changes_this_frame, ImportMode::Replace);
                 }
 

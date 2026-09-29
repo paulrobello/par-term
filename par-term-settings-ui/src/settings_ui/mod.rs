@@ -331,9 +331,22 @@ pub struct SettingsUI {
 
     /// Callback: get detected shell type
     pub shell_integration_detected_shell_fn: Option<fn() -> par_term_config::ShellType>,
+
+    /// Config as it was when Settings opened or last saved; Revert restores it.
+    pub(crate) baseline_config: Config,
+    /// Whether the close-with-unsaved-changes prompt is showing.
+    pub(crate) show_close_prompt: bool,
+    /// A close-prompt choice was made; the window closes once pending saves
+    /// have been handed to the host.
+    pub(crate) close_pending: bool,
+    /// List row armed for delete by its first click, as `(list, item key)`.
+    /// The second click on the same row deletes it.
+    pub pending_list_delete: crate::delete_confirm::PendingDelete,
 }
 
 mod async_ops;
+mod baseline;
+pub use baseline::{ClosePromptChoice, collapsed_sections_to_persist, configs_equal};
 mod display;
 mod sections;
 mod state;

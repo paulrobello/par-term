@@ -145,12 +145,26 @@ impl WindowManager {
         }
     }
 
-    /// Close the settings window
+    /// Close the settings window.
+    ///
+    /// Never persists unsaved edits: the Save / Revert / Cancel prompt has
+    /// already run for a user close. Only a changed collapsed-section set is
+    /// written, on top of the last saved config (the baseline), so a forced
+    /// close (last terminal window gone) cannot leak live-preview edits.
     pub fn close_settings_window(&mut self) {
         if let Some(settings_window) = self.settings_window.take() {
-            // Persist collapsed section states AND current live-preview config.
-            let collapsed = settings_window.settings_ui.collapsed_sections_snapshot();
-            if !collapsed.is_empty() || !self.config.load().collapsed_settings_sections.is_empty() {
+            // Windows hold whatever the last live-preview frame sent them. If
+            // that is not the last saved config, put the saved config back.
+            let baseline = settings_window.settings_ui.baseline_config().clone();
+            if !par_term_settings_ui::configs_equal(&self.config.load(), &baseline) {
+                self.apply_config_to_windows(&baseline);
+            }
+
+            let persisted = self.config.load().collapsed_settings_sections.clone();
+            if let Some(collapsed) = par_term_settings_ui::collapsed_sections_to_persist(
+                &persisted,
+                &settings_window.settings_ui.collapsed_sections,
+            ) {
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
                     new.collapsed_settings_sections = collapsed.clone();
@@ -163,13 +177,26 @@ impl WindowManager {
                         std::sync::Arc::new(new)
                     });
                 }
-            }
-            // Save the in-memory config which includes both collapsed sections and
-            // any live-preview changes from the settings window.
-            if let Err(e) = self.config.load().save() {
-                log::error!("Failed to persist config on settings window close: {}", e);
+                let mut to_persist = settings_window.settings_ui.baseline_config().clone();
+                to_persist.collapsed_settings_sections = collapsed;
+                if let Err(e) = to_persist.save() {
+                    log::error!("Failed to persist collapsed settings sections: {}", e);
+                }
             }
             log::info!("Closed settings window");
+        }
+    }
+
+    /// Close the settings window if its last frame asked to close. Called
+    /// after that frame's action has been applied, so a final Save or Revert
+    /// from the close prompt is never dropped.
+    pub fn close_settings_window_if_requested(&mut self) {
+        if self
+            .settings_window
+            .as_ref()
+            .is_some_and(|sw| sw.should_close())
+        {
+            self.close_settings_window();
         }
     }
 
@@ -180,23 +207,17 @@ impl WindowManager {
             .is_some_and(|sw| sw.window_id() == window_id)
     }
 
-    /// Handle an event for the settings window
+    /// Handle an event for the settings window.
+    ///
+    /// The caller applies the returned action and then calls
+    /// [`Self::close_settings_window_if_requested`].
     pub fn handle_settings_window_event(
         &mut self,
         event: WindowEvent,
     ) -> Option<SettingsWindowAction> {
-        if let Some(settings_window) = &mut self.settings_window {
-            let action = settings_window.handle_window_event(event);
-
-            // Handle close action
-            if settings_window.should_close() {
-                self.close_settings_window();
-                return Some(SettingsWindowAction::Close);
-            }
-
-            return Some(action);
-        }
-        None
+        self.settings_window
+            .as_mut()
+            .map(|settings_window| settings_window.handle_window_event(event))
     }
 
     // NOTE: apply_config_to_windows is extracted to config_propagation.rs (R-39).

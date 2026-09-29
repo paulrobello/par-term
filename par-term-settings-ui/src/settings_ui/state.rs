@@ -105,6 +105,7 @@ impl SettingsUI {
         let initial_rows = config.rows;
         let initial_collapsed: HashSet<String> =
             config.collapsed_settings_sections.iter().cloned().collect();
+        let baseline_config = config.clone();
 
         Self {
             visible: false,
@@ -263,6 +264,10 @@ impl SettingsUI {
             shader_count_files_fn: None,
             shell_integration_is_installed_fn: None,
             shell_integration_detected_shell_fn: None,
+            baseline_config,
+            show_close_prompt: false,
+            close_pending: false,
+            pending_list_delete: None,
         }
     }
 
@@ -304,9 +309,11 @@ impl SettingsUI {
             .map(|p| p.display().to_string())
     }
 
-    /// Update the config copy (e.g., when config is reloaded).
+    /// Update the config copy (e.g., after a save), unless there are unsaved
+    /// edits. The baseline moves with it.
     pub fn update_config(&mut self, config: Config) {
-        if !self.has_changes {
+        if !self.has_changes && !self.has_unsaved_changes() {
+            self.baseline_config = config.clone();
             self.config = config;
             self.last_live_opacity = self.config.window.window_opacity;
             if !self.font_pending_changes {
@@ -316,7 +323,9 @@ impl SettingsUI {
     }
 
     /// Force-update the config copy, bypassing the `has_changes` guard.
+    /// The caller has already persisted `config`, so it becomes the baseline.
     pub fn force_update_config(&mut self, config: Config) {
+        self.baseline_config = config.clone();
         self.config = config;
         self.sync_all_temps_from_config();
         self.has_changes = false;
@@ -406,7 +415,9 @@ impl SettingsUI {
         self.last_live_opacity = self.config.window.window_opacity;
     }
 
-    /// Reset all settings to their default values
+    /// Reset all settings to their default values. This is a preview: the
+    /// baseline is untouched, so nothing is written until Save and Revert
+    /// undoes it.
     pub(super) fn reset_all_to_defaults(&mut self) {
         self.config = Config::default();
         self.sync_all_temps_from_config();

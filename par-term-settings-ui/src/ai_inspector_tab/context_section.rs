@@ -361,7 +361,16 @@ pub(super) fn show_agent_section(
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
-                    if ui.button("Remove").clicked() {
+                    if crate::delete_confirm::confirm_action_button(
+                        ui,
+                        &mut settings.pending_list_delete,
+                        "extra_root",
+                        &format!(
+                            "{i}:{}",
+                            settings.config.ai_inspector.ai_inspector_extra_agent_roots[i]
+                        ),
+                        "Remove",
+                    ) {
                         remove_root_index = Some(i);
                     }
                 });

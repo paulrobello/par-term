@@ -462,6 +462,7 @@ fn toggle_search(s: &mut WindowState) -> bool {
         s.overlay_ui.search_ui.init_from_config(
             s.config.load().search.search_case_sensitive,
             s.config.load().search.search_regex,
+            s.config.load().search.search_wrap_around,
         );
     }
     s.focus_state.needs_redraw = true;

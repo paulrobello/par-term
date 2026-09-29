@@ -187,6 +187,19 @@ impl SettingsWindow {
         // rule as Renderer::apply_egui_texture_deltas in the main window).
         egui_output.textures_delta.clear();
 
+        // A resolved close prompt closes once this frame's saves are handed
+        // over; the host applies the returned action before closing.
+        if self.settings_ui.take_close_ready() {
+            self.should_close = true;
+        }
+
+        // A save is frame-local, so it goes before the queued requests below:
+        // those persist until a later frame picks them up.
+        if let Some(config) = config_to_save {
+            self.window.request_redraw();
+            return SettingsWindowAction::SaveConfig(config);
+        }
+
         // Check for test notification request
         if self.settings_ui.take_test_notification_request() {
             return SettingsWindowAction::TestNotification;
@@ -313,9 +326,6 @@ impl SettingsWindow {
         }
 
         // Determine action based on settings UI results
-        if let Some(config) = config_to_save {
-            return SettingsWindowAction::SaveConfig(config);
-        }
         if let Some(shader_result) = shader_apply {
             return SettingsWindowAction::ApplyShader(shader_result);
         }

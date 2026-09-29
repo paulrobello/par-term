@@ -20,6 +20,16 @@ mod parent_selector;
 use par_term_config::{Profile, ProfileId, ProfileManager};
 use std::collections::HashSet;
 
+/// True when two profile lists serialize identically. `Profile` has no
+/// `PartialEq`; a serialization failure counts as a difference.
+fn profiles_equal(a: &[Profile], b: &[Profile]) -> bool {
+    a.len() == b.len()
+        && match (serde_yaml_ng::to_value(a), serde_yaml_ng::to_value(b)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
+        }
+}
+
 /// Actions that can be triggered from the profile modal
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProfileModalAction {
@@ -106,6 +116,11 @@ pub struct ProfileModalUI {
     pub(super) validation_error: Option<String>,
     /// Profile pending deletion (for confirmation)
     pub(super) pending_delete: Option<(ProfileId, String)>,
+    /// Profiles as last loaded or saved. List Cancel restores this; a Save
+    /// that would empty a non-empty baseline needs explicit confirmation.
+    pub(super) baseline_profiles: Vec<Profile>,
+    /// Set while the "save an empty profile list?" confirmation is showing.
+    pub(super) confirm_empty_save: bool,
 }
 
 impl ProfileModalUI {
@@ -160,6 +175,8 @@ impl ProfileModalUI {
             has_changes: false,
             validation_error: None,
             pending_delete: None,
+            baseline_profiles: Vec::new(),
+            confirm_empty_save: false,
         }
     }
 
@@ -168,6 +185,8 @@ impl ProfileModalUI {
         self.visible = true;
         self.mode = ModalMode::List;
         self.working_profiles = manager.to_vec();
+        self.baseline_profiles = self.working_profiles.clone();
+        self.confirm_empty_save = false;
         self.editing_id = None;
         self.selected_id = None;
         self.has_changes = false;
@@ -195,7 +214,9 @@ impl ProfileModalUI {
     /// Used by the settings window to populate the inline profile editor
     /// without opening a modal window.
     pub fn load_profiles(&mut self, profiles: Vec<Profile>) {
+        self.baseline_profiles = profiles.clone();
         self.working_profiles = profiles;
+        self.confirm_empty_save = false;
         self.mode = ModalMode::List;
         self.editing_id = None;
         self.selected_id = None;
@@ -214,6 +235,70 @@ impl ProfileModalUI {
     /// clearing the list footer's "* Unsaved changes" marker.
     pub fn mark_saved(&mut self) {
         self.has_changes = false;
+        self.baseline_profiles = self.working_profiles.clone();
+    }
+
+    /// Whether the working set differs from what was last loaded or saved,
+    /// including an edit form that is still open.
+    pub fn has_unsaved_changes(&self) -> bool {
+        self.has_changes
+            || !matches!(self.mode, ModalMode::List)
+            || !profiles_equal(&self.working_profiles, &self.baseline_profiles)
+    }
+
+    /// List-view Cancel: drop unsaved edits by restoring the baseline.
+    ///
+    /// Unlike [`Self::close`], the working set is never emptied, so a later
+    /// Save cannot persist an empty list the user never asked for.
+    pub fn cancel_list_changes(&mut self) {
+        self.working_profiles = self.baseline_profiles.clone();
+        self.mode = ModalMode::List;
+        self.editing_id = None;
+        self.selected_id = None;
+        self.has_changes = false;
+        self.validation_error = None;
+        self.pending_delete = None;
+        self.confirm_empty_save = false;
+        self.clear_form();
+    }
+
+    /// List-view Save. Returns [`ProfileModalAction::Save`] when the working
+    /// set may be persisted. Saving an empty set over a non-empty baseline
+    /// arms a confirmation instead and returns [`ProfileModalAction::None`].
+    pub fn request_list_save(&mut self) -> ProfileModalAction {
+        if self.working_profiles.is_empty() && !self.baseline_profiles.is_empty() {
+            self.confirm_empty_save = true;
+            return ProfileModalAction::None;
+        }
+        self.confirm_empty_save = false;
+        ProfileModalAction::Save
+    }
+
+    /// Confirm the "save an empty profile list?" prompt.
+    pub fn confirm_empty_list_save(&mut self) -> ProfileModalAction {
+        self.confirm_empty_save = false;
+        ProfileModalAction::Save
+    }
+
+    /// Whether the empty-save confirmation is showing.
+    pub fn is_confirming_empty_save(&self) -> bool {
+        self.confirm_empty_save
+    }
+
+    /// Fold an open edit form into the working set before a save. A form
+    /// that fails validation is dropped rather than blocking the save.
+    pub fn finish_open_edit(&mut self) {
+        if !matches!(self.mode, ModalMode::List) {
+            self.save_form();
+            if !matches!(self.mode, ModalMode::List) {
+                self.cancel_edit();
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn clear_working_profiles_for_test(&mut self) {
+        self.working_profiles.clear();
     }
 
     // =========================================================================

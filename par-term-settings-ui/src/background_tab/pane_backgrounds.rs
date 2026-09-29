@@ -199,7 +199,18 @@ pub fn show_pane_backgrounds(
             ui.add_space(4.0);
 
             // Clear pane background button
-            if ui.button("Clear pane background").clicked() {
+            let clear_key = settings
+                .background_tab
+                .temp_pane_bg_index
+                .unwrap_or(0)
+                .to_string();
+            if crate::delete_confirm::confirm_action_button(
+                ui,
+                &mut settings.pending_list_delete,
+                "pane_background",
+                &clear_key,
+                "Clear pane background",
+            ) {
                 let index = settings.background_tab.temp_pane_bg_index.unwrap_or(0);
                 settings
                     .config

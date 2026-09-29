@@ -52,6 +52,8 @@ pub mod advanced_tab;
 pub mod ai_inspector_tab;
 pub mod appearance_tab;
 pub mod automation_tab;
+pub mod color_helpers;
+pub mod delete_confirm;
 pub mod effects_tab;
 pub mod input_tab;
 pub mod integrations_tab;
@@ -85,7 +87,9 @@ mod shader_utils;
 
 // SettingsUI struct and impl
 mod settings_ui;
-pub use settings_ui::SettingsUI;
+pub use settings_ui::{
+    ClosePromptChoice, SettingsUI, collapsed_sections_to_persist, configs_equal,
+};
 
 pub use sidebar::SettingsTab;
 

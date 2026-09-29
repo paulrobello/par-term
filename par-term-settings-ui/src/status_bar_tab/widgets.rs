@@ -68,6 +68,7 @@ pub fn show_widgets_section(
                 let label = w.id.label();
                 let enabled = w.enabled;
                 let is_custom = matches!(w.id, WidgetId::Custom(_));
+                let widget_key = format!("{widget_idx}:{label}");
 
                 let text_color = if enabled {
                     egui::Color32::from_rgb(220, 220, 220)
@@ -127,18 +128,41 @@ pub fn show_widgets_section(
                     // Delete custom widgets
                     if is_custom {
                         ui.separator();
+                        // Arms an inline confirmation below the widget; the
+                        // menu closes on click, so it cannot hold the confirm.
                         if ui
                             .button(
-                                egui::RichText::new("Delete")
+                                egui::RichText::new("Delete…")
                                     .color(egui::Color32::from_rgb(220, 80, 80)),
                             )
                             .clicked()
                         {
-                            delete_index = Some(widget_idx);
+                            settings.pending_list_delete =
+                                Some(("status_widget", widget_key.clone()));
                             ui.close();
                         }
                     }
                 });
+
+                if is_custom
+                    && settings
+                        .pending_list_delete
+                        .as_ref()
+                        .is_some_and(|(l, k)| *l == "status_widget" && *k == widget_key)
+                {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("Delete custom widget \"{label}\"?"));
+                        if crate::delete_confirm::confirm_action_button(
+                            ui,
+                            &mut settings.pending_list_delete,
+                            "status_widget",
+                            &widget_key,
+                            "Delete",
+                        ) {
+                            delete_index = Some(widget_idx);
+                        }
+                    });
+                }
 
                 // Show format editor for custom widgets inline
                 if is_custom

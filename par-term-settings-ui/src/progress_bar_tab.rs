@@ -206,14 +206,12 @@ fn show_colors_section(
             // Normal color
             ui.horizontal(|ui| {
                 ui.label("Normal:");
-                let mut color = egui::Color32::from_rgb(
-                    settings.config.progress_bar.progress_bar_normal_color[0],
-                    settings.config.progress_bar.progress_bar_normal_color[1],
-                    settings.config.progress_bar.progress_bar_normal_color[2],
-                );
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.progress_bar.progress_bar_normal_color =
-                        [color.r(), color.g(), color.b()];
+                if crate::color_helpers::rgb_color_button(
+                    ui,
+                    &mut settings.config.progress_bar.progress_bar_normal_color,
+                )
+                .changed()
+                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -227,14 +225,12 @@ fn show_colors_section(
             // Warning color
             ui.horizontal(|ui| {
                 ui.label("Warning:");
-                let mut color = egui::Color32::from_rgb(
-                    settings.config.progress_bar.progress_bar_warning_color[0],
-                    settings.config.progress_bar.progress_bar_warning_color[1],
-                    settings.config.progress_bar.progress_bar_warning_color[2],
-                );
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.progress_bar.progress_bar_warning_color =
-                        [color.r(), color.g(), color.b()];
+                if crate::color_helpers::rgb_color_button(
+                    ui,
+                    &mut settings.config.progress_bar.progress_bar_warning_color,
+                )
+                .changed()
+                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -248,14 +244,12 @@ fn show_colors_section(
             // Error color
             ui.horizontal(|ui| {
                 ui.label("Error:");
-                let mut color = egui::Color32::from_rgb(
-                    settings.config.progress_bar.progress_bar_error_color[0],
-                    settings.config.progress_bar.progress_bar_error_color[1],
-                    settings.config.progress_bar.progress_bar_error_color[2],
-                );
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.progress_bar.progress_bar_error_color =
-                        [color.r(), color.g(), color.b()];
+                if crate::color_helpers::rgb_color_button(
+                    ui,
+                    &mut settings.config.progress_bar.progress_bar_error_color,
+                )
+                .changed()
+                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -269,25 +263,15 @@ fn show_colors_section(
             // Indeterminate color
             ui.horizontal(|ui| {
                 ui.label("Indeterminate:");
-                let mut color = egui::Color32::from_rgb(
-                    settings
+                if crate::color_helpers::rgb_color_button(
+                    ui,
+                    &mut settings
                         .config
                         .progress_bar
-                        .progress_bar_indeterminate_color[0],
-                    settings
-                        .config
-                        .progress_bar
-                        .progress_bar_indeterminate_color[1],
-                    settings
-                        .config
-                        .progress_bar
-                        .progress_bar_indeterminate_color[2],
-                );
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings
-                        .config
-                        .progress_bar
-                        .progress_bar_indeterminate_color = [color.r(), color.g(), color.b()];
+                        .progress_bar_indeterminate_color,
+                )
+                .changed()
+                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

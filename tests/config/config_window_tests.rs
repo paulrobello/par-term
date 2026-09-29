@@ -208,8 +208,6 @@ fn test_session_logging_defaults() {
         config.session_log.session_log_format,
         SessionLogFormat::Asciicast
     );
-    // Archive on close should be enabled by default
-    assert!(config.session_log.archive_on_close);
     // Log directory should contain par-term/logs
     assert!(
         config
@@ -251,7 +249,6 @@ fn test_session_logging_yaml_deserialization() {
 auto_log_sessions: true
 session_log_format: plain
 session_log_directory: "/tmp/test-logs"
-archive_on_close: false
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(config.session_log.auto_log_sessions);
@@ -260,7 +257,6 @@ archive_on_close: false
         SessionLogFormat::Plain
     );
     assert_eq!(config.session_log.session_log_directory, "/tmp/test-logs");
-    assert!(!config.session_log.archive_on_close);
 }
 
 #[test]
@@ -319,7 +315,6 @@ auto_log_sessions: true
         config.session_log.session_log_format,
         SessionLogFormat::Asciicast
     );
-    assert!(config.session_log.archive_on_close);
 }
 
 // ============================================================================

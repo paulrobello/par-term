@@ -134,13 +134,12 @@ fn show_appearance_section(
             // Color picker
             ui.horizontal(|ui| {
                 ui.label("Text color:");
-                let mut color = egui::Color32::from_rgb(
-                    settings.config.badge.badge_color[0],
-                    settings.config.badge.badge_color[1],
-                    settings.config.badge.badge_color[2],
-                );
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.badge.badge_color = [color.r(), color.g(), color.b()];
+                if crate::color_helpers::rgb_color_button(
+                    ui,
+                    &mut settings.config.badge.badge_color,
+                )
+                .changed()
+                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

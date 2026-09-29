@@ -275,12 +275,12 @@ pub(super) fn show_cursor_effects_section(
                 if settings.config.cursor.cursor_guide_enabled {
                     ui.horizontal(|ui| {
                         ui.label("Guide color:");
-                        let mut color = settings.config.cursor.cursor_guide_color;
-                        if ui
-                            .color_edit_button_srgba_unmultiplied(&mut color)
-                            .changed()
+                        if crate::color_helpers::rgba_color_button(
+                            ui,
+                            &mut settings.config.cursor.cursor_guide_color,
+                        )
+                        .changed()
                         {
-                            settings.config.cursor.cursor_guide_color = color;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
@@ -305,12 +305,12 @@ pub(super) fn show_cursor_effects_section(
                 if settings.config.cursor.cursor_shadow_enabled {
                     ui.horizontal(|ui| {
                         ui.label("Shadow color:");
-                        let mut color = settings.config.cursor.cursor_shadow_color;
-                        if ui
-                            .color_edit_button_srgba_unmultiplied(&mut color)
-                            .changed()
+                        if crate::color_helpers::rgba_color_button(
+                            ui,
+                            &mut settings.config.cursor.cursor_shadow_color,
+                        )
+                        .changed()
                         {
-                            settings.config.cursor.cursor_shadow_color = color;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }

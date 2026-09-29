@@ -215,13 +215,13 @@ pub fn show_actions_section(
                                         egui::vec2(button_area_width, row_height),
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            if ui
-                                                .small_button(
-                                                    egui::RichText::new("Delete")
-                                                        .color(egui::Color32::from_rgb(200, 80, 80)),
-                                                )
-                                                .clicked()
-                                            {
+                                            if crate::delete_confirm::confirm_delete_button(
+                                                ui,
+                                                &mut settings.pending_list_delete,
+                                                "action",
+                                                action.id(),
+                                                "Delete",
+                                            ) {
                                                 delete_index = Some(i);
                                             }
 
@@ -315,7 +315,7 @@ pub fn show_actions_section(
 }
 
 /// Populate temporary edit fields from an existing action at `index`.
-fn populate_edit_fields(settings: &mut SettingsUI, index: usize) {
+pub(super) fn populate_edit_fields(settings: &mut SettingsUI, index: usize) {
     settings.actions_tab.editing_action_index = Some(index);
     settings.actions_tab.adding_new_action = false;
     // Populate temp fields with current values

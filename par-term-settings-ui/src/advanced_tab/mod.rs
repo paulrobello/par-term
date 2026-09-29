@@ -215,8 +215,6 @@ pub fn keywords() -> &'static [&'static str] {
         "asciinema",
         "log format",
         "log directory",
-        "archive",
-        "archive on close",
         "redact",
         "redact passwords",
         "password",

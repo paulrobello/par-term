@@ -172,20 +172,49 @@ impl ProfileModalUI {
         ui.separator();
         ui.horizontal(|ui| {
             if ui.button("Save").clicked() {
-                action = ProfileModalAction::Save;
-                // Don't call close() here - the caller needs to get working_profiles first
-                // The caller will close the modal after retrieving the profiles
-                self.visible = false;
+                action = self.request_list_save();
             }
-            if ui.button("Cancel").clicked() {
+            if ui
+                .button("Cancel")
+                .on_hover_text("Discard unsaved profile changes")
+                .clicked()
+            {
                 action = ProfileModalAction::Cancel;
-                self.close();
+                self.cancel_list_changes();
             }
 
-            if self.has_changes {
+            if self.has_unsaved_changes() {
                 ui.colored_label(egui::Color32::YELLOW, "* Unsaved changes");
             }
         });
+
+        if self.confirm_empty_save {
+            ui.group(|ui| {
+                ui.label(
+                    egui::RichText::new("⚠ Save with no profiles?")
+                        .strong()
+                        .color(egui::Color32::from_rgb(244, 67, 54)),
+                );
+                ui.label(format!(
+                    "This deletes all {} saved profiles.",
+                    self.baseline_profiles.len()
+                ));
+                ui.horizontal(|ui| {
+                    if ui.button("Delete All Profiles").clicked() {
+                        action = self.confirm_empty_list_save();
+                    }
+                    if ui.button("Cancel").clicked() {
+                        self.confirm_empty_save = false;
+                    }
+                });
+            });
+        }
+
+        // The legacy modal window hides on Save; the caller reads
+        // working_profiles before anything clears them.
+        if action == ProfileModalAction::Save {
+            self.visible = false;
+        }
 
         action
     }

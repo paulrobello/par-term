@@ -285,8 +285,7 @@ fn non_type_default_seeds_survive_decomposition() {
         "command_separator_exit_color"
     );
 
-    // Session logging — archives and redacts by default, into a real directory
-    assert!(c.session_log.archive_on_close, "archive_on_close");
+    // Session logging — redacts by default, into a real directory
     assert!(
         c.session_log.session_log_redact_passwords,
         "session_log_redact_passwords"
@@ -495,7 +494,6 @@ command_separator_exit_color: false
 auto_log_sessions: true
 session_log_format: html
 session_log_directory: "/var/log/par-term"
-archive_on_close: false
 session_log_redact_passwords: false
 scrollbar_position: "left"
 scrollbar_width: 20.0
@@ -662,6 +660,19 @@ fn legacy_key_spellings_still_load() {
             .clipboard_max_event_bytes,
         64,
         "max_clipboard_event_bytes → clipboard_max_event_bytes",
+    );
+}
+
+/// Keys removed from the schema are ignored, not rejected, so an existing
+/// config that still carries one keeps loading.
+#[test]
+fn removed_keys_are_ignored() {
+    let c = parse("archive_on_close: false\nauto_log_sessions: true\n");
+    assert!(c.session_log.auto_log_sessions);
+    let serialized = serde_yaml_ng::to_string(&c).expect("Config serialises");
+    assert!(
+        !serialized.contains("archive_on_close"),
+        "a removed key must not be written back"
     );
 }
 

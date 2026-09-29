@@ -127,9 +127,6 @@ session_log_format: asciicast
 # Custom log directory (default: ~/.local/share/par-term/logs/)
 session_log_directory: ~/.local/share/par-term/logs/
 
-# Finalize log file when tab closes
-archive_on_close: true
-
 # Redact passwords detected at common prompts (enabled by default)
 session_log_redact_passwords: true
 ```

@@ -21,178 +21,7 @@ pub fn show_action_edit_form(
     // Buttons at TOP - always visible first
     ui.horizontal(|ui| {
         if ui.button("Save").clicked() {
-            let keybinding = if settings.actions_tab.temp_action_keybinding.is_empty() {
-                None
-            } else {
-                Some(settings.actions_tab.temp_action_keybinding.clone())
-            };
-            let prefix_char = settings.actions_tab.temp_action_prefix_char.chars().next();
-
-            let action = match settings.actions_tab.temp_action_type {
-                0 => CustomActionConfig::ShellCommand {
-                    id: settings.actions_tab.temp_action_id.clone(),
-                    title: settings.actions_tab.temp_action_title.clone(),
-                    command: settings.actions_tab.temp_action_command.clone(),
-                    args: if settings.actions_tab.temp_action_args.is_empty() {
-                        Vec::new()
-                    } else {
-                        settings
-                            .actions_tab
-                            .temp_action_args
-                            .split_whitespace()
-                            .map(|s| s.to_string())
-                            .collect()
-                    },
-                    notify_on_success: false,
-                    timeout_secs: 30, // Default timeout
-                    capture_output: settings.actions_tab.temp_action_capture_output,
-                    keybinding,
-                    prefix_char,
-                    keybinding_enabled: settings.actions_tab.temp_action_keybinding_enabled,
-                    description: None,
-                },
-                1 => CustomActionConfig::NewTab {
-                    id: settings.actions_tab.temp_action_id.clone(),
-                    title: settings.actions_tab.temp_action_title.clone(),
-                    command: if settings.actions_tab.temp_action_new_tab_command.is_empty() {
-                        None
-                    } else {
-                        Some(settings.actions_tab.temp_action_new_tab_command.clone())
-                    },
-                    keybinding,
-                    prefix_char,
-                    keybinding_enabled: true,
-                    description: None,
-                },
-                2 => CustomActionConfig::InsertText {
-                    id: settings.actions_tab.temp_action_id.clone(),
-                    title: settings.actions_tab.temp_action_title.clone(),
-                    text: settings.actions_tab.temp_action_text.clone(),
-                    variables: std::collections::HashMap::new(),
-                    keybinding,
-                    prefix_char,
-                    keybinding_enabled: true,
-                    description: None,
-                },
-                3 => CustomActionConfig::KeySequence {
-                    id: settings.actions_tab.temp_action_id.clone(),
-                    title: settings.actions_tab.temp_action_title.clone(),
-                    keys: settings.actions_tab.temp_action_keys.clone(),
-                    keybinding,
-                    prefix_char,
-                    keybinding_enabled: true,
-                    description: None,
-                },
-                4 => CustomActionConfig::SplitPane {
-                    id: settings.actions_tab.temp_action_id.clone(),
-                    title: settings.actions_tab.temp_action_title.clone(),
-                    direction: if settings.actions_tab.temp_action_split_direction == 0 {
-                        par_term_config::snippets::ActionSplitDirection::Horizontal
-                    } else {
-                        par_term_config::snippets::ActionSplitDirection::Vertical
-                    },
-                    command: if settings.actions_tab.temp_action_split_command.is_empty() {
-                        None
-                    } else {
-                        Some(settings.actions_tab.temp_action_split_command.clone())
-                    },
-                    command_is_direct: settings.actions_tab.temp_action_split_command_is_direct,
-                    focus_new_pane: settings.actions_tab.temp_action_split_focus_new,
-                    delay_ms: settings.actions_tab.temp_action_split_delay_ms,
-                    split_percent: settings.actions_tab.temp_action_split_percent,
-                    keybinding,
-                    prefix_char,
-                    keybinding_enabled: true,
-                    description: None,
-                },
-                5 => {
-                    let steps = settings
-                        .actions_tab
-                        .temp_action_steps
-                        .iter()
-                        .map(
-                            |(id, delay, behavior)| par_term_config::snippets::SequenceStep {
-                                action_id: id.clone(),
-                                delay_ms: *delay,
-                                on_failure: *behavior,
-                            },
-                        )
-                        .collect();
-                    CustomActionConfig::Sequence {
-                        id: settings.actions_tab.temp_action_id.clone(),
-                        title: settings.actions_tab.temp_action_title.clone(),
-                        keybinding,
-                        prefix_char,
-                        keybinding_enabled: settings.actions_tab.temp_action_keybinding_enabled,
-                        description: None,
-                        steps,
-                    }
-                }
-                6 => {
-                    use par_term_config::snippets::ConditionCheck;
-                    let check = match settings.actions_tab.temp_action_check_type {
-                        0 => ConditionCheck::ExitCode {
-                            value: settings
-                                .actions_tab
-                                .temp_action_check_value
-                                .parse()
-                                .unwrap_or(0),
-                        },
-                        1 => ConditionCheck::OutputContains {
-                            pattern: settings.actions_tab.temp_action_check_value.clone(),
-                            case_sensitive: settings.actions_tab.temp_action_case_sensitive,
-                        },
-                        2 => ConditionCheck::EnvVar {
-                            name: settings.actions_tab.temp_action_env_name.clone(),
-                            value: if settings.actions_tab.temp_action_env_check_existence {
-                                None
-                            } else {
-                                Some(settings.actions_tab.temp_action_env_value.clone())
-                            },
-                        },
-                        3 => ConditionCheck::DirMatches {
-                            pattern: settings.actions_tab.temp_action_check_value.clone(),
-                        },
-                        4 => ConditionCheck::GitBranch {
-                            pattern: settings.actions_tab.temp_action_check_value.clone(),
-                        },
-                        _ => ConditionCheck::ExitCode { value: 0 },
-                    };
-                    CustomActionConfig::Condition {
-                        id: settings.actions_tab.temp_action_id.clone(),
-                        title: settings.actions_tab.temp_action_title.clone(),
-                        keybinding,
-                        prefix_char,
-                        keybinding_enabled: settings.actions_tab.temp_action_keybinding_enabled,
-                        description: None,
-                        check,
-                        on_true_id: if settings.actions_tab.temp_action_on_true_id.is_empty() {
-                            None
-                        } else {
-                            Some(settings.actions_tab.temp_action_on_true_id.clone())
-                        },
-                        on_false_id: if settings.actions_tab.temp_action_on_false_id.is_empty() {
-                            None
-                        } else {
-                            Some(settings.actions_tab.temp_action_on_false_id.clone())
-                        },
-                    }
-                }
-                7 => CustomActionConfig::Repeat {
-                    id: settings.actions_tab.temp_action_id.clone(),
-                    title: settings.actions_tab.temp_action_title.clone(),
-                    keybinding,
-                    prefix_char,
-                    keybinding_enabled: settings.actions_tab.temp_action_keybinding_enabled,
-                    description: None,
-                    action_id: settings.actions_tab.temp_action_repeat_action_id.clone(),
-                    count: settings.actions_tab.temp_action_repeat_count.clamp(1, 100),
-                    delay_ms: settings.actions_tab.temp_action_repeat_delay_ms,
-                    stop_on_success: settings.actions_tab.temp_action_stop_on_success,
-                    stop_on_failure: settings.actions_tab.temp_action_stop_on_failure,
-                },
-                _ => unreachable!(),
-            };
+            let action = build_action_from_form(settings, edit_index);
 
             // Save the action
             if let Some(i) = edit_index {
@@ -367,4 +196,335 @@ pub fn show_action_edit_form(
         });
 
     ui.separator();
+}
+
+/// Build the action the form describes. Fields the form does not show
+/// (`description`, `keybinding_enabled` on every type, and a ShellCommand's
+/// `timeout_secs` / `notify_on_success`, an InsertText's `variables`) are
+/// carried over from the action being edited so Save never resets them.
+pub(super) fn build_action_from_form(
+    settings: &SettingsUI,
+    edit_index: Option<usize>,
+) -> CustomActionConfig {
+    let keybinding = if settings.actions_tab.temp_action_keybinding.is_empty() {
+        None
+    } else {
+        Some(settings.actions_tab.temp_action_keybinding.clone())
+    };
+    let prefix_char = settings.actions_tab.temp_action_prefix_char.chars().next();
+
+    let action = match settings.actions_tab.temp_action_type {
+        0 => CustomActionConfig::ShellCommand {
+            id: settings.actions_tab.temp_action_id.clone(),
+            title: settings.actions_tab.temp_action_title.clone(),
+            command: settings.actions_tab.temp_action_command.clone(),
+            args: if settings.actions_tab.temp_action_args.is_empty() {
+                Vec::new()
+            } else {
+                settings
+                    .actions_tab
+                    .temp_action_args
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect()
+            },
+            notify_on_success: false,
+            timeout_secs: 30, // Default timeout
+            capture_output: settings.actions_tab.temp_action_capture_output,
+            keybinding,
+            prefix_char,
+            keybinding_enabled: settings.actions_tab.temp_action_keybinding_enabled,
+            description: None,
+        },
+        1 => CustomActionConfig::NewTab {
+            id: settings.actions_tab.temp_action_id.clone(),
+            title: settings.actions_tab.temp_action_title.clone(),
+            command: if settings.actions_tab.temp_action_new_tab_command.is_empty() {
+                None
+            } else {
+                Some(settings.actions_tab.temp_action_new_tab_command.clone())
+            },
+            keybinding,
+            prefix_char,
+            keybinding_enabled: true,
+            description: None,
+        },
+        2 => CustomActionConfig::InsertText {
+            id: settings.actions_tab.temp_action_id.clone(),
+            title: settings.actions_tab.temp_action_title.clone(),
+            text: settings.actions_tab.temp_action_text.clone(),
+            variables: std::collections::HashMap::new(),
+            keybinding,
+            prefix_char,
+            keybinding_enabled: true,
+            description: None,
+        },
+        3 => CustomActionConfig::KeySequence {
+            id: settings.actions_tab.temp_action_id.clone(),
+            title: settings.actions_tab.temp_action_title.clone(),
+            keys: settings.actions_tab.temp_action_keys.clone(),
+            keybinding,
+            prefix_char,
+            keybinding_enabled: true,
+            description: None,
+        },
+        4 => CustomActionConfig::SplitPane {
+            id: settings.actions_tab.temp_action_id.clone(),
+            title: settings.actions_tab.temp_action_title.clone(),
+            direction: if settings.actions_tab.temp_action_split_direction == 0 {
+                par_term_config::snippets::ActionSplitDirection::Horizontal
+            } else {
+                par_term_config::snippets::ActionSplitDirection::Vertical
+            },
+            command: if settings.actions_tab.temp_action_split_command.is_empty() {
+                None
+            } else {
+                Some(settings.actions_tab.temp_action_split_command.clone())
+            },
+            command_is_direct: settings.actions_tab.temp_action_split_command_is_direct,
+            focus_new_pane: settings.actions_tab.temp_action_split_focus_new,
+            delay_ms: settings.actions_tab.temp_action_split_delay_ms,
+            split_percent: settings.actions_tab.temp_action_split_percent,
+            keybinding,
+            prefix_char,
+            keybinding_enabled: true,
+            description: None,
+        },
+        5 => {
+            let steps = settings
+                .actions_tab
+                .temp_action_steps
+                .iter()
+                .map(
+                    |(id, delay, behavior)| par_term_config::snippets::SequenceStep {
+                        action_id: id.clone(),
+                        delay_ms: *delay,
+                        on_failure: *behavior,
+                    },
+                )
+                .collect();
+            CustomActionConfig::Sequence {
+                id: settings.actions_tab.temp_action_id.clone(),
+                title: settings.actions_tab.temp_action_title.clone(),
+                keybinding,
+                prefix_char,
+                keybinding_enabled: settings.actions_tab.temp_action_keybinding_enabled,
+                description: None,
+                steps,
+            }
+        }
+        6 => {
+            use par_term_config::snippets::ConditionCheck;
+            let check = match settings.actions_tab.temp_action_check_type {
+                0 => ConditionCheck::ExitCode {
+                    value: settings
+                        .actions_tab
+                        .temp_action_check_value
+                        .parse()
+                        .unwrap_or(0),
+                },
+                1 => ConditionCheck::OutputContains {
+                    pattern: settings.actions_tab.temp_action_check_value.clone(),
+                    case_sensitive: settings.actions_tab.temp_action_case_sensitive,
+                },
+                2 => ConditionCheck::EnvVar {
+                    name: settings.actions_tab.temp_action_env_name.clone(),
+                    value: if settings.actions_tab.temp_action_env_check_existence {
+                        None
+                    } else {
+                        Some(settings.actions_tab.temp_action_env_value.clone())
+                    },
+                },
+                3 => ConditionCheck::DirMatches {
+                    pattern: settings.actions_tab.temp_action_check_value.clone(),
+                },
+                4 => ConditionCheck::GitBranch {
+                    pattern: settings.actions_tab.temp_action_check_value.clone(),
+                },
+                _ => ConditionCheck::ExitCode { value: 0 },
+            };
+            CustomActionConfig::Condition {
+                id: settings.actions_tab.temp_action_id.clone(),
+                title: settings.actions_tab.temp_action_title.clone(),
+                keybinding,
+                prefix_char,
+                keybinding_enabled: settings.actions_tab.temp_action_keybinding_enabled,
+                description: None,
+                check,
+                on_true_id: if settings.actions_tab.temp_action_on_true_id.is_empty() {
+                    None
+                } else {
+                    Some(settings.actions_tab.temp_action_on_true_id.clone())
+                },
+                on_false_id: if settings.actions_tab.temp_action_on_false_id.is_empty() {
+                    None
+                } else {
+                    Some(settings.actions_tab.temp_action_on_false_id.clone())
+                },
+            }
+        }
+        7 => CustomActionConfig::Repeat {
+            id: settings.actions_tab.temp_action_id.clone(),
+            title: settings.actions_tab.temp_action_title.clone(),
+            keybinding,
+            prefix_char,
+            keybinding_enabled: settings.actions_tab.temp_action_keybinding_enabled,
+            description: None,
+            action_id: settings.actions_tab.temp_action_repeat_action_id.clone(),
+            count: settings.actions_tab.temp_action_repeat_count.clamp(1, 100),
+            delay_ms: settings.actions_tab.temp_action_repeat_delay_ms,
+            stop_on_success: settings.actions_tab.temp_action_stop_on_success,
+            stop_on_failure: settings.actions_tab.temp_action_stop_on_failure,
+        },
+        _ => unreachable!(),
+    };
+
+    let Some(existing) = edit_index.and_then(|i| settings.config.actions.get(i)) else {
+        return action;
+    };
+    preserve_hidden_fields(action, existing)
+}
+
+/// Copy the fields the edit form never renders from `existing` into `action`.
+fn preserve_hidden_fields(
+    mut action: CustomActionConfig,
+    existing: &CustomActionConfig,
+) -> CustomActionConfig {
+    let old_base = existing.base();
+    let mut base = action.base();
+    base.description = old_base.description;
+    base.keybinding_enabled = old_base.keybinding_enabled;
+    action.apply_base(base);
+
+    match (&mut action, existing) {
+        (
+            CustomActionConfig::ShellCommand {
+                timeout_secs,
+                notify_on_success,
+                ..
+            },
+            CustomActionConfig::ShellCommand {
+                timeout_secs: old_timeout,
+                notify_on_success: old_notify,
+                ..
+            },
+        ) => {
+            *timeout_secs = *old_timeout;
+            *notify_on_success = *old_notify;
+        }
+        (
+            CustomActionConfig::InsertText { variables, .. },
+            CustomActionConfig::InsertText {
+                variables: old_variables,
+                ..
+            },
+        ) => {
+            *variables = old_variables.clone();
+        }
+        _ => {}
+    }
+    action
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use par_term_config::Config;
+
+    fn shell_action(timeout_secs: u64, description: Option<&str>) -> CustomActionConfig {
+        CustomActionConfig::ShellCommand {
+            id: "act".to_string(),
+            title: "Build".to_string(),
+            command: "make".to_string(),
+            args: vec!["build".to_string()],
+            notify_on_success: true,
+            timeout_secs,
+            capture_output: false,
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: false,
+            description: description.map(str::to_string),
+        }
+    }
+
+    fn settings_editing(action: CustomActionConfig) -> SettingsUI {
+        let config = Config {
+            actions: vec![action],
+            ..Config::default()
+        };
+        let mut settings = SettingsUI::new_for_tests(config);
+        super::super::action_list::populate_edit_fields(&mut settings, 0);
+        settings
+    }
+
+    #[test]
+    fn saving_a_shell_command_preserves_fields_the_form_hides() {
+        let mut settings = settings_editing(shell_action(90, Some("runs the build")));
+        settings.actions_tab.temp_action_title = "Build all".to_string();
+
+        let CustomActionConfig::ShellCommand {
+            title,
+            timeout_secs,
+            notify_on_success,
+            keybinding_enabled,
+            description,
+            ..
+        } = build_action_from_form(&settings, Some(0))
+        else {
+            panic!("type must stay ShellCommand");
+        };
+        assert_eq!(title, "Build all", "visible edits still apply");
+        assert_eq!(timeout_secs, 90);
+        assert!(notify_on_success);
+        assert!(!keybinding_enabled);
+        assert_eq!(description.as_deref(), Some("runs the build"));
+    }
+
+    #[test]
+    fn saving_insert_text_preserves_variables_and_keybinding_enabled() {
+        let mut variables = std::collections::HashMap::new();
+        variables.insert("name".to_string(), "value".to_string());
+        let action = CustomActionConfig::InsertText {
+            id: "ins".to_string(),
+            title: "Insert".to_string(),
+            text: "hello".to_string(),
+            variables: variables.clone(),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: false,
+            description: Some("greets".to_string()),
+        };
+        let settings = settings_editing(action);
+
+        let CustomActionConfig::InsertText {
+            variables: saved_vars,
+            keybinding_enabled,
+            description,
+            ..
+        } = build_action_from_form(&settings, Some(0))
+        else {
+            panic!("type must stay InsertText");
+        };
+        assert_eq!(saved_vars, variables);
+        assert!(!keybinding_enabled);
+        assert_eq!(description.as_deref(), Some("greets"));
+    }
+
+    #[test]
+    fn a_new_action_gets_the_documented_defaults() {
+        let mut settings = SettingsUI::new_for_tests(Config::default());
+        settings.actions_tab.temp_action_type = 0;
+        settings.actions_tab.temp_action_command = "ls".to_string();
+
+        let CustomActionConfig::ShellCommand {
+            timeout_secs,
+            description,
+            ..
+        } = build_action_from_form(&settings, None)
+        else {
+            panic!("expected ShellCommand");
+        };
+        assert_eq!(timeout_secs, 30);
+        assert_eq!(description, None);
+    }
 }

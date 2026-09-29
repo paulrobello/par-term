@@ -79,7 +79,13 @@ pub(super) fn show_custom_agents_section(
                             let agent =
                                 &mut settings.config.ai_inspector.ai_inspector_custom_agents[i];
 
-                            show_agent_header(ui, agent, &mut request_remove);
+                            show_agent_header(
+                                ui,
+                                agent,
+                                i,
+                                &mut settings.pending_list_delete,
+                                &mut request_remove,
+                            );
                             changed |= show_agent_identity_fields(ui, agent);
                             changed |= show_agent_run_commands(ui, agent);
                             changed |= show_agent_env_vars(ui, agent);
@@ -154,14 +160,26 @@ pub(super) fn show_custom_agents_section(
 }
 
 /// Show the agent group header (title + remove button).
-fn show_agent_header(ui: &mut egui::Ui, agent: &CustomAcpAgentConfig, request_remove: &mut bool) {
+fn show_agent_header(
+    ui: &mut egui::Ui,
+    agent: &CustomAcpAgentConfig,
+    index: usize,
+    pending_delete: &mut crate::delete_confirm::PendingDelete,
+    request_remove: &mut bool,
+) {
     ui.horizontal(|ui| {
         ui.strong("Agent".to_string());
         if !agent.identity.trim().is_empty() {
             ui.label(format!("({})", agent.identity));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button("Remove").clicked() {
+            if crate::delete_confirm::confirm_action_button(
+                ui,
+                pending_delete,
+                "custom_agent",
+                &format!("{index}:{}", agent.identity),
+                "Remove",
+            ) {
                 *request_remove = true;
             }
         });

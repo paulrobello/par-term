@@ -87,13 +87,13 @@ pub(super) fn show_dynamic_sources_section(
                         // Right-aligned buttons
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             // Delete button (rightmost)
-                            if ui
-                                .small_button(
-                                    egui::RichText::new("Remove")
-                                        .color(egui::Color32::from_rgb(200, 80, 80)),
-                                )
-                                .clicked()
-                            {
+                            if crate::delete_confirm::confirm_delete_button(
+                                ui,
+                                &mut settings.pending_list_delete,
+                                "dynamic_source",
+                                &format!("{i}:{}", source.url),
+                                "Remove",
+                            ) {
                                 delete_index = Some(i);
                             }
 

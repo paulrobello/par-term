@@ -108,12 +108,12 @@ pub(super) fn show_panes_section(
         if settings.config.panes.pane_focus_indicator {
             ui.horizontal(|ui| {
                 ui.label("Focus Color:");
-                let mut color = settings.config.panes.pane_focus_color;
-                let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
-                let mut edit_color = egui_color;
-                if ui.color_edit_button_srgba(&mut edit_color).changed() {
-                    color = [edit_color.r(), edit_color.g(), edit_color.b()];
-                    settings.config.panes.pane_focus_color = color;
+                if crate::color_helpers::rgb_color_button(
+                    ui,
+                    &mut settings.config.panes.pane_focus_color,
+                )
+                .changed()
+                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -218,12 +218,12 @@ pub(super) fn show_pane_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Divider Color:");
-                let mut color = settings.config.panes.pane_divider_color;
-                let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
-                let mut edit_color = egui_color;
-                if ui.color_edit_button_srgba(&mut edit_color).changed() {
-                    color = [edit_color.r(), edit_color.g(), edit_color.b()];
-                    settings.config.panes.pane_divider_color = color;
+                if crate::color_helpers::rgb_color_button(
+                    ui,
+                    &mut settings.config.panes.pane_divider_color,
+                )
+                .changed()
+                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -231,16 +231,13 @@ pub(super) fn show_pane_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Hover Color:");
-                let mut color = settings.config.panes.pane_divider_hover_color;
-                let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
-                let mut edit_color = egui_color;
-                if ui
-                    .color_edit_button_srgba(&mut edit_color)
-                    .on_hover_text("Color when hovering over a divider for resize")
-                    .changed()
+                if crate::color_helpers::rgb_color_button(
+                    ui,
+                    &mut settings.config.panes.pane_divider_hover_color,
+                )
+                .on_hover_text("Color when hovering over a divider for resize")
+                .changed()
                 {
-                    color = [edit_color.r(), edit_color.g(), edit_color.b()];
-                    settings.config.panes.pane_divider_hover_color = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

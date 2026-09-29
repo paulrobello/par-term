@@ -395,12 +395,13 @@ impl SettingsUI {
                     }
 
                     if has_shaders
-                        && ui
-                            .button("Uninstall")
-                            .on_hover_text(
-                                "Remove all bundled shaders (keeps user-created shaders)",
-                            )
-                            .clicked()
+                        && crate::delete_confirm::confirm_action_button(
+                            ui,
+                            &mut self.pending_list_delete,
+                            "shaders",
+                            "bundled",
+                            "Uninstall",
+                        )
                         && let Some(uninstall_fn) = self.shader_uninstall_fn
                     {
                         match uninstall_fn(false) {

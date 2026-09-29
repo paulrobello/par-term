@@ -15,30 +15,12 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
         } => {
             // Background color picker
             if let Some(bg_color) = bg {
-                let mut color = egui::Color32::from_rgb(bg_color[0], bg_color[1], bg_color[2]);
-                if egui::color_picker::color_edit_button_srgba(
-                    ui,
-                    &mut color,
-                    egui::color_picker::Alpha::Opaque,
-                )
-                .changed()
-                {
-                    *bg_color = [color.r(), color.g(), color.b()];
-                }
+                crate::color_helpers::rgb_color_button(ui, bg_color);
             }
             // Foreground color picker
             if let Some(fg_color) = fg {
-                let mut color = egui::Color32::from_rgb(fg_color[0], fg_color[1], fg_color[2]);
                 ui.label("fg:");
-                if egui::color_picker::color_edit_button_srgba(
-                    ui,
-                    &mut color,
-                    egui::color_picker::Alpha::Opaque,
-                )
-                .changed()
-                {
-                    *fg_color = [color.r(), color.g(), color.b()];
-                }
+                crate::color_helpers::rgb_color_button(ui, fg_color);
             }
             ui.label("ms:");
             ui.add(

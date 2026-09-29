@@ -86,13 +86,13 @@ pub(super) fn render_snippet_list(
                     // Right-aligned buttons + truncated preview for remaining space
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Delete button (rightmost)
-                        if ui
-                            .small_button(
-                                egui::RichText::new("Delete")
-                                    .color(egui::Color32::from_rgb(200, 80, 80)),
-                            )
-                            .clicked()
-                        {
+                        if crate::delete_confirm::confirm_delete_button(
+                            ui,
+                            &mut settings.pending_list_delete,
+                            "snippet",
+                            &snippet.id,
+                            "Delete",
+                        ) {
                             delete_index = Some(i);
                         }
 
@@ -202,4 +202,77 @@ pub(super) fn render_add_import_bar(
             super::io::import_snippets(settings, changes_this_frame);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use par_term_config::Config;
+    use par_term_config::snippets::SnippetConfig;
+
+    fn render(settings: &mut SettingsUI, click: Option<egui::Pos2>) {
+        let ctx = egui::Context::default();
+        let hover = || {
+            click
+                .map(|p| vec![egui::Event::PointerMoved(p)])
+                .unwrap_or_default()
+        };
+        let button = |pressed| {
+            click
+                .map(|pos| {
+                    vec![
+                        egui::Event::PointerMoved(pos),
+                        egui::Event::PointerButton {
+                            pos,
+                            button: egui::PointerButton::Primary,
+                            pressed,
+                            modifiers: egui::Modifiers::default(),
+                        },
+                    ]
+                })
+                .unwrap_or_default()
+        };
+        for events in [hover(), hover(), button(true), button(false)] {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(600.0, 400.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut changed = false;
+            let mut collapsed = HashSet::new();
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    render_snippet_list(ui, settings, &mut changed, &mut collapsed);
+                });
+            });
+            output.textures_delta.clear();
+        }
+    }
+
+    fn settings_with_one_snippet() -> SettingsUI {
+        let config = Config {
+            snippets: vec![SnippetConfig::new(
+                "s1".to_string(),
+                "Greeting".to_string(),
+                "hello".to_string(),
+            )],
+            ..Config::default()
+        };
+        SettingsUI::new_for_tests(config)
+    }
+
+    #[test]
+    fn rendering_never_deletes_without_the_confirm_click() {
+        let mut settings = settings_with_one_snippet();
+        render(&mut settings, None);
+        assert_eq!(settings.config.snippets.len(), 1);
+
+        // Another row armed: this row still shows plain Delete and keeps the snippet.
+        settings.pending_list_delete = Some(("snippet", "other".to_string()));
+        render(&mut settings, None);
+        assert_eq!(settings.config.snippets.len(), 1);
+    }
 }

@@ -73,7 +73,10 @@ pub(super) fn show_tmux_section(
                     .unwrap_or_default();
                 if ui
                     .add(egui::TextEdit::singleline(&mut session_name).desired_width(INPUT_WIDTH))
-                    .on_hover_text("Name for new tmux sessions (leave empty for tmux default)")
+                    .on_hover_text(
+                        "Session used when tmux starts without a name; attached if it \
+                         exists, created otherwise (leave empty to let tmux pick a name)",
+                    )
                     .changed()
                 {
                     settings.config.tmux.tmux_default_session = if session_name.is_empty() {

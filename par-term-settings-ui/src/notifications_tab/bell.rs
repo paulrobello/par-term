@@ -28,14 +28,12 @@ pub(super) fn show_bell_section(
         if settings.config.notifications.notification_bell_visual {
             ui.horizontal(|ui| {
                 ui.label("Flash color:");
-                let mut color = egui::Color32::from_rgb(
-                    settings.config.notifications.notification_visual_bell_color[0],
-                    settings.config.notifications.notification_visual_bell_color[1],
-                    settings.config.notifications.notification_visual_bell_color[2],
-                );
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.notifications.notification_visual_bell_color =
-                        [color.r(), color.g(), color.b()];
+                if crate::color_helpers::rgb_color_button(
+                    ui,
+                    &mut settings.config.notifications.notification_visual_bell_color,
+                )
+                .changed()
+                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

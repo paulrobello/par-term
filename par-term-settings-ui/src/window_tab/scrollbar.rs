@@ -2,7 +2,6 @@
 
 use crate::SettingsUI;
 use crate::section::{SLIDER_WIDTH, collapsing_section};
-use par_term_config::color_u8x4_to_f32;
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -78,21 +77,12 @@ pub(super) fn show_scrollbar_section(
 
         ui.horizontal(|ui| {
             ui.label("Thumb color:");
-            let mut thumb = egui::Color32::from_rgba_unmultiplied(
-                (settings.config.scrollbar.scrollbar_thumb_color[0] * 255.0) as u8,
-                (settings.config.scrollbar.scrollbar_thumb_color[1] * 255.0) as u8,
-                (settings.config.scrollbar.scrollbar_thumb_color[2] * 255.0) as u8,
-                (settings.config.scrollbar.scrollbar_thumb_color[3] * 255.0) as u8,
-            );
-            if egui::color_picker::color_edit_button_srgba(
+            if crate::color_helpers::rgba_f32_color_button(
                 ui,
-                &mut thumb,
-                egui::color_picker::Alpha::Opaque,
+                &mut settings.config.scrollbar.scrollbar_thumb_color,
             )
             .changed()
             {
-                settings.config.scrollbar.scrollbar_thumb_color =
-                    color_u8x4_to_f32([thumb.r(), thumb.g(), thumb.b(), thumb.a()]);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -100,21 +90,12 @@ pub(super) fn show_scrollbar_section(
 
         ui.horizontal(|ui| {
             ui.label("Track color:");
-            let mut track = egui::Color32::from_rgba_unmultiplied(
-                (settings.config.scrollbar.scrollbar_track_color[0] * 255.0) as u8,
-                (settings.config.scrollbar.scrollbar_track_color[1] * 255.0) as u8,
-                (settings.config.scrollbar.scrollbar_track_color[2] * 255.0) as u8,
-                (settings.config.scrollbar.scrollbar_track_color[3] * 255.0) as u8,
-            );
-            if egui::color_picker::color_edit_button_srgba(
+            if crate::color_helpers::rgba_f32_color_button(
                 ui,
-                &mut track,
-                egui::color_picker::Alpha::Opaque,
+                &mut settings.config.scrollbar.scrollbar_track_color,
             )
             .changed()
             {
-                settings.config.scrollbar.scrollbar_track_color =
-                    color_u8x4_to_f32([track.r(), track.g(), track.b(), track.a()]);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }

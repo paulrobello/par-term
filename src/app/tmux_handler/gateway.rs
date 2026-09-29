@@ -39,8 +39,17 @@ impl WindowState {
             session_name.unwrap_or("(auto)")
         );
 
-        // Generate the command
-        let cmd = match session_name {
+        // An unnamed request uses `tmux_default_session` when set. It goes
+        // through attach-or-create (`-A`) like a named one, so a default
+        // session that already exists is reused instead of failing.
+        let default_session = self
+            .config
+            .load()
+            .tmux
+            .tmux_default_session
+            .clone()
+            .filter(|name| !name.trim().is_empty());
+        let cmd = match session_name.or(default_session.as_deref()) {
             Some(name) => TmuxSession::create_or_attach_command(name),
             None => TmuxSession::create_new_command(None),
         };

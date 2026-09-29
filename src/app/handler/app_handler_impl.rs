@@ -78,7 +78,7 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                 use crate::settings_window::SettingsWindowAction;
                 match action {
                     SettingsWindowAction::Close => {
-                        // Already handled in handle_settings_window_event
+                        // Closed by close_settings_window_if_requested below
                     }
                     SettingsWindowAction::ApplyConfig(config) => {
                         // Apply live config changes to all terminal windows
@@ -234,6 +234,7 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                     SettingsWindowAction::None => {}
                 }
             }
+            self.close_settings_window_if_requested();
             return;
         }
 
