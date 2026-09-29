@@ -296,9 +296,31 @@ impl WindowState {
                     .map(|t| t.send_command(&format!("kill-window -t @{window_id}")));
                 if matches!(&killed, Some(Ok(_))) {
                     log::info!("MUX: kill-window @{} sent for tab {tab_id}", window_id);
-                    // No session-undo capture: a daemon window cannot
-                    // be restored from local metadata — reopening is a
-                    // new-window, not an undo.
+                    // Session-undo capture is a TYPED entry, not a
+                    // restorable one: a killed daemon window cannot be
+                    // rebuilt from local metadata, but the entry must
+                    // still sit on the undo stack so the next Cmd+Z
+                    // consumes it and says so instead of silently
+                    // restoring an older, unrelated tab (UX.md M3).
+                    if self.config.load().session_restore.session_undo_timeout_secs > 0 {
+                        let (title, has_default_title) = self
+                            .tab_manager
+                            .get_tab(tab_id)
+                            .map(|tab| (tab.title.clone(), tab.has_default_title))
+                            .unwrap_or_default();
+                        let info = ClosedTabInfo {
+                            cwd: None,
+                            title,
+                            has_default_title,
+                            index: self.tab_manager.active_tab_index().unwrap_or(0),
+                            closed_at: std::time::Instant::now(),
+                            pane_layout: None,
+                            custom_color: None,
+                            hidden_tab: None,
+                            ended_mux_window: Some(window_id),
+                        };
+                        self.overlay_state.closed_tabs.push_front(info);
+                    }
                     return false; // the tab closes when %window-close lands
                 }
                 if let Some(Err(e)) = &killed {
@@ -356,6 +378,7 @@ impl WindowState {
                             pane_layout: None, // Preserved inside the hidden Tab itself
                             custom_color,
                             hidden_tab: Some(hidden_tab),
+                            ended_mux_window: None,
                         };
                         self.overlay_state.closed_tabs.push_front(info);
                         while self.overlay_state.closed_tabs.len()
@@ -389,6 +412,7 @@ impl WindowState {
                             .map(crate::session::capture::capture_pane_node),
                         custom_color: tab.custom_color,
                         hidden_tab: None,
+                        ended_mux_window: None,
                     };
                     self.overlay_state.closed_tabs.push_front(info);
                     while self.overlay_state.closed_tabs.len()

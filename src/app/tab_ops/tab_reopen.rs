@@ -10,6 +10,16 @@
 use std::sync::Arc;
 
 use super::super::window_state::WindowState;
+use super::ClosedTabInfo;
+
+/// The toast shown when session undo consumes an entry whose daemon window
+/// was killed on close: the tab cannot be restored, and restoring an older
+/// entry in its place would resurrect the wrong tab (UX.md M3).
+pub(crate) fn ended_mux_window_toast(info: &ClosedTabInfo) -> Option<String> {
+    info.ended_mux_window.map(|window| {
+        format!("That tab was par-mux window @{window} and was ended; it can't be reopened")
+    })
+}
 
 impl WindowState {
     /// Reopen the most recently closed tab at its original position
@@ -32,6 +42,14 @@ impl WindowState {
                 return;
             }
         };
+
+        // A killed par-mux window is unrestorable. Consume the entry and say
+        // so; falling through to the older entries would silently restore an
+        // unrelated tab.
+        if let Some(toast) = ended_mux_window_toast(&info) {
+            self.show_toast(toast);
+            return;
+        }
 
         // Check max tabs limit
         if self.config.load().tabs.max_tabs > 0
@@ -248,5 +266,36 @@ impl WindowState {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn info(ended_mux_window: Option<u64>) -> ClosedTabInfo {
+        ClosedTabInfo {
+            cwd: None,
+            title: "work".to_string(),
+            has_default_title: false,
+            index: 0,
+            closed_at: std::time::Instant::now(),
+            pane_layout: None,
+            custom_color: None,
+            hidden_tab: None,
+            ended_mux_window,
+        }
+    }
+
+    #[test]
+    fn killed_mux_window_entry_refuses_reopen() {
+        let toast = ended_mux_window_toast(&info(Some(7))).expect("killed entry refuses");
+        assert!(toast.contains("@7"), "names the window: {toast}");
+        assert!(toast.contains("can't be reopened"), "{toast}");
+    }
+
+    #[test]
+    fn local_entry_has_no_refusal_toast() {
+        assert!(ended_mux_window_toast(&info(None)).is_none());
     }
 }

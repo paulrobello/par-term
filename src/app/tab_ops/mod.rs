@@ -31,4 +31,9 @@ pub(crate) struct ClosedTabInfo {
     /// instead of being dropped. Dropping this ClosedTabInfo will drop the Tab,
     /// which kills the PTY.
     pub hidden_tab: Option<crate::tab::Tab>,
+    /// Set when the entry records a par-mux window killed daemon-side by tab
+    /// close (`kill-window`), not a local tab. It cannot be reopened; Cmd+Z
+    /// consumes it with an explanatory toast rather than restoring an older,
+    /// unrelated entry (UX.md M3).
+    pub ended_mux_window: Option<crate::tmux::TmuxWindowId>,
 }
