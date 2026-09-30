@@ -120,6 +120,23 @@ fn connect(path: &Path) -> MuxSessionClient {
     }
 }
 
+/// One line of the failure trace: the agent-claim notifications in arrival
+/// order, so a mid-run `%agent-released` (the daemon's own liveness sweep,
+/// not the asset's quit) shows up in the panic instead of only a count.
+fn trace_entry(note: &par_term_emu_core_rust::tmux_control::TmuxNotification) -> Option<String> {
+    use par_term_emu_core_rust::tmux_control::TmuxNotification as N;
+    match note {
+        N::AgentStateChanged {
+            pane_id,
+            agent,
+            state,
+            source,
+        } => Some(format!("state {pane_id} {agent} {state} {source}")),
+        N::AgentReleased { pane_id, agent } => Some(format!("released {pane_id} {agent}")),
+        _ => None,
+    }
+}
+
 /// Install the real asset, drive it with bun against a live daemon, and
 /// assert the report lands as an accepted broadcast.
 fn installed_extension_drives_the_daemon(
@@ -188,8 +205,10 @@ fn installed_extension_drives_the_daemon(
     // nothing either. Either way the count falls short.
     let mut broadcasts = 0usize;
     let mut released = false;
+    let mut trace: Vec<String> = Vec::new();
     while Instant::now() < deadline {
         let (notes, _) = client.drain_core_notifications();
+        trace.extend(notes.iter().filter_map(trace_entry));
         broadcasts += notes
             .iter()
             .filter(|note| {
@@ -229,7 +248,8 @@ fn installed_extension_drives_the_daemon(
             );
             assert_eq!(
                 broadcasts, expected,
-                "serialized sends broadcast exactly once per accepted report"
+                "serialized sends broadcast exactly once per accepted report; \
+                 notifications in arrival order: {trace:?}"
             );
             let _ = std::fs::remove_file(&socket);
             return;
@@ -239,7 +259,8 @@ fn installed_extension_drives_the_daemon(
     panic!(
         "{agent} extension: expected {expected} broadcasts (state pushes + \
          accepted-session rebroadcasts) AND the quit release, saw {broadcasts} \
-         broadcasts and released={released} in 20s"
+         broadcasts and released={released} in 30s; notifications in arrival \
+         order: {trace:?}"
     );
 }
 
