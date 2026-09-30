@@ -295,6 +295,31 @@ pub(crate) fn clear_screen(s: &mut WindowState) -> bool {
     true
 }
 
+/// Font size the config file on disk specifies; 14.0 when it cannot be
+/// read (the pre-B68 behavior, kept as the failure fallback).
+pub(crate) fn configured_font_size() -> f32 {
+    crate::config::Config::load()
+        .map(|c| c.font_size)
+        .unwrap_or(14.0)
+}
+
+/// B68: "Reset Font Size" restores the size the config file specifies —
+/// the same source `reload_config` reads — not a hard-coded 14.0. Shared by
+/// the registry binding and the View menu item, which the native
+/// accelerator can intercept first (the B58 pattern).
+pub(crate) fn reset_font_size_to_configured(s: &mut WindowState) -> bool {
+    let configured = configured_font_size();
+    s.config.rcu(|old| {
+        let mut new = (**old).clone();
+        new.font_size = configured;
+        std::sync::Arc::new(new)
+    });
+    s.render_loop.pending_font_rebuild = true;
+    log::info!("Font size reset to configured size ({configured})");
+    s.request_redraw();
+    true
+}
+
 impl WindowState {
     /// Send the Ctrl+L clear-screen byte (0x0C) to the focused pane.
     ///

@@ -54,18 +54,21 @@ A JSON object with a `steps` array. Each step is one object with an optional
 |---|---|
 | `{"chord": "Ctrl+Alt+Cmd+P"}` | Inject a chord through the **real keybinding layer**: config registry lookup → `execute_keybinding_action`. Mirrors `handle_key_event`'s modal guard, so chords are blocked while a modal overlay is open, exactly as real keys are. The chord fires the action literally — `open_settings` opens (it is not a toggle), so closing the window again needs the window's own close path (e.g. its Escape handling), not a second chord. |
 | `{"type_text": "fullscr"}` | Deliver text to the focused egui widget (the same synthetic-input channel macOS menu accelerators use), then render one frame synchronously so the next step reads post-input state. |
-| `{"press": "Enter"}` | Press a named key on the egui side, then render one frame synchronously (the redraw round-trip is neither immediate nor guaranteed — an occluded window or a gate-rejected redraw left presses undelivered run-to-run before this). Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). |
+| `{"press": "Enter"}` | Press a named key on the egui side, then render one frame synchronously (the redraw round-trip is neither immediate nor guaranteed — an occluded window or a gate-rejected redraw left presses undelivered run-to-run before this). Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). A `Shift+` prefix (e.g. `Shift+Enter`) carries the modifier on the egui event — panels that distinguish shifted keys read it via exact-modifier `consume_key`. |
+| PTY-delivery asserts | A `file_bytes` proof that a keypress reached the shell needs a **primer and a flush chord** around it (see `tests/ui/b64_enter_safe_choice.json`, `b70_panel_nav.json`): a `{"chord": "Enter"}` before the interaction proves the sink is live, and one after flushes the read — without the trailing chord an async paste can sit in the PTY buffer unread when the script ends, and the sink asserts empty even though the app wrote the bytes. |
 | `{"assert": "X"}` / `{"assert_not": "X"}` | Boolean conditions, below. |
 | `{"assert_eq": ["what", "expected"]}` | Keyed values, below. |
 | `{"capture": "what"}` | Stash a capture-capable operand's current value. |
 | `{"assert_eq_captured": "what"}` | Assert the operand's current value equals the stashed one — for values a script cannot know up front, like a spawned shell's PID. |
-| `{"open_modal": "D"}` | Seed dialog `D` open through its real entry point (`close_running_job`, `mux_last_tab`, `trigger_confirm`, `agent_command_confirm`, `update_dialog`, `tab_context_menu`, `new_tab_profile_menu`, `demote_chooser`, `profile_drawer`, `quit_confirmation`, `tmux_picker`) — the seam standing in for the user interaction that opens it, so a script can prove typed keys stay off the PTY while it is open (worked example: `tests/ui/b61_modal_guard.json`). |
+| `{"open_modal": "D"}` | Seed dialog `D` open through its real entry point (`close_running_job`, `mux_last_tab`, `trigger_confirm`, `agent_command_confirm`, `update_dialog`, `tab_context_menu`, `new_tab_profile_menu`, `demote_chooser`, `profile_drawer`, `quit_confirmation`, `tmux_picker`, `command_history`, `clipboard_history`) — the seam standing in for the user interaction that opens it, so a script can prove typed keys stay off the PTY while it is open (worked example: `tests/ui/b61_modal_guard.json`). |
 | `{"close_modal": "D"}` | Clear the state `open_modal` seeded. Buttons and Escape are the dialog's own egui handling (`press` steps); this only arms/disarms the modal the key guard sums over. |
+| `{"seed_clipboard": ["s1", "s2"]}` | Seed clipboard-history entries into the focused pane's terminal, newest last (B70: in production only selection copies feed that history, which a script cannot drive; the pinned core's OSC 52 parser sets `clipboard_content` but records no history). |
 
 ### Boolean operands
 
 - `palette_open` / `search_open` — overlay visible
 - `tmux_picker_open` — tmux session picker visible
+- `command_history_open` / `clipboard_history_open` / `paste_special_open` — the respective panel is visible
 - `palette_selected_visible` — the palette's selected row falls inside the drawn 12-row window (the B62 scroll invariant)
 - `agent_usage_panel_open` — the agent-usage popup panel is visible
 - `agent_usage_ready` — the usage store has ≥1 displayable record
@@ -83,6 +86,8 @@ A JSON object with a `steps` array. Each step is one object with an optional
 
 - `["top_action", "toggle_fullscreen"]` — top-ranked palette action for the current query
 - `["palette_selected", "N"]` — the palette's selected row index into the filtered list (the B62 scroll proof pairs it with `palette_selected_visible`)
+- `["command_history_selected", "echo foo"]` / `["clipboard_history_selected", "text"]` — the selected row's text (B70 navigation proofs; `<none>` when no selection)
+- `["font_size", "13.5"]` — live config font size (the B68 reset proof)
 - `["file_empty", "/path"]` — file is absent or zero bytes (a missing file counts as empty)
 - `["window_count", "N"]` — the app's open-window count (manager-level; works with zero terminal windows)
 

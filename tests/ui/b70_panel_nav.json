@@ -1,0 +1,43 @@
+{
+  "steps": [
+    { "assert_not": "clipboard_history_open", "wait_ms": 1200 },
+
+    { "chord": "Enter", "wait_ms": 500 },
+    { "assert_eq": ["file_bytes", "/tmp/pt-b70-sink.bin:0a"] },
+
+    { "seed_clipboard": ["b70-clip-AAA", "b70-clip-BBB"] },
+    { "open_modal": "clipboard_history", "wait_ms": 400 },
+    { "assert": "clipboard_history_open" },
+    { "assert": "modal_guard" },
+    { "assert_eq": ["clipboard_history_selected", "b70-clip-BBB"] },
+    { "press": "ArrowDown", "wait_ms": 80 },
+    { "assert_eq": ["clipboard_history_selected", "b70-clip-AAA"] },
+    { "press": "Enter", "wait_ms": 800 },
+    { "assert_not": "clipboard_history_open" },
+    { "chord": "Enter", "wait_ms": 800 },
+    { "assert_eq": ["file_bytes", "/tmp/pt-b70-sink.bin*6237302d636c69702d4141410a"] },
+
+    { "open_modal": "command_history", "wait_ms": 400 },
+    { "assert": "command_history_open" },
+    { "assert_eq": ["command_history_selected", "echo b70-gamma"] },
+    { "press": "ArrowDown", "wait_ms": 80 },
+    { "press": "ArrowDown", "wait_ms": 80 },
+    { "assert_eq": ["command_history_selected", "echo b70-alpha"] },
+    { "press": "Enter", "wait_ms": 800 },
+    { "assert_not": "command_history_open" },
+    { "chord": "Enter", "wait_ms": 800 },
+    { "assert_eq": ["file_bytes", "/tmp/pt-b70-sink.bin*6563686f206237302d616c7068610a"] },
+
+    { "seed_clipboard": ["b70-clip-CCC"] },
+    { "open_modal": "clipboard_history", "wait_ms": 400 },
+    { "press": "Shift+Enter", "wait_ms": 400 },
+    { "assert_not": "clipboard_history_open" },
+    { "assert": "paste_special_open" },
+    { "press": "Escape", "wait_ms": 400 },
+    { "assert_not": "paste_special_open" },
+
+    { "open_modal": "command_history", "wait_ms": 400 },
+    { "press": "Escape", "wait_ms": 400 },
+    { "assert_not": "command_history_open" }
+  ]
+}

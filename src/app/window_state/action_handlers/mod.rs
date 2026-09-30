@@ -30,9 +30,16 @@ impl WindowState {
             ClipboardHistoryAction::Paste(content) => {
                 self.paste_text(&content);
             }
+            ClipboardHistoryAction::OpenPasteSpecial(content) => {
+                self.overlay_ui.paste_special_ui.open(content);
+                self.focus_state.needs_redraw = true;
+            }
             ClipboardHistoryAction::ClearAll => {
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_read() {
+                    // read_terminal_handle, not tab.terminal: the OSC 52
+                    // history lives in the focused pane's terminal (B70).
+                    let terminal = tab.read_terminal_handle();
+                    if let Ok(term) = terminal.try_read() {
                         term.clear_all_clipboard_history();
                         log::info!("Cleared all clipboard history");
                     }
@@ -43,7 +50,8 @@ impl WindowState {
             }
             ClipboardHistoryAction::ClearSlot(slot) => {
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_read() {
+                    let terminal = tab.read_terminal_handle();
+                    if let Ok(term) = terminal.try_read() {
                         term.clear_clipboard_history(slot);
                         log::info!("Cleared clipboard history for slot {:?}", slot);
                     }

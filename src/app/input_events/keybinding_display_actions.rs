@@ -62,17 +62,10 @@ pub(crate) static DISPLAY_ACTION_HANDLERS: &[(&str, DisplayActionHandler)] = &[
         s.request_redraw();
         true
     }),
-    ("reset_font_size", |s: &mut WindowState| {
-        s.config.rcu(|old| {
-            let mut new = (**old).clone();
-            new.font_size = 14.0;
-            std::sync::Arc::new(new)
-        });
-        s.render_loop.pending_font_rebuild = true;
-        log::info!("Font size reset to default (14.0) via keybinding");
-        s.request_redraw();
-        true
-    }),
+    (
+        "reset_font_size",
+        super::keybinding_helpers::reset_font_size_to_configured,
+    ),
     ("cycle_cursor_style", cycle_cursor_style),
     ("move_tab_left", |s: &mut WindowState| {
         s.move_tab_left();
@@ -227,5 +220,34 @@ impl WindowState {
             .iter()
             .find(|(name, _)| *name == action)?;
         Some(handler(self))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// B68 source pin: the registry's reset action must run the shared
+    /// helper (which restores the config file's size), never an inline
+    /// hard-coded 14.0.
+    #[test]
+    fn reset_font_size_delegates_to_the_configured_size_helper() {
+        let source = include_str!("keybinding_display_actions.rs");
+        // Match the quoted key, not the "(" beside it — rustfmt may wrap
+        // the tuple across lines.
+        let reset_entry = source
+            .find("\"reset_font_size\"")
+            .expect("reset_font_size table entry exists");
+        let after = &source[reset_entry..];
+        let entry = match after.find("),") {
+            Some(end) => &after[..end],
+            None => after,
+        };
+        assert!(
+            entry.contains("reset_font_size_to_configured"),
+            "the registry action must delegate to the configured-size helper"
+        );
+        assert!(
+            !entry.contains("14.0"),
+            "the registry action must not hard-code a font size (B68)"
+        );
     }
 }

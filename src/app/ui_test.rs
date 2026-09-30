@@ -89,6 +89,10 @@ pub(crate) enum UiTestAction {
     /// standing in for the user interaction that opens each dialog, so a
     /// script can prove typed keys stay off the PTY while it is open.
     OpenModal { open_modal: String },
+    /// Seed clipboard-history entries into the focused pane's terminal
+    /// (B70): in production only selection copies feed that history, which a
+    /// script cannot drive — this stands in for the copy, newest last.
+    SeedClipboard { seed_clipboard: Vec<String> },
     /// Close a dialog opened by `open_modal` (clears the seeded state; the
     /// dialogs' own button/Escape handling is egui-side, via `press`).
     CloseModal { close_modal: String },
@@ -408,7 +412,14 @@ impl WindowManager {
                 StepOutcome::Performed(format!("type_text \"{type_text}\" (egui)"))
             }
             UiTestAction::Press { press } => {
-                let Some(egui_key) = press_to_egui_key(press) else {
+                // A "Shift+"-prefixed name (e.g. "Shift+Enter") carries the
+                // modifier on the egui event — panels distinguish plain from
+                // shifted keys (clipboard history's Enter vs Shift+Enter).
+                let (key_name, shift) = match press.strip_prefix("Shift+") {
+                    Some(rest) => (rest, true),
+                    None => (press.as_str(), false),
+                };
+                let Some(egui_key) = press_to_egui_key(key_name) else {
                     return StepOutcome::Failed(format!(
                         "press: unknown key name '{press}' (see AGENT_UI_VERIFICATION.md)"
                     ));
@@ -422,10 +433,34 @@ impl WindowManager {
                     physical_key: None,
                     pressed: true,
                     repeat: false,
-                    modifiers: egui::Modifiers::default(),
+                    modifiers: egui::Modifiers {
+                        shift,
+                        ..Default::default()
+                    },
                 });
                 Self::render_ui_test_frame(ws);
                 StepOutcome::Performed(format!("press {press} (egui)"))
+            }
+            UiTestAction::SeedClipboard { seed_clipboard } => {
+                let Some(id) = terminal_id else {
+                    return StepOutcome::Failed("seed_clipboard: no terminal window yet".into());
+                };
+                let ws = self.windows.get_mut(&id).expect("id from keys()");
+                let Some(tab) = ws.tab_manager.active_tab() else {
+                    return StepOutcome::Failed("seed_clipboard: no active tab".into());
+                };
+                let terminal = tab.read_terminal_handle();
+                let Ok(term) = terminal.try_read() else {
+                    return StepOutcome::Failed("seed_clipboard: terminal lock busy".into());
+                };
+                for content in seed_clipboard {
+                    term.add_to_clipboard_history(
+                        par_term_terminal::ClipboardSlot::Clipboard,
+                        content.clone(),
+                        None,
+                    );
+                }
+                StepOutcome::Performed(format!("seed_clipboard {} entries", seed_clipboard.len()))
             }
             UiTestAction::Assert { assert } => {
                 let value = self.ui_test_bool(assert);
@@ -675,6 +710,20 @@ impl WindowManager {
                     ws.overlay_ui.tmux_session_picker_ui.hide();
                 }
             }
+            // B70: opened through the real entry points (the registry
+            // `toggle_*` actions call these), so a script can drive the
+            // panels' egui-side navigation and prove Enter delivers to the
+            // PTY sink.
+            "command_history" => {
+                if ws.overlay_ui.command_history_ui.visible != open {
+                    ws.toggle_command_history();
+                }
+            }
+            "clipboard_history" => {
+                if ws.overlay_ui.clipboard_history_ui.visible != open {
+                    ws.toggle_clipboard_history();
+                }
+            }
             _ => {
                 return StepOutcome::Failed(format!(
                     "{verb}: unknown dialog '{name}' (see UiTestAction::OpenModal docs)"
@@ -920,6 +969,9 @@ impl WindowManager {
                     "plugin_action_dispatched" => ws.status_bar_ui.any_plugin_action_dispatched(),
                     "modal_guard" => ws.any_modal_ui_visible(),
                     "tmux_picker_open" => ws.overlay_ui.tmux_session_picker_ui.visible,
+                    "command_history_open" => ws.overlay_ui.command_history_ui.visible,
+                    "clipboard_history_open" => ws.overlay_ui.clipboard_history_ui.visible,
+                    "paste_special_open" => ws.overlay_ui.paste_special_ui.visible,
                     "palette_selected_visible" => {
                         ws.overlay_ui.command_palette.selected_row_is_visible()
                     }
@@ -988,6 +1040,42 @@ impl WindowManager {
             // proof asserts on (TW2: quit must save every window).
             "window_count" => {
                 let actual = self.windows.len().to_string();
+                Ok((actual.clone(), actual == expected))
+            }
+            // The selected command's text — the B70 navigation proof pairs
+            // it with arrow presses (selection moved to the expected row).
+            "command_history_selected" => {
+                let Some(ws) = self.ui_test_window_state() else {
+                    return Err("command_history_selected: no terminal window".into());
+                };
+                let actual = ws
+                    .overlay_ui
+                    .command_history_ui
+                    .selected_command()
+                    .unwrap_or("<none>".into());
+                Ok((actual.clone(), actual == expected))
+            }
+            // The selected clipboard entry's content — B70, same shape as
+            // command_history_selected.
+            "clipboard_history_selected" => {
+                let Some(ws) = self.ui_test_window_state() else {
+                    return Err("clipboard_history_selected: no terminal window".into());
+                };
+                let actual = ws
+                    .overlay_ui
+                    .clipboard_history_ui
+                    .selected_entry()
+                    .map(|e| e.content.clone())
+                    .unwrap_or("<none>".into());
+                Ok((actual.clone(), actual == expected))
+            }
+            // Live font size — the B68 reset proof (decrease moves it off
+            // the configured value, reset must land back on it, not 14.0).
+            "font_size" => {
+                let Some(ws) = self.ui_test_window_state() else {
+                    return Err("font_size: no terminal window".into());
+                };
+                let actual = ws.config.load().font_size.to_string();
                 Ok((actual.clone(), actual == expected))
             }
             "file_empty" => {

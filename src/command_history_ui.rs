@@ -196,6 +196,36 @@ impl CommandHistoryUI {
 
         let matched_entries = self.get_matched_entries();
 
+        // B70: keyboard navigation lives on the egui side. The auto-focused
+        // search field makes `is_egui_using_keyboard()` return early in
+        // handle_key_event, and the modal guard in handle_window_event
+        // blocks Arrow/Enter before the winit layer could ever run — so the
+        // hints below advertised navigation nothing could deliver. The
+        // winit-side `handle_command_history_keys` layer stays as the
+        // unfocused backstop; close() and the selection moves are
+        // idempotent, so both paths are safe together.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            self.close();
+        }
+        // num_presses, not key_pressed: input events can coalesce into one
+        // frame (key repeat, the ui-test harness pressing faster than the
+        // frame cadence) and each press must move the selection — a boolean
+        // would swallow every press but the first.
+        let downs = ctx.input(|i| i.num_presses(egui::Key::ArrowDown));
+        for _ in 0..downs {
+            self.select_next(matched_entries.len());
+        }
+        let ups = ctx.input(|i| i.num_presses(egui::Key::ArrowUp));
+        for _ in 0..ups {
+            self.select_previous();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Enter))
+            && let Some(command) = self.selected_command()
+        {
+            action = CommandHistoryAction::Insert(command);
+            self.visible = false;
+        }
+
         Window::new("Command History Search")
             .resizable(true)
             .collapsible(false)
@@ -454,5 +484,155 @@ fn format_relative_time(timestamp_ms: u64) -> String {
         }
     } else {
         "just now".to_string()
+    }
+}
+
+#[cfg(test)]
+mod b70_tests {
+    use super::*;
+
+    fn key_event(key: egui::Key, shift: bool) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers {
+                shift,
+                ..Default::default()
+            },
+        }
+    }
+
+    /// One show() per press, mirroring the app's one-rendered-frame-per-key
+    /// cadence the ui-test harness also produces.
+    fn frame(
+        ctx: &egui::Context,
+        ui: &mut CommandHistoryUI,
+        events: Vec<egui::Event>,
+    ) -> CommandHistoryAction {
+        let raw = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        ctx.begin_pass(raw);
+        let action = ui.show(ctx);
+        // Headless passes still allocate font-atlas textures; dropping an
+        // unapplied TexturesDelta panics (epaint), so clear it.
+        ctx.end_pass().textures_delta.clear();
+        action
+    }
+
+    fn entries() -> VecDeque<CommandHistoryEntry> {
+        let mk = |command: &str, ts: u64| CommandHistoryEntry {
+            command: command.into(),
+            timestamp_ms: ts,
+            exit_code: Some(0),
+            duration_ms: None,
+        };
+        VecDeque::from(vec![
+            mk("echo b70-gamma", 3_000_000_000),
+            mk("echo b70-beta", 2_000_000_000),
+            mk("echo b70-alpha", 1_000_000_000),
+        ])
+    }
+
+    #[test]
+    fn arrows_and_enter_drive_selection_and_insert() {
+        let ctx = egui::Context::default();
+        let mut ui = CommandHistoryUI::new();
+        ui.update_entries(&entries());
+        ui.open();
+        assert_eq!(ui.selected_index, Some(0));
+
+        let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown, false)]);
+        let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown, false)]);
+        assert_eq!(
+            ui.selected_index,
+            Some(2),
+            "two ArrowDown presses move to the third row"
+        );
+
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Enter, false)]);
+        assert!(!ui.visible, "Enter closes the panel");
+        match action {
+            CommandHistoryAction::Insert(cmd) => assert_eq!(cmd, "echo b70-alpha"),
+            other => panic!("expected Insert, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn arrow_up_moves_back_toward_the_newest_row() {
+        let ctx = egui::Context::default();
+        let mut ui = CommandHistoryUI::new();
+        ui.update_entries(&entries());
+        ui.open();
+        let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown, false)]);
+        let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowUp, false)]);
+        assert_eq!(ui.selected_index, Some(0));
+    }
+
+    #[test]
+    fn enter_without_arrows_inserts_the_newest_row() {
+        let ctx = egui::Context::default();
+        let mut ui = CommandHistoryUI::new();
+        ui.update_entries(&entries());
+        ui.open();
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Enter, false)]);
+        match action {
+            CommandHistoryAction::Insert(cmd) => assert_eq!(cmd, "echo b70-gamma"),
+            other => panic!("expected Insert, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn escape_closes_without_an_action() {
+        let ctx = egui::Context::default();
+        let mut ui = CommandHistoryUI::new();
+        ui.update_entries(&entries());
+        ui.open();
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Escape, false)]);
+        assert!(!ui.visible, "Escape closes the panel");
+        assert!(matches!(action, CommandHistoryAction::None));
+    }
+
+    #[test]
+    fn enter_with_no_entries_is_a_no_op() {
+        let ctx = egui::Context::default();
+        let mut ui = CommandHistoryUI::new();
+        ui.update_entries(&VecDeque::new());
+        ui.open();
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Enter, false)]);
+        assert!(ui.visible, "nothing to insert — panel stays open");
+        assert!(matches!(action, CommandHistoryAction::None));
+    }
+
+    /// B70 source pin: the egui-side wiring must stay in show(). The winit
+    /// layer is unreachable for these keys (auto-focused search field +
+    /// modal guard), so show() losing this block would silently kill all
+    /// keyboard navigation. Matches code, not comments.
+    #[test]
+    fn show_reads_navigation_from_the_egui_input() {
+        // Count only the source outside this test module — the pin's own
+        // literals would otherwise inflate the count.
+        let source = include_str!("command_history_ui.rs");
+        let source = source.split("mod b70_tests").next().unwrap();
+        assert_eq!(
+            source.matches("num_presses(egui::Key::ArrowDown)").count(),
+            1,
+            "show() must keep the ArrowDown num_presses wiring"
+        );
+        assert_eq!(
+            source
+                .matches("consume_key(egui::Modifiers::NONE, egui::Key::Escape)")
+                .count(),
+            1,
+            "show() must keep the Escape consume_key wiring"
+        );
+        assert_eq!(
+            source.matches("key_pressed(egui::Key::Enter)").count(),
+            1,
+            "show() must keep the Enter wiring"
+        );
     }
 }

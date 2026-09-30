@@ -352,15 +352,12 @@ impl WindowManager {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
-                    window_state.config.rcu(|old| {
-                        let mut new = (**old).clone();
-                        new.font_size = 14.0;
-                        std::sync::Arc::new(new)
-                    });
-                    window_state.render_loop.pending_font_rebuild = true;
-                    if let Some(window) = &window_state.window {
-                        window.request_redraw();
-                    }
+                    // B68: reset restores the size the config file specifies,
+                    // not a hard-coded default — same helper the registry
+                    // binding uses.
+                    crate::app::input_events::keybinding_helpers::reset_font_size_to_configured(
+                        window_state,
+                    );
                 }
             }
             MenuAction::ToggleFpsOverlay => {
@@ -530,6 +527,30 @@ mod tests {
             !body.contains("tab.terminal.try_write"),
             "the menu arm must not clear tab.terminal directly (B58: wrong \
              pane in splits, hidden login shell in par-mux tabs)"
+        );
+    }
+
+    /// B68 source pin: Reset Font Size must run the shared helper (which
+    /// restores the config file's size), never an inline hard-coded 14.0.
+    #[test]
+    fn menu_reset_font_size_restores_the_configured_size() {
+        let source = include_str!("menu_actions.rs");
+        let selector = "MenuAction::ResetFontSize =>";
+        let arm = source
+            .find(selector)
+            .expect("ResetFontSize menu arm exists");
+        let after = &source[arm + selector.len()..];
+        let body = match after.find("MenuAction::") {
+            Some(next) => &after[..next],
+            None => after,
+        };
+        assert!(
+            body.contains("keybinding_helpers::reset_font_size_to_configured"),
+            "the menu arm must delegate to the shared configured-size helper"
+        );
+        assert!(
+            !body.contains("14.0"),
+            "the menu arm must not hard-code a font size (B68)"
         );
     }
 }

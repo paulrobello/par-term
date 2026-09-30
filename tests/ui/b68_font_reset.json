@@ -1,0 +1,15 @@
+{
+  "steps": [
+    { "assert_eq": ["font_size", "13.5"], "wait_ms": 1000 },
+    { "chord": "Ctrl+Alt+9", "wait_ms": 400 },
+    { "assert_eq": ["font_size", "12.5"] },
+    { "chord": "Ctrl+Alt+0", "wait_ms": 400 },
+    { "assert_eq": ["font_size", "13.5"] },
+    { "chord": "Ctrl+Alt+9", "wait_ms": 300 },
+    { "chord": "Ctrl+Alt+9", "wait_ms": 300 },
+    { "chord": "Ctrl+Alt+9", "wait_ms": 300 },
+    { "assert_eq": ["font_size", "10.5"] },
+    { "chord": "Ctrl+Alt+0", "wait_ms": 500 },
+    { "assert_eq": ["font_size", "13.5"] }
+  ]
+}

@@ -26,6 +26,9 @@ pub enum ClipboardHistoryAction {
     None,
     /// Paste the selected entry content
     Paste(String),
+    /// Open the paste-special dialog preloaded with the selected content
+    /// (Shift+Enter from the history list)
+    OpenPasteSpecial(String),
     /// Clear clipboard history for a slot
     ClearSlot(ClipboardSlot),
     /// Clear all clipboard history
@@ -113,6 +116,42 @@ impl ClipboardHistoryUI {
 
         let mut action = ClipboardHistoryAction::None;
         let mut open = true;
+
+        // B70: keyboard navigation lives on the egui side — the auto-focused
+        // search field plus the modal guard keep the winit layer from ever
+        // seeing these keys (full reasoning in
+        // command_history_ui::show). Escape/arrows/Enter here, winit layer
+        // as the unfocused backstop.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            self.visible = false;
+        }
+        let downs = ctx.input(|i| i.num_presses(egui::Key::ArrowDown));
+        for _ in 0..downs {
+            self.select_next();
+        }
+        let ups = ctx.input(|i| i.num_presses(egui::Key::ArrowUp));
+        for _ in 0..ups {
+            self.select_previous();
+        }
+        // consume_key with exact modifiers rather than key_pressed:
+        // InputState::modifiers only tracks ModifiersChanged events, so the
+        // modifier must be matched on the key event itself — and this keeps
+        // a Shift+Enter from double-firing the plain-Enter path.
+        let shift_enter =
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::Enter));
+        let plain_enter = !shift_enter
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+        if (shift_enter || plain_enter)
+            && let Some(entry) = self.selected_entry()
+        {
+            let content = entry.content.clone();
+            self.visible = false;
+            if shift_enter {
+                action = ClipboardHistoryAction::OpenPasteSpecial(content);
+            } else {
+                action = ClipboardHistoryAction::Paste(content);
+            }
+        }
 
         // Calculate center position for initial placement
         let screen_rect = ctx.content_rect();
@@ -275,5 +314,130 @@ fn format_timestamp(timestamp_us: u64) -> String {
         }
     } else {
         "just now".to_string()
+    }
+}
+
+#[cfg(test)]
+mod b70_tests {
+    use super::*;
+
+    fn key_event(key: egui::Key, shift: bool) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers {
+                shift,
+                ..Default::default()
+            },
+        }
+    }
+
+    fn frame(
+        ctx: &egui::Context,
+        ui: &mut ClipboardHistoryUI,
+        events: Vec<egui::Event>,
+    ) -> ClipboardHistoryAction {
+        let raw = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        ctx.begin_pass(raw);
+        let action = ui.show(ctx);
+        // Headless passes still allocate font-atlas textures; dropping an
+        // unapplied TexturesDelta panics (epaint), so clear it.
+        ctx.end_pass().textures_delta.clear();
+        action
+    }
+
+    fn entries() -> Vec<ClipboardEntry> {
+        vec![
+            ClipboardEntry {
+                content: "b70-clip-BBB".into(),
+                timestamp: 3_000_000_000,
+                label: None,
+            },
+            ClipboardEntry {
+                content: "b70-clip-AAA".into(),
+                timestamp: 1_000_000_000,
+                label: None,
+            },
+        ]
+    }
+
+    #[test]
+    fn arrows_and_enter_paste_the_second_row() {
+        let ctx = egui::Context::default();
+        let mut ui = ClipboardHistoryUI::new();
+        ui.update_entries(entries());
+        ui.toggle();
+        assert_eq!(ui.selected_index, Some(0));
+
+        let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown, false)]);
+        assert_eq!(ui.selected_index, Some(1));
+
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Enter, false)]);
+        assert!(!ui.visible, "Enter closes the panel");
+        match action {
+            ClipboardHistoryAction::Paste(content) => assert_eq!(content, "b70-clip-AAA"),
+            other => panic!("expected Paste, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn shift_enter_opens_paste_special_instead_of_pasting() {
+        let ctx = egui::Context::default();
+        let mut ui = ClipboardHistoryUI::new();
+        ui.update_entries(entries());
+        ui.toggle();
+
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Enter, true)]);
+        assert!(!ui.visible, "Shift+Enter closes the history panel");
+        match action {
+            ClipboardHistoryAction::OpenPasteSpecial(content) => {
+                assert_eq!(content, "b70-clip-BBB")
+            }
+            other => panic!("expected OpenPasteSpecial, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn escape_closes_without_an_action() {
+        let ctx = egui::Context::default();
+        let mut ui = ClipboardHistoryUI::new();
+        ui.update_entries(entries());
+        ui.toggle();
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Escape, false)]);
+        assert!(!ui.visible);
+        assert!(matches!(action, ClipboardHistoryAction::None));
+    }
+
+    /// B70 source pin (counted outside this test module's own literals):
+    /// show() losing the egui-side wiring would silently kill all keyboard
+    /// navigation — the winit layer cannot see these keys.
+    #[test]
+    fn show_reads_navigation_from_the_egui_input() {
+        let source = include_str!("clipboard_history_ui.rs");
+        let source = source.split("mod b70_tests").next().unwrap();
+        assert_eq!(
+            source.matches("num_presses(egui::Key::ArrowDown)").count(),
+            1,
+            "show() must keep the ArrowDown num_presses wiring"
+        );
+        assert_eq!(
+            source
+                .matches("consume_key(egui::Modifiers::SHIFT, egui::Key::Enter)")
+                .count(),
+            1,
+            "show() must keep the Shift+Enter consume_key wiring"
+        );
+        assert_eq!(
+            source
+                .matches("consume_key(egui::Modifiers::NONE, egui::Key::Escape)")
+                .count(),
+            1,
+            "show() must keep the Escape consume_key wiring"
+        );
     }
 }

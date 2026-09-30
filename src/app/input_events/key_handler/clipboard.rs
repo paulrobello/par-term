@@ -60,25 +60,30 @@ impl WindowState {
     }
 
     pub(crate) fn toggle_clipboard_history(&mut self) {
-        // Refresh clipboard history entries from terminal before showing
+        // Refresh clipboard history entries from terminal before showing.
+        // read_terminal_handle, not tab.terminal: OSC 52 payloads are parsed
+        // into the FOCUSED pane's terminal — in a split (or a mux tab, where
+        // tab.terminal is the hidden login shell) tab.terminal's history is
+        // empty and the panel would open blank (B70).
         // try_lock: intentional — called from keyboard handler in sync event loop.
         // On miss: clipboard history UI shows stale entries. Acceptable for a UI toggle;
         // the user can dismiss and re-open to get fresh entries.
-        if let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_read()
-        {
-            // Get history for all slots and merge
-            let mut all_entries = Vec::new();
-            all_entries.extend(term.get_clipboard_history(ClipboardSlot::Primary));
-            all_entries.extend(term.get_clipboard_history(ClipboardSlot::Clipboard));
-            all_entries.extend(term.get_clipboard_history(ClipboardSlot::Selection));
+        if let Some(tab) = self.tab_manager.active_tab() {
+            let terminal = tab.read_terminal_handle();
+            if let Ok(term) = terminal.try_read() {
+                // Get history for all slots and merge
+                let mut all_entries = Vec::new();
+                all_entries.extend(term.get_clipboard_history(ClipboardSlot::Primary));
+                all_entries.extend(term.get_clipboard_history(ClipboardSlot::Clipboard));
+                all_entries.extend(term.get_clipboard_history(ClipboardSlot::Selection));
 
-            // Sort by timestamp (newest first)
-            all_entries.sort_by_key(|e| std::cmp::Reverse(e.timestamp));
+                // Sort by timestamp (newest first)
+                all_entries.sort_by_key(|e| std::cmp::Reverse(e.timestamp));
 
-            self.overlay_ui
-                .clipboard_history_ui
-                .update_entries(all_entries);
+                self.overlay_ui
+                    .clipboard_history_ui
+                    .update_entries(all_entries);
+            }
         }
 
         self.overlay_ui.clipboard_history_ui.toggle();

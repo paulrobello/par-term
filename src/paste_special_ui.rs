@@ -137,6 +137,27 @@ impl PasteSpecialUI {
         let mut open = true;
         let mut search_changed = false;
 
+        // B70: keyboard navigation lives on the egui side — the search field
+        // is focused every frame, so the winit layer is unreachable (full
+        // reasoning in command_history_ui::show).
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            self.close();
+        }
+        let downs = ctx.input(|i| i.num_presses(egui::Key::ArrowDown));
+        for _ in 0..downs {
+            self.select_next();
+        }
+        let ups = ctx.input(|i| i.num_presses(egui::Key::ArrowUp));
+        for _ in 0..ups {
+            self.select_previous();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Enter))
+            && let Some(result) = self.apply_selected()
+        {
+            action = PasteSpecialAction::Paste(result);
+            self.close();
+        }
+
         // Calculate center position
         let screen_rect = ctx.content_rect();
         let default_pos = egui::pos2(
@@ -416,5 +437,93 @@ mod tests {
         ui.search_query = "base64".to_string();
         ui.update_filtered_transforms();
         assert_eq!(ui.filtered_transforms.len(), 2); // Encode and Decode
+    }
+}
+
+#[cfg(test)]
+mod b70_tests {
+    use super::*;
+
+    fn key_event(key: egui::Key) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::default(),
+        }
+    }
+
+    fn frame(
+        ctx: &egui::Context,
+        ui: &mut PasteSpecialUI,
+        events: Vec<egui::Event>,
+    ) -> PasteSpecialAction {
+        let raw = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        ctx.begin_pass(raw);
+        let action = ui.show(ctx);
+        // Headless passes still allocate font-atlas textures; dropping an
+        // unapplied TexturesDelta panics (epaint), so clear it.
+        ctx.end_pass().textures_delta.clear();
+        action
+    }
+
+    #[test]
+    fn arrows_move_selection_and_enter_applies_it() {
+        let ctx = egui::Context::default();
+        let mut ui = PasteSpecialUI::new();
+        ui.open("hello world".into());
+        let start = ui.selected_index;
+
+        let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown)]);
+        assert_eq!(ui.selected_index, start + 1, "ArrowDown moves selection");
+        let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowUp)]);
+        assert_eq!(ui.selected_index, start, "ArrowUp moves it back");
+
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Enter)]);
+        assert!(!ui.visible, "Enter applies and closes");
+        match action {
+            PasteSpecialAction::Paste(result) => assert!(!result.is_empty()),
+            other => panic!("expected Paste, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn escape_closes_without_applying() {
+        let ctx = egui::Context::default();
+        let mut ui = PasteSpecialUI::new();
+        ui.open("hello world".into());
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Escape)]);
+        assert!(!ui.visible);
+        assert!(matches!(action, PasteSpecialAction::None));
+    }
+
+    /// B70 source pin (counted outside this test module's own literals) —
+    /// same rationale as the other panels: the winit layer cannot see these
+    /// keys, so show() losing the wiring kills keyboard navigation.
+    #[test]
+    fn show_reads_navigation_from_the_egui_input() {
+        let source = include_str!("paste_special_ui.rs");
+        let source = source.split("mod b70_tests").next().unwrap();
+        assert_eq!(
+            source.matches("num_presses(egui::Key::ArrowDown)").count(),
+            1,
+            "show() must keep the ArrowDown num_presses wiring"
+        );
+        assert_eq!(
+            source
+                .matches("consume_key(egui::Modifiers::NONE, egui::Key::Escape)")
+                .count(),
+            1,
+            "show() must keep the Escape consume_key wiring"
+        );
+        assert_eq!(
+            source.matches("key_pressed(egui::Key::Enter)").count(),
+            1,
+            "show() must keep the Enter wiring"
+        );
     }
 }
