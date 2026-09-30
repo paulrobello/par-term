@@ -70,6 +70,11 @@ impl PaneRenameUI {
         self.opened_frame = None;
     }
 
+    /// Close without submitting (the overlay stack's Escape path).
+    pub(crate) fn cancel(&mut self) {
+        self.close();
+    }
+
     /// Render the popup if open. Runs inside the egui pass; the returned
     /// outcome is applied by the caller after the egui borrow ends.
     pub(crate) fn render(&mut self, ctx: &egui::Context) -> PaneRenameOutcome {

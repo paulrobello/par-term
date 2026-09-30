@@ -18,18 +18,42 @@ impl WindowState {
     ) -> bool {
         use winit::keyboard::{Key, NamedKey};
 
+        // Key presses route through the overlay stack first (UX.md OV2):
+        // the top overlay owns the key, its toggle chord closes it, Escape
+        // closes only it, and a key an open overlay does not use never
+        // reaches the PTY. A press the stack resolves itself (close,
+        // replace) is withheld from egui so the overlay beneath cannot
+        // act on it too.
+        let key_route = if let WindowEvent::KeyboardInput {
+            event: key_event, ..
+        } = &event
+        {
+            // Modifier and Alt-side tracking run for every key event, even
+            // one the stack stops before handle_key_event: a modifier
+            // released while an overlay is open must still register.
+            self.input_handler.sync_modifier_from_key_event(key_event);
+            self.input_handler.track_alt_key(key_event);
+            Some(self.route_window_key(key_event))
+        } else {
+            None
+        };
+        let feed_egui = key_route
+            .as_ref()
+            .is_none_or(crate::app::overlay::routing::KeyRoute::feeds_egui);
+
         // Let egui handle the event (needed for proper rendering state)
-        let (egui_consumed, egui_needs_repaint) =
-            if let (Some(egui_state), Some(window)) = (&mut self.egui.state, &self.window) {
-                let event_response = egui_state.on_window_event(window, &event);
-                // Request redraw if egui needs it (e.g., text input in modals)
-                if event_response.repaint {
-                    window.request_redraw();
-                }
-                (event_response.consumed, event_response.repaint)
-            } else {
-                (false, false)
-            };
+        let (egui_consumed, egui_needs_repaint) = if !feed_egui {
+            (false, false)
+        } else if let (Some(egui_state), Some(window)) = (&mut self.egui.state, &self.window) {
+            let event_response = egui_state.on_window_event(window, &event);
+            // Request redraw if egui needs it (e.g., text input in modals)
+            if event_response.repaint {
+                window.request_redraw();
+            }
+            (event_response.consumed, event_response.repaint)
+        } else {
+            (false, false)
+        };
         let _ = egui_needs_repaint; // Used above, silence unused warning
 
         // Debug: Log when egui consumes events but we ignore it
@@ -44,21 +68,12 @@ impl WindowState {
             log::debug!("egui tried to consume Space (UI closed, ignoring)");
         }
 
-        // When shader editor is visible, block keyboard events from terminal
-        // even if egui didn't consume them (egui might not have focus)
-        if any_ui_visible
-            && let WindowEvent::KeyboardInput {
-                event: key_event, ..
-            } = &event
-            // Always block keyboard input when UI is visible (except system keys)
-            && !matches!(
-                key_event.logical_key,
-                Key::Named(NamedKey::F1)
-                    | Key::Named(NamedKey::F2)
-                    | Key::Named(NamedKey::F3)
-                    | Key::Named(NamedKey::F11)
-                    | Key::Named(NamedKey::Escape)
-            )
+        // Apply the overlay route: the stack resolves closes and replaces
+        // here; a key an overlay owns or consumes stops here too. Only
+        // unowned keys and keyboard-mode keys continue to terminal key
+        // dispatch (the mode handlers live in handle_key_event).
+        if let Some(route) = &key_route
+            && (self.apply_overlay_route(route) || !route.continues_to_key_dispatch())
         {
             return false;
         }

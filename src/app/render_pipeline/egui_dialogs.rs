@@ -6,7 +6,6 @@
 //! disjointly (a whole-`*self` method call there breaks that capture, and
 //! with it the outer `window` borrow).
 
-use super::egui_overlays;
 use super::types::{DemoteAction, DemoteSnapshot, PostRenderActions};
 use crate::agent_commands_store::AgentCommandStore;
 use crate::command_palette::CommandPalette;
@@ -19,30 +18,42 @@ use arc_swap::ArcSwap;
 #[cfg(feature = "mux")]
 use crate::app::tmux_handler::tmux_state::TmuxState;
 
-/// Demote pick-mode overlays: the toast hint while a pick mode is armed,
-/// and the split-direction chooser dialog at the target pane's center
+/// The notification layers (UX.md OV7/OV8): the toast stack top-right below
+/// the tab bar, and one mode banner top-center — the armed keyboard mode's
+/// status line, or the demote pick's instruction — in its own layer so a
+/// toast can neither collide with it nor push it out. Toast clicks leave
+/// through `actions.toast_events`.
+pub(super) fn render_notifications(
+    ctx: &egui::Context,
+    toasts: &crate::app::overlay::toast::ToastQueue,
+    mode_banner: Option<&str>,
+    top_inset: f32,
+    demote: (DemoteSnapshot, Option<PaneBounds>),
+    actions: &mut PostRenderActions,
+) {
+    use crate::app::overlay::toast;
+    actions.toast_events = toast::render_toasts(ctx, toasts, top_inset);
+    let demote_banner = match demote.0 {
+        DemoteSnapshot::PickTab => Some("Click a tab to merge into · Esc cancels"),
+        DemoteSnapshot::PickPane => Some("Click a pane to merge into · Esc cancels"),
+        _ => None,
+    };
+    toast::render_mode_banner(ctx, demote_banner.or(mode_banner), top_inset);
+    render_demote_overlays(ctx, demote.0, demote.1, actions);
+}
+
+/// The demote split-direction chooser dialog at the target pane's center
 /// once both tab and pane are chosen. Pure egui rendering — state arrives
 /// as the snapshot captured before the egui closure, and the chosen
 /// direction leaves through `actions.demote`.
-pub(super) fn render_demote_overlays(
+fn render_demote_overlays(
     ctx: &egui::Context,
     snapshot: DemoteSnapshot,
     pane_bounds: Option<PaneBounds>,
     actions: &mut PostRenderActions,
 ) {
     match snapshot {
-        DemoteSnapshot::PickTab => {
-            egui_overlays::render_toast_overlay(
-                ctx,
-                Some("Click a tab to merge into (Esc to cancel)"),
-            );
-        }
-        DemoteSnapshot::PickPane => {
-            egui_overlays::render_toast_overlay(
-                ctx,
-                Some("Click a pane to merge into (Esc to cancel)"),
-            );
-        }
+        DemoteSnapshot::PickTab | DemoteSnapshot::PickPane => {}
         // QA-004: destructure ChooseDirection ONCE here so the click
         // handlers below can reference the bound IDs directly. The outer
         // match guarantees the variant, so there is no failing variant
@@ -106,12 +117,12 @@ pub(super) fn render_demote_overlays(
     }
 }
 
-/// Open the command palette joined with every runtime-rows source —
-/// plugin actions, the mux agent roster, agent-authored commands,
-/// configured launchable agents, captured crashes, and the attached
-/// par-mux session's detach row. Opened the same way the
-/// `toggle_command_palette` keybinding opens it; blocked agents lead the
-/// empty-query view.
+/// Open the command palette from inside the egui closure (the status-bar
+/// agent chip), with the same runtime rows the `toggle_command_palette`
+/// keybinding joins — one builder, `palette_runtime_rows` (UX.md OV6).
+/// Blocked agents lead the empty-query view. The par-mux directory refresh
+/// the keybinding path runs needs `&mut WindowState`, which the closure
+/// cannot take; the caller sets a flag and runs it after the closure.
 pub(super) fn open_command_palette_with_runtime_rows(
     status_bar_ui: &StatusBarUI,
     agent_commands: &AgentCommandStore,
@@ -121,35 +132,15 @@ pub(super) fn open_command_palette_with_runtime_rows(
     keybinding_registry: &par_term_keybindings::KeybindingRegistry,
     #[cfg(feature = "mux")] tmux_state: &TmuxState,
 ) {
-    // The `mut` serves only the mux arm's extend below.
-    #[cfg_attr(not(feature = "mux"), allow(unused_mut))]
-    let mut plugin_rows = crate::command_palette::catalog::plugin_palette_entries(
-        &status_bar_ui.plugin_host().palette_actions(),
+    let rows = crate::app::overlay::palette_rows::palette_runtime_rows(
+        status_bar_ui,
+        agent_commands,
+        crash_triage,
+        &config.load(),
+        #[cfg(feature = "mux")]
+        tmux_state,
     );
-    #[cfg(feature = "mux")]
-    {
-        let map = &tmux_state.tmux_pane_owners;
-        plugin_rows.extend(
-            tmux_state
-                .agent_roster
-                .palette_rows(&|pane| map.contains_key(&pane)),
-        );
-    }
-    // Agent-authored commands join the palette the same way (runtime
-    // rows from the store).
-    plugin_rows.extend(agent_commands.palette_rows());
-    // Configured launchable agents (`agents:` config list) — same
-    // runtime-rows pattern.
-    plugin_rows.extend(crate::command_palette::catalog::agent_palette_entries(
-        &config.load().agents,
-    ));
-    // Captured crashes — the triage consent surface (crash_triage module).
-    plugin_rows.extend(crash_triage.palette_entries());
-    // The attached par-mux session's detach row — same runtime-rows
-    // pattern as the roster.
-    #[cfg(feature = "mux")]
-    plugin_rows.extend(tmux_state.mux_palette_rows());
-    command_palette.open(plugin_rows, keybinding_registry);
+    command_palette.open(rows, keybinding_registry);
 }
 
 /// The self-update dialog: poll an in-flight install, render the dialog,

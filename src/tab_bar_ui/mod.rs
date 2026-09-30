@@ -321,6 +321,14 @@ impl TabBarUI {
         self.context_menu_tab.is_some()
     }
 
+    /// Close the context menu, cancelling an inline rename or icon pick in
+    /// it (the overlay stack's Escape / close path, UX.md OV2 + OV4).
+    pub(crate) fn close_context_menu(&mut self) {
+        self.context_menu_tab = None;
+        self.renaming_tab = false;
+        self.picking_icon = false;
+    }
+
     /// Check if the in-app menu's drop-down is open.
     ///
     /// True only on platforms that draw it (Linux/BSD, or a forced-on run —

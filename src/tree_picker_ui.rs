@@ -8,7 +8,7 @@
 //! is applied by the manager (it may focus another window).
 
 use crate::tab::TabId;
-use egui::{Context, Frame, Key, RichText, Window, epaint::Shadow};
+use egui::{Context, RichText};
 use winit::window::WindowId;
 
 /// Rows drawn before the list scrolls.
@@ -50,8 +50,8 @@ pub type TreeSnapshot = Vec<TreeRow>;
 pub struct TreePickerUI {
     pub visible: bool,
     query: String,
-    selected: usize,
-    scroll_offset: usize,
+    /// Selection and drawn window, on the shared picker (UX.md OV5).
+    nav: crate::app::overlay::picker::ListNav,
     request_focus: bool,
     rows: TreeSnapshot,
 }
@@ -64,8 +64,7 @@ impl TreePickerUI {
     pub fn open(&mut self) {
         self.visible = true;
         self.query.clear();
-        self.selected = 0;
-        self.scroll_offset = 0;
+        self.nav.reset();
         self.request_focus = true;
     }
 
@@ -113,89 +112,67 @@ impl TreePickerUI {
     }
 
     /// Draw the picker; returns the chosen target on Enter or click.
+    ///
+    /// Keys, scrolling, and the footer come from the shared picker (UX.md
+    /// OV5): arrows, PageUp/PageDown, Home/End, Enter jumps, Escape closes.
     pub fn show(&mut self, ctx: &Context) -> Option<TreeTarget> {
+        use crate::app::overlay::picker::{self, ListConfig, ListOutcome};
+
         if !self.visible {
             return None;
         }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
-            self.close();
-            return None;
-        }
         let matches: Vec<TreeRow> = self.filtered().into_iter().cloned().collect();
-        if self.selected >= matches.len() {
-            self.selected = matches.len().saturating_sub(1);
+        let config = ListConfig {
+            id: "Open Quickly",
+            hint: "Window, tab, pane, or directory",
+            visible_rows: VISIBLE_ROWS,
+            width: crate::app::overlay::theme::WIDTH_MEDIUM,
+            empty_text: "Nothing matches",
+            footer: "↑↓ PgUp/PgDn Home/End select · Enter jump · Esc close",
+            alternates: false,
+        };
+        let (outcome, query_changed) = picker::show_list(
+            ctx,
+            &config,
+            &mut self.query,
+            &mut self.request_focus,
+            &mut self.nav,
+            matches.len(),
+            |ui, index, selected| draw_row(ui, &matches[index], selected),
+        );
+        if query_changed {
+            self.nav.reset();
         }
-        let downs = ctx.input(|i| i.num_presses(Key::ArrowDown));
-        if downs > 0 && !matches.is_empty() {
-            self.selected = (self.selected + downs).min(matches.len() - 1);
+        match outcome {
+            ListOutcome::Chosen { index, .. } => {
+                self.close();
+                matches.get(index).map(|row| row.target)
+            }
+            ListOutcome::Closed => {
+                self.close();
+                None
+            }
+            ListOutcome::Open => None,
         }
-        let ups = ctx.input(|i| i.num_presses(Key::ArrowUp));
-        if ups > 0 {
-            self.selected = self.selected.saturating_sub(ups);
-        }
-        if self.selected < self.scroll_offset {
-            self.scroll_offset = self.selected;
-        } else if self.selected >= self.scroll_offset + VISIBLE_ROWS {
-            self.scroll_offset = self.selected + 1 - VISIBLE_ROWS;
-        }
-
-        let mut chosen = None;
-        if ctx.input(|i| i.key_pressed(Key::Enter))
-            && let Some(row) = matches.get(self.selected)
-        {
-            chosen = Some(row.target);
-        }
-
-        Window::new("Open Quickly")
-            .title_bar(false)
-            .resizable(false)
-            .collapsible(false)
-            .anchor(egui::Align2::CENTER_TOP, [0.0, 80.0])
-            .frame(Frame::popup(&ctx.global_style()).shadow(Shadow::default()))
-            .show(ctx, |ui| {
-                ui.set_min_width(520.0);
-                let field = ui.add(
-                    egui::TextEdit::singleline(&mut self.query)
-                        .hint_text("Window, tab, pane, or directory")
-                        .desired_width(f32::INFINITY),
-                );
-                if self.request_focus {
-                    field.request_focus();
-                    self.request_focus = false;
-                }
-                ui.separator();
-                for (i, row) in matches
-                    .iter()
-                    .enumerate()
-                    .skip(self.scroll_offset)
-                    .take(VISIBLE_ROWS)
-                {
-                    let selected = i == self.selected;
-                    ui.horizontal(|ui| {
-                        ui.add_space(f32::from(row.depth) * 16.0);
-                        let label = if row.depth == 0 {
-                            RichText::new(&row.label).strong()
-                        } else {
-                            RichText::new(&row.label)
-                        };
-                        if ui.selectable_label(selected, label).clicked() {
-                            chosen = Some(row.target);
-                        }
-                        if !row.detail.is_empty() {
-                            ui.weak(&row.detail);
-                        }
-                    });
-                }
-                if matches.is_empty() {
-                    ui.weak("Nothing matches");
-                }
-            });
-
-        if chosen.is_some() {
-            self.close();
-        }
-        chosen
     }
+}
+
+/// One tree row: indented by depth, windows bold, detail dimmed.
+fn draw_row(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> bool {
+    let mut clicked = false;
+    ui.horizontal(|ui| {
+        ui.add_space(f32::from(row.depth) * 16.0);
+        let label = if row.depth == 0 {
+            RichText::new(&row.label).strong()
+        } else {
+            RichText::new(&row.label)
+        };
+        clicked = ui.selectable_label(selected, label).clicked();
+        if !row.detail.is_empty() {
+            ui.weak(&row.detail);
+        }
+    });
+    clicked
 }
 
 #[cfg(test)]
@@ -235,5 +212,60 @@ mod tests {
         let hits = picker.filtered();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].target, TreeTarget::Tab(w, 2));
+    }
+
+    fn frame(ctx: &Context, picker: &mut TreePickerUI, keys: &[egui::Key]) -> Option<TreeTarget> {
+        let events = keys
+            .iter()
+            .map(|&key| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            })
+            .collect();
+        let mut chosen = None;
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 800.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ui| chosen = picker.show(ui.ctx()),
+        );
+        out.textures_delta.clear();
+        chosen
+    }
+
+    #[test]
+    fn the_shared_picker_keys_drive_the_tree() {
+        // UX.md OV5 through show(): End jumps to the last row past the
+        // 14-row window and keeps it drawn, Enter jumps to it, and Escape
+        // closes without a choice.
+        let w = WindowId::from(1u64);
+        let rows: Vec<TreeRow> = (0..30)
+            .map(|i| row(TreeTarget::Tab(w, i), 1, &format!("tab {i}"), ""))
+            .collect();
+        let ctx = Context::default();
+        let mut picker = TreePickerUI::new();
+        picker.set_rows(rows);
+        picker.open();
+        frame(&ctx, &mut picker, &[]);
+        frame(&ctx, &mut picker, &[egui::Key::End]);
+        assert!(picker.nav.selected_is_visible(VISIBLE_ROWS));
+        assert_eq!(
+            frame(&ctx, &mut picker, &[egui::Key::Enter]),
+            Some(TreeTarget::Tab(w, 29))
+        );
+        assert!(!picker.visible, "a jump closes the picker");
+
+        picker.open();
+        frame(&ctx, &mut picker, &[]);
+        assert_eq!(frame(&ctx, &mut picker, &[egui::Key::Escape]), None);
+        assert!(!picker.visible, "Escape closes the picker");
     }
 }

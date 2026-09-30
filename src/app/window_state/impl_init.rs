@@ -87,6 +87,7 @@ impl WindowState {
             egui: EguiState::default(),
             shader_state: crate::app::window_state::shader_state::ShaderState::new(shaders_dir),
             overlay_ui,
+            overlay_order: Default::default(),
             agent_state: super::agent_state::AgentState::new(available_agents),
             is_recording: false,
             is_shutting_down: false,

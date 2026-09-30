@@ -1,0 +1,39 @@
+{
+  "steps": [
+    { "wait_ms": 1200, "assert_not": "modal_guard" },
+    { "chord": "Enter", "wait_ms": 400 },
+    { "assert_eq": ["file_bytes", "/tmp/pt-mp1-sink.bin:0a"] },
+
+    { "chord": "Ctrl+Alt+Cmd+P", "wait_ms": 500 },
+    { "assert": "palette_open" },
+    { "chord": "Ctrl+Alt+Cmd+P", "wait_ms": 400 },
+    { "assert_not": "palette_open" },
+
+    { "chord": "Ctrl+Alt+Cmd+P", "wait_ms": 500 },
+    { "assert": "palette_open" },
+    { "chord": "Cmd+Shift+O", "wait_ms": 500 },
+    { "assert_not": "palette_open" },
+    { "assert": "overlay_open:tree_picker_ui" },
+    { "chord": "Escape", "wait_ms": 400 },
+    { "assert_not": "overlay_open:tree_picker_ui" },
+
+    { "open_modal": "quit_confirmation" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "F1", "wait_ms": 300 },
+    { "assert": "modal_guard" },
+    { "assert_not": "overlay_open:help_ui" },
+    { "chord": "Ctrl+Alt+Cmd+P", "wait_ms": 300 },
+    { "assert_not": "palette_open" },
+    { "chord": "x" },
+    { "chord": "Escape", "wait_ms": 300 },
+    { "assert_not": "modal_guard" },
+
+    { "open_modal": "demote_chooser" },
+    { "wait_ms": 300, "assert": "modal_guard" },
+    { "chord": "Escape", "wait_ms": 300 },
+    { "assert_not": "modal_guard" },
+
+    { "chord": "Enter" },
+    { "wait_ms": 400, "assert_eq": ["file_bytes", "/tmp/pt-mp1-sink.bin:0a0a"] }
+  ]
+}

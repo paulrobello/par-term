@@ -44,13 +44,9 @@ impl HelpUI {
             return;
         }
 
-        // Ensure help panel is fully opaque regardless of terminal opacity
-        let mut style = (*ctx.global_style()).clone();
+        // Fully opaque regardless of terminal opacity — scoped to this
+        // panel (OV1: no global style writes).
         let solid_bg = Color32::from_rgba_unmultiplied(24, 24, 24, 255);
-        style.visuals.window_fill = solid_bg;
-        style.visuals.panel_fill = solid_bg;
-        style.visuals.widgets.noninteractive.bg_fill = solid_bg;
-        ctx.set_global_style(style);
 
         let mut open = true;
         let close_requested = Cell::new(false);
@@ -75,6 +71,7 @@ impl HelpUI {
                     }),
             )
             .show(ctx, |ui| {
+                crate::app::overlay::theme::solid_panel(ui, solid_bg);
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     // About Section
                     ui.heading("About par-term");

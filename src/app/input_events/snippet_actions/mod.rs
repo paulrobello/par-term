@@ -51,17 +51,17 @@ fn actions_have_prefix_follow_up(actions: &[CustomActionConfig]) -> bool {
 }
 
 impl WindowState {
+    /// The armed prefix's status line is a mode banner, not a toast (UX.md
+    /// OV8): it never takes a toast slot and cannot be pushed out by one.
     fn show_custom_action_prefix_toast(&mut self) {
-        self.overlay_state.toast_message = Some(CUSTOM_ACTION_PREFIX_TOAST.to_string());
-        self.overlay_state.toast_hide_time = None;
+        self.overlay_state.mode_banner = Some(CUSTOM_ACTION_PREFIX_TOAST);
         self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 
     fn clear_custom_action_prefix_toast(&mut self) {
-        if self.overlay_state.toast_message.as_deref() == Some(CUSTOM_ACTION_PREFIX_TOAST) {
-            self.overlay_state.toast_message = None;
-            self.overlay_state.toast_hide_time = None;
+        if self.overlay_state.mode_banner == Some(CUSTOM_ACTION_PREFIX_TOAST) {
+            self.overlay_state.mode_banner = None;
             self.focus_state.needs_redraw = true;
             self.request_redraw();
         }

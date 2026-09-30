@@ -260,13 +260,9 @@ impl SearchUI {
         let mut action = SearchAction::None;
         let mut close_requested = false;
 
-        // Ensure search bar is fully opaque regardless of terminal opacity
-        let mut style = (*ctx.global_style()).clone();
+        // Fully opaque regardless of terminal opacity — scoped to the search
+        // bar (OV1: no global style writes).
         let solid_bg = Color32::from_rgba_unmultiplied(30, 30, 30, 255);
-        style.visuals.window_fill = solid_bg;
-        style.visuals.panel_fill = solid_bg;
-        style.visuals.widgets.noninteractive.bg_fill = solid_bg;
-        ctx.set_global_style(style);
 
         let viewport = ctx.input(|i| i.viewport_rect());
 
@@ -292,6 +288,7 @@ impl SearchUI {
                     .inner_margin(8.0),
             )
             .show(ctx, |ui| {
+                crate::app::overlay::theme::solid_panel(ui, solid_bg);
                 ui.horizontal(|ui| {
                     // Search icon/label
                     ui.label(RichText::new("Search:").strong());

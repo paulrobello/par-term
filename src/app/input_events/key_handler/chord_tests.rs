@@ -398,63 +398,16 @@ fn stray_keypress_cannot_exit_the_event_loop_outside_the_last_tab_arm() {
 }
 
 #[test]
-fn b61_dialogs_are_in_the_modal_guard() {
-    // B61: every dialog, menu, and pick-mode rendering above the terminal
-    // must be summed by any_modal_ui_visible, or keys typed while it is
-    // open fall through to the PTY (UX.md RT22). Source-scan pin — the
-    // guard reads live WindowState a unit test cannot construct, and a
-    // winit KeyEvent cannot be fabricated (foreign-struct UB). The e2e
-    // half of this pin is tests/ui/b61_modal_guard.json.
-    let source = include_str!("../../window_state/ui_query_helpers.rs");
-    let body = source
-        .split("fn any_modal_ui_visible")
-        .nth(1)
-        .expect("any_modal_ui_visible present in ui_query_helpers.rs");
-    let body = body.split('}').next().unwrap_or_default();
-    for needed in [
-        "close_confirmation_ui.is_visible()",
-        "mux_last_tab_ui.is_visible()",
-        "pending_trigger_actions.is_empty()",
-        "pending_confirmations.is_empty()",
-        "update_state.show_dialog",
-        "is_context_menu_open()",
-        "show_new_tab_profile_menu",
-        "pane_transfer_state.is_active()",
-    ] {
-        assert!(
-            body.contains(needed),
-            "{needed} missing from any_modal_ui_visible — keys typed while \
-             that dialog is open leak to the PTY (B61)"
-        );
-    }
-
-    // The profile drawer is a side panel, not a modal: B61 covers it as
-    // "while filter focused", which is egui keyboard ownership — it must be
-    // in is_egui_using_keyboard's visibility list or egui is never asked
-    // and typed filter text reaches the PTY instead.
-    let keyboard = source
-        .split("fn is_egui_using_keyboard")
-        .nth(1)
-        .expect("is_egui_using_keyboard present in ui_query_helpers.rs");
-    let keyboard = keyboard.split('}').next().unwrap_or_default();
-    assert!(
-        keyboard.contains("profile_drawer_ui.expanded"),
-        "profile_drawer_ui.expanded missing from is_egui_using_keyboard — \
-         typed tag-filter text leaks to the PTY while the drawer is open (B61)"
-    );
-}
-
-#[test]
 fn unconsumed_keys_never_reach_the_pty_tail_while_a_modal_is_open() {
-    // B61 central consumption: the modal guard deliberately passes F1-F3
-    // and Escape through so shortcut layers and keybindings can claim them;
-    // whatever survives unclaimed must then be consumed before the PTY
-    // encoding tail, or an Escape closes nothing AND writes `1b` to the
-    // shell (UX.md RT22: observed leaking from quit, tmux picker, remote
-    // install, SSH connect).
+    // B61 central consumption: overlay-stack routing stops every key a
+    // dialog does not use before terminal dispatch (the live proof is
+    // overlay::routing_live_tests). handle_key_event keeps a backstop
+    // check ahead of the PTY encoding tail, or an Escape a layer passed
+    // along would write `1b` to the shell (UX.md RT22: observed leaking
+    // from quit, tmux picker, remote install, SSH connect).
     let source = include_str!("mod.rs");
     let tail_guard_pos = source
-        .rfind("if modal_guard_active")
+        .rfind("if self.any_modal_ui_visible()")
         .expect("the modal-guard tail consumption is missing from handle_key_event");
     let encode_pos = source
         .rfind("handle_key_event_with_mode(")

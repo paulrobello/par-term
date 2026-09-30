@@ -26,7 +26,6 @@
 //! of which the `match` form could express at all.
 
 use crate::app::window_state::WindowState;
-use crate::command_palette::catalog::plugin_palette_entries;
 
 use super::keybinding_helpers::{clear_screen, clear_scrollback};
 use super::keybinding_view_actions::{
@@ -113,47 +112,23 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
     }),
     ("toggle_search", toggle_search),
     ("toggle_command_palette", |s: &mut WindowState| {
-        // The `mut` serves only the mux arm's extend below.
-        #[cfg_attr(not(feature = "mux"), allow(unused_mut))]
-        let mut plugin_rows =
-            plugin_palette_entries(&s.status_bar_ui.plugin_host().palette_actions());
-        // Agent-authored commands join as runtime rows, hot-reloaded by the
-        // commands-dir watcher (design 2026-09-24).
-        plugin_rows.extend(s.agent_commands.palette_rows());
-        // Configured launchable agents join the same way (the `agents:`
-        // config list — config data, not a dispatch-table built-in).
-        plugin_rows.extend(crate::command_palette::catalog::agent_palette_entries(
-            &s.config.load().agents,
-        ));
-        // Captured crashes join as runtime rows too — the triage consent
-        // surface (crash_triage module).
-        plugin_rows.extend(s.crash_triage.palette_entries());
-        // Rostered agents join the palette at open time (A2b task 3): the
-        // rows are runtime data from the cache, like the plugin rows —
-        // scoped to panes the app maps, so every offered row is focusable.
+        // One runtime-row builder (UX.md OV6), shared with the egui open
+        // path.
+        let rows = crate::app::overlay::palette_rows::palette_runtime_rows(
+            &s.status_bar_ui,
+            &s.agent_commands,
+            &mut s.crash_triage,
+            &s.config.load(),
+            #[cfg(feature = "mux")]
+            &s.tmux_state,
+        );
+        // The listed par-mux sessions come from a cached directory; the
+        // open refreshes it for next time.
         #[cfg(feature = "mux")]
-        {
-            let map = &s.tmux_state.tmux_pane_owners;
-            plugin_rows.extend(
-                s.tmux_state
-                    .agent_roster
-                    .palette_rows(&|pane| map.contains_key(&pane)),
-            );
-        }
-        // The attached par-mux session's detach row joins the same way —
-        // a runtime row, present only while a transport is installed.
-        #[cfg(feature = "mux")]
-        plugin_rows.extend(s.tmux_state.mux_palette_rows());
-        // Listed par-mux sessions (A22), from the cached directory; the
-        // open also refreshes it for next time.
-        #[cfg(feature = "mux")]
-        {
-            plugin_rows.extend(WindowState::mux_session_palette_rows(&s.tmux_state));
-            s.refresh_mux_directory();
-        }
+        s.refresh_mux_directory();
         s.overlay_ui
             .command_palette
-            .toggle(plugin_rows, &s.keybinding_registry);
+            .toggle(rows, &s.keybinding_registry);
         s.focus_state.needs_redraw = true;
         s.request_redraw();
         log::info!(

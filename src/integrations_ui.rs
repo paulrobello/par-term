@@ -121,13 +121,8 @@ impl IntegrationsUI {
 
         let mut response = IntegrationsResponse::default();
 
-        // Ensure dialog is fully opaque
-        let mut style = (*ctx.global_style()).clone();
+        // Fully opaque — scoped to this dialog (OV1: no global style writes).
         let solid_bg = Color32::from_rgba_unmultiplied(32, 32, 32, 255);
-        style.visuals.window_fill = solid_bg;
-        style.visuals.panel_fill = solid_bg;
-        style.visuals.widgets.noninteractive.bg_fill = solid_bg;
-        ctx.set_global_style(style);
 
         let viewport = ctx.input(|i| i.viewport_rect());
 
@@ -150,6 +145,7 @@ impl IntegrationsUI {
                     }),
             )
             .show(ctx, |ui| {
+                crate::app::overlay::theme::solid_panel(ui, solid_bg);
                 ui.vertical_centered(|ui| {
                     // Header with version
                     ui.add_space(8.0);

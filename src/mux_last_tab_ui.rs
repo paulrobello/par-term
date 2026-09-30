@@ -25,6 +25,8 @@ pub struct MuxLastTabUI {
     visible: bool,
     /// The attached session's name, for the message
     session_name: String,
+    /// Shared ConfirmDialog state (UX.md OV3)
+    confirm: crate::app::overlay::confirm::ConfirmState,
 }
 
 impl Default for MuxLastTabUI {
@@ -39,6 +41,7 @@ impl MuxLastTabUI {
         Self {
             visible: false,
             session_name: String::new(),
+            confirm: Default::default(),
         }
     }
 
@@ -57,99 +60,46 @@ impl MuxLastTabUI {
     pub(crate) fn hide(&mut self) {
         self.visible = false;
         self.session_name.clear();
+        self.confirm.reset();
     }
 
-    /// Render the dialog and return any action
+    /// Render the dialog and return any action.
+    ///
+    /// Drawn by the shared `ConfirmDialog` (UX.md OV3): Enter and Escape
+    /// cancel (MD5 — the tab stays open, nothing ends), Detach is the
+    /// middle choice, and End Session needs its own chord or its button.
     pub fn show(&mut self, ctx: &egui::Context) -> MuxLastTabAction {
+        use crate::app::overlay::confirm::{self, ConfirmChoice, ConfirmSpec};
+
         if !self.visible {
             return MuxLastTabAction::None;
         }
 
-        let mut action = MuxLastTabAction::None;
-
-        egui::Window::new("Last Tab of par-mux Session")
-            .collapsible(false)
-            .resizable(false)
-            .order(egui::Order::Foreground)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(10.0);
-
-                    ui.label(
-                        egui::RichText::new("⛓ This is the last tab of the session")
-                            .color(egui::Color32::YELLOW)
-                            .size(18.0)
-                            .strong(),
-                    );
-                    ui.add_space(10.0);
-
-                    ui.label(format!(
-                        "Closing it would end the par-mux session \"{}\" and every pane in it.",
-                        self.session_name
-                    ));
-                    ui.add_space(5.0);
-                    ui.label(
-                        egui::RichText::new(
-                            "Detach keeps the session running in the daemon for later reattach.",
-                        )
-                        .color(egui::Color32::GRAY),
-                    );
-                    ui.add_space(15.0);
-
-                    ui.horizontal(|ui| {
-                        // Detach is the default (safe) choice: the session
-                        // survives either way until End session is picked.
-                        let detach_button = egui::Button::new(
-                            egui::RichText::new("Detach (Keep Running)")
-                                .color(egui::Color32::WHITE),
-                        )
-                        .fill(egui::Color32::from_rgb(60, 120, 180));
-
-                        if ui.add(detach_button).clicked() {
-                            action = MuxLastTabAction::Detach;
-                        }
-
-                        ui.add_space(10.0);
-
-                        let end_button = egui::Button::new(
-                            egui::RichText::new("End Session").color(egui::Color32::WHITE),
-                        )
-                        .fill(egui::Color32::from_rgb(180, 50, 50));
-
-                        if ui.add(end_button).clicked() {
-                            action = MuxLastTabAction::EndSession;
-                        }
-
-                        ui.add_space(10.0);
-
-                        if ui.button("Cancel").clicked() {
-                            action = MuxLastTabAction::Cancel;
-                        }
-                    });
-                    ui.add_space(10.0);
-                });
-            });
-
-        // Handle escape key to cancel
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            action = MuxLastTabAction::Cancel;
+        let body = [
+            format!(
+                "Closing it would end the par-mux session \"{}\" and every pane in it.",
+                self.session_name
+            ),
+            "Detach keeps the session running in the daemon for later reattach.".to_string(),
+        ];
+        let spec = ConfirmSpec {
+            title: "Close the Last Tab of the par-mux Session?",
+            body: &body,
+            detail: None,
+            safe_label: "Cancel",
+            alternate_label: Some("Detach (Keep Running)"),
+            destructive_label: "End Session",
+            offers_dont_ask_again: false,
+        };
+        let Some(answer) = confirm::show(ctx, &spec, &mut self.confirm) else {
+            return MuxLastTabAction::None;
+        };
+        self.hide();
+        match answer.choice {
+            ConfirmChoice::Safe => MuxLastTabAction::Cancel,
+            ConfirmChoice::Alternate => MuxLastTabAction::Detach,
+            ConfirmChoice::Destructive => MuxLastTabAction::EndSession,
         }
-
-        // MD5: Enter is the safe choice, never the destructive End
-        // session. It runs after the buttons so it also wins over a
-        // focused button's same-frame Enter activation (egui fake-clicks
-        // focused widgets).
-        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
-            action = MuxLastTabAction::Cancel;
-        }
-
-        // Hide dialog on any action
-        if !matches!(action, MuxLastTabAction::None) {
-            self.hide();
-        }
-
-        action
     }
 }
 

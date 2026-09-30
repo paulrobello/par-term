@@ -31,6 +31,7 @@ mod file_transfers;
 pub mod handler;
 pub mod input_events;
 pub mod mouse_events;
+pub(crate) mod overlay;
 pub(crate) mod pane_hint_select;
 pub(crate) mod pane_resize_mode;
 pub(crate) mod render_pipeline;

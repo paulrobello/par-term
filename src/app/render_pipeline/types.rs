@@ -140,6 +140,8 @@ pub(super) struct PostRenderActions {
     pub(super) save_config: bool,
     /// Deferred demote action from direction-choice overlay
     pub(super) demote: DemoteAction,
+    /// Toast dismissals and action-button clicks (UX.md OV7).
+    pub(super) toast_events: Vec<crate::app::overlay::toast::ToastEvent>,
 }
 
 impl Default for PostRenderActions {
@@ -164,6 +166,7 @@ impl Default for PostRenderActions {
             ssh_connect: SshConnectAction::None,
             save_config: false,
             demote: DemoteAction::None,
+            toast_events: Vec::new(),
         }
     }
 }

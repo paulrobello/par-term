@@ -58,6 +58,11 @@ impl RemoteShellInstallUI {
         self.copy_feedback = None;
     }
 
+    /// Close without installing (the overlay stack's Escape path).
+    pub(crate) fn cancel(&mut self) {
+        self.hide();
+    }
+
     /// Get the install command string
     pub fn install_command() -> String {
         format!("curl -sSL {} | sh", INSTALL_URL)

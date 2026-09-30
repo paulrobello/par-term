@@ -24,6 +24,8 @@ pub struct QuitConfirmationUI {
     /// The attached par-mux session, if any — its survival changes what
     /// the dialog may truthfully claim (UX.md M9)
     mux_session: Option<String>,
+    /// Shared ConfirmDialog state (UX.md OV3)
+    confirm: crate::app::overlay::confirm::ConfirmState,
 }
 
 impl Default for QuitConfirmationUI {
@@ -39,6 +41,7 @@ impl QuitConfirmationUI {
             visible: false,
             session_count: 0,
             mux_session: None,
+            confirm: Default::default(),
         }
     }
 
@@ -61,79 +64,41 @@ impl QuitConfirmationUI {
         self.visible = false;
         self.session_count = 0;
         self.mux_session = None;
+        self.confirm.reset();
     }
 
-    /// Render the dialog and return any action
+    /// Render the dialog and return any action.
+    ///
+    /// Drawn by the shared `ConfirmDialog` (UX.md OV3): Enter and Escape
+    /// cancel (MD5 — B64 mapped Enter to Quit), and Quit needs its own
+    /// chord or its button.
     pub fn show(&mut self, ctx: &egui::Context) -> QuitConfirmAction {
+        use crate::app::overlay::confirm::{self, ConfirmChoice, ConfirmSpec};
+
         if !self.visible {
             return QuitConfirmAction::None;
         }
 
-        let mut action = QuitConfirmAction::None;
-
-        egui::Window::new("Quit par-term?")
-            .collapsible(false)
-            .resizable(false)
-            .order(egui::Order::Foreground)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(10.0);
-
-                    ui.label(
-                        egui::RichText::new("⚠ Quit Application?")
-                            .color(egui::Color32::YELLOW)
-                            .size(18.0)
-                            .strong(),
-                    );
-                    ui.add_space(10.0);
-
-                    let (session_text, closing_text) =
-                        summary_lines(self.session_count, self.mux_session.as_deref());
-                    ui.label(&session_text);
-                    ui.add_space(5.0);
-
-                    ui.label(egui::RichText::new(closing_text).color(egui::Color32::GRAY));
-                    ui.add_space(15.0);
-
-                    // Buttons
-                    ui.horizontal(|ui| {
-                        let quit_button = egui::Button::new(
-                            egui::RichText::new("Quit").color(egui::Color32::WHITE),
-                        )
-                        .fill(egui::Color32::from_rgb(180, 50, 50));
-
-                        if ui.add(quit_button).clicked() {
-                            action = QuitConfirmAction::Quit;
-                        }
-
-                        ui.add_space(10.0);
-
-                        if ui.button("Cancel").clicked() {
-                            action = QuitConfirmAction::Cancel;
-                        }
-                    });
-                    ui.add_space(10.0);
-                });
-            });
-
-        // Handle escape key to cancel
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            action = QuitConfirmAction::Cancel;
+        let (session_text, closing_text) =
+            summary_lines(self.session_count, self.mux_session.as_deref());
+        let body = [session_text, closing_text];
+        let spec = ConfirmSpec {
+            title: "Quit par-term?",
+            body: &body,
+            detail: None,
+            safe_label: "Cancel",
+            alternate_label: None,
+            destructive_label: "Quit",
+            offers_dont_ask_again: false,
+        };
+        let Some(answer) = confirm::show(ctx, &spec, &mut self.confirm) else {
+            return QuitConfirmAction::None;
+        };
+        self.hide();
+        match answer.choice {
+            ConfirmChoice::Destructive => QuitConfirmAction::Quit,
+            ConfirmChoice::Safe | ConfirmChoice::Alternate => QuitConfirmAction::Cancel,
         }
-
-        // MD5: Enter is the safe choice — it cancels like Escape. Quit
-        // stays on its own button (B64 mapped Enter to Quit).
-        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
-            action = QuitConfirmAction::Cancel;
-        }
-
-        // Hide dialog on any action
-        if !matches!(action, QuitConfirmAction::None) {
-            self.hide();
-        }
-
-        action
     }
 }
 

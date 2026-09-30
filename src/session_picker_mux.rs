@@ -109,6 +109,9 @@ pub struct MuxPickerSection {
     new_name: String,
     /// Row being renamed, with its edit buffer.
     renaming: Option<(MuxSessionRow, String)>,
+    /// The rename field was just opened: its opening click is not a click
+    /// away, and focus is requested once (OV4).
+    rename_first_frame: bool,
     /// Row whose End button was pressed once; a second press ends it.
     confirm_kill: Option<MuxSessionRow>,
     /// Refusal for the typed new-session name, shown under the field.
@@ -152,12 +155,15 @@ impl MuxPickerSection {
 
         let sessions: &[MuxSessionRow] = input.directory.map_or(&[], |d| &d.sessions);
         if sessions.is_empty() {
-            let text = if input.loading || input.directory.is_none() {
-                "Loading sessions..."
+            if input.loading || input.directory.is_none() {
+                // UX.md OV10: the list loads off the frame; show it working.
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(RichText::new("Loading sessions...").italics());
+                });
             } else {
-                "No par-mux sessions running"
-            };
-            ui.label(RichText::new(text).italics());
+                ui.label(RichText::new("No par-mux sessions running").italics());
+            }
         }
         for row in sessions {
             if let Some(chosen) = self.show_row(ui, row, input.attached) {
@@ -211,23 +217,27 @@ impl MuxPickerSection {
         if let Some((target, buffer)) = self.renaming.as_mut()
             && target == row
         {
-            let mut cancel = false;
+            // UX.md OV4: Enter submits, Escape or a click away cancels.
+            use crate::app::overlay::inline_edit::{self, InlineEditOutcome};
+            let first_frame = std::mem::take(&mut self.rename_first_frame);
+            let mut outcome = InlineEditOutcome::Editing;
             ui.horizontal(|ui| {
                 let response = ui.add(egui::TextEdit::singleline(buffer).desired_width(160.0));
-                if !response.has_focus() {
-                    response.request_focus();
+                outcome = inline_edit::resolve(ui, &response, first_frame);
+                if ui.button("Cancel").clicked() {
+                    outcome = InlineEditOutcome::Cancel;
                 }
-                if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                    let name = buffer.trim().to_string();
-                    action = Some(MuxPickerAction::Rename(row.clone(), name));
-                }
-                cancel = ui.button("Cancel").clicked();
             });
-            if cancel {
-                action = None;
-            }
-            if action.is_some() || cancel {
-                self.renaming = None;
+            match outcome {
+                InlineEditOutcome::Submit => {
+                    action = Some(MuxPickerAction::Rename(
+                        row.clone(),
+                        buffer.trim().to_string(),
+                    ));
+                    self.renaming = None;
+                }
+                InlineEditOutcome::Cancel => self.renaming = None,
+                InlineEditOutcome::Editing => {}
             }
             return action;
         }
@@ -262,6 +272,7 @@ impl MuxPickerSection {
                 if ui.button("Rename").clicked() {
                     self.confirm_kill = None;
                     self.renaming = Some((row.clone(), row.name.clone()));
+                    self.rename_first_frame = true;
                 }
                 if !is_here && ui.button("Attach").clicked() {
                     self.confirm_kill = None;

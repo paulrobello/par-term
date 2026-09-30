@@ -232,12 +232,8 @@ impl TmuxSessionPickerUI {
         let mut action = SessionPickerAction::None;
         let mut close_requested = false;
 
-        // Ensure picker is fully opaque
-        let mut style = (*ctx.global_style()).clone();
+        // Fully opaque — scoped to this picker (OV1: no global style writes).
         let solid_bg = Color32::from_rgba_unmultiplied(24, 24, 24, 255);
-        style.visuals.window_fill = solid_bg;
-        style.visuals.panel_fill = solid_bg;
-        ctx.set_global_style(style);
 
         let mut open = true;
         let viewport = ctx.input(|i| i.viewport_rect());
@@ -261,6 +257,7 @@ impl TmuxSessionPickerUI {
                     }),
             )
             .show(ctx, |ui| {
+                crate::app::overlay::theme::solid_panel(ui, solid_bg);
                 if let Some(mux) = picker.mux.as_ref()
                     && let Some(chosen) = self.mux_section.show(ui, mux)
                 {
@@ -294,7 +291,10 @@ impl TmuxSessionPickerUI {
 
                 if self.sessions.is_empty() {
                     if self.pending_load.is_some() {
-                        ui.label(RichText::new("Loading sessions...").italics());
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(RichText::new("Loading sessions...").italics());
+                        });
                     } else {
                         ui.label(RichText::new("No tmux sessions found").italics());
                     }

@@ -35,41 +35,20 @@ impl WindowState {
 
     /// Canonical check: is any modal UI overlay visible?
     ///
-    /// This is the single source of truth for "should input be blocked from the terminal
-    /// because a modal dialog is open?" When adding a new modal panel, add it here.
+    /// The single source of truth for "should input be blocked from the
+    /// terminal because a dialog, picker, or menu is open?" It is derived
+    /// from the window's overlay stack (UX.md OV1): an overlay joins by
+    /// being registered in [`crate::app::overlay::OverlayId`] with a kind
+    /// whose `guards_terminal()` is true — never by being listed here.
     ///
-    /// Note: Side panels (ai_inspector) and inline edit states
-    /// (tab_bar_ui.is_renaming()) are NOT modals — they are checked separately
-    /// at call sites that need them. The resize overlay is also not a modal.
-    /// The profile drawer is a side panel, not a modal: it joins
-    /// `is_egui_using_keyboard`'s list so egui reports keyboard ownership only
-    /// while one of its text fields is focused.
+    /// Docked panels (assistant, profile drawer), inline edits, and the
+    /// keyboard modes that consume their own keys are stack members too,
+    /// but they do not guard the terminal as a whole; they own keys through
+    /// egui focus or their own handlers (see `is_egui_using_keyboard`).
     pub(crate) fn any_modal_ui_visible(&self) -> bool {
-        self.overlay_ui.help_ui.visible
-            || self.overlay_ui.clipboard_history_ui.visible
-            || self.overlay_ui.command_history_ui.visible
-            || self.overlay_ui.search_ui.visible
-            || self.overlay_ui.command_palette.visible
-            || self.overlay_ui.agent_usage_panel.visible
-            || self.overlay_ui.tmux_session_picker_ui.visible
-            || self.overlay_ui.tree_picker_ui.visible
-            || self.overlay_ui.pane_context_menu.is_open()
-            || self.overlay_ui.shader_install_ui.visible
-            || self.overlay_ui.integrations_ui.visible
-            || self.overlay_ui.ssh_connect_ui.is_visible()
-            || self.overlay_ui.remote_shell_install_ui.is_visible()
-            || self.overlay_ui.quit_confirmation_ui.is_visible()
-            // B61: every dialog, menu, and pick-mode that renders above the
-            // terminal is modal — keys typed while any of them is open must
-            // not reach the PTY.
-            || self.overlay_ui.close_confirmation_ui.is_visible()
-            || self.overlay_ui.mux_last_tab_ui.is_visible()
-            || !self.trigger_state.pending_trigger_actions.is_empty()
-            || !self.agent_commands.pending_confirmations.is_empty()
-            || (self.update_state.show_dialog && self.update_state.last_result.is_some())
-            || self.tab_bar_ui.is_context_menu_open()
-            || self.tab_bar_ui.show_new_tab_profile_menu
-            || self.pane_transfer_state.is_active()
+        crate::app::overlay::OverlayId::ALL
+            .iter()
+            .any(|id| id.guards_terminal() && self.overlay_is_open(*id))
     }
 
     /// Check if any egui overlay with text input is visible.
@@ -81,17 +60,16 @@ impl WindowState {
 
     /// Check if egui is currently using keyboard input (e.g., text input or ComboBox has focus)
     pub(crate) fn is_egui_using_keyboard(&self) -> bool {
-        // If any UI panel is visible, check if egui wants keyboard input
-        // Note: Settings are handled by standalone SettingsWindow, not embedded UI
-        // Note: Profile drawer does NOT block input as a modal — but while it
-        // is expanded, egui must be asked whether it owns the keyboard (the
-        // tag-filter text field does), so typed keys stay off the PTY (B61).
-        let any_ui_visible = self.any_modal_ui_visible()
-            || self.overlay_ui.ai_inspector.open
-            || self.overlay_ui.profile_drawer_ui.expanded
-            || self.tab_bar_ui.is_renaming()
-            || self.overlay_ui.pane_rename_ui.is_open()
-            || self.tab_bar_ui.is_app_menu_open();
+        // Ask egui only while an overlay that can hold egui focus is open
+        // (`OverlayId::may_hold_egui_focus`): every guarding overlay, the
+        // docked panels — the profile drawer's tag filter must keep typed
+        // keys off the PTY (B61) — the pane rename field, and the in-app
+        // menu. The tab rename field lives inside the tab bar, not above it.
+        // Settings are handled by the standalone SettingsWindow.
+        let any_ui_visible = crate::app::overlay::OverlayId::ALL
+            .iter()
+            .any(|id| id.may_hold_egui_focus() && self.overlay_is_open(*id))
+            || self.tab_bar_ui.is_renaming();
         if !any_ui_visible {
             return false;
         }

@@ -122,25 +122,14 @@ impl WindowState {
         // Track Alt key press/release for Option key mode detection
         self.input_handler.track_alt_key(&event);
 
-        // Check if any modal UI panel is visible that should block keyboard input
-        // Note: Settings are handled by standalone SettingsWindow, not embedded UI
-        // Note: Profile drawer does NOT block input - only modal dialogs do
-
-        // When UI panels are visible, block ALL keys from going to terminal
-        // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)
+        // handle_window_event routed this key through the overlay stack
+        // first (UX.md OV2): only keys no overlay owns, and keys for a
+        // keyboard mode, arrive here. A dialog, picker, or menu (the MP0
+        // modal guard) never lets a key through, so this is a backstop that
+        // keeps the B61 guarantee even if a caller skips the stack.
         let modal_guard_active = self.any_modal_ui_visible();
         if modal_guard_active {
-            let is_ui_control_key = matches!(
-                event.logical_key,
-                Key::Named(NamedKey::F1)
-                    | Key::Named(NamedKey::F2)
-                    | Key::Named(NamedKey::F3)
-                    | Key::Named(NamedKey::Escape)
-            );
-
-            if !is_ui_control_key {
-                return;
-            }
+            return;
         }
 
         // Check if egui UI wants keyboard input (e.g., text fields, ComboBoxes)
@@ -459,13 +448,11 @@ impl WindowState {
             self.request_redraw();
         }
 
-        // B61: a key that fell through the modal guard as a UI control key
-        // (Escape, F1–F3) and was then claimed by no layer, keybinding, or
-        // clipboard branch has run out of legitimate consumers — while a
-        // modal overlay is open it must not reach the PTY. egui still sees
-        // the event through its own input path, so dialogs keep their Escape
-        // handling; the terminal does not.
-        if modal_guard_active {
+        // B61: the PTY encoding tail below must never run while a modal
+        // overlay is open. The early return above already guarantees it;
+        // this re-check guards against an action run by a layer above that
+        // opened a dialog mid-dispatch.
+        if self.any_modal_ui_visible() {
             return;
         }
 

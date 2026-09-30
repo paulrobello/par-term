@@ -23,15 +23,40 @@ impl WindowState {
         false
     }
 
-    /// Show a toast notification with the given message.
-    ///
-    /// The toast will be displayed for 2 seconds and then automatically hidden.
+    /// Show an info toast (UX.md OV7): it joins the top-right stack and
+    /// expires after two seconds.
     pub(crate) fn show_toast(&mut self, message: impl Into<String>) {
-        self.overlay_state.toast_message = Some(message.into());
-        self.overlay_state.toast_hide_time =
-            Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+        self.post_toast(crate::app::overlay::toast::ToastKind::Info, message, None);
+    }
+
+    /// Post a toast of `kind`, with an optional action button, to the
+    /// toast stack. Errors persist until dismissed. The last-posted text is
+    /// also recorded in `overlay_state.toast_message` (see its docs).
+    pub(crate) fn post_toast(
+        &mut self,
+        kind: crate::app::overlay::toast::ToastKind,
+        message: impl Into<String>,
+        action: Option<crate::app::overlay::toast::ToastAction>,
+    ) {
+        let message = message.into();
+        let now = std::time::Instant::now();
+        self.overlay_state
+            .toasts
+            .push(kind, message.clone(), action, now);
+        self.overlay_state.toast_message = Some(message);
+        self.overlay_state.toast_hide_time = (kind != crate::app::overlay::toast::ToastKind::Error)
+            .then(|| now + crate::app::overlay::toast::TOAST_LIFETIME);
         self.focus_state.needs_redraw = true;
         self.request_redraw();
+    }
+
+    /// The live chord for a registry action, formatted for a toast hint
+    /// ("Press Cmd+Z to undo"), or `None` when nothing is bound — so hints
+    /// never show a raw config string like `CmdOrCtrl+Z` (UX.md OV7).
+    pub(crate) fn live_chord_hint(&self, action: &str) -> Option<String> {
+        self.keybinding_registry
+            .chord_for_action(action)
+            .map(|combo| crate::command_palette::catalog::chord_display(&combo))
     }
 
     /// A par-mux failure: toast it and hold it on the session chip until
@@ -51,14 +76,12 @@ impl WindowState {
         self.show_persistent_toast(message);
     }
 
-    /// Show a toast with no auto-hide timer — it stays until replaced or
-    /// cleared, the V11 error-surface shape for failures the user must
-    /// see and act on rather than watch fade.
+    /// Show an error toast: it persists until dismissed, the V11
+    /// error-surface shape for failures the user must see and act on
+    /// rather than watch fade. A later toast stacks beside it instead of
+    /// replacing it (UX.md OV7).
     pub(crate) fn show_persistent_toast(&mut self, message: impl Into<String>) {
-        self.overlay_state.toast_message = Some(message.into());
-        self.overlay_state.toast_hide_time = None;
-        self.focus_state.needs_redraw = true;
-        self.request_redraw();
+        self.post_toast(crate::app::overlay::toast::ToastKind::Error, message, None);
     }
 
     /// Show pane index overlays for a specified duration.
@@ -191,7 +214,11 @@ impl WindowState {
         }
         shaders.sort();
         if shaders.is_empty() {
-            self.show_toast("No background shaders found");
+            self.post_toast(
+                crate::app::overlay::toast::ToastKind::Warning,
+                "No background shaders found",
+                None,
+            );
             return;
         }
 
@@ -215,7 +242,11 @@ impl WindowState {
             std::sync::Arc::new(new)
         });
         self.refresh_background_shader_renderer();
-        self.show_toast(format!("Shader: {}", shaders[next_index]));
+        self.post_toast(
+            crate::app::overlay::toast::ToastKind::Success,
+            format!("Shader: {}", shaders[next_index]),
+            None,
+        );
     }
 
     /// Pause/resume background shader animation.

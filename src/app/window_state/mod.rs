@@ -198,6 +198,10 @@ pub struct WindowState {
     pub(crate) shader_state: crate::app::window_state::shader_state::ShaderState,
     /// Overlay / modal / side-panel UI state
     pub(crate) overlay_ui: crate::app::window_state::overlay_ui_state::OverlayUiState,
+    /// Open order of the overlay stack (UX.md OV1). Membership is derived
+    /// from live visibility on every query; only the order is remembered,
+    /// behind a `RefCell` because `overlay_stack(&self)` reconciles it.
+    pub(crate) overlay_order: std::cell::RefCell<Vec<crate::app::overlay::OverlayId>>,
     /// ACP agent connection and runtime state
     pub(crate) agent_state: agent_state::AgentState,
     /// Cursor animation state (opacity, blink timers)

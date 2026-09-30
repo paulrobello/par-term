@@ -144,6 +144,9 @@ impl WindowState {
         // Cache modal visibility before entering the renderer borrow scope.
         // Method calls borrow all of `self`, which conflicts with `&mut self.renderer`.
         let any_modal_visible = self.any_modal_ui_visible();
+        // Record the overlay open order once per frame, so an overlay opened
+        // since the last key event joins the stack above older ones (OV1).
+        let _ = self.overlay_stack();
 
         // =====================================================================
         // Phase 1-2: GPU state upload

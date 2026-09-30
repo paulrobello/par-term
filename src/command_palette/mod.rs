@@ -9,24 +9,24 @@
 pub(crate) mod catalog;
 pub(crate) mod fuzzy;
 
+use crate::app::overlay::picker::{self, ListConfig, ListNav, ListOutcome};
 use catalog::{PaletteEntry, build_catalog, chord_display};
-use egui::{Context, Frame, Key, RichText, Window, epaint::Shadow};
+use egui::{Context, RichText};
 use par_term_keybindings::KeybindingRegistry;
 
 /// Rows drawn before the list scrolls.
 const VISIBLE_ROWS: usize = 12;
 
-/// Summonable fuzzy launcher over the action catalog.
+/// Summonable fuzzy launcher over the action catalog, drawn by the shared
+/// list/picker component (UX.md OV5).
 pub(crate) struct CommandPalette {
     /// Whether the palette is currently on screen.
     pub(crate) visible: bool,
     /// Current filter text.
     query: String,
-    /// Index into the *filtered* list, not the catalog.
-    selected: usize,
-    /// First drawn row of the `VISIBLE_ROWS` window, in the same index
-    /// space as `selected` (B62).
-    scroll_offset: usize,
+    /// Selection (an index into the *filtered* list) and the drawn window,
+    /// in one index space (B62).
+    nav: ListNav,
     /// Latest plugin snapshot, replaced by every `open()`.
     plugin_entries: Vec<PaletteEntry>,
     /// Built-ins plus the current plugin snapshot, label-sorted. Rebuilt on
@@ -49,8 +49,7 @@ impl CommandPalette {
         Self {
             visible: false,
             query: String::new(),
-            selected: 0,
-            scroll_offset: 0,
+            nav: ListNav::default(),
             plugin_entries: Vec::new(),
             entries: build_catalog(),
             request_focus: false,
@@ -90,16 +89,14 @@ impl CommandPalette {
         self.entries = merged;
         self.visible = true;
         self.query.clear();
-        self.selected = 0;
-        self.scroll_offset = 0;
+        self.nav.reset();
         self.request_focus = true;
     }
 
     /// Pre-fill the filter (A18 opens the palette on its Move Tab rows).
     pub(crate) fn set_query(&mut self, query: &str) {
         self.query = query.to_string();
-        self.selected = 0;
-        self.scroll_offset = 0;
+        self.nav.reset();
     }
 
     /// Hide the palette.
@@ -129,25 +126,6 @@ impl CommandPalette {
             .collect()
     }
 
-    /// Keep `selected` inside a filtered list of `len` rows.
-    fn clamp_selection(&mut self, len: usize) {
-        self.selected = self.selected.min(len.saturating_sub(1));
-    }
-
-    /// Scroll the `VISIBLE_ROWS` window so `selected` stays drawn (B62).
-    ///
-    /// Runs every frame after the arrows move `selected`: moving past the
-    /// window's last row advances it, above its first row pulls it back, and
-    /// a list shorter than the window parks at offset 0.
-    fn ensure_selection_visible(&mut self, len: usize) {
-        if self.selected < self.scroll_offset {
-            self.scroll_offset = self.selected;
-        } else if self.selected >= self.scroll_offset + VISIBLE_ROWS {
-            self.scroll_offset = self.selected + 1 - VISIBLE_ROWS;
-        }
-        self.scroll_offset = self.scroll_offset.min(len.saturating_sub(VISIBLE_ROWS));
-    }
-
     /// Action id of the top-ranked row for the current query.
     ///
     /// Harness read: `--ui-test` scripts assert the ranking without standing
@@ -159,16 +137,21 @@ impl CommandPalette {
     /// Harness read (`--ui-test`): the selected row's index into the
     /// filtered list.
     pub(crate) fn selected_index(&self) -> usize {
-        self.selected
+        self.nav.selected
     }
 
     /// Harness read (`--ui-test`): whether the selected row falls inside the
     /// drawn `VISIBLE_ROWS` window — the B62 invariant.
     pub(crate) fn selected_row_is_visible(&self) -> bool {
-        self.selected >= self.scroll_offset && self.selected < self.scroll_offset + VISIBLE_ROWS
+        self.nav.selected_is_visible(VISIBLE_ROWS)
     }
 
     /// Draw the palette. Returns the chosen action id when a row is activated.
+    ///
+    /// Keys, scrolling, and the footer come from the shared picker (UX.md
+    /// OV5): arrows, PageUp/PageDown, Home/End, Enter runs, Escape closes —
+    /// on the egui side, since the focused filter keeps winit key layers
+    /// from ever seeing these keys.
     pub(crate) fn show(&mut self, ctx: &Context) -> Option<String> {
         if !self.visible {
             return None;
@@ -181,98 +164,64 @@ impl CommandPalette {
             .into_iter()
             .map(str::to_string)
             .collect();
-        self.clamp_selection(matches.len());
-
-        let mut chosen: Option<String> = None;
-
-        // Escape closes the palette here, on the egui side, because with the
-        // text field focused `is_egui_using_keyboard()` returns early in
-        // handle_key_event and the handle_command_palette_keys layer never
-        // sees the key. That layer remains the backstop for the unfocused
-        // case, and close() is idempotent, so both paths are safe together.
-        // consume_key keeps the Escape from also reaching other egui widgets.
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
-            self.close();
-        }
-
-        // num_presses, not key_pressed: input events can coalesce into one
-        // frame (fast typing, key repeat, the ui-test harness pressing
-        // faster than the frame cadence), and each press must move the
-        // selection — a boolean would swallow every press but the first.
-        let downs = ctx.input(|i| i.num_presses(Key::ArrowDown));
-        if downs > 0 && !matches.is_empty() {
-            self.selected = (self.selected + downs).min(matches.len() - 1);
-        }
-        let ups = ctx.input(|i| i.num_presses(Key::ArrowUp));
-        if ups > 0 {
-            self.selected = self.selected.saturating_sub(ups);
-        }
-        self.ensure_selection_visible(matches.len());
-        if ctx.input(|i| i.key_pressed(Key::Enter))
-            && let Some(id) = matches.get(self.selected)
-        {
-            chosen = Some(id.clone());
-        }
-
-        Window::new("Command Palette")
-            .title_bar(false)
-            .resizable(false)
-            .collapsible(false)
-            .anchor(egui::Align2::CENTER_TOP, [0.0, 80.0])
-            .frame(Frame::popup(&ctx.global_style()).shadow(Shadow::default()))
-            .show(ctx, |ui| {
-                let field = ui.text_edit_singleline(&mut self.query);
-                if self.request_focus {
-                    field.request_focus();
-                    self.request_focus = false;
-                }
-
-                ui.separator();
-
-                for (row, action_id) in matches
+        let entries = &self.entries;
+        let config = ListConfig {
+            id: "Command Palette",
+            hint: "Type a command",
+            visible_rows: VISIBLE_ROWS,
+            width: crate::app::overlay::theme::WIDTH_LARGE,
+            empty_text: "No matching actions",
+            footer: "↑↓ PgUp/PgDn Home/End select · Enter run · Esc close",
+            alternates: false,
+        };
+        let (outcome, query_changed) = picker::show_list(
+            ctx,
+            &config,
+            &mut self.query,
+            &mut self.request_focus,
+            &mut self.nav,
+            matches.len(),
+            |ui, index, selected| {
+                entries
                     .iter()
-                    .skip(self.scroll_offset)
-                    .take(VISIBLE_ROWS)
-                    .enumerate()
-                {
-                    let entry = self
-                        .entries
-                        .iter()
-                        .find(|e| e.action_id == action_id.as_str())
-                        .expect("filtered ids come from self.entries");
-
-                    // Windowed row index plus the offset lands in the same
-                    // space as `selected` (B62): comparing the raw windowed
-                    // index let the highlight run off the drawn rows.
-                    let selected = self.scroll_offset + row == self.selected;
-                    ui.horizontal(|ui| {
-                        let label = if selected {
-                            RichText::new(&entry.label).strong()
-                        } else {
-                            RichText::new(&entry.label)
-                        };
-                        if ui.selectable_label(selected, label).clicked() {
-                            chosen = Some(entry.action_id.clone());
-                        }
-                        if let Some(chord) = &entry.chord {
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| ui.weak(chord.as_str()),
-                            );
-                        }
-                    });
-                }
-
-                if matches.is_empty() {
-                    ui.weak("No matching actions");
-                }
-            });
-
-        if chosen.is_some() {
-            self.close();
+                    .find(|e| e.action_id == matches[index])
+                    .is_some_and(|entry| draw_row(ui, entry, selected))
+            },
+        );
+        if query_changed {
+            self.nav.reset();
         }
-        chosen
+        match outcome {
+            ListOutcome::Chosen { index, .. } => {
+                self.close();
+                matches.get(index).cloned()
+            }
+            ListOutcome::Closed => {
+                self.close();
+                None
+            }
+            ListOutcome::Open => None,
+        }
     }
+}
+
+/// One palette row: the label, and the live chord right-aligned.
+fn draw_row(ui: &mut egui::Ui, entry: &PaletteEntry, selected: bool) -> bool {
+    let mut clicked = false;
+    ui.horizontal(|ui| {
+        let label = if selected {
+            RichText::new(&entry.label).strong()
+        } else {
+            RichText::new(&entry.label)
+        };
+        clicked = ui.selectable_label(selected, label).clicked();
+        if let Some(chord) = &entry.chord {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.weak(chord.as_str())
+            });
+        }
+    });
+    clicked
 }
 
 #[cfg(test)]
@@ -302,14 +251,14 @@ mod tests {
         let registry = KeybindingRegistry::new();
         palette.open(Vec::new(), &registry);
         palette.query = "stale".to_string();
-        palette.selected = 7;
+        palette.nav.selected = 7;
         palette.close();
         palette.open(Vec::new(), &registry);
         assert_eq!(
             palette.query, "",
             "a reopened palette must not show the last query"
         );
-        assert_eq!(palette.selected, 0);
+        assert_eq!(palette.nav.selected, 0);
     }
 
     #[test]
@@ -418,95 +367,93 @@ mod tests {
         assert!(narrowed.contains(&"toggle_fullscreen"));
     }
 
+    /// Run one headless egui frame of `show()` with `keys` pressed.
+    fn frame(ctx: &Context, palette: &mut CommandPalette, keys: &[Key]) -> Option<String> {
+        let events = keys
+            .iter()
+            .map(|&key| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            })
+            .collect();
+        let mut chosen = None;
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 800.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ui| chosen = palette.show(ui.ctx()),
+        );
+        out.textures_delta.clear();
+        chosen
+    }
+
+    use egui::Key;
+
     #[test]
     fn show_holds_the_focused_escape_close() {
-        // With the palette's text field focused, is_egui_using_keyboard()
-        // returns early in handle_key_event, so the handle_command_palette_keys
-        // layer never sees Escape — show() is the only close path while
-        // typing. The layer stays as the unfocused backstop; close() is
-        // idempotent, so the two paths coexist safely. Measured pre-fix:
-        // Escape with the field focused left the palette open forever.
-        let source = include_str!("mod.rs");
-        // Assembled at runtime: a literal needle would appear in this test's
-        // own source and the scan would always find itself.
-        let needle = ["consume", "_key"].join("");
-        let input_call = ["input", "_mut"].join("");
-        assert!(
-            source.contains(&needle) && source.contains(&input_call),
-            "show() must close the palette on the egui-side Escape while \
-             typing; without it the palette cannot be dismissed while typing"
-        );
+        // With the palette's text field focused, no winit key layer sees
+        // Escape — show() is the only close path while typing. Measured
+        // pre-fix (2026-09-20): Escape with the field focused left the
+        // palette open forever.
+        let ctx = Context::default();
+        let mut palette = CommandPalette::new();
+        palette.open(Vec::new(), &KeybindingRegistry::new());
+        frame(&ctx, &mut palette, &[]);
+        assert_eq!(frame(&ctx, &mut palette, &[Key::Escape]), None);
+        assert!(!palette.visible, "Escape must close the focused palette");
+    }
+
+    #[test]
+    fn arrowing_to_the_20th_match_keeps_it_drawn_through_show() {
+        // B62 through the real draw path: 19 ArrowDowns select row 19 and
+        // scroll it into the 12-row window; Enter runs that row, not an
+        // invisible one.
+        let ctx = Context::default();
+        let mut palette = CommandPalette::new();
+        palette.open(Vec::new(), &KeybindingRegistry::new());
+        frame(&ctx, &mut palette, &[]);
+        frame(&ctx, &mut palette, &[Key::ArrowDown; 19]);
+        assert_eq!(palette.selected_index(), 19);
+        assert!(palette.selected_row_is_visible());
+        let expected = palette.filtered_ids("")[19].to_string();
+        assert_eq!(frame(&ctx, &mut palette, &[Key::Enter]), Some(expected));
+    }
+
+    #[test]
+    fn page_and_home_end_keys_move_by_the_window() {
+        let ctx = Context::default();
+        let mut palette = CommandPalette::new();
+        palette.open(Vec::new(), &KeybindingRegistry::new());
+        let len = palette.filtered_ids("").len();
+        frame(&ctx, &mut palette, &[]);
+        frame(&ctx, &mut palette, &[Key::PageDown]);
+        assert_eq!(palette.selected_index(), VISIBLE_ROWS);
+        frame(&ctx, &mut palette, &[Key::End]);
+        assert_eq!(palette.selected_index(), len - 1);
+        assert!(palette.selected_row_is_visible());
+        frame(&ctx, &mut palette, &[Key::Home]);
+        assert_eq!(palette.selected_index(), 0);
+        frame(&ctx, &mut palette, &[Key::PageUp]);
+        assert_eq!(palette.selected_index(), 0, "PageUp at the top stays put");
     }
 
     #[test]
     fn palette_is_registered_as_modal() {
-        // The palette must be in any_modal_ui_visible(): that sum drives the
-        // modal guard keeping keystrokes off the PTY while an overlay is
-        // open. Unregistered, typed characters filtered the palette AND
-        // leaked to the shell (measured 2026-09-20, --ui-test pre-fix run).
-        let source = include_str!("../app/window_state/ui_query_helpers.rs");
-        let body = source
-            .split("fn any_modal_ui_visible")
-            .nth(1)
-            .expect("any_modal_ui_visible present in ui_query_helpers.rs");
-        let body = body.split('}').next().unwrap_or_default();
-        assert!(
-            body.contains("command_palette.visible"),
-            "command_palette missing from any_modal_ui_visible — typing in \
-             the palette leaks to the PTY"
-        );
-    }
-
-    #[test]
-    fn selection_clamps_to_the_filtered_length() {
-        let mut palette = CommandPalette::new();
-        palette.selected = 999;
-        palette.clamp_selection(3);
-        assert_eq!(palette.selected, 2, "selection clamps to last valid index");
-
-        palette.clamp_selection(0);
-        assert_eq!(palette.selected, 0, "an empty result list clamps to 0");
-    }
-
-    #[test]
-    fn arrowing_to_the_20th_match_scrolls_it_into_view() {
-        // B62: 12 rows are drawn, so selecting index 19 must advance the
-        // window instead of highlighting an invisible row. The loop mirrors
-        // show()'s ArrowDown math, which needs a live egui context.
-        let mut palette = CommandPalette::new();
-        let len = 50;
-        for _ in 0..19 {
-            palette.selected = (palette.selected + 1).min(len - 1);
-        }
-        palette.ensure_selection_visible(len);
-        assert_eq!(palette.selected, 19);
-        assert_eq!(
-            palette.scroll_offset, 8,
-            "row 19 must be the window's last drawn row"
-        );
-        assert!(palette.selected_row_is_visible());
-    }
-
-    #[test]
-    fn arrowing_back_up_pulls_the_window_home() {
-        let mut palette = CommandPalette::new();
-        palette.selected = 19;
-        palette.scroll_offset = 8;
-        palette.selected = 0;
-        palette.ensure_selection_visible(50);
-        assert_eq!(palette.scroll_offset, 0);
-        assert!(palette.selected_row_is_visible());
-    }
-
-    #[test]
-    fn a_query_that_shortens_the_list_parks_the_window_at_zero() {
-        // A stale offset from a longer result list must not blank a short one.
-        let mut palette = CommandPalette::new();
-        palette.selected = 3;
-        palette.scroll_offset = 40;
-        palette.ensure_selection_visible(5);
-        assert_eq!(palette.scroll_offset, 0);
-        assert!(palette.selected_row_is_visible());
+        // The palette must guard the terminal: that drives the modal guard
+        // keeping keystrokes off the PTY while an overlay is open.
+        // Unregistered, typed characters filtered the palette AND leaked to
+        // the shell (measured 2026-09-20, --ui-test pre-fix run). The live
+        // half — the palette opened on a real WindowState raises the guard —
+        // is `overlay::stack_tests::b61_dialogs_block_the_terminal`.
+        assert!(crate::app::overlay::OverlayId::CommandPalette.guards_terminal());
     }
 
     #[test]
@@ -514,32 +461,14 @@ mod tests {
         let mut palette = CommandPalette::new();
         let registry = KeybindingRegistry::new();
         palette.open(Vec::new(), &registry);
-        palette.scroll_offset = 9;
+        palette.nav.selected = 30;
+        palette.nav.scroll_offset = 19;
         palette.close();
         palette.open(Vec::new(), &registry);
         assert_eq!(
-            palette.scroll_offset, 0,
+            palette.nav,
+            ListNav::default(),
             "a reopened palette starts the window at the top"
-        );
-    }
-
-    #[test]
-    fn the_drawn_window_compares_indices_in_one_space() {
-        // B62 pin: the draw loop must skip past hidden rows and compare
-        // windowed row + offset against the global selection. `.take()`
-        // alone compared a windowed row index against the global selection
-        // and the highlight vanished below row 12. Assembled needles so the
-        // scan cannot match this test's own source.
-        let source = include_str!("mod.rs");
-        let skip = [".skip(self.", "scroll_offset)"].join("");
-        let same_space = ["self.scroll_offset + row == ", "self.selected"].join("");
-        assert!(
-            source.contains(&skip),
-            "the draw loop must window the list with the scroll offset"
-        );
-        assert!(
-            source.contains(&same_space),
-            "the selected flag must add the scroll offset to the windowed row"
         );
     }
 

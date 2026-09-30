@@ -32,6 +32,10 @@ pub struct CloseConfirmationUI {
     command_name: String,
     /// The tab title for display
     tab_title: String,
+    /// Shared ConfirmDialog state (UX.md OV3)
+    confirm: crate::app::overlay::confirm::ConfirmState,
+    /// "Don't ask again" was ticked on the last Close answer
+    dont_ask_again_chosen: bool,
 }
 
 impl Default for CloseConfirmationUI {
@@ -49,6 +53,8 @@ impl CloseConfirmationUI {
             pending_pane_id: None,
             command_name: String::new(),
             tab_title: String::new(),
+            confirm: Default::default(),
+            dont_ask_again_chosen: false,
         }
     }
 
@@ -88,116 +94,60 @@ impl CloseConfirmationUI {
         self.pending_pane_id = None;
         self.command_name.clear();
         self.tab_title.clear();
+        self.confirm.reset();
     }
 
-    /// Render the dialog and return any action
+    /// Render the dialog and return any action.
+    ///
+    /// Drawn by the shared `ConfirmDialog` (UX.md OV3): the title names the
+    /// object being closed ("Close Pane?" — the old title said "Close Tab?"
+    /// for panes too), Enter and Escape cancel (MD5), and Close needs its
+    /// own chord or its button. "Don't ask again" turns off
+    /// `confirm_close_running_jobs`.
     pub fn show(&mut self, ctx: &egui::Context) -> CloseConfirmAction {
+        use crate::app::overlay::confirm::{self, ConfirmChoice, ConfirmSpec};
+
         if !self.visible {
             return CloseConfirmAction::None;
         }
 
-        let mut action = CloseConfirmAction::None;
-
-        egui::Window::new("Close Tab?")
-            .collapsible(false)
-            .resizable(false)
-            .order(egui::Order::Foreground)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(10.0);
-
-                    // Warning icon and title
-                    ui.label(
-                        egui::RichText::new("⚠ Running Job Detected")
-                            .color(egui::Color32::YELLOW)
-                            .size(18.0)
-                            .strong(),
-                    );
-                    ui.add_space(10.0);
-
-                    // Tab/pane info
-                    let target = if self.pending_pane_id.is_some() {
-                        "pane"
-                    } else {
-                        "tab"
-                    };
-                    ui.label(format!(
-                        "The {} \"{}\" has a running command:",
-                        target, self.tab_title
-                    ));
-                    ui.add_space(5.0);
-
-                    // Command name in a highlighted box
-                    ui.horizontal(|ui| {
-                        ui.add_space(20.0);
-                        egui::Frame::new()
-                            .fill(egui::Color32::from_rgba_unmultiplied(60, 60, 60, 200))
-                            .inner_margin(egui::Margin::symmetric(12, 6))
-                            .corner_radius(4.0)
-                            .show(ui, |ui| {
-                                ui.label(
-                                    egui::RichText::new(&self.command_name)
-                                        .color(egui::Color32::LIGHT_GREEN)
-                                        .monospace()
-                                        .size(14.0),
-                                );
-                            });
-                    });
-
-                    ui.add_space(10.0);
-                    ui.label(
-                        egui::RichText::new("Closing will terminate this process.")
-                            .color(egui::Color32::GRAY),
-                    );
-                    ui.add_space(15.0);
-
-                    // Buttons
-                    ui.horizontal(|ui| {
-                        // Close button with danger styling
-                        let close_button = egui::Button::new(
-                            egui::RichText::new("Close Anyway").color(egui::Color32::WHITE),
-                        )
-                        .fill(egui::Color32::from_rgb(180, 50, 50));
-
-                        if ui.add(close_button).clicked() {
-                            // Capture IDs before we hide
-                            if let Some(tab_id) = self.pending_tab_id {
-                                action = CloseConfirmAction::Close {
-                                    tab_id,
-                                    pane_id: self.pending_pane_id,
-                                };
-                            }
-                        }
-
-                        ui.add_space(10.0);
-
-                        if ui.button("Cancel").clicked() {
-                            action = CloseConfirmAction::Cancel;
-                        }
-                    });
-                    ui.add_space(10.0);
-                });
-            });
-
-        // Handle escape key to cancel
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            action = CloseConfirmAction::Cancel;
-        }
-
-        // MD5: Enter is the safe choice, never the destructive Close. It
-        // runs after the buttons so it also wins over a focused button's
-        // same-frame Enter activation (egui fake-clicks focused widgets).
-        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
-            action = CloseConfirmAction::Cancel;
-        }
-
-        // Hide dialog on any action
-        if !matches!(action, CloseConfirmAction::None) {
-            self.hide();
-        }
-
+        let (title, target) = if self.pending_pane_id.is_some() {
+            ("Close Pane?", "pane")
+        } else {
+            ("Close Tab?", "tab")
+        };
+        let body = [
+            format!("The {target} \"{}\" has a running command:", self.tab_title),
+            "Closing will terminate this process.".to_string(),
+        ];
+        let spec = ConfirmSpec {
+            title,
+            body: &body,
+            detail: Some(&self.command_name),
+            safe_label: "Cancel",
+            alternate_label: None,
+            destructive_label: "Close Anyway",
+            offers_dont_ask_again: true,
+        };
+        let Some(answer) = confirm::show(ctx, &spec, &mut self.confirm) else {
+            return CloseConfirmAction::None;
+        };
+        self.dont_ask_again_chosen = answer.dont_ask_again;
+        let action = match (answer.choice, self.pending_tab_id) {
+            (ConfirmChoice::Destructive, Some(tab_id)) => CloseConfirmAction::Close {
+                tab_id,
+                pane_id: self.pending_pane_id,
+            },
+            _ => CloseConfirmAction::Cancel,
+        };
+        self.hide();
         action
+    }
+
+    /// Whether the last answer ticked "Don't ask again" (read once by the
+    /// caller after a Close, then cleared).
+    pub(crate) fn take_dont_ask_again(&mut self) -> bool {
+        std::mem::take(&mut self.dont_ask_again_chosen)
     }
 }
 

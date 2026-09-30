@@ -197,30 +197,6 @@ const CJK_FONT_CANDIDATES: &[&str] = {
     }
 };
 
-/// Render the toast notification overlay (top-center) for transient status messages.
-///
-/// Only renders when `message` is `Some`.
-pub(super) fn render_toast_overlay(ctx: &egui::Context, message: Option<&str>) {
-    let Some(message) = message else {
-        return;
-    };
-    egui::Area::new(egui::Id::new("toast_notification"))
-        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 60.0))
-        .order(egui::Order::Foreground)
-        .show(ctx, |ui| {
-            egui::Frame::NONE
-                .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 240))
-                .inner_margin(egui::Margin::symmetric(20, 12))
-                .corner_radius(8.0)
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80)))
-                .show(ui, |ui| {
-                    ui.style_mut().visuals.override_text_color =
-                        Some(egui::Color32::from_rgb(255, 255, 255));
-                    ui.label(egui::RichText::new(message).size(16.0));
-                });
-        });
-}
-
 /// Render the scrollbar mark tooltip near the mouse pointer.
 ///
 /// The tooltip shows command, time, duration, and exit code from a `ScrollbackMark`.

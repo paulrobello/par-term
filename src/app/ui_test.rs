@@ -176,58 +176,12 @@ pub(crate) struct Observation {
     modals: Vec<String>,
 }
 
-/// Names of the modal overlays `any_modal_ui_visible()` sums over, in its
-/// declaration order — one string per visible overlay.
+/// Names of the overlays `any_modal_ui_visible()` is true for, bottom to
+/// top — derived from the overlay stack, so the report can never list a
+/// different set than the guard sums over (UX.md MP1: "the harness's modal
+/// list is derived from the overlay stack").
 fn visible_modal_names(ws: &WindowState) -> Vec<String> {
-    let o = &ws.overlay_ui;
-    let mut names = Vec::new();
-    let mut push = |visible: bool, name: &str| {
-        if visible {
-            names.push(name.to_string());
-        }
-    };
-    push(o.help_ui.visible, "help_ui");
-    push(o.clipboard_history_ui.visible, "clipboard_history_ui");
-    push(o.command_history_ui.visible, "command_history_ui");
-    push(o.search_ui.visible, "search_ui");
-    push(o.command_palette.visible, "command_palette");
-    push(o.agent_usage_panel.visible, "agent_usage_panel");
-    push(o.tmux_session_picker_ui.visible, "tmux_session_picker_ui");
-    push(o.tree_picker_ui.visible, "tree_picker_ui");
-    push(o.pane_context_menu.is_open(), "pane_context_menu");
-    push(o.shader_install_ui.visible, "shader_install_ui");
-    push(o.integrations_ui.visible, "integrations_ui");
-    push(o.ssh_connect_ui.is_visible(), "ssh_connect_ui");
-    push(
-        o.remote_shell_install_ui.is_visible(),
-        "remote_shell_install_ui",
-    );
-    push(o.quit_confirmation_ui.is_visible(), "quit_confirmation_ui");
-    // B61 additions — same order as the guard's B61 block.
-    push(
-        o.close_confirmation_ui.is_visible(),
-        "close_confirmation_ui",
-    );
-    push(o.mux_last_tab_ui.is_visible(), "mux_last_tab_ui");
-    push(
-        !ws.trigger_state.pending_trigger_actions.is_empty(),
-        "trigger_confirm",
-    );
-    push(
-        !ws.agent_commands.pending_confirmations.is_empty(),
-        "agent_command_confirm",
-    );
-    push(
-        ws.update_state.show_dialog && ws.update_state.last_result.is_some(),
-        "update_dialog",
-    );
-    push(ws.tab_bar_ui.is_context_menu_open(), "tab_context_menu");
-    push(
-        ws.tab_bar_ui.show_new_tab_profile_menu,
-        "new_tab_profile_menu",
-    );
-    push(ws.pane_transfer_state.is_active(), "demote_chooser");
-    names
+    ws.overlay_stack().guard_names()
 }
 
 /// Convert a chord string into the (logical key, physical key, modifiers)
@@ -763,17 +717,17 @@ impl WindowManager {
         };
         let (logical, physical, modifiers) = fields;
 
-        // Mirror the real event path: while a modal overlay is visible, the
-        // modal guard in handle_window_event blocks every key except
-        // F1/F2/F3/Escape before the keybinding layer ever runs.
-        if ws.any_modal_ui_visible()
-            && !matches!(
-                logical,
-                Key::Named(NamedKey::F1 | NamedKey::F2 | NamedKey::F3 | NamedKey::Escape)
-            )
-        {
+        // The real event path: handle_window_event routes every key press
+        // through the overlay stack before terminal dispatch (UX.md OV2).
+        // Same function, same facts — this is not a mirror of the guard.
+        let facts = ws.overlay_key_facts(&logical, physical, &modifiers);
+        let route = ws.route_overlay_key(&facts);
+        if ws.apply_overlay_route(&route) {
+            return StepOutcome::Performed(format!("chord {chord} -> overlay stack: {route:?}"));
+        }
+        if !route.continues_to_key_dispatch() {
             return StepOutcome::Performed(format!(
-                "chord {chord} -> blocked by modal guard (overlay open)"
+                "chord {chord} -> blocked by modal guard (overlay open): {route:?}"
             ));
         }
 
@@ -989,7 +943,15 @@ impl WindowManager {
                     "pane_hint_mode_active" => ws.pane_hint_select.is_active(),
                     "egui_keyboard" => ws.is_egui_using_keyboard(),
                     "fullscreen" => ws.window.as_ref().is_some_and(|w| w.fullscreen().is_some()),
-                    _ => return None,
+                    // `overlay_open:<name>` — any overlay-stack member by
+                    // its stack name (`tree_picker_ui`, `help_ui`, …).
+                    other => {
+                        let name = other.strip_prefix("overlay_open:")?;
+                        let id = crate::app::overlay::OverlayId::ALL
+                            .iter()
+                            .find(|id| id.name() == name)?;
+                        ws.overlay_is_open(*id)
+                    }
                 }
             }
         })

@@ -78,7 +78,10 @@ impl WindowState {
             return;
         }
         self.pane_resize_mode = PaneResizeModeState::Resizing { tab_id };
-        self.show_persistent_toast(RESIZE_MODE_HINT);
+        // A mode banner, not a toast (UX.md OV8).
+        self.overlay_state.mode_banner = Some(RESIZE_MODE_HINT);
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
     }
 
     /// Leave resize mode and clear its status line.
@@ -87,9 +90,8 @@ impl WindowState {
             return;
         }
         self.pane_resize_mode = PaneResizeModeState::Idle;
-        if self.overlay_state.toast_message.as_deref() == Some(RESIZE_MODE_HINT) {
-            self.overlay_state.toast_message = None;
-            self.overlay_state.toast_hide_time = None;
+        if self.overlay_state.mode_banner == Some(RESIZE_MODE_HINT) {
+            self.overlay_state.mode_banner = None;
         }
         self.focus_state.needs_redraw = true;
         self.request_redraw();
@@ -245,6 +247,15 @@ mod tests {
         let mut ws = window(config);
         ws.enter_pane_resize_mode();
         assert!(ws.pane_resize_mode.is_active());
+        assert_eq!(
+            ws.overlay_state.mode_banner,
+            Some(RESIZE_MODE_HINT),
+            "the hint is a mode banner (OV8)"
+        );
+        assert!(
+            ws.overlay_state.toasts.toasts().is_empty(),
+            "the hint takes no toast slot"
+        );
 
         let before = left_width(&ws);
         ws.resolve_pane_resize_key(arrow(NavigationDirection::Right, false), (8.0, 16.0));
@@ -269,7 +280,7 @@ mod tests {
 
         ws.resolve_pane_resize_key(ResizeModeKey::Exit, (8.0, 16.0));
         assert!(!ws.pane_resize_mode.is_active());
-        assert_eq!(ws.overlay_state.toast_message, None, "the hint clears");
+        assert_eq!(ws.overlay_state.mode_banner, None, "the hint clears");
     }
 
     #[test]

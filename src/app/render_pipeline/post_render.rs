@@ -40,7 +40,22 @@ impl WindowState {
             ssh_connect,
             save_config,
             demote,
+            toast_events,
         } = actions;
+
+        // Toast clicks (UX.md OV7): dismiss, or run the toast's action.
+        for event in toast_events {
+            match event {
+                crate::app::overlay::toast::ToastEvent::Dismissed(id) => {
+                    self.overlay_state.toasts.dismiss(id);
+                }
+                crate::app::overlay::toast::ToastEvent::Action { id, action_id } => {
+                    self.overlay_state.toasts.dismiss(id);
+                    self.execute_keybinding_action(&action_id);
+                }
+            }
+            self.focus_state.needs_redraw = true;
+        }
 
         // "Skip This Version" changed the config; the window manager writes it.
         if save_config {
@@ -108,6 +123,18 @@ impl WindowState {
         // Handle close confirmation dialog actions
         match close_confirm {
             CloseConfirmAction::Close { tab_id, pane_id } => {
+                // "Don't ask again" (UX.md OV3): turn the setting off here and
+                // queue it for the window manager to write.
+                if self.overlay_ui.close_confirmation_ui.take_dont_ask_again() {
+                    let change =
+                        crate::app::window_state::ExternalConfigChange::StopConfirmingRunningJobClose;
+                    self.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        change.apply(&mut new);
+                        std::sync::Arc::new(new)
+                    });
+                    self.render_loop.external_config_changes.push(change);
+                }
                 // Route through the proper cleanup path so session-undo capture,
                 // tab-bar resize, alert sounds, and is_shutting_down are all handled.
                 let prev_active = self.tab_manager.active_tab_id();
@@ -219,7 +246,11 @@ impl WindowState {
                             host.display_name(),
                             e
                         );
-                        self.show_toast(format!("Cannot connect to this host: {}", e));
+                        self.post_toast(
+                            crate::app::overlay::toast::ToastKind::Error,
+                            format!("Cannot connect to this host: {}", e),
+                            None,
+                        );
                     }
                 }
                 self.request_redraw();
@@ -267,7 +298,11 @@ impl WindowState {
                 );
                 if let Err(e) = self.attach_tmux_gateway(&session_name) {
                     log::error!("Failed to attach to tmux session '{}': {}", session_name, e);
-                    self.show_toast(format!("Failed to attach: {}", e));
+                    self.post_toast(
+                        crate::app::overlay::toast::ToastKind::Error,
+                        format!("Failed to attach: {}", e),
+                        None,
+                    );
                 } else {
                     crate::debug_info!("TMUX", "Gateway initiated for session '{}'", session_name);
                     self.show_toast(format!("Connecting to tmux session '{}'...", session_name));
@@ -283,7 +318,11 @@ impl WindowState {
                 if let Err(e) = self.initiate_tmux_gateway(name.as_deref()) {
                     log::error!("Failed to create tmux session: {}", e);
                     crate::debug_error!("TMUX", "Failed to initiate gateway: {}", e);
-                    self.show_toast(format!("Failed to create tmux session: {}", e));
+                    self.post_toast(
+                        crate::app::overlay::toast::ToastKind::Error,
+                        format!("Failed to create tmux session: {}", e),
+                        None,
+                    );
                 } else {
                     let msg = match name {
                         Some(ref n) => format!("Creating tmux session '{}'...", n),

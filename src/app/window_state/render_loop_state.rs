@@ -38,6 +38,9 @@ pub(crate) enum ExternalConfigChange {
     /// The first-run shader or integrations prompt recorded an answer or an
     /// install (prompt state and installed/prompted versions).
     Integrations(Box<par_term_config::IntegrationConfig>),
+    /// "Don't ask again" in the close-running-job dialog (UX.md OV3):
+    /// turns `confirm_close_running_jobs` off.
+    StopConfirmingRunningJobClose,
 }
 
 impl PartialEq for ExternalConfigChange {
@@ -46,6 +49,7 @@ impl PartialEq for ExternalConfigChange {
             (Self::SystemTheme { is_dark: a }, Self::SystemTheme { is_dark: b }) => a == b,
             (Self::AssistantPanelWidth(a), Self::AssistantPanelWidth(b)) => a == b,
             (Self::SkippedVersion(a), Self::SkippedVersion(b)) => a == b,
+            (Self::StopConfirmingRunningJobClose, Self::StopConfirmingRunningJobClose) => true,
             // Never merged: each carries its window's full integration state.
             _ => false,
         }
@@ -63,6 +67,7 @@ impl ExternalConfigChange {
             Self::AssistantPanelWidth(width) => config.ai_inspector.ai_inspector_width = *width,
             Self::SkippedVersion(version) => config.updates.skipped_version = version.clone(),
             Self::Integrations(integrations) => config.integrations = (**integrations).clone(),
+            Self::StopConfirmingRunningJobClose => config.shell.confirm_close_running_jobs = false,
         }
     }
 }

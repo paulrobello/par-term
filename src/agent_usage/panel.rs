@@ -398,19 +398,11 @@ mod tests {
 
     #[test]
     fn panel_is_registered_as_modal() {
-        // The Phase 1 lesson, made structural: an overlay absent from
-        // any_modal_ui_visible() leaks keystrokes to the PTY.
-        let source = include_str!("../app/window_state/ui_query_helpers.rs");
-        let body = source
-            .split("fn any_modal_ui_visible")
-            .nth(1)
-            .expect("any_modal_ui_visible present in ui_query_helpers.rs");
-        let body = body.split('}').next().unwrap_or_default();
-        assert!(
-            body.contains("agent_usage_panel.visible"),
-            "agent_usage_panel missing from any_modal_ui_visible — keystrokes \
-             leak to the PTY while the panel is open"
-        );
+        // The Phase 1 lesson, made structural: an overlay that does not
+        // guard the terminal leaks keystrokes to the PTY. The live half —
+        // the panel opened on a real WindowState raises the guard — is
+        // `overlay::stack_tests::b61_dialogs_block_the_terminal`.
+        assert!(crate::app::overlay::OverlayId::AgentUsage.guards_terminal());
     }
 
     #[test]

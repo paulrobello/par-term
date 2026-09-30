@@ -63,9 +63,21 @@ impl PaneHintSelectState {
     }
 }
 
+/// The armed mode's instruction line (UX.md OV8).
+pub(crate) const PANE_HINT_BANNER: &str = "Pane hints: type a letter · Esc cancels";
+
 impl WindowState {
-    /// Arm the pane-hint selection mode for the focused tab. Does nothing for
-    /// tabs without a multi-pane layout — there is nothing to choose.
+    /// The mode banner while pane hints are armed, drawn in the mode-banner
+    /// layer next to the badges.
+    pub(crate) fn pane_hint_banner(&self) -> Option<&'static str> {
+        self.pane_hint_select
+            .is_active()
+            .then_some(PANE_HINT_BANNER)
+    }
+
+    /// Arm the pane-hint selection mode for the focused tab. A tab without a
+    /// multi-pane layout has nothing to choose; it says so instead of
+    /// silently doing nothing (UX.md OV8).
     pub fn enter_pane_hint_select(&mut self) {
         let Some(tab_id) = self.tab_manager.active_tab_id() else {
             return;
@@ -74,6 +86,7 @@ impl WindowState {
             return;
         };
         if !tab.has_multiple_panes() {
+            self.show_toast("Pane hints: the tab has only one pane");
             return;
         }
         let Some(pm) = tab.pane_manager() else {
@@ -334,6 +347,22 @@ mod tests {
 
         state.enter_pane_hint_select();
         assert!(!state.pane_hint_select.is_active(), "nothing to choose");
+        // UX.md OV8: one pane says so instead of silently doing nothing.
+        assert_eq!(
+            state.overlay_state.toast_message.as_deref(),
+            Some("Pane hints: the tab has only one pane")
+        );
+    }
+
+    #[test]
+    fn the_armed_mode_explains_itself() {
+        // UX.md OV8: "Type a letter · Esc cancels" while armed; gone after.
+        let mut state = window_with_two_panes();
+        assert_eq!(state.pane_hint_banner(), None);
+        state.enter_pane_hint_select();
+        assert_eq!(state.pane_hint_banner(), Some(PANE_HINT_BANNER));
+        state.resolve_pane_hint_select(None);
+        assert_eq!(state.pane_hint_banner(), None);
     }
 
     #[test]

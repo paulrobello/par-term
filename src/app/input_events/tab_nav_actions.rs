@@ -292,7 +292,21 @@ impl WindowState {
         }
         self.clear_and_invalidate();
         if closed > 1 {
-            self.show_toast(format!("Closed {closed} tabs"));
+            // An action toast (UX.md OV7): the button reopens the last
+            // closed tab; the hint names the live chord, never a raw
+            // config string.
+            let hint = self
+                .live_chord_hint("reopen_closed_tab")
+                .map(|chord| format!(" ({chord} reopens)"))
+                .unwrap_or_default();
+            self.post_toast(
+                crate::app::overlay::toast::ToastKind::Info,
+                format!("Closed {closed} tabs{hint}"),
+                Some(crate::app::overlay::toast::ToastAction {
+                    label: "Reopen".to_string(),
+                    action_id: "reopen_closed_tab".to_string(),
+                }),
+            );
         }
         self.focus_state.needs_redraw = true;
         self.request_redraw();

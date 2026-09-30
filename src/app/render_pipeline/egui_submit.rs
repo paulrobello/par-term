@@ -300,6 +300,17 @@ impl WindowState {
         // egui state borrow spans the closure, so the rename itself runs
         // after the block ends.
         let mut pane_rename_submit: Option<(crate::pane::PaneId, String)> = None;
+        // Set when the palette opens inside the closure; the directory
+        // refresh needs `&mut self`, so it runs after the closure.
+        let mut refresh_mux_directory = false;
+        let pane_hint_banner = self.pane_hint_banner();
+        // Toasts stack below the tab bar when it sits at the top (MD4).
+        let toast_top_inset = match self.config.load().tabs.tab_bar_position {
+            par_term_config::TabBarPosition::Top => self
+                .tab_bar_ui
+                .get_height(self.tab_manager.visible_tab_count(), &self.config.load()),
+            _ => 0.0,
+        };
 
         // IME preedit overlay inputs, captured before the egui closure: the
         // composing text and the focused cursor's rect in logical points.
@@ -389,12 +400,6 @@ impl WindowState {
                         );
                     }
 
-                    // Toast notification (top-center)
-                    egui_overlays::render_toast_overlay(
-                        ctx,
-                        self.overlay_state.toast_message.as_deref(),
-                    );
-
                     // IME preedit (composing) text at the terminal cursor
                     egui_overlays::render_ime_preedit_overlay(
                         ctx,
@@ -402,11 +407,13 @@ impl WindowState {
                         ime_cursor_logical,
                     );
 
-                    // Demote pick-mode overlays (toast hints + direction-choice dialog)
-                    super::egui_dialogs::render_demote_overlays(
+                    // Toast stack, mode banner, demote chooser (OV7/OV8)
+                    super::egui_dialogs::render_notifications(
                         ctx,
-                        demote_snapshot,
-                        demote_pane_bounds,
+                        &self.overlay_state.toasts,
+                        pane_hint_banner.or(self.overlay_state.mode_banner),
+                        toast_top_inset,
+                        (demote_snapshot, demote_pane_bounds),
                         actions,
                     );
 
@@ -480,6 +487,7 @@ impl WindowState {
                                 #[cfg(feature = "mux")]
                                 &self.tmux_state,
                             );
+                            refresh_mux_directory = true;
                         }
                     }
 
@@ -743,6 +751,12 @@ impl WindowState {
         if let Some((pane_id, name)) = pane_rename_submit {
             self.rename_pane(pane_id, &name);
         }
+        #[cfg(feature = "mux")]
+        if refresh_mux_directory {
+            self.refresh_mux_directory();
+        }
+        #[cfg(not(feature = "mux"))]
+        let _ = refresh_mux_directory;
 
         #[cfg(feature = "mux")]
         if let Some(pane) = exited_pane_restart {
