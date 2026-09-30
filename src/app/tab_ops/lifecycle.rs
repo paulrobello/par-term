@@ -671,6 +671,7 @@ impl WindowState {
         self.copy_mode.exit();
         self.tab_manager.next_tab();
         self.clear_and_invalidate();
+        self.after_user_tab_switch();
     }
 
     /// Switch to previous tab
@@ -678,6 +679,7 @@ impl WindowState {
         self.copy_mode.exit();
         self.tab_manager.prev_tab();
         self.clear_and_invalidate();
+        self.after_user_tab_switch();
     }
 
     /// Switch to tab by index (1-based)
@@ -685,6 +687,7 @@ impl WindowState {
         self.copy_mode.exit();
         self.tab_manager.switch_to_index(index);
         self.clear_and_invalidate();
+        self.after_user_tab_switch();
     }
 
     /// Move current tab left

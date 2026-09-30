@@ -10,11 +10,13 @@ use crate::tab::Tab;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Runtime;
 
-struct SplitRequest {
-    focus_new: bool,
-    dpi_scale: f32,
-    initial_command: Option<(String, Vec<String>)>,
-    split_percent: u8,
+/// How a split is made: focus, DPI scale for config pixels, the new
+/// pane's command, and the percent the focused pane keeps.
+pub(crate) struct SplitRequest {
+    pub(crate) focus_new: bool,
+    pub(crate) dpi_scale: f32,
+    pub(crate) initial_command: Option<(String, Vec<String>)>,
+    pub(crate) split_percent: u8,
 }
 
 impl Tab {
@@ -100,6 +102,19 @@ impl Tab {
         runtime: Arc<Runtime>,
         request: SplitRequest,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
+        self.split_placed(direction, false, config, runtime, request)
+    }
+
+    /// Split the focused pane, placing the new pane before (left of /
+    /// above) it when `before` is set (UX.md A5).
+    pub(crate) fn split_placed(
+        &mut self,
+        direction: SplitDirection,
+        before: bool,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        request: SplitRequest,
+    ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         // Check max panes limit
         if config.panes.max_panes > 0 && self.pane_count() >= config.panes.max_panes {
             log::warn!(
@@ -147,8 +162,9 @@ impl Tab {
         // Perform the split
         if let Some(ref mut pm) = self.pane_manager {
             let ratio = (request.split_percent.clamp(10, 90) as f32) / 100.0;
-            let new_pane_id = pm.split(
+            let new_pane_id = pm.split_placed(
                 direction,
+                before,
                 request.focus_new,
                 config,
                 Arc::clone(&runtime),

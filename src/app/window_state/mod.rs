@@ -241,8 +241,6 @@ pub struct WindowState {
     // =========================================================================
     // Feature state
     // =========================================================================
-    /// Whether keyboard input is broadcast to all panes in current tab
-    pub(crate) broadcast_input: bool,
     /// State machine for promote/demote pane-tab operations
     pub(crate) pane_transfer_state: crate::app::tab_ops::pane_transfer::PaneTransferState,
     /// State machine for the built-in pane-hint selection mode

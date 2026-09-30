@@ -33,6 +33,7 @@ mod flow_control;
 mod layout;
 mod layout_apply;
 mod layout_new_tab;
+mod layout_zoom;
 #[cfg(feature = "mux")]
 pub(crate) mod mux;
 #[cfg(feature = "mux")]
@@ -43,6 +44,8 @@ mod mux_drain;
 pub(crate) mod mux_pane_exit;
 #[cfg(feature = "mux")]
 mod mux_pane_moves;
+#[cfg(all(test, feature = "mux"))]
+mod mux_pane_sync_tests;
 #[cfg(feature = "mux")]
 mod mux_panes;
 #[cfg(feature = "mux")]

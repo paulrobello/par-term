@@ -10,7 +10,10 @@
 //! - `pane_ops` — split pane operations (split, navigate, resize, close panes)
 //! - `profile_ops` — profile management (open, apply, auto-switch profiles)
 
+mod broadcast;
 mod lifecycle;
+mod pane_focus;
+mod pane_layout_ops;
 mod pane_ops;
 pub(crate) mod pane_transfer;
 mod profile_auto_switch;

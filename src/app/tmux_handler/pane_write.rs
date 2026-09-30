@@ -58,38 +58,6 @@ impl WindowState {
         };
         self.route_mux_pane_write(tab.id, pane.id, data)
     }
-
-    /// Broadcast `bytes` to every pane of the active tab when it is a
-    /// multi-pane mux tab. Returns `false` (nothing consumed) for local
-    /// tabs, gateway-tmux tabs, and single-pane tabs, so the caller falls
-    /// through to its normal single-target routing.
-    #[cfg_attr(not(feature = "mux"), allow(unused_variables))]
-    pub(crate) fn broadcast_bytes_to_mux_tab_panes(&self, bytes: &[u8]) -> bool {
-        #[cfg(feature = "mux")]
-        if self.tmux_state.transport.is_some()
-            && let Some(tab) = self.tab_manager.active_tab()
-            && let Some(pm) = tab.pane_manager()
-            && pm.has_multiple_panes()
-        {
-            // Daemon panes get the bytes through the transport; local
-            // panes (a split created inside the mux tab) keep the spawned
-            // write the non-mux broadcast branch uses.
-            for pane in pm.all_panes() {
-                if !self.route_mux_pane_write(tab.id, pane.id, bytes) {
-                    let terminal_clone = std::sync::Arc::clone(&pane.terminal);
-                    let bytes_owned = bytes.to_vec();
-                    self.runtime.spawn(async move {
-                        let term = terminal_clone.read().await;
-                        if let Err(e) = term.write(&bytes_owned) {
-                            crate::debug_error!("INPUT", "PTY write failed (broadcast): {e}");
-                        }
-                    });
-                }
-            }
-            return true;
-        }
-        false
-    }
 }
 
 #[cfg(all(test, feature = "mux"))]
@@ -331,22 +299,77 @@ pub(crate) mod tests {
 
         let (transport, sent) = RecordingTransport::new();
         ws.tmux_state.transport = Some(Box::new(transport));
-        ws.broadcast_input = true;
+        ws.tab_manager.switch_to(tab_id);
+        let drain = |sent: &Arc<Mutex<Vec<String>>>| {
+            let mut routed: Vec<String> = std::mem::take(&mut *sent.lock().unwrap());
+            routed.sort();
+            routed
+        };
 
         assert!(
-            ws.broadcast_bytes_to_mux_tab_panes(b"z"),
+            !ws.broadcast_bytes(b"z"),
+            "broadcast is off until toggled for this tab"
+        );
+        ws.toggle_broadcast_input();
+        assert!(
+            ws.tab_manager.active_tab().unwrap().broadcast_input,
+            "the flag lives on the tab (UX.md D8)"
+        );
+        assert!(
+            ws.broadcast_bytes(b"z"),
             "a split mux tab with broadcast on must consume the bytes"
         );
-        let mut routed: Vec<String> = sent.lock().unwrap().clone();
-        routed.sort();
         assert_eq!(
-            routed,
+            drain(&sent),
             vec![
                 "send-keys -t %0 -H 7a".to_string(),
                 "send-keys -t %1 -H 7a".to_string(),
             ],
             "broadcast must reach both daemon panes"
         );
+
+        // Paste is broadcast too, one burst per daemon pane (V5). Each
+        // burst is wrapped in that pane's own bracketed-paste sequences
+        // (DECSET 2004), which a daemon shell enables at startup — a
+        // startup race the test must not depend on. Assert on the decoded
+        // payload core instead of the raw hex: one burst per pane, in
+        // order, carrying exactly "hi" with at most a bracketed-paste
+        // wrapper around it.
+        assert!(ws.broadcast_paste("hi"), "broadcast consumes the paste");
+        let sent_paste = drain(&sent);
+        assert_eq!(sent_paste.len(), 2, "one burst per daemon pane");
+        for (i, cmd) in sent_paste.iter().enumerate() {
+            let hex = cmd
+                .strip_prefix(&format!("send-keys -t %{} -H ", i))
+                .unwrap_or_else(|| panic!("unexpected paste command: {cmd}"));
+            let bytes = hex
+                .split_ascii_whitespace()
+                .map(|pair| u8::from_str_radix(pair, 16))
+                .collect::<Result<Vec<u8>, _>>()
+                .unwrap_or_else(|e| panic!("bad hex in {cmd}: {e}"));
+            const WRAP_START: [u8; 6] = [0x1b, 0x5b, 0x32, 0x30, 0x30, 0x7e];
+            const WRAP_END: [u8; 6] = [0x1b, 0x5b, 0x32, 0x30, 0x31, 0x7e];
+            let core = bytes
+                .strip_prefix(&WRAP_START)
+                .unwrap_or(&bytes)
+                .strip_suffix(&WRAP_END)
+                .unwrap_or_else(|| bytes.strip_prefix(&WRAP_START).unwrap_or(&bytes));
+            assert_eq!(
+                core, b"hi",
+                "pane %{i} paste payload must be exactly hi (wrapper allowed): {cmd}"
+            );
+        }
+
+        // A pane opted out (I21) stops receiving.
+        let excluded_native = ws.tmux_state.tmux_pane_owners[&1].1;
+        ws.tab_manager
+            .active_tab_mut()
+            .and_then(|t| t.pane_manager_mut())
+            .and_then(|pm| pm.get_pane_mut(excluded_native))
+            .expect("pane %1")
+            .broadcast_excluded = true;
+        assert!(ws.broadcast_bytes(b"z"));
+        assert_eq!(drain(&sent), vec!["send-keys -t %0 -H 7a".to_string()]);
     }
 
     #[test]

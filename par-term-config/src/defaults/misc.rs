@@ -122,10 +122,34 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Alt+Shift+Down".to_string(),
             action: "swap_pane_down".to_string(),
         },
+        // iTerm2's Maximize Active Pane (UX.md I3/K13) and Select Next /
+        // Previous Pane (I4/K14)
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+Enter".to_string(),
+            action: "toggle_pane_zoom".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+]".to_string(),
+            action: "next_pane".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+[".to_string(),
+            action: "prev_pane".to_string(),
+        },
+        // Equalize panes (UX.md K15)
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+=".to_string(),
+            action: "equalize_panes".to_string(),
+        },
         // Broadcast input mode (iTerm2's "all panes in current tab", I18)
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Alt+I".to_string(),
             action: "toggle_broadcast_input".to_string(),
+        },
+        // iTerm2's Toggle Broadcasting Input to Current Session (UX.md I21)
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Ctrl+Alt+I".to_string(),
+            action: "toggle_pane_broadcast".to_string(),
         },
         // Session picker moves off Cmd+Opt+T, which UX.md I14 reserves for
         // New Tab Next to Current (I24).
@@ -257,6 +281,23 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
         },
         // Pane swap ships unbound here (UX.md K16): editors use Alt+Shift+Arrow
         // and Windows uses Alt+Shift to switch the input language.
+        // Zoom and next / previous pane: UX.md K13/K14 in the K1 family.
+        crate::types::KeyBinding {
+            key: "Ctrl+Shift+Enter".to_string(),
+            action: "toggle_pane_zoom".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "Ctrl+Alt+]".to_string(),
+            action: "next_pane".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "Ctrl+Alt+[".to_string(),
+            action: "prev_pane".to_string(),
+        },
+        crate::types::KeyBinding {
+            key: "Ctrl+Alt+=".to_string(),
+            action: "equalize_panes".to_string(),
+        },
         // Broadcast input mode
         crate::types::KeyBinding {
             key: "Ctrl+Alt+I".to_string(),
@@ -424,7 +465,7 @@ pub fn pane_divider_width() -> Option<f32> {
 
 /// Default split-pane divider drag hit area width in pixels.
 pub fn pane_divider_hit_width() -> f32 {
-    5.0 // 5 pixel hit area for drag-to-resize (larger than visual for easier grabbing)
+    8.0 // 8 pixel hit area for drag-to-resize (UX.md PN8; larger than the visual divider)
 }
 
 /// Default padding in pixels inside each pane (between content and border/divider).

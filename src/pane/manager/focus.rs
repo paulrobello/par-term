@@ -13,6 +13,8 @@ impl PaneManager {
     pub fn close_pane(&mut self, id: PaneId) -> bool {
         crate::debug_info!("PANE_CLOSE", "close_pane called for pane {}", id);
 
+        // A close changes the layout the zoom was hiding (A1).
+        self.zoomed_pane_id = None;
         if let Some(root) = self.root.take() {
             match Self::remove_pane(root, id) {
                 crate::pane::tmux_helpers::RemoveResult::Removed(new_root) => {
@@ -68,10 +70,10 @@ impl PaneManager {
     /// Navigate to a pane in the given direction
     pub fn navigate(&mut self, direction: NavigationDirection) {
         if let Some(focused_id) = self.focused_pane_id
-            && let Some(ref root) = self.root
-            && let Some(new_id) = root.find_pane_in_direction(focused_id, direction)
+            && let Some(new_id) = self.neighbor_in_direction(focused_id, direction)
         {
-            self.focused_pane_id = Some(new_id);
+            // A focus move leaves zoom (A1) — inside set_focus.
+            self.set_focus(new_id);
             log::debug!(
                 "Navigated {:?} from pane {} to pane {}",
                 direction,
@@ -84,6 +86,7 @@ impl PaneManager {
     /// Swap the positions of two panes, keeping each pane's terminal and
     /// focus id. Returns true when both panes exist and were swapped.
     pub fn swap_panes(&mut self, a: PaneId, b: PaneId) -> bool {
+        self.unzoom();
         let Some(root) = self.root.as_mut() else {
             return false;
         };
@@ -103,9 +106,14 @@ impl PaneManager {
         from_id: PaneId,
         direction: NavigationDirection,
     ) -> Option<PaneId> {
-        self.root
-            .as_ref()?
-            .find_pane_in_direction(from_id, direction)
+        let root = self.root.as_ref()?;
+        // The zoomed pane's bounds cover the tab; resolve from the tree
+        // position it holds unzoomed.
+        let from_bounds = match self.zoomed_tree_bounds {
+            Some(bounds) if self.zoomed_pane_id == Some(from_id) => bounds,
+            _ => root.find_pane(from_id)?.bounds,
+        };
+        root.find_pane_in_direction_from(from_id, from_bounds, direction)
     }
 
     /// Focus a specific pane by ID
@@ -115,20 +123,15 @@ impl PaneManager {
             .as_ref()
             .is_some_and(|r| r.find_pane(id).is_some())
         {
-            self.focused_pane_id = Some(id);
+            self.set_focus(id);
         }
     }
 
     /// Focus the pane at a given pixel position
     pub fn focus_pane_at(&mut self, x: f32, y: f32) -> Option<PaneId> {
-        if let Some(ref root) = self.root
-            && let Some(pane) = root.find_pane_at(x, y)
-        {
-            let id = pane.id;
-            self.focused_pane_id = Some(id);
-            return Some(id);
-        }
-        None
+        let id = self.visible_pane_at(x, y)?.id;
+        self.set_focus(id);
+        Some(id)
     }
 
     /// Get the currently focused pane

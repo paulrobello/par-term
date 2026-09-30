@@ -36,6 +36,7 @@ impl TabBarUI {
             has_activity,
             is_bell_active,
             mux_attached,
+            pane_badge,
             custom_color,
             config,
             tab_size: tab_width,
@@ -163,7 +164,8 @@ impl TabBarUI {
 
                 // par-mux attach indicator: every tab in an attached window is
                 // a mux tab, so the glyph marks them apart from local tabs
-                let mux_width = if mux_attached { 18.0 } else { 0.0 };
+                let mux_width = if mux_attached { 18.0 } else { 0.0 }
+                    + if pane_badge.is_some() { 18.0 } else { 0.0 };
 
                 // Title rendering with width-aware truncation
                 let base_font_id = ui.style().text_styles[&egui::TextStyle::Button].clone();
@@ -209,6 +211,7 @@ impl TabBarUI {
                         .on_hover_text("Attached to a par-mux session");
                     ui.add_space(2.0);
                 }
+                super::tab_rendering::pane_badge_label(ui, pane_badge, text_color);
 
                 if config.tab_colors.tab_html_titles {
                     let segments = sanitize_styled_segments_for_egui(parse_html_title(title));

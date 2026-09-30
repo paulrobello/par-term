@@ -27,4 +27,4 @@ pub use common::{
     DividerRect, NavigationDirection, PaneBackground, PaneId, RestartState, SplitDirection,
 };
 pub use pane::Pane;
-pub use pane_node::PaneNode;
+pub use pane_node::{PaneNode, split_child_bounds};

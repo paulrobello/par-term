@@ -195,6 +195,9 @@ impl TabBarUI {
                                     has_activity: tab.activity.has_activity,
                                     is_bell_active,
                                     mux_attached,
+                                    pane_badge: tab
+                                        .pane_mode_badge()
+                                        .map(|b| (b, tab.pane_mode_badge_tooltip())),
                                     custom_color: tab.custom_color,
                                     config,
                                     tab_size: tab_width,
@@ -250,6 +253,9 @@ impl TabBarUI {
                                     has_activity: tab.activity.has_activity,
                                     is_bell_active,
                                     mux_attached,
+                                    pane_badge: tab
+                                        .pane_mode_badge()
+                                        .map(|b| (b, tab.pane_mode_badge_tooltip())),
                                     custom_color: tab.custom_color,
                                     config,
                                     tab_size: tab_width,

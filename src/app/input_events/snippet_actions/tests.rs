@@ -214,3 +214,18 @@ fn test_glob_match_wildcard() {
     assert!(glob_match("*", "anything"));
     assert!(!glob_match("feat/*", "fix/bug"));
 }
+
+/// UX.md PN15: sequence steps may name built-in actions, not only user
+/// actions; prefix forms that run user content are not built-ins.
+#[test]
+fn builtin_step_ids_resolve_against_the_dispatch_tables() {
+    use super::workflow::builtin_step_id;
+    assert!(builtin_step_id("split_right"));
+    assert!(builtin_step_id("equalize_panes"));
+    assert!(builtin_step_id("increase_font_size"), "display table");
+    assert!(builtin_step_id("split_vertical"), "renamed ids resolve");
+    assert!(builtin_step_id("layout:tiled"));
+    assert!(!builtin_step_id("action:mine"));
+    assert!(!builtin_step_id("snippet:mine"));
+    assert!(!builtin_step_id("not_an_action"));
+}

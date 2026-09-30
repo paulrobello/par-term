@@ -33,6 +33,8 @@ pub(super) struct TabRenderParams<'a> {
     pub is_bell_active: bool,
     /// Tab's window is attached to a par-mux session (all its tabs are mux tabs)
     pub mux_attached: bool,
+    /// Pane-mode badge (zoom / broadcast, UX.md V5/V6) and its hover text.
+    pub pane_badge: Option<(&'static str, &'static str)>,
     pub custom_color: Option<[u8; 3]>,
     pub config: &'a Config,
     /// Tab height (vertical layout) or tab width (horizontal layout).
@@ -119,6 +121,7 @@ impl TabBarUI {
             has_activity,
             is_bell_active,
             mux_attached,
+            pane_badge,
             custom_color,
             config,
             tab_size: tab_height,
@@ -235,7 +238,7 @@ impl TabBarUI {
                     18.0
                 } else {
                     0.0
-                };
+                } + pane_badge_label(ui, pane_badge, text_color);
 
                 // Truncate title to fit available width
                 let close_width = if config.tabs.tab_show_close_button {
@@ -364,4 +367,19 @@ impl TabBarUI {
 
         (action, tab_rect)
     }
+}
+
+/// Draw the pane-mode badge (UX.md V5/V6) and return the width it takes.
+pub(super) fn pane_badge_label(
+    ui: &mut egui::Ui,
+    badge: Option<(&'static str, &'static str)>,
+    color: egui::Color32,
+) -> f32 {
+    let Some((glyph, tooltip)) = badge else {
+        return 0.0;
+    };
+    ui.label(egui::RichText::new(glyph).color(color))
+        .on_hover_text(tooltip);
+    ui.add_space(2.0);
+    18.0
 }

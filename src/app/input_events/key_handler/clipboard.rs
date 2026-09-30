@@ -159,6 +159,11 @@ impl WindowState {
         // (escape sequences, C0/C1 controls) before sending to PTY
         let text = crate::paste_transform::sanitize_paste_content(text);
 
+        // Broadcast includes pastes (UX.md V5).
+        if self.broadcast_paste(&text) {
+            return;
+        }
+
         // Try to paste via tmux if connected
         if self.paste_via_tmux(&text) {
             return; // Paste was routed through tmux

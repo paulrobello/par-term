@@ -583,7 +583,7 @@ impl WindowState {
             // only. Mux-guarded so gateway-tmux tabs keep their existing
             // ordering (their broadcast branch never ran; the send-keys
             // claim below owns the key there).
-            if self.broadcast_input && self.broadcast_bytes_to_mux_tab_panes(&bytes) {
+            if self.broadcast_bytes(&bytes) {
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.activity.anti_idle_last_activity = std::time::Instant::now();
                 }
@@ -682,30 +682,6 @@ impl WindowState {
                         return;
                     }
                     // For any other key, ignore it while awaiting input
-                    return;
-                }
-
-                // Check if we should broadcast to all panes
-                if self.broadcast_input
-                    && let Some(ref mut pane_manager) = tab.pane_manager
-                    && pane_manager.has_multiple_panes()
-                {
-                    // Broadcast to all panes
-                    let terminals: Vec<_> = pane_manager
-                        .all_panes()
-                        .iter()
-                        .map(|p| Arc::clone(&p.terminal))
-                        .collect();
-
-                    let bytes_clone = bytes.clone();
-                    self.runtime.spawn(async move {
-                        for terminal in terminals {
-                            let term = terminal.read().await;
-                            if let Err(e) = term.write(&bytes_clone) {
-                                crate::debug_error!("INPUT", "PTY write failed (broadcast): {e}");
-                            }
-                        }
-                    });
                     return;
                 }
 

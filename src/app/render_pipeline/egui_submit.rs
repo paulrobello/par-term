@@ -166,9 +166,13 @@ impl WindowState {
                     .active_tab()
                     .and_then(|tab| tab.pane_manager())
                     .map(|pm| {
+                        // Tree-order index, drawn only on the visible panes:
+                        // a zoomed pane keeps the number it has unzoomed.
+                        let zoomed = pm.zoomed_pane_id();
                         pm.all_panes()
                             .iter()
                             .enumerate()
+                            .filter(|(_, pane)| zoomed.is_none_or(|z| z == pane.id))
                             .map(|(i, pane)| (i, pane.bounds))
                             .collect()
                     })
@@ -176,6 +180,13 @@ impl WindowState {
             } else {
                 Vec::new()
             };
+
+        // Broadcast receiver outlines (V5), resolved before the egui borrow.
+        let broadcast_outlines: Vec<crate::pane::PaneBounds> = self
+            .tab_manager
+            .active_tab()
+            .map(|tab| tab.broadcast_outline_bounds())
+            .unwrap_or_default();
 
         // Live plugin overlays (overlay kind), cloned before the egui
         // borrow — plugin id + last upserted scene each — plus the focused
@@ -604,6 +615,8 @@ impl WindowState {
                         &mut overlay_interactions,
                         focused_overlay_plugin.as_deref(),
                     );
+
+                    egui_overlays::render_broadcast_outlines(ctx, &broadcast_outlines);
 
                     // Pane-hint selection badges — modal-mode chrome, drawn
                     // above every plugin overlay (mode-stack contract).

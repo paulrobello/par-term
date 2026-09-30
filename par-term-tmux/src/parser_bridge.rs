@@ -107,12 +107,14 @@ impl ParserBridge {
             CoreNotification::LayoutChange {
                 window_id,
                 window_layout,
-                ..
+                window_visible_layout,
+                window_raw_flags,
             } => ParsedId::parse(&window_id)
                 .as_window()
                 .map(|id| TmuxNotification::LayoutChange {
                     window_id: id,
                     layout: window_layout,
+                    zoomed: zoomed_pane(&window_raw_flags, &window_visible_layout),
                 }),
 
             CoreNotification::Output { pane_id, data } => ParsedId::parse(&pane_id)
@@ -212,9 +214,58 @@ impl ParserBridge {
     }
 }
 
+/// The zoomed pane a `%layout-change` announces: tmux and par-mux both set
+/// the `Z` window flag (tmux as part of e.g. `*Z`) and send the zoomed pane
+/// alone as the visible layout.
+fn zoomed_pane(raw_flags: &str, visible_layout: &str) -> Option<TmuxPaneId> {
+    if !raw_flags.contains('Z') {
+        return None;
+    }
+    let visible = crate::types::TmuxLayout::parse(visible_layout)?;
+    match visible.pane_ids().as_slice() {
+        [only] => Some(*only),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_zoom_flag_names_the_visible_layouts_only_pane() {
+        assert_eq!(zoomed_pane("Z", "0000,80x24,0,0,3"), Some(3));
+        assert_eq!(zoomed_pane("*Z", "b25d,80x24,0,0,7"), Some(7), "tmux form");
+        assert_eq!(zoomed_pane("", "0000,80x24,0,0,3"), None, "no flag");
+        assert_eq!(
+            zoomed_pane("Z", "0000,80x24,0,0{40x24,0,0,1,39x24,41,0,2}"),
+            None,
+            "a multi-pane visible layout is not a zoom"
+        );
+    }
+
+    #[test]
+    fn a_zoomed_layout_change_carries_the_true_tree_and_the_zoomed_pane() {
+        use par_term_emu_core_rust::tmux_control::TmuxNotification as Core;
+        let converted = ParserBridge::convert(Core::LayoutChange {
+            window_id: "@1".into(),
+            window_layout: "0000,80x24,0,0{40x24,0,0,1,39x24,41,0,2}".into(),
+            window_visible_layout: "0000,80x24,0,0,2".into(),
+            window_raw_flags: "Z".into(),
+        });
+        match converted {
+            Some(TmuxNotification::LayoutChange {
+                window_id,
+                layout,
+                zoomed,
+            }) => {
+                assert_eq!(window_id, 1);
+                assert!(layout.contains('{'), "the true tree is kept: {layout}");
+                assert_eq!(zoomed, Some(2));
+            }
+            other => panic!("expected LayoutChange, got {other:?}"),
+        }
+    }
 
     #[test]
     fn test_parse_pane_id() {

@@ -14,6 +14,7 @@ mod tmux_helpers;
 mod types;
 
 pub use manager::ExtractResult;
+pub use manager::LayoutPreset;
 pub use manager::PaneIdRemap;
 pub use manager::PaneManager;
 pub use types::{

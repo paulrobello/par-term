@@ -42,7 +42,12 @@ impl WindowState {
     }
 
     /// Handle layout change notification - updates pane arrangement
-    pub(super) fn handle_tmux_layout_change(&mut self, window_id: TmuxWindowId, layout_str: &str) {
+    pub(super) fn handle_tmux_layout_change(
+        &mut self,
+        window_id: TmuxWindowId,
+        layout_str: &str,
+        zoomed: Option<crate::tmux::TmuxPaneId>,
+    ) {
         crate::debug_info!(
             "TMUX",
             "Layout changed for window @{}: {}",
@@ -172,6 +177,7 @@ impl WindowState {
             // No tab mapping found - create a new tab for this tmux window
             self.create_tab_for_layout(window_id, &parsed_layout, &pane_ids, bounds_info);
         }
+        self.apply_daemon_zoom(window_id, &parsed_layout, zoomed);
     }
 
     /// Apply a parsed tmux layout to an already-mapped tab.

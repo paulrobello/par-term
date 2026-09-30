@@ -411,9 +411,9 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `pane_divider_width` | `f32?` | `2.0` | Divider line width in pixels |
-| `pane_divider_hit_width` | `f32` | `5.0` | Drag-target width for resizing panes |
+| `pane_divider_hit_width` | `f32` | `8.0` | Drag-target width for resizing panes; double-click a divider to equalize its split |
 | `pane_padding` | `f32` | `1.0` | Padding inside each pane in pixels |
-| `pane_min_size` | `usize` | `10` | Minimum pane size in terminal cells |
+| `pane_min_size` | `usize` | `10` | Minimum pane size in terminal cells; enforced on split, divider drag, keyboard resize, equalize, and layout presets |
 | `pane_background_opacity` | `f32` | `1.0` | Pane background opacity (allows shader/image show-through) |
 | `pane_divider_style` | `enum` | `solid` | Divider style: `solid`, `double`, `dashed`, `shadow` |
 | `pane_divider_color` | `[u8;3]` | `[80,80,80]` | Divider line color |

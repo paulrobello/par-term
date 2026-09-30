@@ -5,7 +5,7 @@
 
 use super::PaneManager;
 use crate::pane::tmux_helpers::DividerUpdateContext;
-use crate::pane::types::{DividerRect, PaneBounds, PaneId, PaneNode, SplitDirection};
+use crate::pane::types::{DividerRect, PaneBounds, PaneNode, SplitDirection, split_child_bounds};
 
 impl PaneManager {
     /// Set the total bounds available for panes and recalculate layout
@@ -19,6 +19,7 @@ impl PaneManager {
         if let Some(ref mut root) = self.root {
             root.calculate_bounds(self.total_bounds, self.divider_width);
         }
+        self.apply_zoom_bounds();
     }
 
     /// Resize all pane terminals to match their current bounds
@@ -79,56 +80,12 @@ impl PaneManager {
         (self.divider_hit_width - self.divider_width).max(0.0) / 2.0
     }
 
-    /// Resize a split by adjusting its ratio
-    ///
-    /// `pane_id`: The pane whose adjacent split should be resized
-    /// `delta`: Amount to adjust the ratio (-1.0 to 1.0)
-    pub fn resize_split(&mut self, pane_id: PaneId, delta: f32) {
-        if let Some(ref mut root) = self.root {
-            Self::adjust_split_ratio(root, pane_id, delta);
-            self.recalculate_bounds();
-        }
-    }
-
-    /// Recursively find and adjust the split ratio for a pane
-    pub(super) fn adjust_split_ratio(node: &mut PaneNode, target_id: PaneId, delta: f32) -> bool {
-        match node {
-            PaneNode::Leaf(_) => false,
-            PaneNode::Split {
-                ratio,
-                first,
-                second,
-                ..
-            } => {
-                // Check if target is in first child
-                if first.all_pane_ids().contains(&target_id) {
-                    // Try to find in nested splits first
-                    if Self::adjust_split_ratio(first, target_id, delta) {
-                        return true;
-                    }
-                    // Adjust this split's ratio (making first child larger/smaller)
-                    *ratio = (*ratio + delta).clamp(0.1, 0.9);
-                    return true;
-                }
-
-                // Check if target is in second child
-                if second.all_pane_ids().contains(&target_id) {
-                    // Try to find in nested splits first
-                    if Self::adjust_split_ratio(second, target_id, delta) {
-                        return true;
-                    }
-                    // Adjust this split's ratio (making second child larger/smaller)
-                    *ratio = (*ratio - delta).clamp(0.1, 0.9);
-                    return true;
-                }
-
-                false
-            }
-        }
-    }
-
     /// Get all divider rectangles in the pane tree
     pub fn get_dividers(&self) -> Vec<DividerRect> {
+        // A zoomed pane covers every divider: none is drawn or draggable.
+        if self.zoomed_pane_id.is_some() {
+            return Vec::new();
+        }
         self.root
             .as_ref()
             .map(|r| r.collect_dividers(self.total_bounds, self.divider_width))
@@ -164,32 +121,34 @@ impl PaneManager {
         self.get_dividers().get(index).copied()
     }
 
-    /// Resize by dragging a divider to a new position
+    /// Resize by dragging a divider to a new position, never past the
+    /// minimum pane size (PN4).
     ///
     /// `divider_index`: Which divider is being dragged
     /// `new_position`: New mouse position (x for vertical, y for horizontal dividers)
     pub fn drag_divider(&mut self, divider_index: usize, new_x: f32, new_y: f32) {
-        // Get the divider info first
-        let dividers = self.get_dividers();
-        if dividers.get(divider_index).is_some() {
-            // Find the split node that owns this divider and update its ratio
-            if let Some(ref mut root) = self.root {
-                let mut divider_count = 0;
-                let ctx = DividerUpdateContext {
-                    target_index: divider_index,
-                    new_x,
-                    new_y,
-                    bounds: self.total_bounds,
-                    divider_width: self.divider_width,
-                };
-                Self::update_divider_ratio(root, &mut divider_count, &ctx);
-                self.recalculate_bounds();
-            }
+        if self.zoomed_pane_id.is_some() {
+            return;
         }
+        let Some(mut root) = self.root.take() else {
+            return;
+        };
+        let mut divider_count = 0;
+        let ctx = DividerUpdateContext {
+            target_index: divider_index,
+            new_x,
+            new_y,
+            bounds: self.total_bounds,
+            divider_width: self.divider_width,
+        };
+        self.update_divider_ratio(&mut root, &mut divider_count, &ctx);
+        self.root = Some(root);
+        self.recalculate_bounds();
     }
 
     /// Recursively find and update the split ratio for a divider
-    pub(super) fn update_divider_ratio(
+    fn update_divider_ratio(
+        &self,
         node: &mut PaneNode,
         current_index: &mut usize,
         ctx: &DividerUpdateContext,
@@ -202,77 +161,32 @@ impl PaneManager {
                 first,
                 second,
             } => {
-                // Check if this is the target divider
                 if *current_index == ctx.target_index {
-                    // Calculate new ratio based on mouse position
-                    let new_ratio = match direction {
+                    let wanted = match direction {
                         SplitDirection::Horizontal => {
-                            // Horizontal split: mouse Y position determines ratio
-                            ((ctx.new_y - ctx.bounds.y) / ctx.bounds.height).clamp(0.1, 0.9)
+                            (ctx.new_y - ctx.bounds.y) / ctx.bounds.height
                         }
-                        SplitDirection::Vertical => {
-                            // Vertical split: mouse X position determines ratio
-                            ((ctx.new_x - ctx.bounds.x) / ctx.bounds.width).clamp(0.1, 0.9)
-                        }
+                        SplitDirection::Vertical => (ctx.new_x - ctx.bounds.x) / ctx.bounds.width,
                     };
-                    *ratio = new_ratio;
+                    *ratio = self
+                        .clamp_drag_ratio(*direction, ctx.bounds, first, second, wanted, *ratio);
                     return true;
                 }
                 *current_index += 1;
-
-                // Calculate child bounds to recurse
-                let (first_bounds, second_bounds) = match direction {
-                    SplitDirection::Horizontal => {
-                        let first_height = (ctx.bounds.height - ctx.divider_width) * *ratio;
-                        let second_height = ctx.bounds.height - first_height - ctx.divider_width;
-                        (
-                            PaneBounds::new(
-                                ctx.bounds.x,
-                                ctx.bounds.y,
-                                ctx.bounds.width,
-                                first_height,
-                            ),
-                            PaneBounds::new(
-                                ctx.bounds.x,
-                                ctx.bounds.y + first_height + ctx.divider_width,
-                                ctx.bounds.width,
-                                second_height,
-                            ),
-                        )
-                    }
-                    SplitDirection::Vertical => {
-                        let first_width = (ctx.bounds.width - ctx.divider_width) * *ratio;
-                        let second_width = ctx.bounds.width - first_width - ctx.divider_width;
-                        (
-                            PaneBounds::new(
-                                ctx.bounds.x,
-                                ctx.bounds.y,
-                                first_width,
-                                ctx.bounds.height,
-                            ),
-                            PaneBounds::new(
-                                ctx.bounds.x + first_width + ctx.divider_width,
-                                ctx.bounds.y,
-                                second_width,
-                                ctx.bounds.height,
-                            ),
-                        )
-                    }
-                };
-
-                // Try children
+                let (first_bounds, second_bounds) =
+                    split_child_bounds(*direction, *ratio, ctx.bounds, ctx.divider_width);
                 let first_ctx = DividerUpdateContext {
                     bounds: first_bounds,
                     ..*ctx
                 };
-                if Self::update_divider_ratio(first, current_index, &first_ctx) {
+                if self.update_divider_ratio(first, current_index, &first_ctx) {
                     return true;
                 }
                 let second_ctx = DividerUpdateContext {
                     bounds: second_bounds,
                     ..*ctx
                 };
-                Self::update_divider_ratio(second, current_index, &second_ctx)
+                self.update_divider_ratio(second, current_index, &second_ctx)
             }
         }
     }

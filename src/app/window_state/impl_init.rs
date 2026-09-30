@@ -114,7 +114,6 @@ impl WindowState {
 
             tmux_state: super::TmuxState::new(tmux_prefix_key),
 
-            broadcast_input: false,
             pane_transfer_state: Default::default(),
             pane_hint_select: Default::default(),
 

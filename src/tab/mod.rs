@@ -11,6 +11,7 @@ mod initial_text;
 mod manager;
 mod manager_nav;
 mod pane_accessors;
+pub(crate) mod pane_badges;
 mod pane_ops;
 mod profile_state;
 mod profile_tracking;
@@ -21,6 +22,7 @@ mod setup;
 mod tmux_state;
 
 pub(crate) use activity_state::TabActivityMonitor;
+pub(crate) use pane_ops::SplitRequest;
 pub(crate) use profile_state::TabProfileState;
 pub(crate) use scripting_state::TabScriptingState;
 pub(crate) use tmux_state::TabTmuxState;
@@ -131,6 +133,8 @@ pub struct Tab {
     pub(crate) shutdown_fast: bool,
     /// When true, this tab is hidden from the tab bar (e.g., tmux gateway tab while windows are active)
     pub(crate) is_hidden: bool,
+    /// Broadcast input to every pane in this tab (UX.md V5; per tab, D8).
+    pub(crate) broadcast_input: bool,
     /// Last-known modifyOtherKeys level. Updated on every successful read of
     /// `terminal` from the input path; read as a fallback when `try_read()`
     /// fails. Lock contention with the renderer (`try_write` on every frame in

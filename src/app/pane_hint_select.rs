@@ -116,6 +116,7 @@ impl WindowState {
             && let Some(pm) = tab.pane_manager_mut()
         {
             pm.focus_pane(pane_id);
+            self.after_user_pane_focus();
         }
         // Matching letter or not, the mode ends here; redraw either way.
         self.focus_state.needs_redraw = true;

@@ -123,7 +123,8 @@ impl PaneManager {
 
     /// Split the focused pane in the given direction
     ///
-    /// Returns the ID of the new pane, or None if no pane is focused.
+    /// Returns the ID of the new pane, or None if no pane is focused or the
+    /// split would leave a pane below `pane_min_size` (PN4).
     ///
     /// `initial_command` — when `Some((cmd, args))` the new pane launches that
     /// process directly instead of the login shell. The pane closes when the
@@ -137,10 +138,41 @@ impl PaneManager {
         initial_command: Option<(String, Vec<String>)>,
         ratio: f32,
     ) -> Result<Option<PaneId>> {
+        self.split_placed(
+            direction,
+            false,
+            focus_new,
+            config,
+            runtime,
+            initial_command,
+            ratio,
+        )
+    }
+
+    /// [`Self::split`] with the new pane placed before (left of / above)
+    /// the focused one when `before` is set (UX.md A5).
+    #[allow(clippy::too_many_arguments)] // split() plus the placement flag
+    pub fn split_placed(
+        &mut self,
+        direction: SplitDirection,
+        before: bool,
+        focus_new: bool,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        initial_command: Option<(String, Vec<String>)>,
+        ratio: f32,
+    ) -> Result<Option<PaneId>> {
         let focused_id = match self.focused_pane_id {
             Some(id) => id,
             None => return Ok(None),
         };
+        // A split changes the layout the zoom was hiding (A1).
+        self.unzoom();
+        // Refuse before spawning a shell that would only be dropped.
+        if !self.can_split(direction) {
+            log::info!("Split of pane {focused_id} refused: below pane_min_size");
+            return Ok(None);
+        }
 
         // Get the working directory and bounds from the focused pane
         let (working_dir, focused_bounds) = if let Some(pane) = self.focused_pane() {
@@ -194,28 +226,19 @@ impl PaneManager {
             });
         }
 
-        // Find and split the focused pane
-        if let Some(root) = self.root.take() {
-            let (new_root, _) =
-                Self::split_node(root, focused_id, direction, Some(new_pane), ratio);
-            self.root = Some(new_root);
-        }
-
-        // Recalculate bounds
-        self.recalculate_bounds();
-
-        // Focus the new pane only if requested
-        if focus_new {
-            self.focused_pane_id = Some(new_id);
+        if self
+            .split_with_pane(new_pane, direction, before, focus_new, ratio)
+            .is_err()
+        {
+            return Ok(None);
         }
 
         crate::debug_info!(
             "PANE_SPLIT",
-            "Split pane {} {:?}, created new pane {}. First(left/top)={} Second(right/bottom)={} (focused)",
+            "Split pane {} {:?} (before={}), created new pane {}",
             focused_id,
             direction,
-            new_id,
-            focused_id,
+            before,
             new_id
         );
 

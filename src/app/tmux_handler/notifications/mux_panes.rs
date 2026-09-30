@@ -30,6 +30,13 @@ impl WindowState {
     /// On success the reply's new pane id becomes the focused pane, so
     /// subsequent input lands in the freshly split pane.
     pub(crate) fn split_pane_via_mux(&mut self, vertical: bool) -> bool {
+        self.split_pane_via_mux_placed(vertical, false)
+    }
+
+    /// [`Self::split_pane_via_mux`] with `-b` when `before` is set: the new
+    /// pane lands left of / above the focused one (UX.md A5; the daemon has
+    /// parsed `split-window -b` since core 0.57).
+    pub(crate) fn split_pane_via_mux_placed(&mut self, vertical: bool, before: bool) -> bool {
         let Some(transport) = &self.tmux_state.transport else {
             return false;
         };
@@ -45,7 +52,8 @@ impl WindowState {
         // tmux's -h is a side-by-side split (par-term "vertical"); -v stacks.
         stamp_pane_session_id(transport.as_ref(), self.tmux_state.mux_session_id);
         let flag = if vertical { "-h" } else { "-v" };
-        let cmd = format!("split-window {flag} -t %{target}");
+        let place = if before { " -b" } else { "" };
+        let cmd = format!("split-window {flag}{place} -t %{target}");
         match transport.send_command(&cmd) {
             Ok(reply) => {
                 if let Some(id) = reply

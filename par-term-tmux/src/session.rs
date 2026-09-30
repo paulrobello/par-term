@@ -85,6 +85,10 @@ pub enum TmuxNotification {
     LayoutChange {
         window_id: TmuxWindowId,
         layout: String,
+        /// The pane the window is zoomed to (`resize-pane -Z`), from the
+        /// `Z` window flag and the single-pane visible layout. `layout` is
+        /// always the true tree, so unzoom restores it exactly.
+        zoomed: Option<TmuxPaneId>,
     },
     /// Pane output received
     Output { pane_id: TmuxPaneId, data: Vec<u8> },

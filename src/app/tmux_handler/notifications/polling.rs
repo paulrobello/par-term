@@ -226,10 +226,14 @@ impl WindowState {
         // Fallback: LayoutChange notifications that TmuxSync could not translate
         // (no window→tab mapping yet). The direct handler handles on-the-fly mapping.
         for notification in &layout_sync {
-            if let TmuxNotification::LayoutChange { window_id, layout } = notification
+            if let TmuxNotification::LayoutChange {
+                window_id,
+                layout,
+                zoomed,
+            } = notification
                 && self.tmux_state.tmux_sync.get_tab(*window_id).is_none()
             {
-                self.handle_tmux_layout_change(*window_id, layout);
+                self.handle_tmux_layout_change(*window_id, layout, *zoomed);
                 needs_redraw = true;
             }
         }

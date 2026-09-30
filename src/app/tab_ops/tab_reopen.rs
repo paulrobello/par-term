@@ -145,7 +145,7 @@ impl WindowState {
             }
 
             self.play_alert_sound(crate::config::AlertEvent::NewTab);
-            self.show_toast("Tab restored (session preserved)");
+            self.show_toast("Tab restored (shell kept running)");
             self.focus_state.needs_redraw = true;
             self.request_redraw();
         } else {

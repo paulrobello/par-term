@@ -545,10 +545,15 @@ impl WindowState {
             return;
         }
 
-        // Get cell dimensions from renderer
+        // Cell dimensions from the renderer; without one (headless tests),
+        // from the mirror itself: a daemon-driven pane's terminal holds its
+        // daemon grid size.
         let (cell_width, cell_height) = match &self.renderer {
             Some(r) => (r.cell_width(), r.cell_height()),
-            None => return,
+            None => match self.mirror_cell_metrics() {
+                Some(m) => m,
+                None => return,
+            },
         };
 
         // Get pane sizes from active tab's pane manager
@@ -605,6 +610,24 @@ impl WindowState {
                 );
             }
         }
+    }
+
+    /// Pixels per cell of the active tab's mirror, from its first pane's
+    /// bounds and terminal grid.
+    fn mirror_cell_metrics(&self) -> Option<(f32, f32)> {
+        let pane = *self
+            .tab_manager
+            .active_tab()?
+            .pane_manager()?
+            .all_panes()
+            .first()?;
+        let (cols, rows) = pane.terminal.try_read().ok()?.dimensions();
+        (cols > 0 && rows > 0 && pane.bounds.width > 0.0).then(|| {
+            (
+                pane.bounds.width / cols as f32,
+                pane.bounds.height / rows as f32,
+            )
+        })
     }
 
     // =========================================================================

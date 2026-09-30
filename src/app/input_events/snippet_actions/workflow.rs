@@ -74,6 +74,17 @@ impl WindowState {
             .find(|a| a.id() == action_id)
         {
             Some(a) => a.clone(),
+            // UX.md PN15: a step may name a built-in action (split_right,
+            // equalize_panes, …) as well as a user action; user actions win
+            // a name clash.
+            None if builtin_step_id(action_id) => {
+                return if self.execute_keybinding_action(action_id) {
+                    StepOutcome::Success
+                } else {
+                    self.show_toast(format!("Workflow: action '{action_id}' failed"));
+                    StepOutcome::Abort
+                };
+            }
             None => {
                 self.show_toast(format!("Workflow: action '{}' not found", action_id));
                 return StepOutcome::Abort;
@@ -483,6 +494,21 @@ impl WindowState {
             }
         }
     }
+}
+
+/// Whether a sequence step id names a built-in action (UX.md PN15): an
+/// exact dispatch-table key or a `layout:` preset. Prefix forms that run
+/// user content (`action:`, `snippet:`) are excluded so a sequence cannot
+/// recurse through them past the circular-reference guard.
+pub(crate) fn builtin_step_id(action_id: &str) -> bool {
+    let id = par_term_config::config::keybindings_methods::current_action_id(action_id);
+    super::super::keybinding_actions::ACTION_HANDLERS
+        .iter()
+        .any(|(name, _)| *name == id)
+        || super::super::keybinding_display_actions::DISPLAY_ACTION_HANDLERS
+            .iter()
+            .any(|(name, _)| *name == id)
+        || id.starts_with("layout:")
 }
 
 /// Simple glob pattern matching (supports `*` as wildcard, no `?` or `[` brackets).

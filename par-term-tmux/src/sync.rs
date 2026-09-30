@@ -168,11 +168,16 @@ impl TmuxSync {
                         });
                     }
                 }
-                TmuxNotification::LayoutChange { window_id, layout } => {
+                TmuxNotification::LayoutChange {
+                    window_id,
+                    layout,
+                    zoomed,
+                } => {
                     if let Some(tab_id) = self.get_tab(*window_id) {
                         actions.push(SyncAction::UpdateLayout {
                             tab_id,
                             layout: layout.clone(),
+                            zoomed: *zoomed,
                         });
                     }
                 }
@@ -338,12 +343,13 @@ mod tests {
         let notifs = vec![TmuxNotification::LayoutChange {
             window_id: 1,
             layout: "abc123,80x24,0,0".into(),
+            zoomed: None,
         }];
         let actions = sync.process_notifications(&notifs);
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::UpdateLayout { tab_id, layout } => {
+            SyncAction::UpdateLayout { tab_id, layout, .. } => {
                 assert_eq!(*tab_id, 10);
                 assert_eq!(layout, "abc123,80x24,0,0");
             }
@@ -357,6 +363,7 @@ mod tests {
         let notifs = vec![TmuxNotification::LayoutChange {
             window_id: 2,
             layout: "80x24".into(),
+            zoomed: None,
         }];
         let actions = sync.process_notifications(&notifs);
         assert!(
@@ -475,6 +482,7 @@ mod tests {
         let layout_notifs = vec![TmuxNotification::LayoutChange {
             window_id: 8,
             layout: "80x24,0,0,0".into(),
+            zoomed: None,
         }];
         let actions = sync.process_notifications(&layout_notifs);
 
@@ -537,7 +545,13 @@ pub enum SyncAction {
     /// Rename a tab
     RenameTab { tab_id: TabId, name: String },
     /// Update the pane layout in a tab
-    UpdateLayout { tab_id: TabId, layout: String },
+    UpdateLayout {
+        tab_id: TabId,
+        layout: String,
+        /// The zoomed pane, if the window is zoomed (see
+        /// [`TmuxNotification::LayoutChange`]).
+        zoomed: Option<TmuxPaneId>,
+    },
     /// Route output to a pane
     PaneOutput { pane_id: PaneId, data: Vec<u8> },
     /// Session has ended

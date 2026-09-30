@@ -41,6 +41,7 @@ impl WindowState {
                 self.tab_manager.switch_to(id);
                 // Clear renderer cells and invalidate cache to ensure clean switch
                 self.clear_and_invalidate();
+                self.after_user_tab_switch();
             }
             TabBarAction::Close(id) => {
                 // Switch to the tab first so close_current_tab() operates on it.

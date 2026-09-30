@@ -64,6 +64,25 @@ pub(super) type PaneRenderDataResult = Option<(
     usize, // focused pane scrollback_len (for tab.cache update)
 )>;
 
+/// Physical pixels of a pane that hold no cells `(width, height)`: the
+/// pane padding on both sides, the scrollbar inset, and the title bar —
+/// the same subtractions [`gather_pane_render_data`] makes before sizing a
+/// pane's grid, so `pane_min_size` is enforced in displayed cells.
+pub(crate) fn pane_cell_overhead(
+    config: &Config,
+    effective_pane_padding: f32,
+    scrollbar_inset: f32,
+    scale_factor: f32,
+) -> (f32, f32) {
+    let padding = effective_pane_padding * scale_factor * 2.0;
+    let title = if config.panes.show_pane_titles {
+        config.panes.pane_title_height * scale_factor
+    } else {
+        0.0
+    };
+    (padding + scrollbar_inset, padding + title)
+}
+
 /// Gather per-pane render data from the active tab's pane manager.
 ///
 /// This is a free function (not a `&mut self` method) so it can be called while
@@ -138,10 +157,20 @@ pub(super) fn gather_pane_render_data(
         layout_width,
         content_height,
     );
+    pm.set_min_pane_size(
+        config.panes.pane_min_size,
+        (sizing.cell_width, sizing.cell_height),
+        pane_cell_overhead(
+            config,
+            effective_pane_padding,
+            scrollbar_inset,
+            sizing.scale_factor,
+        ),
+    );
     pm.set_bounds(bounds);
     // The pane(s) whose right edge is right-most border the reserved strip.
     let layout_right_edge = pm
-        .all_panes()
+        .visible_panes()
         .iter()
         .map(|p| p.bounds.x + p.bounds.width)
         .fold(bounds.x, f32::max);
@@ -154,7 +183,10 @@ pub(super) fn gather_pane_render_data(
     // (computed per-pane below) already subtracts the title bar height.
 
     let focused_pane_id = pm.focused_pane_id();
-    let all_pane_ids: Vec<_> = pm.all_panes().iter().map(|p| p.id).collect();
+    // A zoomed pane is drawn alone (A1); the hidden panes keep running.
+    let all_pane_ids: Vec<_> = pm.visible_panes().iter().map(|p| p.id).collect();
+    let tab_pane_count = pm.pane_count();
+    let zoomed_pane = pm.zoomed_pane_id();
     let dividers = pm.get_dividers();
 
     let pane_bg_opacity = config.panes.pane_background_opacity;
@@ -301,7 +333,10 @@ pub(super) fn gather_pane_render_data(
                 y: title_y,
                 width: bounds.width,
                 height: title_height,
-                title: pane.get_title(),
+                title: crate::tab::pane_badges::decorate_pane_title(
+                    pane.get_title(),
+                    zoomed_pane == Some(*pane_id),
+                ),
                 focused: is_focused,
                 text_color: title_text_color,
                 bg_color: title_bg_color,
@@ -425,7 +460,7 @@ pub(super) fn gather_pane_render_data(
         }
 
         // Per-pane backgrounds only apply when multiple panes exist
-        let pane_background = if all_pane_ids.len() > 1 && pane.background().has_image() {
+        let pane_background = if tab_pane_count > 1 && pane.background().has_image() {
             Some(pane.background().clone())
         } else {
             None
@@ -564,7 +599,7 @@ pub(super) struct PaneCaptureInput<'a> {
 /// which have to outlive the render call and none of which can escape this
 /// frame. Both the live path and the QA-011 screenshot path go through here, so
 /// a capture cannot drift out of step with what is drawn on screen.
-fn with_pane_capture_params<R>(
+pub(super) fn with_pane_capture_params<R>(
     renderer: &mut Renderer,
     input: PaneCaptureInput<'_>,
     f: impl FnOnce(&mut Renderer, par_term_render::renderer::PaneCaptureParams<'_>) -> R,
@@ -695,105 +730,6 @@ impl crate::app::window_state::WindowState {
                 })
             },
         )
-    }
-
-    /// Capture the current frame as an image through the live pane render path.
-    ///
-    /// QA-011: screenshots used to re-render from the renderer's single-grid
-    /// state, which does not match a split — the capture showed one grid's worth
-    /// of the focused pane's cells re-wrapped at the full-window stride. This
-    /// gathers exactly the pane data the next live frame would draw and
-    /// composites it into an offscreen target, so the image is the screen.
-    ///
-    /// Not included: the egui overlay (tab bar, dialogs, menus). `render_egui`
-    /// consumes an `egui::FullOutput` produced once per frame by the live egui
-    /// pass, and a capture taken between frames has none. Unchanged from the
-    /// previous behaviour, and worth knowing when using `--screenshot` to verify
-    /// UI work.
-    pub(crate) fn capture_frame_image(&mut self) -> Result<image::RgbaImage, String> {
-        // Everything that needs `&self` is read up front, before the disjoint
-        // `self.renderer` / `self.tab_manager` field borrows below.
-        let config = self.config.load_full();
-        let is_tmux_gateway = self.is_gateway_active();
-        let is_tmux_connected = self.is_tmux_connected();
-        let show_scrollbar = self.should_show_scrollbar();
-        let cursor_opacity = self.cursor_anim.cursor_opacity;
-        let status_bar_height =
-            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&config, is_tmux_connected);
-        let custom_status_bar_height = self.status_bar_ui.height(&config, self.is_fullscreen);
-        let pane_count = self
-            .tab_manager
-            .active_tab()
-            .and_then(|t| t.pane_manager.as_ref())
-            .map(|pm| pm.pane_count())
-            .unwrap_or(0);
-        let hovered_divider_index = self
-            .tab_manager
-            .active_tab()
-            .and_then(|t| t.active_mouse().hovered_divider_index);
-        let mux_attached = self.tmux_state.transport.is_some();
-        // Mirrors `submit_gpu_frame`: no divider padding when no divider is drawn.
-        let effective_pane_padding = if is_tmux_gateway || pane_count <= 1 {
-            0.0
-        } else {
-            config.panes.pane_divider_width.unwrap_or(2.0) / 2.0 + config.panes.pane_padding
-        };
-
-        let Some(renderer) = self.renderer.as_mut() else {
-            return Err("No renderer available for screenshot".to_string());
-        };
-        let sizing = RendererSizing {
-            size: renderer.size(),
-            content_offset_y: renderer.content_offset_y(),
-            content_offset_x: renderer.content_offset_x(),
-            content_inset_bottom: renderer.content_inset_bottom(),
-            content_inset_right: renderer.content_inset_right(),
-            cell_width: renderer.cell_width(),
-            cell_height: renderer.cell_height(),
-            padding: renderer.window_padding(),
-            status_bar_height: (status_bar_height + custom_status_bar_height)
-                * renderer.scale_factor(),
-            scale_factor: renderer.scale_factor(),
-            scrollbar_width: renderer.scrollbar_width(),
-        };
-
-        // Same call the live frame makes. `resize_terminal_with_cell_dims` inside
-        // is a no-op when the dimensions already match, so a capture does not
-        // resize the PTY or emit SIGWINCH.
-        let Some((pane_data, dividers, pane_titles, focused_viewport, _)) =
-            self.tab_manager.active_tab_mut().and_then(|tab| {
-                gather_pane_render_data(
-                    tab,
-                    &config,
-                    &sizing,
-                    effective_pane_padding,
-                    cursor_opacity,
-                    pane_count,
-                    PaneLayoutOptions {
-                        scrollbar_inset: sizing.scrollbar_width,
-                        mux_attached,
-                    },
-                    &self.copy_mode,
-                )
-            })
-        else {
-            return Err("No pane data available for screenshot".to_string());
-        };
-
-        with_pane_capture_params(
-            renderer,
-            PaneCaptureInput {
-                pane_data,
-                dividers,
-                pane_titles,
-                focused_viewport,
-                config: &config,
-                hovered_divider_index,
-                show_scrollbar,
-            },
-            |renderer, cap| renderer.take_screenshot(cap),
-        )
-        .map_err(|e| format!("Renderer screenshot failed: {e}"))
     }
 }
 

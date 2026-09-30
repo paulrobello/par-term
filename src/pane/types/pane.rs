@@ -83,6 +83,8 @@ pub struct Pane {
     pub user_named: bool,
     /// State for shell restart behavior (None = shell running or closed normally)
     pub restart_state: Option<RestartState>,
+    /// Excluded from its tab's broadcast (UX.md V5 per-pane opt-out, I21).
+    pub broadcast_excluded: bool,
     /// Whether the parent tab is active (shared with tab for refresh throttling)
     pub is_active: Arc<AtomicBool>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
@@ -153,6 +155,7 @@ impl Pane {
             user_named: false,
             background: PaneBackground::new(),
             restart_state: None,
+            broadcast_excluded: false,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
         })
@@ -221,6 +224,7 @@ impl Pane {
             user_named: false,
             background: PaneBackground::new(),
             restart_state: None,
+            broadcast_excluded: false,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
         })
@@ -271,6 +275,7 @@ impl Pane {
             user_named: false,
             background: PaneBackground::new(),
             restart_state: None,
+            broadcast_excluded: false,
             is_active,
             shutdown_fast: false,
         }
@@ -329,6 +334,7 @@ impl Pane {
             user_named: false,
             background: PaneBackground::new(),
             restart_state: None,
+            broadcast_excluded: false,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
         })

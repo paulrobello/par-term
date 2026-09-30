@@ -187,13 +187,27 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | Resize pane right | `Cmd + Ctrl + Right` | `Ctrl + Alt + Shift + Right` |
 | Resize pane up | `Cmd + Ctrl + Up` | `Ctrl + Alt + Shift + Up` |
 | Resize pane down | `Cmd + Ctrl + Down` | `Ctrl + Alt + Shift + Down` |
+| Zoom pane (Maximize Active Pane) | `Cmd + Shift + Enter` | `Ctrl + Shift + Enter` |
+| Next / previous pane | `Cmd + ]` / `Cmd + [` | `Ctrl + Alt + ]` / `Ctrl + Alt + [` |
+| Equalize panes | `Cmd + Opt + =` | `Ctrl + Alt + =` |
+| Last-focused pane | *(unbound)* | *(unbound)* |
+| Restart pane process | *(unbound)* | *(unbound)* |
+| Cycle layout presets | *(unbound)* | *(unbound)* |
+| Split left / split up | *(unbound)* | *(unbound)* |
 | Swap pane left / right / up / down | `Cmd + Opt + Shift + Arrow` | *(unbound)* |
 | Promote pane to tab | *(unbound)* | *(unbound)* |
 | Demote tab to pane | *(unbound)* | *(unbound)* |
 | Select pane by letter | `Cmd + Opt + P` | `Ctrl + Alt + P` |
-| Toggle broadcast input | `Cmd + Opt + I` | `Ctrl + Alt + I` |
+| Toggle broadcast input (this tab) | `Cmd + Opt + I` | `Ctrl + Alt + I` |
+| Toggle broadcast for the current pane | `Cmd + Ctrl + Opt + I` | *(unbound)* |
 
 > **📝 Note:** Pane swap ships unbound on Linux and Windows: editors use `Alt + Shift + Arrow`, and Windows switches the input language on `Alt + Shift`. Bind `swap_pane_*` yourself if you want it.
+
+> **📝 Note:** A resize arrow moves the divider on that side of the focused pane in the arrow's direction (tmux semantics); a pane with no divider on that side moves the one on its other side. No resize, split, drag, equalize, or layout preset takes a pane below `pane_min_size` cells. Double-click a divider to equalize its split.
+
+> **📝 Note:** Zoom fills the tab with the focused pane and shows ⛶ on the tab and the pane title; splitting, closing, or moving focus unzooms. In a par-mux tab the zoom is daemon-side (`resize-pane -Z`), so other clients see it.
+
+> **📝 Note:** Broadcast input is per tab: every pane that receives it gets an amber outline, the tab shows 📡, and pastes are broadcast along with keystrokes.
 
 > **📝 Note:** Promote and demote actions have no default keybinding. Bind them in Settings → Input → Keybindings or via config YAML using the `promote_pane_to_tab` and `demote_tab_to_pane` action names. See [Tabs](../features/TABS.md#promoting-and-demoting-panes) for details.
 
@@ -312,6 +326,12 @@ without a binding there is no way to open the in-app menu.
 - `resize_pane_left`, `resize_pane_right`
 - `resize_pane_up`, `resize_pane_down`
 - `swap_pane_left`, `swap_pane_right`, `swap_pane_up`, `swap_pane_down` — swap the focused pane with its neighbor in that direction
+- `toggle_pane_zoom` — fill the tab with the focused pane (again to unzoom)
+- `next_pane`, `prev_pane`, `last_pane` — cycle panes in tree order, or return to the previously focused pane
+- `equalize_panes`, `cycle_layout`, `layout:<name>` — equal pane sizes; step through or pick a layout (`even-horizontal`, `even-vertical`, `main-left`, `main-top`, `tiled`)
+- `split_left`, `split_up` — split with the new pane before the focused one
+- `restart_pane` — restart the focused pane's process in place
+- `toggle_pane_broadcast` — exclude or include the focused pane in its tab's broadcast
 - `promote_pane_to_tab`, `demote_tab_to_pane`
 - `rename_pane` - Open the inline rename field on the focused pane's title bar
 

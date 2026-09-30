@@ -142,7 +142,7 @@ impl WindowState {
                                     old_pane.mouse.button_pressed = false;
                                 }
                                 // tab borrow ends here (NLL) — safe to call self methods.
-                                self.set_tmux_focused_pane_from_native(pane_id);
+                                self.after_user_pane_focus();
                                 self.set_scroll_target(0);
                                 self.focus_state.needs_redraw = true;
                             }
@@ -284,7 +284,7 @@ impl WindowState {
         let bar_height = panes_cfg.pane_title_height as f64 * scale;
         let tab = self.tab_manager.active_tab()?;
         let pm = tab.pane_manager.as_ref()?;
-        pm.all_panes().iter().find_map(|pane| {
+        pm.visible_panes().iter().find_map(|pane| {
             let b = pane.bounds;
             let in_bar = match panes_cfg.pane_title_position {
                 par_term_config::PaneTitlePosition::Top => {

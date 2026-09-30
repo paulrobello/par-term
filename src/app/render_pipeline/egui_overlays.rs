@@ -568,6 +568,35 @@ pub(super) fn render_pane_identify_overlay(
     }
 }
 
+/// Broadcast receiver outlines (UX.md V5): a colored border on every pane
+/// that receives broadcast input.
+pub(super) fn render_broadcast_outlines(ctx: &egui::Context, panes: &[crate::pane::PaneBounds]) {
+    if panes.is_empty() {
+        return;
+    }
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Foreground,
+        egui::Id::new("broadcast_outlines"),
+    ));
+    let ppp = ctx.pixels_per_point();
+    for b in panes {
+        let rect = egui::Rect::from_min_size(
+            egui::pos2(b.x / ppp, b.y / ppp),
+            egui::vec2(b.width / ppp, b.height / ppp),
+        )
+        .shrink(1.5);
+        painter.rect_stroke(
+            rect,
+            0.0,
+            egui::Stroke::new(2.0, BROADCAST_OUTLINE_COLOR),
+            egui::StrokeKind::Inside,
+        );
+    }
+}
+
+/// Broadcast outline color: amber, distinct from the focus indicator.
+const BROADCAST_OUTLINE_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 176, 32);
+
 /// Badge entries for the pane-hint selection mode: (letter, pane bounds).
 pub(super) struct PaneHintBadge {
     pub(super) letter: char,

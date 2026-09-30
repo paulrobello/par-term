@@ -205,8 +205,8 @@ fn non_type_default_seeds_survive_decomposition() {
     // Panes — non-zero geometry, opaque backgrounds, focus indicator on
     assert_eq!(c.panes.pane_divider_width, Some(2.0), "pane_divider_width");
     assert_eq!(
-        c.panes.pane_divider_hit_width, 5.0,
-        "pane_divider_hit_width"
+        c.panes.pane_divider_hit_width, 8.0,
+        "pane_divider_hit_width (UX.md PN8 raised it from 5)"
     );
     assert_eq!(c.panes.pane_padding, 1.0, "pane_padding");
     assert_eq!(c.panes.pane_min_size, 10, "pane_min_size");

@@ -116,6 +116,17 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "toggle_tmux_session_picker",
     // Added deliberately (UX.md A20), not part of the frozen capture.
     "toggle_always_on_top",
+    // UX.md P3 pane power features (A1, A7, A8, A9), added deliberately.
+    "toggle_pane_zoom",
+    "next_pane",
+    "prev_pane",
+    "last_pane",
+    "restart_pane",
+    "equalize_panes",
+    "cycle_layout",
+    "split_left",
+    "split_up",
+    "toggle_pane_broadcast",
 ];
 
 /// Precedence order of the uniform shortcut layers in `handle_key_event`.
@@ -231,6 +242,7 @@ fn every_default_keybinding_resolves_to_a_handler() {
     // actions, arrangements, and plugins, so they are dispatchable without a
     // table entry. No shipped default uses one today.
     const PREFIXES: &[&str] = &[
+        "layout:",
         "snippet:",
         "action:",
         "restore_arrangement:",

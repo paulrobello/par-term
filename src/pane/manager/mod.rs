@@ -24,11 +24,17 @@
 
 mod creation;
 mod focus;
+mod geometry;
+#[cfg(test)]
+mod geometry_tests;
 mod layout;
 mod session;
 mod tmux_convert;
 mod tmux_layout;
 mod tmux_update;
+mod zoom;
+
+pub use geometry::LayoutPreset;
 
 use crate::config::{Config, PaneBackgroundConfig};
 use crate::pane::types::{Pane, PaneBounds, PaneId, PaneNode};
@@ -84,6 +90,19 @@ pub struct PaneManager {
     pub(super) divider_hit_width: f32,
     /// Current total bounds available for panes
     pub(super) total_bounds: PaneBounds,
+    /// The pane filling the whole tab while zoomed (A1). The tree keeps its
+    /// ratios untouched, so unzooming restores the exact prior layout.
+    pub(super) zoomed_pane_id: Option<PaneId>,
+    /// The zoomed pane's unzoomed bounds, for directional lookups.
+    pub(super) zoomed_tree_bounds: Option<PaneBounds>,
+    /// The pane focused before the current one, for `last_pane` (A8).
+    pub(super) previous_focused_pane_id: Option<PaneId>,
+    /// Minimum pane extent in physical pixels `(width, height)`, from
+    /// `pane_min_size` x the cell size (PN4). `None` until the renderer
+    /// metrics are known; the legacy 10-90% ratio clamp applies until then.
+    pub(super) min_pane_px: Option<(f32, f32)>,
+    /// The preset last applied by `apply_preset`, for `cycle_layout`.
+    pub(super) layout_preset: Option<LayoutPreset>,
 }
 
 impl PaneManager {
@@ -96,6 +115,11 @@ impl PaneManager {
             divider_width: 1.0,     // Default 1 pixel divider
             divider_hit_width: 8.0, // Default 8 pixel hit area
             total_bounds: PaneBounds::default(),
+            zoomed_pane_id: None,
+            zoomed_tree_bounds: None,
+            previous_focused_pane_id: None,
+            min_pane_px: None,
+            layout_preset: None,
         }
     }
 
@@ -271,6 +295,8 @@ impl PaneManager {
         direction: crate::pane::types::SplitDirection,
         ratio: f32,
     ) -> Result<PaneIdRemap, PaneNode> {
+        self.zoomed_pane_id = None;
+        let was_feasible = self.min_size_violations().is_empty();
         let Some(root) = self.root.take() else {
             return Err(subtree);
         };
@@ -286,6 +312,17 @@ impl PaneManager {
             Ok(new_root) => {
                 self.root = Some(new_root);
                 self.recalculate_bounds();
+
+                // PN4: an insert that pushes a pane below pane_min_size is
+                // taken back out and handed back, like a missing target.
+                if was_feasible && !self.min_size_violations().is_empty() {
+                    let root = self.root.take().expect("just inserted");
+                    let (restored, mut subtree) = Self::take_inserted_subtree(root, target_pane_id);
+                    self.root = Some(restored);
+                    self.recalculate_bounds();
+                    Self::undo_reconcile(&mut subtree, &remap);
+                    return Err(subtree);
+                }
 
                 // Guard the mutation rather than `get_pane`: this is the only
                 // path by which a pane this manager did not allocate enters the
@@ -304,6 +341,56 @@ impl PaneManager {
                 Err(subtree)
             }
         }
+    }
+
+    /// Reverse [`Self::insert_subtree_at_node`]: the split whose `first` is
+    /// the target leaf becomes that leaf again. Returns the restored tree
+    /// and the subtree that had been inserted.
+    fn take_inserted_subtree(node: PaneNode, target_id: PaneId) -> (PaneNode, PaneNode) {
+        fn walk(node: PaneNode, target_id: PaneId) -> Result<(PaneNode, PaneNode), PaneNode> {
+            match node {
+                PaneNode::Split {
+                    direction,
+                    ratio,
+                    first,
+                    second,
+                } => {
+                    if matches!(first.as_ref(), PaneNode::Leaf(p) if p.id == target_id) {
+                        return Ok((*first, *second));
+                    }
+                    match walk(*first, target_id) {
+                        Ok((restored, taken)) => Ok((
+                            PaneNode::Split {
+                                direction,
+                                ratio,
+                                first: Box::new(restored),
+                                second,
+                            },
+                            taken,
+                        )),
+                        Err(first) => match walk(*second, target_id) {
+                            Ok((restored, taken)) => Ok((
+                                PaneNode::Split {
+                                    direction,
+                                    ratio,
+                                    first: Box::new(first),
+                                    second: Box::new(restored),
+                                },
+                                taken,
+                            )),
+                            Err(second) => Err(PaneNode::Split {
+                                direction,
+                                ratio,
+                                first: Box::new(first),
+                                second: Box::new(second),
+                            }),
+                        },
+                    }
+                }
+                leaf => Err(leaf),
+            }
+        }
+        walk(node, target_id).unwrap_or_else(|_| unreachable!("the insert placed this split"))
     }
 
     /// Put back the ids [`Self::reconcile_adopted_ids`] replaced, so a subtree

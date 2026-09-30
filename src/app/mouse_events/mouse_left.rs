@@ -9,6 +9,9 @@
 use crate::app::window_state::WindowState;
 use par_term_terminal::ClipboardSlot;
 
+/// Two presses on one divider within this window are a double-click.
+const DIVIDER_DOUBLE_CLICK: std::time::Duration = std::time::Duration::from_millis(400);
+
 impl WindowState {
     pub(super) fn handle_left_mouse_press(&mut self, mouse_position: (f64, f64)) {
         let mouse_x = mouse_position.0 as f32;
@@ -23,7 +26,7 @@ impl WindowState {
         } = &self.pane_transfer_state
             && let Some(tab) = self.tab_manager.active_tab()
             && let Some(pm) = tab.pane_manager()
-            && let Some(pane) = pm.root().and_then(|r| r.find_pane_at(mouse_x, mouse_y))
+            && let Some(pane) = pm.visible_pane_at(mouse_x, mouse_y)
         {
             let source = *source_tab_id;
             let target = *target_tab_id;
@@ -73,7 +76,22 @@ impl WindowState {
         if let Some(tab) = self.tab_manager.active_tab_mut()
             && let Some(divider_idx) = tab.find_divider_at(mouse_x, mouse_y)
         {
+            // A second press on the same divider within the double-click
+            // window equalizes its split (UX.md PN8).
+            let now = std::time::Instant::now();
+            let double = tab
+                .active_mouse()
+                .last_divider_click
+                .is_some_and(|(idx, at)| {
+                    idx == divider_idx && now.duration_since(at) < DIVIDER_DOUBLE_CLICK
+                });
+            if double {
+                tab.active_mouse_mut().last_divider_click = None;
+                self.equalize_divider(divider_idx);
+                return;
+            }
             // Start divider drag
+            tab.active_mouse_mut().last_divider_click = Some((divider_idx, now));
             tab.active_mouse_mut().dragging_divider = Some(divider_idx);
             log::debug!("Started dragging divider {}", divider_idx);
             return; // Exit early: divider drag started
@@ -123,8 +141,8 @@ impl WindowState {
             {
                 old_pane.mouse.button_pressed = false;
             }
-            // Also update tmux focused pane for correct input routing
-            self.set_tmux_focused_pane_from_native(pane_id);
+            // Input routing and the daemon's active pane follow (M7).
+            self.after_user_pane_focus();
             // Reset scroll to bottom when switching pane focus so the
             // newly-focused pane doesn't inherit the previous pane's scroll offset.
             self.set_scroll_target(0);

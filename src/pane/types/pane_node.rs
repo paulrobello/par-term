@@ -179,37 +179,8 @@ impl PaneNode {
                 first,
                 second,
             } => {
-                let (first_bounds, second_bounds) = match direction {
-                    SplitDirection::Horizontal => {
-                        // Split vertically (panes stacked top/bottom)
-                        let first_height = (bounds.height - divider_width) * *ratio;
-                        let second_height = bounds.height - first_height - divider_width;
-                        (
-                            PaneBounds::new(bounds.x, bounds.y, bounds.width, first_height),
-                            PaneBounds::new(
-                                bounds.x,
-                                bounds.y + first_height + divider_width,
-                                bounds.width,
-                                second_height,
-                            ),
-                        )
-                    }
-                    SplitDirection::Vertical => {
-                        // Split horizontally (panes side by side)
-                        let first_width = (bounds.width - divider_width) * *ratio;
-                        let second_width = bounds.width - first_width - divider_width;
-                        (
-                            PaneBounds::new(bounds.x, bounds.y, first_width, bounds.height),
-                            PaneBounds::new(
-                                bounds.x + first_width + divider_width,
-                                bounds.y,
-                                second_width,
-                                bounds.height,
-                            ),
-                        )
-                    }
-                };
-
+                let (first_bounds, second_bounds) =
+                    split_child_bounds(*direction, *ratio, bounds, divider_width);
                 first.calculate_bounds(first_bounds, divider_width);
                 second.calculate_bounds(second_bounds, divider_width);
             }
@@ -225,9 +196,20 @@ impl PaneNode {
         from_id: PaneId,
         direction: NavigationDirection,
     ) -> Option<PaneId> {
-        // Get the bounds of the source pane
-        let from_pane = self.find_pane(from_id)?;
-        let from_center = from_pane.bounds.center();
+        let from_bounds = self.find_pane(from_id)?.bounds;
+        self.find_pane_in_direction_from(from_id, from_bounds, direction)
+    }
+
+    /// [`Self::find_pane_in_direction`] measured from explicit source
+    /// bounds — a zoomed pane's own bounds cover the tab, so its neighbors
+    /// are found from the tree position it holds unzoomed.
+    pub fn find_pane_in_direction_from(
+        &self,
+        from_id: PaneId,
+        from_bounds: PaneBounds,
+        direction: NavigationDirection,
+    ) -> Option<PaneId> {
+        let from_center = from_bounds.center();
 
         // Get all other panes
         let all_panes = self.all_panes();
@@ -389,6 +371,47 @@ impl PaneNode {
                 first.collect_dividers_recursive(first_bounds, divider_width, dividers);
                 second.collect_dividers_recursive(second_bounds, divider_width, dividers);
             }
+        }
+    }
+}
+
+/// The two child rectangles of a split: `ratio` of the extent left after
+/// the divider goes to `first` (top for Horizontal, left for Vertical).
+/// The single formula every layout computation shares.
+pub fn split_child_bounds(
+    direction: SplitDirection,
+    ratio: f32,
+    bounds: PaneBounds,
+    divider_width: f32,
+) -> (PaneBounds, PaneBounds) {
+    match direction {
+        SplitDirection::Horizontal => {
+            // Panes stacked top/bottom
+            let first_height = (bounds.height - divider_width) * ratio;
+            let second_height = bounds.height - first_height - divider_width;
+            (
+                PaneBounds::new(bounds.x, bounds.y, bounds.width, first_height),
+                PaneBounds::new(
+                    bounds.x,
+                    bounds.y + first_height + divider_width,
+                    bounds.width,
+                    second_height,
+                ),
+            )
+        }
+        SplitDirection::Vertical => {
+            // Panes side by side
+            let first_width = (bounds.width - divider_width) * ratio;
+            let second_width = bounds.width - first_width - divider_width;
+            (
+                PaneBounds::new(bounds.x, bounds.y, first_width, bounds.height),
+                PaneBounds::new(
+                    bounds.x + first_width + divider_width,
+                    bounds.y,
+                    second_width,
+                    bounds.height,
+                ),
+            )
         }
     }
 }

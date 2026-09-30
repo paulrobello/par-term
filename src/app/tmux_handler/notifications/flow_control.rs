@@ -138,12 +138,16 @@ impl WindowState {
                         needs_redraw = true;
                     }
                 }
-                SyncAction::UpdateLayout { tab_id, layout } => {
+                SyncAction::UpdateLayout {
+                    tab_id,
+                    layout,
+                    zoomed,
+                } => {
                     crate::debug_info!("TMUX", "Sync: Update layout for tab {}", tab_id);
                     // Reverse-lookup the tmux window ID so handle_tmux_layout_change can use
                     // it for mapping and pane-tree reconciliation.
                     if let Some(window_id) = self.tmux_state.tmux_sync.get_window(tab_id) {
-                        self.handle_tmux_layout_change(window_id, &layout);
+                        self.handle_tmux_layout_change(window_id, &layout, zoomed);
                         needs_redraw = true;
                     }
                 }

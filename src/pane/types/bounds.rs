@@ -1,7 +1,7 @@
 //! `PaneBounds` — pixel-space bounding box for a pane.
 
 /// Bounds of a pane in pixels
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct PaneBounds {
     /// X position in pixels from left edge of content area
     pub x: f32,

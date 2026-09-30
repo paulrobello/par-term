@@ -61,7 +61,11 @@ pub(crate) struct HelpSection {
 pub(crate) fn section_for(action_id: &str) -> &'static str {
     let id = action_id;
     let has = |needle: &str| id.contains(needle);
-    if has("pane") || id.starts_with("split_") || id == "toggle_broadcast_input" {
+    if has("pane")
+        || id.starts_with("split_")
+        || id.starts_with("layout:")
+        || matches!(id, "toggle_broadcast_input" | "cycle_layout")
+    {
         "Pane"
     } else if has("tab") {
         "Tab"

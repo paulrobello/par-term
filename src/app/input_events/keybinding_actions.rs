@@ -33,6 +33,7 @@ use super::keybinding_view_actions::{
     maximize_vertically, move_tab_to_new_window, paste_special, toggle_ai_inspector,
     toggle_copy_mode, toggle_fullscreen, toggle_search, toggle_session_logging,
 };
+use super::pane_actions;
 
 /// Handler for one named keybinding action.
 ///
@@ -287,6 +288,15 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         s.swap_pane(crate::pane::NavigationDirection::Down);
         true
     }),
+    ("toggle_pane_zoom", pane_actions::toggle_pane_zoom),
+    ("next_pane", pane_actions::next_pane),
+    ("prev_pane", pane_actions::prev_pane),
+    ("last_pane", pane_actions::last_pane),
+    ("restart_pane", pane_actions::restart_pane),
+    ("equalize_panes", pane_actions::equalize_panes),
+    ("cycle_layout", pane_actions::cycle_layout),
+    ("split_left", pane_actions::split_left),
+    ("split_up", pane_actions::split_up),
     ("toggle_tmux_session_picker", |s: &mut WindowState| {
         s.overlay_ui.tmux_session_picker_ui.toggle();
         s.request_redraw();
@@ -306,24 +316,11 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
     // bindable, and dropping either silently breaks existing user configs.
     ("toggle_copy_mode", toggle_copy_mode),
     ("enter_copy_mode", toggle_copy_mode),
-    ("toggle_broadcast_input", |s: &mut WindowState| {
-        s.broadcast_input = !s.broadcast_input;
-        let message = if s.broadcast_input {
-            "Broadcast Input: ON"
-        } else {
-            "Broadcast Input: OFF"
-        };
-        s.show_toast(message);
-        log::info!(
-            "Broadcast input mode {}",
-            if s.broadcast_input {
-                "enabled"
-            } else {
-                "disabled"
-            }
-        );
-        true
-    }),
+    (
+        "toggle_broadcast_input",
+        pane_actions::toggle_broadcast_input,
+    ),
+    ("toggle_pane_broadcast", pane_actions::toggle_pane_broadcast),
     ("promote_pane_to_tab", |s: &mut WindowState| {
         s.promote_pane_to_tab();
         true
@@ -487,6 +484,8 @@ impl WindowState {
             self.execute_snippet(snippet_id)
         } else if let Some(action_id) = action.strip_prefix("action:") {
             self.execute_custom_action(action_id)
+        } else if let Some(result) = pane_actions::layout_by_name(self, action) {
+            result
         } else if let Some(arrangement_name) = action.strip_prefix("restore_arrangement:") {
             // Restore arrangement by name - handled by WindowManager
             self.overlay_state.pending_arrangement_restore = Some(arrangement_name.to_string());

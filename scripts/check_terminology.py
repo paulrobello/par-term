@@ -101,12 +101,6 @@ ALLOW: list[tuple[str, str, str]] = [
         "T4 meaning: tmux sessions are managed here",
     ),
     (
-        "src/app/tab_ops/tab_reopen.rs",
-        "Tab restored (session preserved)",
-        "DEFERRED: src/app/tab_ops/ is owned by the parallel UX P3 card; "
-        "rename to 'Tab restored (shell kept running)' once it lands",
-    ),
-    (
         "src/app/window_state/action_handlers/inspector.rs",
         "reset session state",
         "an ACP agent session, not a par-term tab or window",

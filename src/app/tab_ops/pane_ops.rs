@@ -20,6 +20,23 @@ impl WindowState {
         initial_command: Option<(String, Vec<String>)>,
         split_percent: u8,
     ) -> Option<crate::pane::PaneId> {
+        self.split_pane_placed(direction, false, focus_new, initial_command, split_percent)
+    }
+
+    /// [`Self::split_pane_direction`] with the new pane placed before (left
+    /// of / above) the focused one when `before` is set (UX.md A5).
+    pub(crate) fn split_pane_placed(
+        &mut self,
+        direction: crate::pane::SplitDirection,
+        before: bool,
+        focus_new: bool,
+        initial_command: Option<(String, Vec<String>)>,
+        split_percent: u8,
+    ) -> Option<crate::pane::PaneId> {
+        let (max_panes, min_cells) = {
+            let config = self.config.load();
+            (config.panes.max_panes, config.panes.pane_min_size)
+        };
         // Calculate status bar height for proper content area
         let is_tmux_connected = self.is_tmux_connected();
         let status_bar_height = crate::tmux_status_bar_ui::TmuxStatusBarUI::height(
@@ -47,6 +64,17 @@ impl WindowState {
                 scale,
             )
         });
+        let scrollbar_inset = self
+            .renderer
+            .as_ref()
+            .map(|r| r.scrollbar_width())
+            .unwrap_or(0.0);
+        // After the split the tab has dividers: the render pass pads every
+        // pane by half a divider plus pane_padding (gpu_submit).
+        let split_pane_padding = {
+            let config = self.config.load();
+            config.panes.pane_divider_width.unwrap_or(2.0) / 2.0 + config.panes.pane_padding
+        };
 
         let dpi_scale = bounds_info.map(|b| b.5).unwrap_or(1.0);
 
@@ -75,26 +103,33 @@ impl WindowState {
                 content_height,
             );
             tab.set_pane_bounds(bounds, cell_width, cell_height);
+            if let Some(pm) = tab.pane_manager_mut() {
+                pm.set_min_pane_size(
+                    min_cells,
+                    (cell_width, cell_height),
+                    crate::app::render_pipeline::pane_cell_overhead(
+                        &self.config.load(),
+                        split_pane_padding,
+                        scrollbar_inset,
+                        scale,
+                    ),
+                );
+            }
         }
+        let at_max = max_panes > 0 && tab.pane_count() >= max_panes;
 
-        let result = match direction {
-            crate::pane::SplitDirection::Horizontal => tab.split_horizontal(
+        let result = tab.split_placed(
+            direction,
+            before,
+            &self.config.load(),
+            Arc::clone(&self.runtime),
+            crate::tab::SplitRequest {
                 focus_new,
-                &self.config.load(),
-                Arc::clone(&self.runtime),
                 dpi_scale,
                 initial_command,
                 split_percent,
-            ),
-            crate::pane::SplitDirection::Vertical => tab.split_vertical(
-                focus_new,
-                &self.config.load(),
-                Arc::clone(&self.runtime),
-                dpi_scale,
-                initial_command,
-                split_percent,
-            ),
-        };
+            },
+        );
 
         match result {
             Ok(Some(pane_id)) => {
@@ -123,10 +158,14 @@ impl WindowState {
                 Some(pane_id)
             }
             Ok(None) => {
-                log::info!(
-                    "{:?} split not yet functional (renderer integration pending)",
-                    direction
-                );
+                // PN10 / PN4: say why nothing happened.
+                let reason = if at_max {
+                    format!("Pane limit ({max_panes}) reached — change it in Settings › Panes")
+                } else {
+                    format!("Split refused: a pane would be smaller than {min_cells} cells")
+                };
+                log::info!("{direction:?} split refused: {reason}");
+                self.show_toast(reason);
                 None
             }
             Err(e) => {
@@ -415,8 +454,7 @@ impl WindowState {
             && tab.has_multiple_panes()
         {
             tab.navigate_pane(direction);
-            self.focus_state.needs_redraw = true;
-            self.request_redraw();
+            self.after_user_pane_focus();
         }
     }
 
@@ -436,33 +474,6 @@ impl WindowState {
             && tab.has_multiple_panes()
         {
             tab.swap_pane(direction);
-            self.focus_state.needs_redraw = true;
-            self.request_redraw();
-        }
-    }
-
-    /// Resize the focused pane in the given direction
-    ///
-    /// Growing left/up decreases the pane's ratio, growing right/down increases it
-    pub fn resize_pane(&mut self, direction: crate::pane::NavigationDirection) {
-        use crate::pane::NavigationDirection;
-
-        // Resize step: 5% per keypress
-        const RESIZE_DELTA: f32 = 0.05;
-
-        // Determine delta based on direction
-        // Right/Down: grow focused pane (positive delta)
-        // Left/Up: shrink focused pane (negative delta)
-        let delta = match direction {
-            NavigationDirection::Right | NavigationDirection::Down => RESIZE_DELTA,
-            NavigationDirection::Left | NavigationDirection::Up => -RESIZE_DELTA,
-        };
-
-        if let Some(tab) = self.tab_manager.active_tab_mut()
-            && let Some(pm) = tab.pane_manager_mut()
-            && let Some(focused_id) = pm.focused_pane_id()
-        {
-            pm.resize_split(focused_id, delta);
             self.focus_state.needs_redraw = true;
             self.request_redraw();
         }

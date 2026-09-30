@@ -170,6 +170,19 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Resize Pane Down",
         Some("Cmd+Ctrl+Down"),
     ),
+    (
+        "toggle_pane_zoom",
+        "Zoom Pane (Maximize Active Pane)",
+        Some("Cmd+Shift+Enter"),
+    ),
+    ("equalize_panes", "Equalize Panes", Some("Cmd+Alt+=")),
+    ("next_pane", "Next Pane", Some("Cmd+]")),
+    ("prev_pane", "Previous Pane", Some("Cmd+[")),
+    ("last_pane", "Last-Focused Pane", None),
+    ("restart_pane", "Restart Pane Process", None),
+    ("cycle_layout", "Cycle Layout Presets", None),
+    ("split_left", "Split Left", None),
+    ("split_up", "Split Up", None),
     // The font-size layer in the root crate uses the super key on macOS
     // (`font_mod = super_key` under `#[cfg(target_os = "macos")]`), so Ctrl does
     // not drive these actions here.
@@ -206,6 +219,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "toggle_broadcast_input",
         "Toggle Broadcast Input",
         Some("Cmd+Alt+I"),
+    ),
+    (
+        "toggle_pane_broadcast",
+        "Toggle Broadcast for Current Pane",
+        Some("Cmd+Ctrl+Alt+I"),
     ),
     // Palette only: Cmd+Shift+T reopens a closed tab (UX.md I17).
     ("toggle_throughput_mode", "Toggle Throughput Mode", None),
@@ -359,6 +377,19 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Resize Pane Down",
         Some("Ctrl+Alt+Shift+Down"),
     ),
+    (
+        "toggle_pane_zoom",
+        "Zoom Pane (Maximize Active Pane)",
+        Some("Ctrl+Shift+Enter"),
+    ),
+    ("equalize_panes", "Equalize Panes", Some("Ctrl+Alt+=")),
+    ("next_pane", "Next Pane", Some("Ctrl+Alt+]")),
+    ("prev_pane", "Previous Pane", Some("Ctrl+Alt+[")),
+    ("last_pane", "Last-Focused Pane", None),
+    ("restart_pane", "Restart Pane Process", None),
+    ("cycle_layout", "Cycle Layout Presets", None),
+    ("split_left", "Split Left", None),
+    ("split_up", "Split Up", None),
     // Unbound here (UX.md K16): editors use Alt+Shift+Arrow and Windows
     // switches input language on Alt+Shift.
     ("swap_pane_left", "Swap Pane Left", None),
@@ -397,6 +428,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "toggle_broadcast_input",
         "Toggle Broadcast Input",
         Some("Ctrl+Alt+I"),
+    ),
+    (
+        "toggle_pane_broadcast",
+        "Toggle Broadcast for Current Pane",
+        None,
     ),
     (
         "toggle_throughput_mode",

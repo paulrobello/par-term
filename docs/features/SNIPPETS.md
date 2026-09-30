@@ -680,6 +680,8 @@ actions:
         on_failure: stop            # halt silently on failure
 ```
 
+A step's `action_id` may also name a **built-in action** — any keybinding action such as `split_right`, `equalize_panes`, or `layout:tiled` — so a sequence can compose pane operations with your own actions (for example split right, run a command, then equalize). A user action with the same id wins. The `action:` and `snippet:` prefix forms are not accepted as steps.
+
 **Step failure**: A step "fails" when:
 - It is a `ShellCommand` with `capture_output: true` and exits with a non-zero code
 - It is a `Condition` whose check evaluates to false

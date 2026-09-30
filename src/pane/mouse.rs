@@ -28,6 +28,8 @@ pub struct MouseState {
     pub(crate) dragging_divider: Option<usize>, // Index of divider being dragged
     pub(crate) divider_hover: bool,             // Whether hovering over a divider
     pub(crate) hovered_divider_index: Option<usize>, // Index of the hovered divider
+    /// The last divider press, for double-click equalize (UX.md PN8).
+    pub(crate) last_divider_click: Option<(usize, Instant)>,
 }
 
 impl Default for MouseState {
@@ -55,6 +57,7 @@ impl MouseState {
             dragging_divider: None,
             divider_hover: false,
             hovered_divider_index: None,
+            last_divider_click: None,
         }
     }
 
