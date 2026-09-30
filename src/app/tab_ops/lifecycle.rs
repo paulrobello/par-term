@@ -399,17 +399,10 @@ impl WindowState {
         self.tab_manager.switch_to(successor_id);
 
         self.play_alert_sound(crate::config::AlertEvent::TabClose);
-        let key_hint = self
-            .config
-            .load()
-            .keybindings
-            .iter()
-            .find(|kb| kb.action == "reopen_closed_tab")
-            .map(|kb| kb.key.clone())
-            .unwrap_or_else(|| "keybinding".to_string());
-        self.show_toast(format!(
-            "par-mux: tab hidden — window @{window_id} keeps running. Press {key_hint} to re-show"
-        ));
+        self.post_reopen_toast(
+            &format!("par-mux: tab hidden — window @{window_id} keeps running"),
+            "Re-show",
+        );
         self.focus_state.needs_redraw = true;
         self.request_redraw();
         false
@@ -608,22 +601,11 @@ impl WindowState {
             // Play tab close alert sound if configured
             self.play_alert_sound(crate::config::AlertEvent::TabClose);
 
-            // Show undo toast (only if not the last tab — window is closing)
+            // Undo toast (only if not the last tab — window is closing)
             if !is_last_tab {
-                let key_hint = self
-                    .config
-                    .load()
-                    .keybindings
-                    .iter()
-                    .find(|kb| kb.action == "reopen_closed_tab")
-                    .map(|kb| kb.key.clone())
-                    .unwrap_or_else(|| "keybinding".to_string());
                 let timeout = self.config.load().session_restore.session_undo_timeout_secs;
                 if timeout > 0 {
-                    self.show_toast(format!(
-                        "Tab closed. Press {} to undo ({timeout}s)",
-                        key_hint
-                    ));
+                    self.post_reopen_toast(&format!("Tab closed — undo within {timeout}s"), "Undo");
                 }
             }
 

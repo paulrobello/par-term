@@ -9,7 +9,7 @@
 //! name: a daemon can hold several sessions, and a session whose name is
 //! not its daemon's name is still reached through that daemon.
 
-use egui::{Color32, RichText};
+use egui::RichText;
 use std::path::{Path, PathBuf};
 
 /// One session a running daemon holds.
@@ -172,7 +172,7 @@ impl MuxPickerSection {
         }
         if let Some(dir) = input.directory {
             for error in &dir.errors {
-                ui.colored_label(Color32::from_rgb(255, 100, 100), error);
+                ui.colored_label(crate::app::overlay::theme::DANGER, error);
             }
         }
 
@@ -201,7 +201,7 @@ impl MuxPickerSection {
             }
         });
         if let Some(reason) = self.name_error {
-            ui.colored_label(Color32::from_rgb(255, 100, 100), reason);
+            ui.colored_label(crate::app::overlay::theme::DANGER, reason);
         }
         action
     }
@@ -253,13 +253,13 @@ impl MuxPickerSection {
                     .on_hover_text("Attaches now; not reattached on the next launch");
             }
             if is_here {
-                ui.label(RichText::new("(this window)").color(Color32::from_rgb(100, 200, 100)));
+                ui.label(RichText::new("(this window)").color(crate::app::overlay::theme::SUCCESS));
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let armed = self.confirm_kill.as_ref() == Some(row);
                 let end = if armed { "Confirm End" } else { "End" };
                 let end_btn = ui
-                    .button(RichText::new(end).color(Color32::from_rgb(230, 90, 90)))
+                    .button(RichText::new(end).color(crate::app::overlay::theme::DANGER))
                     .on_hover_text("End the session and every program in it");
                 if end_btn.clicked() {
                     if armed {

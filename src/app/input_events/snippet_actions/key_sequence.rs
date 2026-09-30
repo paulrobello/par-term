@@ -58,7 +58,7 @@ impl WindowState {
 
         if let Some(e) = write_error {
             log::error!("Failed to write key sequence: {}", e);
-            self.show_toast(format!("Key sequence error: {}", e));
+            self.show_persistent_toast(format!("Key sequence error: {}", e));
             return false;
         }
 

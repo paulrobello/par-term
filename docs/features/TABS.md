@@ -131,7 +131,7 @@ Accidentally closed tabs can be recovered using reopen closed tab:
 |--------|-------|---------------|
 | Reopen closed tab | `Cmd + Shift + T` (alias `Cmd + Z`) | `Ctrl + Shift + Z` |
 
-A toast notification appears after closing a tab, showing the undo keybinding and a countdown timer. Undo restores the tab at its original position with its title, custom color, and split pane layout.
+A toast notification appears after closing a tab, with an **Undo** button, the time left to undo, and your current reopen chord (left out when `reopen_closed_tab` is unbound). Undo restores the tab at its original position with its title, custom color, and split pane layout.
 
 For full details on reopen closed tab configuration and keeping the shell running, see [Restoring Windows and Reopening Tabs](SESSION_MANAGEMENT.md).
 

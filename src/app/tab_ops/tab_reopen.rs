@@ -238,7 +238,7 @@ impl WindowState {
                 }
                 Err(e) => {
                     log::error!("Failed to reopen closed tab: {}", e);
-                    self.show_toast("Failed to reopen tab");
+                    self.show_persistent_toast("Failed to reopen tab");
                 }
             }
         }

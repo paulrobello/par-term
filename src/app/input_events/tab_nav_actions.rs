@@ -434,6 +434,63 @@ mod tests {
         assert_eq!(s.tab_manager.active_tab_id(), Some(keep));
     }
 
+    /// UX.md OV7: closing a tab posts an Undo toast whose hint is the
+    /// live registry chord, never the raw config string (`CmdOrCtrl+Z`),
+    /// and whose button runs reopen_closed_tab.
+    #[test]
+    fn the_tab_close_toast_names_the_live_chord_and_offers_undo() {
+        let mut s = window_with_tabs(2);
+        s.keybinding_registry =
+            par_term_keybindings::KeybindingRegistry::from_config(&[par_term_config::KeyBinding {
+                key: "F9".to_string(),
+                action: "reopen_closed_tab".to_string(),
+            }]);
+        s.close_current_tab_immediately();
+        let toast = s
+            .overlay_state
+            .toasts
+            .newest()
+            .expect("close posts a toast");
+        assert!(
+            toast.message.starts_with("Tab closed") && toast.message.contains("(F9)"),
+            "live chord in the hint: {:?}",
+            toast.message
+        );
+        assert!(
+            !toast.message.contains("CmdOrCtrl"),
+            "no raw config string: {:?}",
+            toast.message
+        );
+        assert_eq!(
+            toast.action,
+            Some(crate::app::overlay::toast::ToastAction {
+                label: "Undo".to_string(),
+                action_id: "reopen_closed_tab".to_string(),
+            })
+        );
+    }
+
+    /// With reopen_closed_tab unbound the hint is dropped rather than
+    /// naming a key that does nothing; the Undo button still works.
+    #[test]
+    fn the_tab_close_toast_drops_the_hint_when_undo_is_unbound() {
+        let mut s = window_with_tabs(2);
+        s.keybinding_registry = par_term_keybindings::KeybindingRegistry::new();
+        s.close_current_tab_immediately();
+        let toast = s
+            .overlay_state
+            .toasts
+            .newest()
+            .expect("close posts a toast");
+        let timeout = s.config.load().session_restore.session_undo_timeout_secs;
+        assert_eq!(
+            toast.message,
+            format!("Tab closed — undo within {timeout}s"),
+            "no chord hint (and no 'Press keybinding') when unbound"
+        );
+        assert!(toast.action.is_some(), "the Undo button stays");
+    }
+
     /// A21: close_tabs_to_right keeps the active tab and everything left
     /// of it.
     #[test]

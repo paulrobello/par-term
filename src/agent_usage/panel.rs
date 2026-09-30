@@ -3,10 +3,10 @@
 //! Detail view over the usage store's snapshot, modeled on the command
 //! palette's overlay skeleton (`crate::command_palette`): an egui `Window`
 //! anchored center, an action-enum return for the one thing the caller must
-//! do (refresh), and Escape closed egui-side so a focused overlay can always
-//! dismiss itself. The `agent_usage_panel` key layer is the backstop for
-//! Escape and the owner of `h`/`l` (agent switching) — keys that must not
-//! reach the PTY while the panel is open.
+//! do (refresh). Every panel key — Escape, `r`, `h`/`l` — is read here on
+//! the egui side: the panel is a guarding Popup in the overlay stack (UX.md
+//! OV2), so the stack consumes each key before terminal key dispatch and
+//! feeds it to egui, where `show()` is the only reader.
 
 use crate::agent_usage::records::ModelUsage;
 use crate::agent_usage::store::UsageSnapshot;
@@ -52,8 +52,8 @@ impl AgentUsagePanel {
         self.selected_agent = 0;
     }
 
-    /// Hide the panel. Idempotent — the egui-side Escape and the key layer
-    /// backstop can both call it in one frame without harm.
+    /// Hide the panel. Idempotent — the stack's Escape close and the
+    /// egui-side Escape can both call it in one frame without harm.
     pub(crate) fn close(&mut self) {
         self.visible = false;
     }
@@ -67,9 +67,7 @@ impl AgentUsagePanel {
         }
     }
 
-    /// Move the agent selection within `agent_count` records. Called by the
-    /// key layer (which owns `h`/`l`), so switching works whether or not
-    /// egui happens to hold focus.
+    /// Move the agent selection within `agent_count` records (`h`/`l`).
     pub(crate) fn cycle_agent(&mut self, forward: bool, agent_count: usize) {
         if agent_count == 0 {
             self.selected_agent = 0;
@@ -91,9 +89,9 @@ impl AgentUsagePanel {
 
         let mut action: Option<PanelAction> = None;
 
-        // Escape closes here, on the egui side, mirroring the palette: the
-        // key layer is the backstop for the unfocused case, close() is
-        // idempotent, and consume_key keeps Escape away from other widgets.
+        // Escape closes here, on the egui side, mirroring the palette;
+        // close() is idempotent, and consume_key keeps Escape away from
+        // other widgets.
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
             self.close();
         }
@@ -101,6 +99,18 @@ impl AgentUsagePanel {
         // runs inline rather than through the update-command runner.
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::R)) {
             action = Some(PanelAction::RefreshRequested);
+        }
+        let (next, previous) = ctx.input_mut(|i| {
+            (
+                i.count_and_consume_key(egui::Modifiers::NONE, Key::L),
+                i.count_and_consume_key(egui::Modifiers::NONE, Key::H),
+            )
+        });
+        for _ in 0..next {
+            self.cycle_agent(true, snap.records.len());
+        }
+        for _ in 0..previous {
+            self.cycle_agent(false, snap.records.len());
         }
 
         let record = snap.records.get(self.selected_agent);
@@ -394,6 +404,59 @@ mod tests {
             source.contains(&needle) && source.contains(&input_call),
             "show() must close the panel on the egui-side Escape"
         );
+    }
+
+    #[test]
+    fn h_and_l_switch_agents_on_the_egui_side() {
+        // The panel is a guarding Popup: the overlay stack consumes `h`/`l`
+        // before terminal key dispatch, so show() is the only place they
+        // can act. Before this, the winit key layer that owned them was
+        // unreachable and agent switching did nothing.
+        let record = |id: &str| {
+            crate::agent_usage::records::parse_record(&format!(
+                r#"{{"id":"{id}","name":"{id}","ready":true}}"#
+            ))
+            .expect("record parses")
+        };
+        let snap = UsageSnapshot {
+            records: vec![record("a"), record("b"), record("c")],
+            errors: Vec::new(),
+        };
+        let ctx = Context::default();
+        let mut panel = AgentUsagePanel::new();
+        panel.open();
+        let frame = |panel: &mut AgentUsagePanel, keys: &[Key]| {
+            let events = keys
+                .iter()
+                .map(|&key| egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                })
+                .collect();
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1200.0, 800.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    panel.show(ui.ctx(), &snap);
+                },
+            );
+            out.textures_delta.clear();
+        };
+        frame(&mut panel, &[Key::L]);
+        assert_eq!(panel.selected_agent, 1, "l moves to the next agent");
+        frame(&mut panel, &[Key::L, Key::L]);
+        assert_eq!(panel.selected_agent, 0, "two coalesced presses both act");
+        frame(&mut panel, &[Key::H]);
+        assert_eq!(panel.selected_agent, 2, "h wraps back to the last agent");
     }
 
     #[test]

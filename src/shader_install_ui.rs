@@ -73,7 +73,6 @@ impl ShaderInstallUI {
         let mut response = ShaderInstallResponse::None;
 
         // Fully opaque — scoped to this dialog (OV1: no global style writes).
-        let solid_bg = Color32::from_rgba_unmultiplied(32, 32, 32, 255);
 
         let viewport = ctx.input(|i| i.viewport_rect());
 
@@ -85,9 +84,12 @@ impl ShaderInstallUI {
             .pivot(Align2::CENTER_CENTER)
             .frame(
                 Frame::window(&ctx.global_style())
-                    .fill(solid_bg)
+                    .fill(crate::app::overlay::theme::PANEL_FILL)
                     .inner_margin(SHADER_INSTALL_INNER_MARGIN)
-                    .stroke(egui::Stroke::new(1.0, Color32::from_gray(80)))
+                    .stroke(egui::Stroke::new(
+                        1.0,
+                        crate::app::overlay::theme::PANEL_BORDER,
+                    ))
                     .shadow(Shadow {
                         offset: [4, 4],
                         blur: 16,
@@ -96,7 +98,7 @@ impl ShaderInstallUI {
                     }),
             )
             .show(ctx, |ui| {
-                crate::app::overlay::theme::solid_panel(ui, solid_bg);
+                crate::app::overlay::theme::solid_panel(ui);
                 ui.vertical_centered(|ui| {
                     // Header with icon
                     ui.add_space(8.0);
@@ -136,11 +138,11 @@ impl ShaderInstallUI {
                         );
                     });
                 } else if let Some(error) = &self.error_message {
-                    ui.colored_label(Color32::from_rgb(255, 100, 100), error);
+                    ui.colored_label(crate::app::overlay::theme::DANGER, error);
                     ui.add_space(8.0);
                     ui.label("You can try again later using: par-term install-shaders");
                 } else if let Some(success) = &self.success_message {
-                    ui.colored_label(Color32::from_rgb(100, 255, 100), success);
+                    ui.colored_label(crate::app::overlay::theme::SUCCESS, success);
                     ui.add_space(8.0);
                     ui.label("Configure shaders in Settings (F12) under 'Background & Effects'.");
                 }

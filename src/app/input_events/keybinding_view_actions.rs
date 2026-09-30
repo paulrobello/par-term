@@ -139,7 +139,7 @@ pub(crate) fn toggle_session_logging(s: &mut WindowState) -> bool {
             }
             Err(e) => {
                 log::error!("Failed to toggle session logging: {}", e);
-                s.show_toast(format!("Recording Error: {}", e));
+                s.show_persistent_toast(format!("Recording Error: {}", e));
             }
         }
     }

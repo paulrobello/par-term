@@ -150,6 +150,15 @@ pub trait UIElement {
 /// This trait formalises that contract so callers can be written generically
 /// and components become easier to test in isolation.
 ///
+/// # Relationship to the overlay stack
+///
+/// This trait describes one egui dialog; it is not the UX.md OV1 `Overlay`
+/// abstraction. The window's overlay stack (`crate::app::overlay`) keys
+/// every overlay — components, prompts, panels, and keyboard modes — by
+/// `OverlayId`; for an implementer its open state agrees with
+/// `is_visible()`. Why the stack is an id registry rather than a trait is
+/// recorded in the `crate::app::overlay` module docs.
+///
 /// # Components that are excluded
 ///
 /// The following components have additional required parameters on `show` and
@@ -158,7 +167,9 @@ pub trait UIElement {
 /// - `TmuxSessionPickerUI::show` — requires `tmux_path: &str`
 /// - `InspectorPanel::show` — requires `available_agents: &[AgentConfig]`
 ///
-/// These are documented as out-of-scope in `docs/TRAITS.md` (future work).
+/// `set_visible(true)` cannot open a dialog that needs context to open
+/// (the quit, close-job, last-tab, and SSH dialogs); on those it is a no-op
+/// and the component's own `show_*` entry point opens it.
 pub trait OverlayComponent {
     /// The action type produced by this component's `show` call.
     type Action;

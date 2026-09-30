@@ -262,7 +262,6 @@ impl SearchUI {
 
         // Fully opaque regardless of terminal opacity — scoped to the search
         // bar (OV1: no global style writes).
-        let solid_bg = Color32::from_rgba_unmultiplied(30, 30, 30, 255);
 
         let viewport = ctx.input(|i| i.viewport_rect());
 
@@ -277,8 +276,11 @@ impl SearchUI {
             .fixed_pos([viewport.center().x - window_width / 2.0, 10.0])
             .frame(
                 Frame::window(&ctx.global_style())
-                    .fill(solid_bg)
-                    .stroke(egui::Stroke::new(1.0, Color32::from_gray(60)))
+                    .fill(crate::app::overlay::theme::PANEL_FILL)
+                    .stroke(egui::Stroke::new(
+                        1.0,
+                        crate::app::overlay::theme::PANEL_BORDER,
+                    ))
                     .shadow(Shadow {
                         offset: [0, 2],
                         blur: 8,
@@ -288,7 +290,7 @@ impl SearchUI {
                     .inner_margin(8.0),
             )
             .show(ctx, |ui| {
-                crate::app::overlay::theme::solid_panel(ui, solid_bg);
+                crate::app::overlay::theme::solid_panel(ui);
                 ui.horizontal(|ui| {
                     // Search icon/label
                     ui.label(RichText::new("Search:").strong());
@@ -425,7 +427,7 @@ impl SearchUI {
                     // Show regex error if present
                     if let Some(ref error) = self.regex_error {
                         ui.colored_label(
-                            Color32::from_rgb(255, 100, 100),
+                            crate::app::overlay::theme::DANGER,
                             format!("Regex error: {}", truncate_chars(error, 40)),
                         );
                     }

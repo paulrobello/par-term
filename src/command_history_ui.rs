@@ -196,14 +196,10 @@ impl CommandHistoryUI {
 
         let matched_entries = self.get_matched_entries();
 
-        // B70: keyboard navigation lives on the egui side. The auto-focused
-        // search field makes `is_egui_using_keyboard()` return early in
-        // handle_key_event, and the modal guard in handle_window_event
-        // blocks Arrow/Enter before the winit layer could ever run — so the
-        // hints below advertised navigation nothing could deliver. The
-        // winit-side `handle_command_history_keys` layer stays as the
-        // unfocused backstop; close() and the selection moves are
-        // idempotent, so both paths are safe together.
+        // B70: keyboard navigation lives on the egui side. The panel is a
+        // guarding Popup in the overlay stack (UX.md OV2): the stack
+        // consumes every key it does not close on before terminal key
+        // dispatch and feeds it to egui, so this is the only reader.
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
             self.close();
         }

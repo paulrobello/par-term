@@ -122,7 +122,6 @@ impl IntegrationsUI {
         let mut response = IntegrationsResponse::default();
 
         // Fully opaque — scoped to this dialog (OV1: no global style writes).
-        let solid_bg = Color32::from_rgba_unmultiplied(32, 32, 32, 255);
 
         let viewport = ctx.input(|i| i.viewport_rect());
 
@@ -134,9 +133,9 @@ impl IntegrationsUI {
             .pivot(Align2::CENTER_CENTER)
             .frame(
                 Frame::window(&ctx.global_style())
-                    .fill(solid_bg)
+                    .fill(crate::app::overlay::theme::PANEL_FILL)
                     .inner_margin(INTEGRATIONS_INNER_MARGIN)
-                    .stroke(egui::Stroke::new(1.0, Color32::from_gray(80)))
+                    .stroke(egui::Stroke::new(1.0, crate::app::overlay::theme::PANEL_BORDER))
                     .shadow(Shadow {
                         offset: [4, 4],
                         blur: 16,
@@ -145,7 +144,7 @@ impl IntegrationsUI {
                     }),
             )
             .show(ctx, |ui| {
-                crate::app::overlay::theme::solid_panel(ui, solid_bg);
+                crate::app::overlay::theme::solid_panel(ui);
                 ui.vertical_centered(|ui| {
                     // Header with version
                     ui.add_space(8.0);
@@ -184,10 +183,10 @@ impl IntegrationsUI {
                     });
                     ui.add_space(16.0);
                 } else if let Some(error) = &self.error_message {
-                    ui.colored_label(Color32::from_rgb(255, 100, 100), error);
+                    ui.colored_label(crate::app::overlay::theme::DANGER, error);
                     ui.add_space(8.0);
                 } else if let Some(success) = &self.success_message {
-                    ui.colored_label(Color32::from_rgb(100, 255, 100), success);
+                    ui.colored_label(crate::app::overlay::theme::SUCCESS, success);
                     ui.add_space(8.0);
                     ui.label("You can configure these in Settings (F12).");
                     ui.add_space(16.0);

@@ -6,38 +6,11 @@
 
 use super::*;
 
-/// `clipboard.rs`. State-conditional only: the panel is opened by the
-/// configured `toggle_clipboard_history` keybinding, and while it is open the
-/// layer consumes keys wholesale.
-pub(crate) const CLIPBOARD_HISTORY: &[Claim] = &[];
-
-/// `command_history.rs` claims no chord at all — the toggle is driven entirely
-/// by the configured `toggle_command_history` keybinding. Only in-panel
-/// navigation lives there, and that is state-conditional.
-const COMMAND_HISTORY: &[Claim] = &[];
-
-/// `clipboard.rs`, paste-special branch: state-conditional only.
-const PASTE_SPECIAL_UI: &[Claim] = &[];
-
-/// `command_palette.rs` claims no chord at all — it is opened by the configured
-/// `toggle_command_palette` keybinding, and its only in-panel key (Escape) is
-/// state-conditional.
-const COMMAND_PALETTE: &[Claim] = &[];
-
-/// `agent_usage_panel.rs`. State-conditional (Esc/h/l while the panel is
-/// visible); it opens from a widget click or the `toggle_agent_usage_panel`
-/// action, never a chord of its own.
-const AGENT_USAGE_PANEL: &[Claim] = &[];
-
-/// `search.rs`. State-conditional only: the search bar is opened by the
-/// configured `toggle_search` keybinding; while it is visible, Escape closes
-/// it and everything else propagates to egui.
-pub(crate) const SEARCH: &[Claim] = &[];
-
-/// `window_state/keyboard_handlers.rs`. State-conditional only: Escape closes
-/// the help/shader-install/integrations overlays; the panel itself opens via
-/// the configured `toggle_help` keybinding.
-const HELP_TOGGLE: &[Claim] = &[];
+// The per-overlay state-machine layers (clipboard history, command history,
+// paste special, agent usage, palette, search, help) are gone (MP1 Q4): their
+// overlays are Popups/Modals in the overlay stack, which consumes every key
+// they do not close on before `handle_key_event` runs, so those layers were
+// unreachable. Their claim slices were empty — no chord was lost with them.
 
 /// `profiles.rs` matches against the user's `profiles.yaml`, so what it claims
 /// is not knowable at build time. Deliberately empty; see the coverage note in
@@ -115,7 +88,7 @@ pub(super) const MACOS_APP_MENU: &[Claim] = &[
 /// The hardcoded dispatch sources that remain, in the order
 /// `handle_key_event` consults them.
 ///
-/// The first eight mirror [`super::KEY_LAYERS`] one-for-one — `chord_tests`
+/// The first mirrors [`super::KEY_LAYERS`] one-for-one — `chord_tests`
 /// asserts that correspondence so a new layer cannot be added without declaring
 /// what it claims. The last is the inline paste/copy branch, the one
 /// deliberate chord exemption.
@@ -125,16 +98,9 @@ pub(super) const MACOS_APP_MENU: &[Claim] = &[
 /// `defaults::menu_chords`, UX K2): their chords arrive in the chain as
 /// `config_keybindings` rules, derived from the shipped defaults.
 pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
-    ("clipboard_history", CLIPBOARD_HISTORY),
-    ("command_history", COMMAND_HISTORY),
-    ("paste_special", PASTE_SPECIAL_UI),
-    ("agent_usage_panel", AGENT_USAGE_PANEL),
-    ("command_palette", COMMAND_PALETTE),
-    ("search", SEARCH),
-    ("help_toggle", HELP_TOGGLE),
     ("profile_shortcuts", PROFILE_SHORTCUTS),
     ("paste_copy", PASTE_COPY),
 ];
 
 /// Number of [`LAYER_CLAIMS`] entries that correspond to [`super::KEY_LAYERS`].
-pub(crate) const UNIFORM_LAYER_COUNT: usize = 8;
+pub(crate) const UNIFORM_LAYER_COUNT: usize = 1;

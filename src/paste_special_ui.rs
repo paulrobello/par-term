@@ -137,9 +137,9 @@ impl PasteSpecialUI {
         let mut open = true;
         let mut search_changed = false;
 
-        // B70: keyboard navigation lives on the egui side — the search field
-        // is focused every frame, so the winit layer is unreachable (full
-        // reasoning in command_history_ui::show).
+        // B70: keyboard navigation lives on the egui side — the overlay
+        // stack consumes every key before terminal key dispatch, so this is
+        // the only reader (full reasoning in command_history_ui::show).
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
             self.close();
         }

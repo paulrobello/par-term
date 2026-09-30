@@ -162,16 +162,7 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
 /// Same rule as the inventory above: this is a record, not a derivation. An
 /// earlier layer pre-empts a later one for the same chord, so a reordering is
 /// a behavior change and must be made on purpose.
-const FROZEN_LAYER_ORDER: &[&str] = &[
-    "clipboard_history",
-    "command_history",
-    "paste_special",
-    "agent_usage_panel",
-    "command_palette",
-    "search",
-    "help_toggle",
-    "profile_shortcuts",
-];
+const FROZEN_LAYER_ORDER: &[&str] = &["profile_shortcuts"];
 
 fn action_keys() -> Vec<&'static str> {
     ACTION_HANDLERS.iter().map(|(name, _)| *name).collect()

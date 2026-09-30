@@ -854,11 +854,7 @@ pub(crate) mod tests {
             ws.tmux_state.tmux_session_name.is_none(),
             "a failed attach must not claim a session name"
         );
-        let toast = ws
-            .overlay_state
-            .toast_message
-            .as_deref()
-            .unwrap_or_default();
+        let toast = ws.last_toast_text().unwrap_or_default();
         assert!(
             toast.contains("attach to 'test' failed"),
             "the toast must name the failure, got: {toast}"
@@ -883,7 +879,7 @@ pub(crate) mod tests {
             ws.tmux_state.mux_attach_pending.is_some(),
             "no worker result yet — the pending attach must stay queued"
         );
-        assert!(ws.overlay_state.toast_message.is_none());
+        assert!(ws.last_toast_text().is_none());
     }
 
     /// The success arm: a connected core client delivered over the channel
@@ -912,11 +908,7 @@ pub(crate) mod tests {
             "the transport must be installed on success"
         );
         assert_eq!(ws.tmux_state.tmux_session_name.as_deref(), Some("pollme"));
-        let toast = ws
-            .overlay_state
-            .toast_message
-            .as_deref()
-            .unwrap_or_default();
+        let toast = ws.last_toast_text().unwrap_or_default();
         assert!(
             toast.contains("attached to session 'pollme'")
                 || toast.contains("created session 'pollme'"),
@@ -2187,7 +2179,7 @@ pub(crate) mod tests {
         // Detach with nothing attached is a no-op, not a crash.
         assert!(!ws.detach_mux_session());
         assert!(
-            ws.overlay_state.toast_message.is_none(),
+            ws.last_toast_text().is_none(),
             "a no-op detach must not toast"
         );
 
@@ -2218,7 +2210,7 @@ pub(crate) mod tests {
         assert_eq!(ws.tmux_state.tmux_session_name, None);
         assert!(ws.tmux_state.tmux_pane_owners.is_empty());
         assert_eq!(
-            ws.overlay_state.toast_message.as_deref(),
+            ws.last_toast_text(),
             Some("par-mux: detached (session keeps running in the daemon)"),
             "the detach toast must replace the shared cleanup's 'Session ended'"
         );
@@ -2432,13 +2424,9 @@ pub(crate) mod tests {
         );
         assert_eq!(ws.tab_manager.active_tab_id(), Some(tab_id));
         assert!(
-            ws.overlay_state
-                .toast_message
-                .as_deref()
-                .unwrap_or("")
-                .contains("re-shown"),
+            ws.last_toast_text().unwrap_or("").contains("re-shown"),
             "the re-show names what happened: {:?}",
-            ws.overlay_state.toast_message
+            ws.last_toast_text()
         );
 
         let _ = std::fs::remove_file(&path);
@@ -2555,13 +2543,14 @@ pub(crate) mod tests {
             "a failed mux split must not create a stray local pane"
         );
         let toast = ws
-            .overlay_state
-            .toast_message
-            .as_deref()
+            .last_toast_text()
             .expect("split failure surfaces an error");
         assert!(toast.contains("split failed"), "toast says so: {toast}");
         assert!(
-            ws.overlay_state.toast_hide_time.is_none(),
+            ws.overlay_state
+                .toasts
+                .newest()
+                .is_some_and(|t| t.kind == crate::app::overlay::toast::ToastKind::Error),
             "the error is persistent (no auto-hide): {toast}"
         );
 
@@ -2618,11 +2607,7 @@ pub(crate) mod tests {
         ws.tmux_state.transport = Some(Box::new(DeadTransport));
         ws.check_mux_notifications();
 
-        let toast = ws
-            .overlay_state
-            .toast_message
-            .as_deref()
-            .expect("daemon death surfaces a toast");
+        let toast = ws.last_toast_text().expect("daemon death surfaces a toast");
         assert!(
             toast.contains("par-mux"),
             "the death toast must say par-mux, got: {toast}"
@@ -5392,7 +5377,7 @@ out.flush()
         let mut ws = manners_state();
         // Baseline: palette closed, nothing queued, no tab focused.
         assert!(!ws.overlay_ui.command_palette.visible);
-        assert!(ws.overlay_state.toast_message.is_none());
+        assert!(ws.last_toast_text().is_none());
         assert!(ws.tab_manager.active_tab_id().is_none());
         assert!(ws.focus_state.pending_focus_tab_switch.is_none());
 
@@ -5426,7 +5411,7 @@ out.flush()
             "a roster update must not open the palette"
         );
         assert!(
-            ws.overlay_state.toast_message.is_none(),
+            ws.last_toast_text().is_none(),
             "a roster update must not notify"
         );
         assert!(
@@ -5504,7 +5489,7 @@ out.flush()
         );
         // E3: a release is not an interruption either.
         assert!(!ws.overlay_ui.command_palette.visible);
-        assert!(ws.overlay_state.toast_message.is_none());
+        assert!(ws.last_toast_text().is_none());
         assert!(ws.tab_manager.active_tab_id().is_none());
         assert!(ws.focus_state.pending_focus_tab_switch.is_none());
     }
@@ -5600,12 +5585,9 @@ out.flush()
             "a refused attach must leave no transport and no pending worker behind"
         );
         assert!(
-            ws.overlay_state
-                .toast_message
-                .as_deref()
-                .is_some_and(|t| t.contains("refused")),
+            ws.last_toast_text().is_some_and(|t| t.contains("refused")),
             "the refusal must toast, got {:?}",
-            ws.overlay_state.toast_message
+            ws.last_toast_text()
         );
     }
 
@@ -5635,7 +5617,7 @@ out.flush()
                 .is_some_and(|p| p.name == "first"),
             "the in-flight attach must keep its place"
         );
-        let toast = ws.overlay_state.toast_message.as_deref();
+        let toast = ws.last_toast_text();
         assert!(
             toast.is_some_and(|t| t.contains("still attaching") && t.contains("first")),
             "the second open must explain instead of doing nothing, got {toast:?}"
@@ -5651,7 +5633,7 @@ out.flush()
         ws.tmux_state.transport = Some(Box::new(transport));
         ws.tmux_state.tmux_session_name = Some("live".to_string());
         ws.begin_mux_session_attach("other");
-        let toast = ws.overlay_state.toast_message.as_deref();
+        let toast = ws.last_toast_text();
         assert!(
             toast.is_some_and(|t| t.contains("already attached") && t.contains("live")),
             "the second open must name the attached session, got {toast:?}"
@@ -5732,7 +5714,7 @@ out.flush()
         let mut toast_seen = None;
         while Instant::now() < deadline {
             ws.check_mux_notifications();
-            if let Some(message) = ws.overlay_state.toast_message.clone() {
+            if let Some(message) = ws.last_toast_text().map(str::to_string) {
                 toast_seen = Some(message);
                 break;
             }
@@ -6159,7 +6141,7 @@ out.flush()
             "no move request queued for a mux tab"
         );
         assert!(
-            ws.overlay_state.toast_message.is_some(),
+            ws.last_toast_text().is_some(),
             "the block is explained to the user"
         );
     }
@@ -6396,11 +6378,7 @@ out.flush()
         );
         assert!(ws.tmux_state.mux_session_id.is_none());
         assert!(ws.tmux_state.tmux_session_name.is_none());
-        let toast = ws
-            .overlay_state
-            .toast_message
-            .as_deref()
-            .unwrap_or_default();
+        let toast = ws.last_toast_text().unwrap_or_default();
         assert!(
             toast.contains("session ended on the daemon"),
             "the toast names the daemon-side end, got: {toast}"

@@ -656,7 +656,7 @@ mod tests {
                 .map(|pm| pm.pane_count())
         };
         let before = local_panes(&ws);
-        ws.overlay_state.toast_message = None;
+        ws.overlay_state.toasts.clear();
 
         ws.execute_demote(
             local_tab,
@@ -666,12 +666,10 @@ mod tests {
         );
 
         assert!(
-            ws.overlay_state
-                .toast_message
-                .as_deref()
+            ws.last_toast_text()
                 .is_some_and(|t| t.contains("cannot merge")),
             "the refusal is surfaced: {:?}",
-            ws.overlay_state.toast_message
+            ws.last_toast_text()
         );
         assert!(
             ws.tab_manager.get_tab(local_tab).is_some(),

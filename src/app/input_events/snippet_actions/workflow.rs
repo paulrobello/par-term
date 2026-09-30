@@ -81,7 +81,7 @@ impl WindowState {
                 return if self.execute_keybinding_action(action_id) {
                     StepOutcome::Success
                 } else {
-                    self.show_toast(format!("Workflow: action '{action_id}' failed"));
+                    self.show_persistent_toast(format!("Workflow: action '{action_id}' failed"));
                     StepOutcome::Abort
                 };
             }

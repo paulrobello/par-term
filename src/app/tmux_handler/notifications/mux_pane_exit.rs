@@ -362,7 +362,7 @@ mod tests {
         );
 
         // Clear the attach toast so a restart rejection toast is visible.
-        ws.overlay_state.toast_message = None;
+        ws.overlay_state.toasts.clear();
 
         // A non-Enter key on the held pane is swallowed, not routed.
         assert_eq!(ws.handle_key_for_exited_mux_pane(b"x"), Some(()));
@@ -372,7 +372,8 @@ mod tests {
         // chrome clears only on the %pane-respawned push.
         assert_eq!(ws.handle_key_for_exited_mux_pane(b"\r"), Some(()));
         assert_eq!(
-            ws.overlay_state.toast_message, None,
+            ws.last_toast_text(),
+            None,
             "the dead-pane respawn was accepted"
         );
         pump_until(
@@ -400,7 +401,8 @@ mod tests {
         // ...and the restart path uses -k for it.
         assert!(ws.restart_focused_mux_pane());
         assert_eq!(
-            ws.overlay_state.toast_message, None,
+            ws.last_toast_text(),
+            None,
             "the live-pane restart (-k) was accepted"
         );
 

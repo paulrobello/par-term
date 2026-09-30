@@ -11,6 +11,37 @@ use par_term_mux::AgentEntry;
 use par_term_tmux::TmuxPaneId;
 
 impl WindowState {
+    /// Apply one daemon-health transition from the transport. The chip
+    /// keeps the state between transitions (UX.md V1). "Not responding"
+    /// is a persistent par-mux error toast (OV7); the matching "responding
+    /// again" retires it — only it, not an unrelated error that replaced
+    /// it in the par-mux error slot — so a recovered daemon does not leave
+    /// a stale error up.
+    pub(super) fn apply_mux_health_event(&mut self, message: String) {
+        crate::debug_info!("MUX", "daemon health: {message}");
+        let recovered = message.contains("responding again");
+        self.tmux_state.mux_health = if recovered {
+            crate::session_chip::MuxHealth::Connected
+        } else {
+            crate::session_chip::MuxHealth::Unresponsive
+        };
+        if recovered {
+            let slot_is_unresponsive = self.tmux_state.mux_error_toast.is_some_and(|id| {
+                self.overlay_state
+                    .toasts
+                    .toasts()
+                    .iter()
+                    .any(|t| t.id == id && t.message.contains("not responding"))
+            });
+            if slot_is_unresponsive && let Some(id) = self.tmux_state.mux_error_toast.take() {
+                self.overlay_state.toasts.dismiss(id);
+            }
+            self.show_toast(message);
+        } else {
+            self.record_mux_error(message);
+        }
+    }
+
     /// Apply `%agent-state-changed` pushes to the roster cache. Returns
     /// whether any push landed (a roster surface may need to re-render).
     ///
@@ -141,20 +172,7 @@ impl WindowState {
             .as_ref()
             .and_then(|transport| transport.daemon_health_event());
         if let Some(message) = health_event {
-            crate::debug_info!("MUX", "daemon health: {message}");
-            // The transport reports transitions only; the chip keeps the
-            // state between them (UX.md V1).
-            let recovered = message.contains("responding again");
-            self.tmux_state.mux_health = if recovered {
-                crate::session_chip::MuxHealth::Connected
-            } else {
-                crate::session_chip::MuxHealth::Unresponsive
-            };
-            if recovered {
-                self.show_toast(message);
-            } else {
-                self.record_mux_error(message);
-            }
+            self.apply_mux_health_event(message);
         }
         let (core_notifications, disconnected) = match &self.tmux_state.transport {
             Some(transport) => transport.drain(),

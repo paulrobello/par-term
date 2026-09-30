@@ -69,13 +69,13 @@ impl WindowState {
                     // target; a local split would strand it) and surface it.
                     let body = reply.join("\n");
                     log::error!("par-mux split-window rejected: {body}");
-                    self.record_persistent_mux_error(format!("par-mux: split failed — {body}"));
+                    self.record_mux_error(format!("par-mux: split failed — {body}"));
                     true
                 }
             }
             Err(e) => {
                 log::error!("par-mux split-window failed: {e}");
-                self.record_persistent_mux_error(format!("par-mux: split failed — {e}"));
+                self.record_mux_error(format!("par-mux: split failed — {e}"));
                 // M6: a resolved daemon target means the split was
                 // consumed — false here falls through to a LOCAL split and
                 // strands an unmapped pane inside the mux tab.
@@ -120,7 +120,7 @@ impl WindowState {
             }),
             Err(e) => {
                 log::error!("par-mux split-window failed: {e}");
-                self.record_persistent_mux_error(format!("par-mux: split failed — {e}"));
+                self.record_mux_error(format!("par-mux: split failed — {e}"));
                 return true;
             }
         };
@@ -132,7 +132,7 @@ impl WindowState {
                 .map(|r| r.join("\n"))
                 .unwrap_or_default();
             log::error!("par-mux split-window rejected: {body}");
-            self.record_persistent_mux_error(format!("par-mux: split failed — {body}"));
+            self.record_mux_error(format!("par-mux: split failed — {body}"));
             return true;
         };
         self.tmux_state.mux_focused_pane = Some(pane);

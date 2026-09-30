@@ -233,7 +233,6 @@ impl TmuxSessionPickerUI {
         let mut close_requested = false;
 
         // Fully opaque — scoped to this picker (OV1: no global style writes).
-        let solid_bg = Color32::from_rgba_unmultiplied(24, 24, 24, 255);
 
         let mut open = true;
         let viewport = ctx.input(|i| i.viewport_rect());
@@ -247,7 +246,7 @@ impl TmuxSessionPickerUI {
             .open(&mut open)
             .frame(
                 Frame::window(&ctx.global_style())
-                    .fill(solid_bg)
+                    .fill(crate::app::overlay::theme::PANEL_FILL)
                     .stroke(egui::Stroke::NONE)
                     .shadow(Shadow {
                         offset: [0, 0],
@@ -257,7 +256,7 @@ impl TmuxSessionPickerUI {
                     }),
             )
             .show(ctx, |ui| {
-                crate::app::overlay::theme::solid_panel(ui, solid_bg);
+                crate::app::overlay::theme::solid_panel(ui);
                 if let Some(mux) = picker.mux.as_ref()
                     && let Some(chosen) = self.mux_section.show(ui, mux)
                 {
@@ -281,7 +280,7 @@ impl TmuxSessionPickerUI {
 
                 // Error message
                 if let Some(ref err) = self.error_message {
-                    ui.colored_label(Color32::from_rgb(255, 100, 100), err);
+                    ui.colored_label(crate::app::overlay::theme::DANGER, err);
                     ui.add_space(8.0);
                 }
 
@@ -326,7 +325,7 @@ impl TmuxSessionPickerUI {
                                     if session.attached {
                                         ui.label(
                                             RichText::new("(attached)")
-                                                .color(Color32::from_rgb(100, 200, 100)),
+                                                .color(crate::app::overlay::theme::SUCCESS),
                                         );
                                     }
 

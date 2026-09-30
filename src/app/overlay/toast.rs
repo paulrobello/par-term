@@ -12,6 +12,7 @@
 //! they draw in their own layer (see `render_mode_banner`) and never take a
 //! queue slot.
 
+use super::theme;
 use std::time::{Duration, Instant};
 
 /// How many toasts are on screen at once.
@@ -32,10 +33,10 @@ pub(crate) enum ToastKind {
 impl ToastKind {
     fn accent(self) -> egui::Color32 {
         match self {
-            ToastKind::Info => egui::Color32::from_rgb(90, 150, 230),
-            ToastKind::Success => egui::Color32::from_rgb(80, 180, 110),
-            ToastKind::Warning => egui::Color32::from_rgb(230, 180, 60),
-            ToastKind::Error => egui::Color32::from_rgb(230, 90, 90),
+            ToastKind::Info => theme::ACCENT,
+            ToastKind::Success => theme::SUCCESS,
+            ToastKind::Warning => theme::WARNING,
+            ToastKind::Error => theme::DANGER,
         }
     }
 
@@ -147,6 +148,20 @@ impl ToastQueue {
     pub(crate) fn toasts(&self) -> &[Toast] {
         &self.toasts
     }
+
+    /// The most recently posted toast still on screen — what tests assert
+    /// was announced. A repeat refreshes in place, so the newest is always
+    /// the last element.
+    #[cfg(test)]
+    pub(crate) fn newest(&self) -> Option<&Toast> {
+        self.toasts.last()
+    }
+
+    /// Drop every toast (tests reset between phases).
+    #[cfg(test)]
+    pub(crate) fn clear(&mut self) {
+        self.toasts.clear();
+    }
 }
 
 /// Draw the stack top-right, `top_inset` points below the window top (the
@@ -165,22 +180,19 @@ pub(crate) fn render_toasts(
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
                 egui::Frame::NONE
-                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 240))
+                    .fill(theme::TOAST_FILL)
                     .inner_margin(egui::Margin::symmetric(12, 8))
                     .corner_radius(8.0)
                     .stroke(egui::Stroke::new(1.5, toast.kind.accent()))
                     .show(ui, |ui| {
-                        ui.set_max_width(super::theme::WIDTH_SMALL);
+                        ui.set_max_width(theme::WIDTH_SMALL);
                         ui.horizontal(|ui| {
                             ui.label(
                                 egui::RichText::new(toast.kind.icon())
                                     .color(toast.kind.accent())
                                     .size(16.0),
                             );
-                            ui.label(
-                                egui::RichText::new(&toast.message)
-                                    .color(egui::Color32::from_rgb(235, 235, 235)),
-                            );
+                            ui.label(egui::RichText::new(&toast.message).color(theme::TEXT));
                             if let Some(action) = &toast.action
                                 && ui.button(&action.label).clicked()
                             {
@@ -212,19 +224,12 @@ pub(crate) fn render_mode_banner(ctx: &egui::Context, text: Option<&str>, top_in
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
             egui::Frame::NONE
-                .fill(egui::Color32::from_rgba_unmultiplied(20, 40, 70, 240))
+                .fill(theme::BANNER_FILL)
                 .inner_margin(egui::Margin::symmetric(16, 8))
                 .corner_radius(8.0)
-                .stroke(egui::Stroke::new(
-                    1.0,
-                    egui::Color32::from_rgb(90, 150, 230),
-                ))
+                .stroke(egui::Stroke::new(1.0, theme::ACCENT))
                 .show(ui, |ui| {
-                    ui.label(
-                        egui::RichText::new(text)
-                            .color(egui::Color32::from_rgb(235, 235, 235))
-                            .size(14.0),
-                    );
+                    ui.label(egui::RichText::new(text).color(theme::TEXT).size(14.0));
                 });
         });
 }

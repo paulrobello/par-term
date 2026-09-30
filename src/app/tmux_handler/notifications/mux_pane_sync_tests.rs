@@ -434,9 +434,9 @@ fn attached_layout_presets_are_refused_and_leave_the_daemon_layout() {
     let (mut ws, _second, path) = attached_split("p3b-preset");
     let before = (daemon_size(&ws, 0), daemon_size(&ws, 1));
     for preset in crate::pane::LayoutPreset::ALL {
-        ws.overlay_state.toast_message = None;
+        ws.overlay_state.toasts.clear();
         ws.apply_layout_preset(preset);
-        let toast = ws.overlay_state.toast_message.clone().unwrap_or_default();
+        let toast = ws.last_toast_text().map(str::to_string).unwrap_or_default();
         assert!(
             toast.contains("not available in par-mux tabs"),
             "{}: {toast:?}",

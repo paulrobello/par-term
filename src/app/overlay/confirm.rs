@@ -17,7 +17,8 @@
 //! its action on the same frame Enter is pressed. Resolving keys last lets
 //! the safe choice win (B64).
 
-use egui::{Color32, RichText};
+use super::theme;
+use egui::RichText;
 
 /// What the user chose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,9 +117,6 @@ fn read_keys(ctx: &egui::Context) -> ConfirmKeys {
     })
 }
 
-const DESTRUCTIVE_FILL: Color32 = Color32::from_rgb(180, 50, 50);
-const SAFE_FILL: Color32 = Color32::from_rgb(60, 120, 180);
-
 /// Draw the dialog for one frame and return the answer, if any.
 pub(crate) fn show(
     ctx: &egui::Context,
@@ -133,7 +131,7 @@ pub(crate) fn show(
         .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
-            ui.set_max_width(super::theme::WIDTH_MEDIUM);
+            ui.set_max_width(theme::WIDTH_MEDIUM);
             ui.vertical_centered(|ui| {
                 ui.add_space(8.0);
                 for (i, line) in spec.body.iter().enumerate() {
@@ -141,21 +139,17 @@ pub(crate) fn show(
                     ui.label(if i == 0 {
                         text
                     } else {
-                        text.color(Color32::GRAY)
+                        text.color(theme::TEXT_MUTED)
                     });
                     ui.add_space(4.0);
                 }
                 if let Some(detail) = spec.detail {
                     egui::Frame::new()
-                        .fill(Color32::from_rgba_unmultiplied(60, 60, 60, 200))
+                        .fill(theme::DETAIL_FILL)
                         .inner_margin(egui::Margin::symmetric(12, 6))
                         .corner_radius(4.0)
                         .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(detail)
-                                    .color(Color32::LIGHT_GREEN)
-                                    .monospace(),
-                            );
+                            ui.label(RichText::new(detail).color(theme::DETAIL_TEXT).monospace());
                         });
                     ui.add_space(4.0);
                 }
@@ -165,9 +159,10 @@ pub(crate) fn show(
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     let safe = egui::Button::new(
-                        RichText::new(format!("{} (Enter)", spec.safe_label)).color(Color32::WHITE),
+                        RichText::new(format!("{} (Enter)", spec.safe_label))
+                            .color(theme::TEXT_ON_FILL),
                     )
-                    .fill(SAFE_FILL);
+                    .fill(theme::SAFE_FILL);
                     if ui.add(safe).clicked() {
                         clicked = Some(ConfirmChoice::Safe);
                     }
@@ -183,9 +178,9 @@ pub(crate) fn show(
                             "{} ({DESTRUCTIVE_CHORD_LABEL})",
                             spec.destructive_label
                         ))
-                        .color(Color32::WHITE),
+                        .color(theme::TEXT_ON_FILL),
                     )
-                    .fill(DESTRUCTIVE_FILL);
+                    .fill(theme::DESTRUCTIVE_FILL);
                     if ui.add(destructive).clicked() {
                         clicked = Some(ConfirmChoice::Destructive);
                     }

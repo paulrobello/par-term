@@ -98,7 +98,7 @@ impl WindowState {
             Ok(()) => log::info!("Restarted pane {}", pane.id),
             Err(e) => {
                 log::error!("Failed to restart pane {}: {e}", pane.id);
-                self.show_toast(format!("Restart failed — {e}"));
+                self.show_persistent_toast(format!("Restart failed — {e}"));
             }
         }
         self.focus_state.needs_redraw = true;

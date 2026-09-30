@@ -117,11 +117,9 @@ impl ClipboardHistoryUI {
         let mut action = ClipboardHistoryAction::None;
         let mut open = true;
 
-        // B70: keyboard navigation lives on the egui side — the auto-focused
-        // search field plus the modal guard keep the winit layer from ever
-        // seeing these keys (full reasoning in
-        // command_history_ui::show). Escape/arrows/Enter here, winit layer
-        // as the unfocused backstop.
+        // B70: keyboard navigation lives on the egui side — the overlay
+        // stack consumes every key before terminal key dispatch, so this is
+        // the only reader (full reasoning in command_history_ui::show).
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
             self.visible = false;
         }

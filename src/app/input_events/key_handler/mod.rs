@@ -2,26 +2,28 @@
 //!
 //! This module handles all keyboard input routing:
 //! - `handle_key_event`: main key dispatch entry point (this file)
-//! - `clipboard`: clipboard history, paste special, `paste_text`
-//! - `command_history`: Cmd/Ctrl+R command history UI
-//! - `command_palette`: Escape ownership for the command palette overlay
-//! - `search`: Cmd/Ctrl+F search UI
+//! - `clipboard`: clipboard history toggle, `paste_text`
+//! - `command_history`: the command history toggle
 //! - `profiles`: per-profile hotkeys and shortcut string building
 //!
 //! Every shipped chord resolves through the registry as a default keybinding
 //! (`defaults::menu_chords`, `defaults::layer_chords`, UX K2): the scroll,
 //! reload, UI-toggle, utility, and tab chord layers all dissolved into those
-//! defaults, and only the state machines above remain here. The paste/copy
-//! branch at the end of `handle_key_event` is the one deliberate exemption.
+//! defaults. The paste/copy branch at the end of `handle_key_event` is the
+//! one deliberate exemption.
+//!
+//! No layer here handles a dialog, picker, or panel's keys. Those overlays
+//! are Popups and Modals in the overlay stack (UX.md OV2), which consumes
+//! every key they do not close on before this handler runs and feeds it to
+//! egui, where each overlay's `show()` reads its own keys. The per-overlay
+//! layers that used to sit in `KEY_LAYERS` were unreachable behind the stack
+//! and were removed (MP1 Q4).
 
-mod agent_usage_panel;
 pub(crate) mod claims;
 mod clipboard;
 mod command_history;
-mod command_palette;
 mod config_reload;
 mod profiles;
-mod search;
 
 #[cfg(test)]
 mod chord_tests;
@@ -77,35 +79,12 @@ fn exited_tab_keypress_action(
 ///
 /// What each layer claims is declared as data in [`claims::LAYER_CLAIMS`], which
 /// is what lets `chord_tests` answer "who gets this chord first?" without
-/// running the chain. Every entry here is a *state machine* — dialog
-/// navigation, consume-while-open modes — holding no chords of its own
-/// (UX K2: every shipped chord resolves through the registry). The utility
-/// and tab chord layers that used to continue this chain dissolved into
-/// registry defaults too.
+/// running the chain. The utility and tab chord layers that used to continue
+/// this chain dissolved into registry defaults (UX K2), and the per-overlay
+/// state machines (clipboard/command history, paste special, agent usage,
+/// palette, search, help) moved behind the overlay stack (see the module
+/// docs). Only per-profile hotkeys remain.
 pub(super) static KEY_LAYERS: &[(&str, KeyLayer)] = &[
-    // Clipboard history panel (consume-all while open; opened by the
-    // toggle_clipboard_history action)
-    (
-        "clipboard_history",
-        WindowState::handle_clipboard_history_keys,
-    ),
-    // Command history (in-panel navigation; opened by the configured
-    // toggle_command_history keybinding)
-    ("command_history", WindowState::handle_command_history_keys),
-    // Paste special UI (in-panel navigation while the dialog is open)
-    ("paste_special", WindowState::handle_paste_special_keys),
-    // Agent usage panel (Esc/h/l while open; opened by widget click or the
-    // toggle_agent_usage_panel action)
-    (
-        "agent_usage_panel",
-        WindowState::handle_agent_usage_panel_keys,
-    ),
-    // Command palette (Escape-only; opened by the toggle_command_palette action)
-    ("command_palette", WindowState::handle_command_palette_keys),
-    // Search (Escape + propagation while the search UI is visible)
-    ("search", WindowState::handle_search_keys),
-    // Help panel (Escape closes help/shader-install/integrations overlays)
-    ("help_toggle", WindowState::handle_help_toggle),
     // Per-profile hotkeys
     ("profile_shortcuts", WindowState::handle_profile_shortcuts),
 ];
@@ -126,7 +105,10 @@ impl WindowState {
         // first (UX.md OV2): only keys no overlay owns, and keys for a
         // keyboard mode, arrive here. A dialog, picker, or menu (the MP0
         // modal guard) never lets a key through, so this is a backstop that
-        // keeps the B61 guarantee even if a caller skips the stack.
+        // keeps the B61 guarantee even if a caller skips the stack. It does
+        // not cover the three Popups outside the MP0 set (paste special,
+        // pane rename, the in-app menu): for those the stack is the only
+        // guard (`removed_key_layer_overlays_never_reach_key_dispatch`).
         let modal_guard_active = self.any_modal_ui_visible();
         if modal_guard_active {
             return;

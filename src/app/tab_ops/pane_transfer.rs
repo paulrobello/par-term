@@ -369,7 +369,7 @@ impl WindowState {
                 pane_count,
                 source_tab_id
             );
-            self.show_toast("Demote failed: target pane is gone — tab left unchanged");
+            self.show_persistent_toast("Demote failed: target pane is gone — tab left unchanged");
         } else {
             // Unreachable in practice: the tree was taken out of this same tab
             // a few statements ago and nothing between can remove it. Reported
@@ -382,7 +382,7 @@ impl WindowState {
                 source_tab_id,
                 pane_count
             );
-            self.show_toast("Demote failed: source tab is gone");
+            self.show_persistent_toast("Demote failed: source tab is gone");
         }
 
         if let Some(renderer) = &mut self.renderer {
@@ -514,9 +514,7 @@ mod tests {
         // A silent no-op is better than data loss but still wrong: the user
         // asked for a merge and did not get one.
         let toast = state
-            .overlay_state
-            .toast_message
-            .as_deref()
+            .last_toast_text()
             .expect("a failed demote must tell the user");
         assert!(
             toast.contains("Demote failed"),

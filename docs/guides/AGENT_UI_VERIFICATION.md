@@ -315,6 +315,61 @@ report now shows `CmdOrCtrl+1 -> keybinding 'switch_to_tab_1'` (macOS;
 the missing byte run, proving the row (not some fallthrough) is what frees
 the chord for the shell.
 
+## Checked-in script: panel keyboard navigation (B70)
+
+`tests/ui/b70_panel_nav.json` drives clipboard history, command history,
+and paste special from the keyboard (arrows move the selection, Enter
+pastes byte-exact to the capture sink, Shift+Enter opens paste special,
+Escape closes). Clipboard entries come from the script's `seed_clipboard`
+step, but **command history is read from disk**: the run needs a seeded
+`command_history.yaml` in the isolated config directory
+(`$XDG_CONFIG_HOME/par-term/`) holding exactly three entries, newest first
+— `echo b70-gamma`, then `echo b70-beta`, then `echo b70-alpha`. The script
+asserts the first row is gamma and that two `ArrowDown` presses land on
+alpha.
+
+```bash
+mkdir -p /tmp/pt-b70/cfg/par-term /tmp/pt-b70/home
+cat > /tmp/pt-b70/cfg/par-term/config.yaml <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - "-c"
+  - "cat > /tmp/pt-b70-sink.bin"
+login_shell: false
+shader_install_prompt: never
+shell_integration_state: never
+agent_skill_state: never
+EOF
+cat > /tmp/pt-b70/cfg/par-term/command_history.yaml <<'EOF'
+commands:
+  - command: echo b70-gamma
+    timestamp_ms: 3000
+    exit_code: 0
+    duration_ms: null
+  - command: echo b70-beta
+    timestamp_ms: 2000
+    exit_code: 0
+    duration_ms: null
+  - command: echo b70-alpha
+    timestamp_ms: 1000
+    exit_code: 0
+    duration_ms: null
+EOF
+rm -f /tmp/pt-b70-sink.bin
+HOME=/tmp/pt-b70/home XDG_CONFIG_HOME=/tmp/pt-b70/cfg \
+  target/dev-release/par-term \
+  --ui-test tests/ui/b70_panel_nav.json \
+  --ui-test-report /tmp/pt-b70/report.json
+```
+
+The report's `all_passed` must be true (17 asserts). Without the seed file
+the command-history half fails (measured 2026-09-30: 12 pass, 5 fail —
+`command_history_selected = "<none>"`, the panel never closes on Enter, the
+sink misses `echo b70-alpha`, and the trailing paste-special assert trips
+on the panel left open), so a failing run there is the missing seed, not a
+navigation regression. The seed is written before launch because the
+history loads once at startup.
+
 ## Checked-in script: Enter is the safe choice in destructive dialogs (B64/MD5)
 
 `tests/ui/b64_enter_safe_choice.json` proves the MD5 dialog-Enter rule end to

@@ -426,6 +426,8 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
     // UX.md A15: windows, tabs, and panes (hidden par-mux tabs included) in
     // one fuzzy list; the manager fills it while it is open.
     ("toggle_tree_picker", |s: &mut WindowState| {
+        let chord = s.live_chord_hint("toggle_tree_picker");
+        s.overlay_ui.tree_picker_ui.set_toggle_chord(chord);
         s.overlay_ui.tree_picker_ui.toggle();
         s.focus_state.needs_redraw = true;
         s.request_redraw();

@@ -311,7 +311,7 @@ mirroring the menu accelerators (`Cmd + N` / `Ctrl + Shift + N`, `+ Q`,
 without a binding there is no way to open the in-app menu.
 
 **Command Palette:**
-- `toggle_command_palette` - Open the fuzzy action launcher over every bindable action (`Cmd/Ctrl + Shift + P`)
+- `toggle_command_palette` - Open the fuzzy action launcher over every bindable action (`Cmd/Ctrl + Shift + P`). Each row shows its live chord and a line naming its category (Window, Tab, Pane, Session, Profiles, View, Agents, Edit, Terminal) and what it does. With nothing typed, agents waiting on you come first, then the actions you last ran from the palette in this window, then everything grouped by category
 
 **Tab Management:**
 - `new_tab`, `close_tab`, `duplicate_tab`, `next_tab`, `prev_tab`

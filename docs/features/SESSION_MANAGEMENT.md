@@ -55,7 +55,7 @@ Recover accidentally closed tabs by reopening them with their original metadata.
 |--------|-------|---------------|
 | Reopen closed tab | `Cmd + Shift + T` (alias `Cmd + Z`) | `Ctrl + Shift + Z` |
 
-When a tab closes, par-term captures its metadata (working directory, title, whether you renamed it, custom icon, position, pane layout, custom color) and adds it to an undo queue. A toast notification appears showing the undo keybinding hint and the expiry timeout in seconds.
+When a tab closes, par-term captures its metadata (working directory, title, whether you renamed it, custom icon, position, pane layout, custom color) and adds it to an undo queue. A toast notification appears with an **Undo** button, the expiry timeout in seconds, and the live reopen chord (left out when `reopen_closed_tab` is unbound).
 
 **Restored tab state:**
 - Original tab position in the tab bar

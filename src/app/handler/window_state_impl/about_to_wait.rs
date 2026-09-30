@@ -377,8 +377,7 @@ impl WindowState {
         }
 
         // 5b. Toast stack (UX.md OV7): drop expired toasts and wake for
-        // the next expiry. Errors never expire. The last-posted record
-        // (`toast_message`) expires with its toast.
+        // the next expiry. Errors never expire.
         let (toasts_changed, next_toast_expiry) = self.overlay_state.toasts.expire(now);
         if toasts_changed {
             self.focus_state.needs_redraw = true;
@@ -391,15 +390,6 @@ impl WindowState {
                 next_wake = expiry;
             }
         }
-        if self
-            .overlay_state
-            .toast_hide_time
-            .is_some_and(|hide| now >= hide)
-        {
-            self.overlay_state.toast_message = None;
-            self.overlay_state.toast_hide_time = None;
-        }
-
         // 5c. Pane Identification Overlay
         // Check if the pane index overlay should be hidden (timer expired).
         if let Some(hide_time) = self.overlay_state.pane_identify_hide_time {

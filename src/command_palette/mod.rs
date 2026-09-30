@@ -3,11 +3,21 @@
 //!
 //! Ranking lives in [`fuzzy`] as pure functions so it can be tested without
 //! standing up an egui context or a `WindowState`. The catalog join lives in
-//! [`catalog`]. This module owns only the overlay's state machine and its
-//! egui presentation, mirroring `crate::search::SearchUI`.
+//! [`catalog`], and each row's category and description line in [`meta`].
+//! This module owns only the overlay's state machine and its egui
+//! presentation, mirroring `crate::search::SearchUI`.
+//!
+//! OV6 ordering on an empty query: rows carrying a priority boost (blocked
+//! agents, crash offers) lead, then the actions this window last ran from
+//! the palette (most recent first), then everything else grouped by
+//! category in [`meta::CATEGORIES`] order and label-sorted within a group.
+//! A typed query ranks by fuzzy label match; ties keep that order. Recents
+//! are kept per window in memory — they are a convenience for the next
+//! summon, not state worth persisting.
 
 pub(crate) mod catalog;
 pub(crate) mod fuzzy;
+pub(crate) mod meta;
 
 use crate::app::overlay::picker::{self, ListConfig, ListNav, ListOutcome};
 use catalog::{PaletteEntry, build_catalog, chord_display};
@@ -16,6 +26,8 @@ use par_term_keybindings::KeybindingRegistry;
 
 /// Rows drawn before the list scrolls.
 const VISIBLE_ROWS: usize = 12;
+/// How many recently run actions lead the empty-query view.
+const MAX_RECENTS: usize = 5;
 
 /// Summonable fuzzy launcher over the action catalog, drawn by the shared
 /// list/picker component (UX.md OV5).
@@ -29,12 +41,18 @@ pub(crate) struct CommandPalette {
     nav: ListNav,
     /// Latest plugin snapshot, replaced by every `open()`.
     plugin_entries: Vec<PaletteEntry>,
-    /// Built-ins plus the current plugin snapshot, label-sorted. Rebuilt on
-    /// every `open()` so the merged view tracks the live plugin set; the
-    /// built-in action set itself is static for the process.
+    /// Built-ins plus the current plugin snapshot, ordered priority first,
+    /// then category, then label. Rebuilt on every `open()` so the merged
+    /// view tracks the live plugin set; the built-in action set itself is
+    /// static for the process.
     entries: Vec<PaletteEntry>,
+    /// Action ids this window last ran from the palette, most recent first.
+    recent: Vec<String>,
     /// Whether the text field should grab focus on the next frame.
     request_focus: bool,
+    /// The live `toggle_command_palette` chord, read at open for the
+    /// footer (UX.md OV5); `None` when unbound.
+    toggle_chord: Option<String>,
 }
 
 impl Default for CommandPalette {
@@ -51,8 +69,10 @@ impl CommandPalette {
             query: String::new(),
             nav: ListNav::default(),
             plugin_entries: Vec::new(),
-            entries: build_catalog(),
+            entries: browse_sorted(build_catalog()),
+            recent: Vec::new(),
             request_focus: false,
+            toggle_chord: None,
         }
     }
 
@@ -73,20 +93,16 @@ impl CommandPalette {
         self.plugin_entries = plugin_rows;
         let mut merged = build_catalog();
         merged.extend(self.plugin_entries.iter().cloned());
-        // Priority first, then label: runtime rows carrying a boost (the
-        // agent-roster picker's blocked agents) lead the empty-query view,
-        // while the all-zero default set keeps today's label order exactly.
-        merged.sort_by(|a, b| {
-            b.priority
-                .cmp(&a.priority)
-                .then_with(|| a.label.cmp(&b.label))
-        });
+        let mut merged = browse_sorted(merged);
         for entry in &mut merged {
             entry.chord = registry
                 .chord_for_action(&entry.action_id)
                 .map(|combo| chord_display(&combo));
         }
         self.entries = merged;
+        self.toggle_chord = registry
+            .chord_for_action("toggle_command_palette")
+            .map(|combo| chord_display(&combo));
         self.visible = true;
         self.query.clear();
         self.nav.reset();
@@ -113,8 +129,19 @@ impl CommandPalette {
         }
     }
 
-    /// Action ids matching `query`, best-first.
+    /// Record a palette run: the action moves to the front of the recents.
+    fn record_use(&mut self, action_id: &str) {
+        self.recent.retain(|id| id != action_id);
+        self.recent.insert(0, action_id.to_string());
+        self.recent.truncate(MAX_RECENTS);
+    }
+
+    /// Action ids matching `query`, best-first. An empty query is the
+    /// browse view: boosted rows, then recents, then the category groups.
     fn filtered_ids(&self, query: &str) -> Vec<&str> {
+        if query.is_empty() {
+            return self.browse_order();
+        }
         let pairs: Vec<(&str, &str)> = self
             .entries
             .iter()
@@ -123,6 +150,27 @@ impl CommandPalette {
         fuzzy::rank(query, &pairs)
             .into_iter()
             .map(|(id, _)| *id)
+            .collect()
+    }
+
+    /// The empty-query order (see the module docs). Recents that are no
+    /// longer rows (a consumed crash offer, a closed session) are skipped,
+    /// and a recent that is also boosted keeps its boosted place.
+    fn browse_order(&self) -> Vec<&str> {
+        let boosted = self.entries.iter().filter(|e| e.priority > 0);
+        let recents = self.recent.iter().filter_map(|id| {
+            self.entries
+                .iter()
+                .find(|e| e.priority == 0 && e.action_id == *id)
+        });
+        let rest = self
+            .entries
+            .iter()
+            .filter(|e| e.priority == 0 && !self.recent.contains(&e.action_id));
+        boosted
+            .chain(recents)
+            .chain(rest)
+            .map(|e| e.action_id.as_str())
             .collect()
     }
 
@@ -150,8 +198,8 @@ impl CommandPalette {
     ///
     /// Keys, scrolling, and the footer come from the shared picker (UX.md
     /// OV5): arrows, PageUp/PageDown, Home/End, Enter runs, Escape closes —
-    /// on the egui side, since the focused filter keeps winit key layers
-    /// from ever seeing these keys.
+    /// on the egui side, where the overlay stack feeds every key it does
+    /// not close on.
     pub(crate) fn show(&mut self, ctx: &Context) -> Option<String> {
         if !self.visible {
             return None;
@@ -171,7 +219,8 @@ impl CommandPalette {
             visible_rows: VISIBLE_ROWS,
             width: crate::app::overlay::theme::WIDTH_LARGE,
             empty_text: "No matching actions",
-            footer: "↑↓ PgUp/PgDn Home/End select · Enter run · Esc close",
+            enter_verb: "run",
+            toggle_chord: self.toggle_chord.as_deref(),
             alternates: false,
         };
         let (outcome, query_changed) = picker::show_list(
@@ -194,7 +243,11 @@ impl CommandPalette {
         match outcome {
             ListOutcome::Chosen { index, .. } => {
                 self.close();
-                matches.get(index).cloned()
+                let chosen = matches.get(index).cloned();
+                if let Some(id) = &chosen {
+                    self.record_use(id);
+                }
+                chosen
             }
             ListOutcome::Closed => {
                 self.close();
@@ -205,7 +258,29 @@ impl CommandPalette {
     }
 }
 
-/// One palette row: the label, and the live chord right-aligned.
+/// Order rows for browsing: priority first — runtime rows carrying a boost
+/// (the agent-roster picker's blocked agents) lead the empty-query view —
+/// then by category (OV6), label-sorted within a group.
+fn browse_sorted(mut entries: Vec<PaletteEntry>) -> Vec<PaletteEntry> {
+    let category_rank = |entry: &PaletteEntry| {
+        let category = meta::category(&entry.action_id);
+        meta::CATEGORIES
+            .iter()
+            .position(|c| *c == category)
+            .unwrap_or(meta::CATEGORIES.len())
+    };
+    entries.sort_by(|a, b| {
+        b.priority
+            .cmp(&a.priority)
+            .then_with(|| category_rank(a).cmp(&category_rank(b)))
+            .then_with(|| a.label.cmp(&b.label))
+    });
+    entries
+}
+
+/// One palette row (OV6): the label with the live chord right-aligned,
+/// and beneath it a dimmed line naming the category and what the action
+/// does.
 fn draw_row(ui: &mut egui::Ui, entry: &PaletteEntry, selected: bool) -> bool {
     let mut clicked = false;
     ui.horizontal(|ui| {
@@ -221,6 +296,12 @@ fn draw_row(ui: &mut egui::Ui, entry: &PaletteEntry, selected: bool) -> bool {
             });
         }
     });
+    let category = meta::category(&entry.action_id);
+    let line = match meta::description(&entry.action_id) {
+        Some(description) => format!("{category} · {description}"),
+        None => category.to_string(),
+    };
+    ui.label(RichText::new(line).weak().small());
     clicked
 }
 
@@ -261,8 +342,30 @@ mod tests {
         assert_eq!(palette.nav.selected, 0);
     }
 
+    /// The OV6 browse order among unboosted rows: categories in
+    /// `meta::CATEGORIES` order, label-sorted within each category.
+    fn assert_grouped_by_category(entries: &[&PaletteEntry]) {
+        let keys: Vec<(usize, &str)> = entries
+            .iter()
+            .map(|e| {
+                let c = meta::category(&e.action_id);
+                (
+                    meta::CATEGORIES.iter().position(|x| *x == c).unwrap(),
+                    e.label.as_str(),
+                )
+            })
+            .collect();
+        let mut sorted = keys.clone();
+        sorted.sort();
+        assert_eq!(
+            keys, sorted,
+            "unboosted rows group by category, label-sorted within a group, \
+             so the empty-query view stays stable"
+        );
+    }
+
     #[test]
-    fn open_merges_plugin_rows_into_a_label_sorted_view() {
+    fn open_merges_plugin_rows_into_the_category_grouped_view() {
         let plugin_row = PluginActionRow {
             wire_id: "plugin-action:com.example.demo:aaaa".to_string(),
             label: "Aaaa First Plugin Action · Demo".to_string(),
@@ -270,14 +373,7 @@ mod tests {
         let mut palette = CommandPalette::new();
         let registry = KeybindingRegistry::new();
         palette.open(plugin_palette_entries(&[plugin_row]), &registry);
-        let labels: Vec<&str> = palette.entries.iter().map(|e| e.label.as_str()).collect();
-        let mut sorted = labels.clone();
-        sorted.sort_unstable();
-        assert_eq!(
-            labels, sorted,
-            "the merged view must be label-ordered so the empty-query view \
-             stays stable"
-        );
+        assert_grouped_by_category(&palette.entries.iter().collect::<Vec<_>>());
         assert!(
             palette
                 .entries
@@ -290,8 +386,8 @@ mod tests {
     #[test]
     fn open_places_priority_rows_ahead_of_the_label_sort() {
         // The agent-roster picker (A2b task 3) leads its blocked rows with
-        // priority 2; everything else is priority 0 and must keep the
-        // label-ordered view among themselves.
+        // priority 2; everything else is priority 0 and keeps the
+        // category-grouped view among themselves.
         let runtime_rows = vec![
             PaletteEntry {
                 action_id: "agent-roster-focus:7".to_string(),
@@ -314,17 +410,92 @@ mod tests {
             Some("agent-roster-focus:3"),
             "the blocked agent row leads the empty-query view"
         );
-        let zero_tier: Vec<&str> = palette
-            .entries
-            .iter()
-            .filter(|e| e.priority == 0)
-            .map(|e| e.label.as_str())
-            .collect();
-        let mut sorted = zero_tier.clone();
-        sorted.sort_unstable();
+        let zero_tier: Vec<&PaletteEntry> =
+            palette.entries.iter().filter(|e| e.priority == 0).collect();
+        assert_grouped_by_category(&zero_tier);
+    }
+
+    #[test]
+    fn recent_actions_lead_an_empty_query_below_boosted_rows() {
+        // OV6: the last palette runs come first on an empty query, most
+        // recent first — but a blocked agent still leads, because the
+        // palette exists to answer "who is waiting".
+        let blocked = PaletteEntry {
+            action_id: "agent-roster-focus:3".to_string(),
+            label: "claude: blocked".to_string(),
+            chord: None,
+            priority: 2,
+        };
+        let mut palette = CommandPalette::new();
+        let registry = KeybindingRegistry::new();
+        palette.record_use("toggle_fullscreen");
+        palette.record_use("split_right");
+        palette.record_use("toggle_fullscreen");
+        palette.open(vec![blocked], &registry);
+        let ids = palette.filtered_ids("");
         assert_eq!(
-            zero_tier, sorted,
-            "priority-0 rows stay label-ordered among themselves"
+            &ids[..3],
+            ["agent-roster-focus:3", "toggle_fullscreen", "split_right"],
+            "boosted, then recents most-recent-first (deduplicated)"
+        );
+        assert_eq!(
+            ids.iter().filter(|id| **id == "split_right").count(),
+            1,
+            "a recent is not listed twice"
+        );
+        // A typed query ranks by match, not recency.
+        assert_eq!(
+            palette.filtered_ids("fullscr").first(),
+            Some(&"toggle_fullscreen")
+        );
+    }
+
+    #[test]
+    fn a_recent_whose_row_is_gone_is_skipped() {
+        let mut palette = CommandPalette::new();
+        palette.record_use("triage-crash:99");
+        palette.open(vec![], &KeybindingRegistry::new());
+        assert!(!palette.filtered_ids("").contains(&"triage-crash:99"));
+    }
+
+    #[test]
+    fn running_a_row_records_it_as_recent() {
+        let ctx = Context::default();
+        let mut palette = CommandPalette::new();
+        palette.open(Vec::new(), &KeybindingRegistry::new());
+        frame(&ctx, &mut palette, &[]);
+        frame(&ctx, &mut palette, &[Key::ArrowDown; 5]);
+        let chosen = frame(&ctx, &mut palette, &[Key::Enter]).expect("Enter runs a row");
+        palette.open(Vec::new(), &KeybindingRegistry::new());
+        assert_eq!(palette.filtered_ids("").first(), Some(&chosen.as_str()));
+        assert_eq!(palette.recent.len(), 1);
+        for _ in 0..(MAX_RECENTS + 3) {
+            palette.record_use(&format!("x{}", palette.recent.len()));
+        }
+        assert_eq!(palette.recent.len(), MAX_RECENTS, "recents are capped");
+    }
+
+    #[test]
+    fn every_row_draws_a_description_line() {
+        // OV6: the description line renders under each label. 12 two-line
+        // rows must still fit the palette at the default 800-px height.
+        let ctx = Context::default();
+        let mut palette = CommandPalette::new();
+        palette.open(Vec::new(), &KeybindingRegistry::new());
+        frame(&ctx, &mut palette, &[]);
+        // egui keys a Window's area by `Id::new(title.text())`, an
+        // Option<Cow<str>>.
+        let id = egui::Id::new(Some(std::borrow::Cow::Borrowed("Command Palette")));
+        let rect = ctx.memory(|m| m.area_rect(id)).expect("palette drew");
+        assert!(
+            rect.max.y <= 800.0,
+            "12 rows with description lines fit on screen: {rect:?}"
+        );
+        // Measured 2026-09-30: 472 px tall with description lines; one-line
+        // rows would draw 12 x ~20 px plus the filter and footer.
+        assert!(
+            rect.height() > 12.0 * 30.0,
+            "each row is two lines tall (label + description): {rect:?}"
         );
     }
 
@@ -399,8 +570,8 @@ mod tests {
 
     #[test]
     fn show_holds_the_focused_escape_close() {
-        // With the palette's text field focused, no winit key layer sees
-        // Escape — show() is the only close path while typing. Measured
+        // With the palette's text field focused, egui holds the keyboard
+        // and show() must close on Escape itself. Measured
         // pre-fix (2026-09-20): Escape with the field focused left the
         // palette open forever.
         let ctx = Context::default();
@@ -490,6 +661,23 @@ mod tests {
             .find(|e| e.action_id == "toggle_fullscreen")
             .expect("toggle_fullscreen is in the catalog");
         assert_eq!(entry.chord.as_deref(), Some("F9"));
+    }
+
+    #[test]
+    fn the_footer_chord_is_read_from_the_live_registry_at_open() {
+        // OV5: the footer names the palette's own toggle chord (it closes
+        // the palette), live — a rebind shows the new chord, and an
+        // unbound palette shows only Escape.
+        let registry = KeybindingRegistry::from_config(&[par_term_config::KeyBinding {
+            key: "F8".to_string(),
+            action: "toggle_command_palette".to_string(),
+        }]);
+        let mut palette = CommandPalette::new();
+        palette.open(vec![], &registry);
+        assert_eq!(palette.toggle_chord.as_deref(), Some("F8"));
+        palette.close();
+        palette.open(vec![], &KeybindingRegistry::new());
+        assert_eq!(palette.toggle_chord, None);
     }
 
     #[test]

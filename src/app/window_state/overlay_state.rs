@@ -27,16 +27,9 @@ pub(crate) struct OverlayState {
     /// Dimensions to show in the resize overlay: (width_px, height_px, cols, rows)
     pub(crate) resize_dimensions: Option<(u32, u32, usize, usize)>,
 
-    /// The toast stack (UX.md OV7) — what the renderer draws.
+    /// The toast stack (UX.md OV7) — what the renderer draws and what
+    /// tests read (`WindowState::last_toast_text`).
     pub(crate) toasts: crate::app::overlay::toast::ToastQueue,
-    /// The last-posted toast's text: a compatibility record read by tests
-    /// that assert what was announced. `show_toast` writes it alongside the
-    /// queue; clearing it does not remove a queued toast. The renderer
-    /// reads only `toasts`.
-    pub(crate) toast_message: Option<String>,
-    /// `None` when the last-posted toast persists (an error), else when it
-    /// expires — the record's other half (see `toast_message`).
-    pub(crate) toast_hide_time: Option<Instant>,
     /// The armed keyboard mode's status line (action prefix, resize mode),
     /// drawn in its own layer, never as a toast (UX.md OV8).
     pub(crate) mode_banner: Option<&'static str>,
@@ -63,8 +56,6 @@ impl Default for OverlayState {
             resize_overlay_hide_time: None,
             resize_dimensions: None,
             toasts: Default::default(),
-            toast_message: None,
-            toast_hide_time: None,
             mode_banner: None,
             ime_preedit: None,
             pane_identify_hide_time: None,

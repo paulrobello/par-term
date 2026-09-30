@@ -72,7 +72,6 @@ pub(crate) mod frame_state;
 mod impl_agent;
 mod impl_helpers;
 mod impl_init;
-pub(crate) mod keyboard_handlers;
 mod notifications;
 mod overlay_state;
 pub(crate) mod overlay_ui_state;

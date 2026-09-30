@@ -282,3 +282,94 @@ fn the_chip_reports_attaching_and_unresponsive_health() {
     assert!(ws.session_chip().label().contains("not responding"));
     let _ = std::fs::remove_file(&path);
 }
+
+/// UX.md OV7: every par-mux error is an error toast that persists until
+/// dismissed — not only the split failure. Before MP1 Q3 the rest posted
+/// as two-second info toasts and faded before the user could read them.
+#[test]
+fn every_mux_error_is_a_persistent_error_toast() {
+    use crate::app::overlay::toast::{TOAST_LIFETIME, ToastKind};
+    let mut ws = manners_state();
+    ws.record_mux_error("par-mux: close failed — test");
+    let toast = ws.overlay_state.toasts.newest().expect("the error toasts");
+    assert_eq!(toast.kind, ToastKind::Error);
+    assert_eq!(toast.expires, None, "an error never expires");
+    ws.overlay_state
+        .toasts
+        .expire(Instant::now() + TOAST_LIFETIME + Duration::from_secs(60));
+    assert_eq!(
+        ws.last_toast_text(),
+        Some("par-mux: close failed — test"),
+        "still on screen long after an info toast would have faded"
+    );
+}
+
+/// The unresponsive-daemon error persists, and the matching recovery
+/// retires it instead of leaving a stale error beside "responding again".
+#[test]
+fn daemon_recovery_retires_the_unresponsive_error_toast() {
+    use crate::app::overlay::toast::ToastKind;
+    let mut ws = manners_state();
+    ws.apply_mux_health_event(
+        "par-mux daemon not responding — input queued until it recovers".to_string(),
+    );
+    assert_eq!(ws.tmux_state.mux_health, MuxHealth::Unresponsive);
+    let toast = ws.overlay_state.toasts.newest().expect("error toast");
+    assert_eq!(toast.kind, ToastKind::Error);
+
+    ws.apply_mux_health_event("par-mux daemon responding again".to_string());
+    assert_eq!(ws.tmux_state.mux_health, MuxHealth::Connected);
+    let texts: Vec<&str> = ws
+        .overlay_state
+        .toasts
+        .toasts()
+        .iter()
+        .map(|t| t.message.as_str())
+        .collect();
+    assert_eq!(
+        texts,
+        ["par-mux daemon responding again"],
+        "the stale 'not responding' error is gone"
+    );
+}
+
+/// par-mux errors share one persistent slot: a burst of failures shows the
+/// latest (as the chip does) instead of filling the three-toast queue with
+/// errors, which would make every later info toast — the tab-close Undo —
+/// evict itself on arrival.
+#[test]
+fn par_mux_errors_share_one_slot_and_leave_room_for_undo() {
+    use crate::app::overlay::toast::ToastKind;
+    let mut ws = manners_state();
+    ws.record_mux_error("par-mux: close failed — a");
+    ws.record_mux_error("par-mux: swap failed — b");
+    ws.record_mux_error("par-mux: launch failed — c");
+    let errors: Vec<&str> = ws
+        .overlay_state
+        .toasts
+        .toasts()
+        .iter()
+        .filter(|t| t.kind == ToastKind::Error)
+        .map(|t| t.message.as_str())
+        .collect();
+    assert_eq!(errors, ["par-mux: launch failed — c"], "only the latest");
+    ws.post_reopen_toast("Tab closed — undo within 5s", "Undo");
+    assert!(
+        ws.last_toast_text()
+            .is_some_and(|t| t.starts_with("Tab closed — undo within 5s")),
+        "the Undo toast is still on screen after a burst of par-mux errors: {:?}",
+        ws.last_toast_text()
+    );
+
+    // Recovery retires the unresponsive error only, never an unrelated one
+    // that replaced it in the slot.
+    ws.apply_mux_health_event("par-mux daemon responding again".to_string());
+    assert!(
+        ws.overlay_state
+            .toasts
+            .toasts()
+            .iter()
+            .any(|t| t.message == "par-mux: launch failed — c"),
+        "an unrelated par-mux error survives the daemon's recovery"
+    );
+}

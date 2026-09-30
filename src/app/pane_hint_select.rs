@@ -349,7 +349,7 @@ mod tests {
         assert!(!state.pane_hint_select.is_active(), "nothing to choose");
         // UX.md OV8: one pane says so instead of silently doing nothing.
         assert_eq!(
-            state.overlay_state.toast_message.as_deref(),
+            state.last_toast_text(),
             Some("Pane hints: the tab has only one pane")
         );
     }

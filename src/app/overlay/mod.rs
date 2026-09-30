@@ -18,6 +18,39 @@
 //! - [`confirm`] is the shared `ConfirmDialog` (OV3).
 //! - [`picker`] is the shared list/picker component (OV5).
 //! - [`toast`] is the toast queue (OV7).
+//! - [`theme`] holds the shared widths and colour tokens (OV1).
+//!
+//! # Why a registry, not an `Overlay` trait (MP1 Q1 decision)
+//!
+//! UX.md OV1 asks for "a shared `Overlay` trait with kind". What the stack
+//! needs from each overlay is five facts: its kind, its stable name, its
+//! toggle chord, whether it is open, and how to close it. [`OverlayId`]
+//! answers the first three as `const fn` tables and
+//! `WindowState::overlay_is_open` / `close_overlay` the last two, one
+//! exhaustive `match` each. That registry is kept deliberately:
+//!
+//! - **Borrowing.** A trait-object stack (`Vec<Box<dyn Overlay>>`) would
+//!   own or borrow the surfaces, but they live in disjoint `WindowState`
+//!   fields that the egui frame closure borrows separately (the constraint
+//!   documented in [`palette_rows`]); a stack holding `&mut` to them cannot
+//!   coexist with that closure.
+//! - **Heterogeneous state.** Several overlays are not a component at all:
+//!   the trigger and agent-command prompts are "is the pending queue
+//!   non-empty", the update dialog is two `UpdateState` fields, the modes
+//!   are state machines on `WindowState`. A trait would need a wrapper per
+//!   such overlay to answer what one `match` arm answers now.
+//! - **Exhaustiveness.** Adding an [`OverlayId`] variant is a compile error
+//!   in every table until it has a kind, name, open check, and close path —
+//!   the guarantee a trait impl gives, without the ownership problem.
+//!
+//! The existing [`crate::traits::OverlayComponent`] trait is the per-surface
+//! counterpart, not a competitor: it describes how one egui dialog draws
+//! (`show`) and reports visibility (`is_visible`). The registry's open
+//! state agrees with that visibility for the ten surfaces that implement
+//! it (pinned by
+//! `stack_tests::overlay_component_visibility_is_what_the_stack_reads`),
+//! and adds what the trait cannot express — kind, stack order, routing,
+//! and a close path for overlays that are not components.
 
 pub(crate) mod confirm;
 pub(crate) mod inline_edit;
@@ -205,8 +238,9 @@ impl OverlayId {
     ///
     /// Every Modal and Popup is guarded except three that own keys another
     /// way: the Linux in-app menu and the pane rename field (egui keyboard
-    /// focus, the way a panel does) and paste special (its key layer
-    /// consumes every key). Of the
+    /// focus, the way a panel does) and paste special (outside the MP0
+    /// guard set; as a Popup the stack still consumes every key it does not
+    /// close on, and its `show()` reads them). Of the
     /// modes, only the demote pick is guarded: copy mode, pane hints,
     /// resize, and the action prefix consume their keys through their own
     /// handlers, and guarding them would re-route paste and IME to egui

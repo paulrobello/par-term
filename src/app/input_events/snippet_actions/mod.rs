@@ -108,7 +108,7 @@ impl WindowState {
             if let Some(action_id) = prefix_action_for_char(&self.config.load().actions, input_char)
             {
                 if !self.execute_custom_action(&action_id) {
-                    self.show_toast("Actions: failed");
+                    self.show_persistent_toast("Actions: failed");
                 }
                 return true;
             }
@@ -192,7 +192,7 @@ impl WindowState {
                         snippet.title,
                         e
                     );
-                    self.show_toast(format!("Snippet Error: {}", e));
+                    self.show_persistent_toast(format!("Snippet Error: {}", e));
                     return false;
                 }
             }

@@ -1,64 +1,14 @@
-//! Clipboard history, paste special, and paste_text key handling.
+//! The clipboard history toggle and `paste_text`.
 //!
 //! Opening the clipboard-history panel resolves through the registry's
-//! `toggle_clipboard_history` default (UX K2); the handlers here own the
-//! state machines while the panels are open.
+//! `toggle_clipboard_history` default (UX K2). While it (or paste special)
+//! is open, its keys are read by its own `show()` on the egui side, behind
+//! the overlay stack (UX.md OV2).
 
 use crate::app::window_state::WindowState;
 use par_term_terminal::ClipboardSlot;
-use winit::event::{ElementState, KeyEvent};
-use winit::keyboard::{Key, NamedKey};
 
 impl WindowState {
-    pub(crate) fn handle_clipboard_history_keys(&mut self, event: &KeyEvent) -> bool {
-        // Handle Escape to close clipboard history UI
-        if self.overlay_ui.clipboard_history_ui.visible {
-            if event.state == ElementState::Pressed {
-                match &event.logical_key {
-                    Key::Named(NamedKey::Escape) => {
-                        self.overlay_ui.clipboard_history_ui.visible = false;
-                        self.focus_state.needs_redraw = true;
-                        return true;
-                    }
-                    Key::Named(NamedKey::ArrowUp) => {
-                        self.overlay_ui.clipboard_history_ui.select_previous();
-                        self.focus_state.needs_redraw = true;
-                        return true;
-                    }
-                    Key::Named(NamedKey::ArrowDown) => {
-                        self.overlay_ui.clipboard_history_ui.select_next();
-                        self.focus_state.needs_redraw = true;
-                        return true;
-                    }
-                    Key::Named(NamedKey::Enter) => {
-                        // Check if Shift is held for paste special
-                        let shift = self.input_handler.modifiers.state().shift_key();
-                        if let Some(entry) = self.overlay_ui.clipboard_history_ui.selected_entry() {
-                            let content = entry.content.clone();
-                            self.overlay_ui.clipboard_history_ui.visible = false;
-
-                            if shift {
-                                // Shift+Enter: Open paste special UI with the selected content
-                                self.overlay_ui.paste_special_ui.open(content);
-                                log::info!("Paste special UI opened from clipboard history");
-                            } else {
-                                // Enter: Paste directly
-                                self.paste_text(&content);
-                            }
-                            self.focus_state.needs_redraw = true;
-                        }
-                        return true;
-                    }
-                    _ => {}
-                }
-            }
-            // While clipboard history is visible, consume all key events
-            return true;
-        }
-
-        false
-    }
-
     pub(crate) fn toggle_clipboard_history(&mut self) {
         // Refresh clipboard history entries from terminal before showing.
         // read_terminal_handle, not tab.terminal: OSC 52 payloads are parsed
@@ -92,45 +42,6 @@ impl WindowState {
             "Clipboard history UI toggled: {}",
             self.overlay_ui.clipboard_history_ui.visible
         );
-    }
-
-    pub(crate) fn handle_paste_special_keys(&mut self, event: &KeyEvent) -> bool {
-        // Handle keys when paste special UI is visible
-        if self.overlay_ui.paste_special_ui.visible {
-            if event.state == ElementState::Pressed {
-                match &event.logical_key {
-                    Key::Named(NamedKey::Escape) => {
-                        self.overlay_ui.paste_special_ui.close();
-                        self.focus_state.needs_redraw = true;
-                        return true;
-                    }
-                    Key::Named(NamedKey::ArrowUp) => {
-                        self.overlay_ui.paste_special_ui.select_previous();
-                        self.focus_state.needs_redraw = true;
-                        return true;
-                    }
-                    Key::Named(NamedKey::ArrowDown) => {
-                        self.overlay_ui.paste_special_ui.select_next();
-                        self.focus_state.needs_redraw = true;
-                        return true;
-                    }
-                    Key::Named(NamedKey::Enter) => {
-                        // Apply the selected transformation and paste
-                        if let Some(result) = self.overlay_ui.paste_special_ui.apply_selected() {
-                            self.overlay_ui.paste_special_ui.close();
-                            self.paste_text(&result);
-                            self.focus_state.needs_redraw = true;
-                        }
-                        return true;
-                    }
-                    _ => {}
-                }
-            }
-            // While paste special is visible, consume all key events
-            // to prevent them from going to the terminal
-            return true;
-        }
-        false
     }
 
     pub(crate) fn paste_text(&mut self, text: &str) {

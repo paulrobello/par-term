@@ -199,6 +199,59 @@ fn every_overlay_opened_for_real_joins_the_stack_and_the_guard_follows_its_kind(
 }
 
 #[test]
+fn overlay_component_visibility_is_what_the_stack_reads() {
+    // MP1 Q1: the stack is an OverlayId registry; for the surfaces that
+    // implement traits::OverlayComponent, the registry's open state must
+    // be exactly the component's is_visible(), closed and open.
+    use crate::traits::OverlayComponent;
+    fn visible(ws: &WindowState, id: OverlayId) -> bool {
+        let o = &ws.overlay_ui;
+        match id {
+            OverlayId::SshConnect => OverlayComponent::is_visible(&o.ssh_connect_ui),
+            OverlayId::CommandHistory => OverlayComponent::is_visible(&o.command_history_ui),
+            OverlayId::MuxLastTab => OverlayComponent::is_visible(&o.mux_last_tab_ui),
+            OverlayId::Integrations => OverlayComponent::is_visible(&o.integrations_ui),
+            OverlayId::CloseConfirm => OverlayComponent::is_visible(&o.close_confirmation_ui),
+            OverlayId::PasteSpecial => OverlayComponent::is_visible(&o.paste_special_ui),
+            OverlayId::ClipboardHistory => OverlayComponent::is_visible(&o.clipboard_history_ui),
+            OverlayId::RemoteShellInstall => {
+                OverlayComponent::is_visible(&o.remote_shell_install_ui)
+            }
+            OverlayId::ShaderInstall => OverlayComponent::is_visible(&o.shader_install_ui),
+            OverlayId::QuitConfirm => OverlayComponent::is_visible(&o.quit_confirmation_ui),
+            other => unreachable!("{other:?} does not implement OverlayComponent"),
+        }
+    }
+    for id in [
+        OverlayId::SshConnect,
+        OverlayId::CommandHistory,
+        OverlayId::MuxLastTab,
+        OverlayId::Integrations,
+        OverlayId::CloseConfirm,
+        OverlayId::PasteSpecial,
+        OverlayId::ClipboardHistory,
+        OverlayId::RemoteShellInstall,
+        OverlayId::ShaderInstall,
+        OverlayId::QuitConfirm,
+    ] {
+        let mut ws = window();
+        assert!(
+            !visible(&ws, id) && !ws.overlay_is_open(id),
+            "{id:?} starts closed"
+        );
+        open(&mut ws, id);
+        assert!(visible(&ws, id), "{id:?}: the real entry point shows it");
+        assert!(ws.overlay_is_open(id), "{id:?}: the stack sees it");
+        ws.close_overlay(id);
+        assert_eq!(
+            visible(&ws, id),
+            ws.overlay_is_open(id),
+            "{id:?}: the stack's close path and the component agree"
+        );
+    }
+}
+
+#[test]
 fn b61_dialogs_block_the_terminal() {
     // The B61 list, opened for real (was a source-scan pin on the guard's
     // body in chord_tests): keys typed while any of these is open must not

@@ -197,6 +197,10 @@ pub(crate) struct TmuxState {
     /// dismisses it (UX.md M12). Session teardown deliberately leaves it:
     /// "connection lost" must still be readable after the view ends.
     pub(crate) mux_last_error: Option<String>,
+    /// The one par-mux error toast on screen (`record_mux_error`): a new
+    /// par-mux error replaces it, and the daemon's "responding again"
+    /// retires it.
+    pub(crate) mux_error_toast: Option<u64>,
     /// The by-name attach worker reports which daemon it chose here
     /// (`attach_mux_session_by_name`); `poll_mux_attach` reads it.
     #[cfg(feature = "mux")]
@@ -246,6 +250,7 @@ impl TmuxState {
             mux_daemon: None,
             mux_health: crate::session_chip::MuxHealth::Connected,
             mux_last_error: None,
+            mux_error_toast: None,
             #[cfg(feature = "mux")]
             mux_daemon_rx: None,
             #[cfg(feature = "mux")]

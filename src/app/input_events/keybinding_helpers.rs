@@ -30,24 +30,50 @@ impl WindowState {
     }
 
     /// Post a toast of `kind`, with an optional action button, to the
-    /// toast stack. Errors persist until dismissed. The last-posted text is
-    /// also recorded in `overlay_state.toast_message` (see its docs).
+    /// toast stack. Errors persist until dismissed. Returns the toast's id.
     pub(crate) fn post_toast(
         &mut self,
         kind: crate::app::overlay::toast::ToastKind,
         message: impl Into<String>,
         action: Option<crate::app::overlay::toast::ToastAction>,
-    ) {
-        let message = message.into();
-        let now = std::time::Instant::now();
-        self.overlay_state
+    ) -> u64 {
+        let id = self
+            .overlay_state
             .toasts
-            .push(kind, message.clone(), action, now);
-        self.overlay_state.toast_message = Some(message);
-        self.overlay_state.toast_hide_time = (kind != crate::app::overlay::toast::ToastKind::Error)
-            .then(|| now + crate::app::overlay::toast::TOAST_LIFETIME);
+            .push(kind, message, action, std::time::Instant::now());
         self.focus_state.needs_redraw = true;
         self.request_redraw();
+        id
+    }
+
+    /// The text of the newest toast still on screen — what a test asserts
+    /// was announced.
+    #[cfg(test)]
+    pub(crate) fn last_toast_text(&self) -> Option<&str> {
+        self.overlay_state
+            .toasts
+            .newest()
+            .map(|toast| toast.message.as_str())
+    }
+
+    /// The toast that says a tab went away (closed, or a par-mux tab
+    /// hidden), with an action button that brings it back and a hint that
+    /// names the live chord — never the raw config string
+    /// (`CmdOrCtrl+Z`), and nothing at all when `reopen_closed_tab` is
+    /// unbound (UX.md OV7).
+    pub(crate) fn post_reopen_toast(&mut self, what: &str, button: &str) {
+        let hint = self
+            .live_chord_hint("reopen_closed_tab")
+            .map(|chord| format!(" ({chord})"))
+            .unwrap_or_default();
+        self.post_toast(
+            crate::app::overlay::toast::ToastKind::Info,
+            format!("{what}{hint}"),
+            Some(crate::app::overlay::toast::ToastAction {
+                label: button.to_string(),
+                action_id: "reopen_closed_tab".to_string(),
+            }),
+        );
     }
 
     /// The live chord for a registry action, formatted for a toast hint
@@ -59,29 +85,30 @@ impl WindowState {
             .map(|combo| crate::command_palette::catalog::chord_display(&combo))
     }
 
-    /// A par-mux failure: toast it and hold it on the session chip until
-    /// the user dismisses it (UX.md M12, V1) — a two-second toast alone is
-    /// easy to miss and is overwritten by the next one.
+    /// A par-mux failure: an error toast that persists until dismissed
+    /// (UX.md OV7: errors persist), held on the session chip too (M12, V1).
+    ///
+    /// par-mux errors share one toast slot: a new one replaces the previous
+    /// par-mux error toast, the way the chip holds only the latest error.
+    /// Without the slot, three unrelated par-mux failures would fill the
+    /// three-toast queue with persistent errors, and every later info toast
+    /// (the tab-close Undo) would evict itself on arrival.
     pub(crate) fn record_mux_error(&mut self, message: impl Into<String>) {
         let message = message.into();
         self.tmux_state.mux_last_error = Some(message.clone());
-        self.show_toast(message);
-    }
-
-    /// [`Self::record_mux_error`] with a toast that stays until replaced
-    /// (the V11 error surface for a failed split).
-    pub(crate) fn record_persistent_mux_error(&mut self, message: impl Into<String>) {
-        let message = message.into();
-        self.tmux_state.mux_last_error = Some(message.clone());
-        self.show_persistent_toast(message);
+        if let Some(previous) = self.tmux_state.mux_error_toast.take() {
+            self.overlay_state.toasts.dismiss(previous);
+        }
+        let id = self.show_persistent_toast(message);
+        self.tmux_state.mux_error_toast = Some(id);
     }
 
     /// Show an error toast: it persists until dismissed, the V11
     /// error-surface shape for failures the user must see and act on
     /// rather than watch fade. A later toast stacks beside it instead of
     /// replacing it (UX.md OV7).
-    pub(crate) fn show_persistent_toast(&mut self, message: impl Into<String>) {
-        self.post_toast(crate::app::overlay::toast::ToastKind::Error, message, None);
+    pub(crate) fn show_persistent_toast(&mut self, message: impl Into<String>) -> u64 {
+        self.post_toast(crate::app::overlay::toast::ToastKind::Error, message, None)
     }
 
     /// Show pane index overlays for a specified duration.

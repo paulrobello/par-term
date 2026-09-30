@@ -6,6 +6,20 @@
 //! picks, with Shift+Enter and Cmd/Ctrl+Enter alternates when the picker
 //! offers them; Escape closes; a footer names the live keys.
 //!
+//! The footer is built here from the picker's config ([`footer_text`]),
+//! so it cannot advertise a key the picker does not take. Arrows, Enter,
+//! and Escape are the picker's own keys, not registry bindings. The one
+//! registry chord a footer shows is the picker's toggle chord — under the
+//! overlay stack (OV2) it closes the picker — read from the live registry
+//! when the picker opens and omitted when unbound.
+//!
+//! Alternates (Shift+Enter / Cmd+Enter): no migrated picker has an
+//! alternate meaning today — the palette runs an action and the tree
+//! picker jumps, with nothing to open "in a new window" or "beside". They
+//! stay available for the pickers that do: Open Profiles (UX.md PR1: new
+//! window / replace profile) is the planned first user. Clipboard history's
+//! Shift+Enter (paste special) lives in its own un-migrated `show()`.
+//!
 //! [`ListNav`] is the pure selection/scroll state machine — testable
 //! without egui. [`show_list`] draws a picker over a caller-owned row
 //! list; the caller keeps its own row type and filtering, and hands the
@@ -109,10 +123,31 @@ pub(crate) struct ListConfig<'a> {
     pub(crate) width: f32,
     /// Shown when no row matches.
     pub(crate) empty_text: &'a str,
-    /// Footer: the live keys, e.g. `"Enter run · Esc close"`.
-    pub(crate) footer: &'a str,
+    /// What Enter does, for the footer ("run", "jump").
+    pub(crate) enter_verb: &'a str,
+    /// The picker's live toggle chord (it closes the picker), from the
+    /// registry at open time; `None` when unbound.
+    pub(crate) toggle_chord: Option<&'a str>,
     /// Offer Shift+Enter / Cmd+Enter activations.
     pub(crate) alternates: bool,
+}
+
+/// The footer line for `config`: the navigation keys, Enter's verb, the
+/// alternates only when the picker takes them, and the close keys —
+/// Escape, plus the live toggle chord when one is bound.
+pub(crate) fn footer_text(config: &ListConfig<'_>) -> String {
+    let mut parts = vec![
+        "↑↓ PgUp/PgDn Home/End select".to_string(),
+        format!("Enter {}", config.enter_verb),
+    ];
+    if config.alternates {
+        parts.push("Shift+Enter / Cmd+Enter alternate".to_string());
+    }
+    parts.push(match config.toggle_chord {
+        Some(chord) => format!("Esc or {chord} close"),
+        None => "Esc close".to_string(),
+    });
+    parts.join(" · ")
 }
 
 /// Read this frame's navigation keys. `num_presses`, not `key_pressed`:
@@ -207,7 +242,7 @@ pub(crate) fn show_list(
                 ui.weak(config.empty_text);
             }
             ui.separator();
-            ui.label(RichText::new(config.footer).weak().small());
+            ui.label(RichText::new(footer_text(config)).weak().small());
         });
     (outcome, query_changed)
 }
@@ -307,6 +342,37 @@ mod tests {
             10,
         );
         assert_eq!(nav, ListNav::default());
+    }
+
+    fn config(toggle_chord: Option<&str>, alternates: bool) -> ListConfig<'_> {
+        ListConfig {
+            id: "t",
+            hint: "",
+            visible_rows: 12,
+            width: 0.0,
+            empty_text: "",
+            enter_verb: "run",
+            toggle_chord,
+            alternates,
+        }
+    }
+
+    #[test]
+    fn the_footer_names_the_live_toggle_chord_and_drops_it_when_unbound() {
+        assert_eq!(
+            footer_text(&config(Some("Cmd+Shift+P"), false)),
+            "↑↓ PgUp/PgDn Home/End select · Enter run · Esc or Cmd+Shift+P close"
+        );
+        assert_eq!(
+            footer_text(&config(None, false)),
+            "↑↓ PgUp/PgDn Home/End select · Enter run · Esc close"
+        );
+    }
+
+    #[test]
+    fn the_footer_advertises_alternates_only_when_the_picker_takes_them() {
+        assert!(!footer_text(&config(None, false)).contains("Shift+Enter"));
+        assert!(footer_text(&config(None, true)).contains("Shift+Enter / Cmd+Enter"));
     }
 
     #[test]

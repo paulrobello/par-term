@@ -18,7 +18,7 @@ impl WindowState {
                 Ok(content) => content,
                 Err(e) => {
                     log::error!("Failed to substitute variables in action: {}", e);
-                    self.show_toast(format!("Action Error: {}", e));
+                    self.show_persistent_toast(format!("Action Error: {}", e));
                     return false;
                 }
             };

@@ -134,6 +134,71 @@ fn live_unused_keys_under_a_popup_never_reach_key_dispatch() {
 }
 
 #[test]
+fn removed_key_layer_overlays_never_reach_key_dispatch() {
+    // MP1 Q4: the per-overlay KEY_LAYERS entries (clipboard/command
+    // history, paste special, agent usage, palette, search, help, and the
+    // help layer's Escape for shader install and integrations) were removed
+    // because the stack owns every key while these overlays are open. If a
+    // key could still continue into handle_key_event, dropping those layers
+    // would have leaked it to the PTY. Escape, the arrows, Enter, and the
+    // panel letters stand in for every key those layers handled.
+    let keys = [
+        escape(),
+        KeyFacts::default(),
+        KeyFacts {
+            is_escape: false,
+            bound_action: None,
+            is_command_chord: true,
+        },
+        chord("toggle_fullscreen"),
+    ];
+    for id in [
+        OverlayId::ClipboardHistory,
+        OverlayId::CommandHistory,
+        OverlayId::PasteSpecial,
+        OverlayId::AgentUsage,
+        OverlayId::CommandPalette,
+        OverlayId::Search,
+        OverlayId::Help,
+        OverlayId::ShaderInstall,
+        OverlayId::Integrations,
+    ] {
+        for egui_focused_field in [false, true] {
+            let mut ws = window();
+            open(&mut ws, id);
+            for facts in &keys {
+                let route =
+                    super::routing::route_key(&ws.overlay_stack(), facts, egui_focused_field);
+                assert!(
+                    !route.continues_to_key_dispatch(),
+                    "{id:?} (focused={egui_focused_field}): {facts:?} -> {route:?} would reach \
+                     handle_key_event, which no longer has a layer for it"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn picker_footers_name_the_live_toggle_chord() {
+    // OV5: the palette and tree picker footers name their own toggle
+    // chord from the live registry, read by the opening action.
+    let mut ws = window();
+    ws.keybinding_registry =
+        par_term_keybindings::KeybindingRegistry::from_config(&[par_term_config::KeyBinding {
+            key: "F7".to_string(),
+            action: "toggle_tree_picker".to_string(),
+        }]);
+    assert!(ws.execute_keybinding_action("toggle_tree_picker"));
+    assert!(ws.overlay_is_open(OverlayId::TreePicker));
+    assert_eq!(
+        ws.overlay_ui.tree_picker_ui.toggle_chord(),
+        Some("F7"),
+        "the tree picker footer names the rebound chord"
+    );
+}
+
+#[test]
 fn live_no_overlay_leaves_keys_to_the_terminal() {
     let ws = window();
     assert_eq!(ws.route_overlay_key(&escape()), KeyRoute::Terminal);

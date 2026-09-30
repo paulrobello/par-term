@@ -54,11 +54,26 @@ pub struct TreePickerUI {
     nav: crate::app::overlay::picker::ListNav,
     request_focus: bool,
     rows: TreeSnapshot,
+    /// The live `toggle_tree_picker` chord for the footer (UX.md OV5),
+    /// set by the opening action; `None` when unbound.
+    toggle_chord: Option<String>,
 }
 
 impl TreePickerUI {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Record the live toggle chord the footer names (it closes the
+    /// picker under the overlay stack).
+    pub fn set_toggle_chord(&mut self, chord: Option<String>) {
+        self.toggle_chord = chord;
+    }
+
+    /// The chord the footer names.
+    #[cfg(test)]
+    pub(crate) fn toggle_chord(&self) -> Option<&str> {
+        self.toggle_chord.as_deref()
     }
 
     pub fn open(&mut self) {
@@ -128,7 +143,8 @@ impl TreePickerUI {
             visible_rows: VISIBLE_ROWS,
             width: crate::app::overlay::theme::WIDTH_MEDIUM,
             empty_text: "Nothing matches",
-            footer: "↑↓ PgUp/PgDn Home/End select · Enter jump · Esc close",
+            enter_verb: "jump",
+            toggle_chord: self.toggle_chord.as_deref(),
             alternates: false,
         };
         let (outcome, query_changed) = picker::show_list(
