@@ -3,10 +3,12 @@
 //! poll loop reports. Split from `mux.rs`, which owns the app wiring
 //! (attach/detach lifecycle, input routing, client capability pushes).
 
-use crate::app::tmux_handler::tmux_state::TmuxTransport;
+use crate::app::tmux_handler::tmux_state::{MuxJob, MuxJobResult, TmuxTransport};
 use par_term_mux::MuxSessionClient;
+use par_term_tmux::TmuxPaneId;
 use std::io;
-use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{Receiver, Sender, SyncSender, TrySendError, channel, sync_channel};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -28,6 +30,13 @@ const SEND_LOCK_WAIT: Duration = Duration::from_millis(250);
 /// them for the health event.
 const OUTBOX_CAPACITY: usize = 512;
 
+/// One unit of send-worker work: a fire-and-forget command, or a
+/// multi-command [`MuxJob`] whose result the event loop collects later.
+enum WorkItem {
+    Send(String),
+    Job(MuxJob),
+}
+
 /// The daemon transport: a par-mux client behind the [`TmuxTransport`]
 /// seam. Interior mutability because the routing hooks that reach it
 /// (`send_input_via_tmux`, `notify_tmux_of_resize`) hold `&WindowState`.
@@ -37,22 +46,38 @@ const OUTBOX_CAPACITY: usize = 512;
 /// on daemon replies — the event loop never does. Reply-needing commands
 /// still run inline under a bounded lock, and the worker shares the
 /// client behind the same mutex, so replies stay strictly ordered.
+/// Discovery queries ([`MuxJob`]) also run on the worker; their results
+/// wait in `job_results` for the event loop's drain.
 pub(crate) struct MuxTransport {
     client: Arc<Mutex<MuxSessionClient>>,
-    outbox: SyncSender<String>,
+    outbox: SyncSender<WorkItem>,
     health: Arc<MuxHealth>,
+    job_results: Mutex<Receiver<MuxJobResult>>,
+    /// Inline sends currently waiting for the client lock. A job yields to
+    /// them before each of its commands (see [`run_job`]).
+    inline_waiters: Arc<AtomicUsize>,
 }
 
 impl MuxTransport {
     pub(crate) fn new(client: MuxSessionClient) -> Self {
         let client = Arc::new(Mutex::new(client));
         let health = Arc::new(MuxHealth::default());
-        let (outbox, inbox) = sync_channel::<String>(OUTBOX_CAPACITY);
-        spawn_send_worker(Arc::clone(&client), inbox, Arc::clone(&health));
+        let inline_waiters = Arc::new(AtomicUsize::new(0));
+        let (outbox, inbox) = sync_channel::<WorkItem>(OUTBOX_CAPACITY);
+        let (results_tx, results_rx) = channel();
+        spawn_send_worker(
+            Arc::clone(&client),
+            inbox,
+            Arc::clone(&health),
+            results_tx,
+            Arc::clone(&inline_waiters),
+        );
         Self {
             client,
             outbox,
             health,
+            job_results: Mutex::new(results_rx),
+            inline_waiters,
         }
     }
 
@@ -81,6 +106,8 @@ impl MuxTransport {
     /// [`SEND_LOCK_WAIT`] — the queue-behind-a-hung-worker freeze guard.
     fn lock_for_send(&self) -> io::Result<MutexGuard<'_, MuxSessionClient>> {
         let deadline = Instant::now() + SEND_LOCK_WAIT;
+        self.inline_waiters.fetch_add(1, Ordering::SeqCst);
+        let _waiting = WaiterGuard(&self.inline_waiters);
         loop {
             match self.client.try_lock() {
                 Ok(guard) => return Ok(guard),
@@ -100,24 +127,112 @@ impl MuxTransport {
     }
 }
 
+/// Decrements the inline-waiter count when an inline lock attempt ends,
+/// whether it got the lock or gave up.
+struct WaiterGuard<'a>(&'a AtomicUsize);
+
+impl Drop for WaiterGuard<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 /// The send worker: the only thread that waits on a daemon reply for
-/// fire-and-forget commands. Each queued command still runs the full
-/// `send` (write + reply wait), so reply blocks stay consumed and paired
-/// in order — the queue changes WHERE the 10 s wait happens, never the
-/// protocol. Exits when the transport drops and closes the outbox.
+/// fire-and-forget commands and discovery jobs. Each command still runs
+/// the full `send` (write + reply wait), so reply blocks stay consumed and
+/// paired in order — the queue changes WHERE the 10 s wait happens, never
+/// the protocol. Exits when the transport drops and closes the outbox.
 fn spawn_send_worker(
     client: Arc<Mutex<MuxSessionClient>>,
-    inbox: Receiver<String>,
+    inbox: Receiver<WorkItem>,
     health: Arc<MuxHealth>,
+    results: Sender<MuxJobResult>,
+    inline_waiters: Arc<AtomicUsize>,
 ) {
     std::thread::spawn(move || {
-        while let Ok(command) = inbox.recv() {
-            let mut client = client.lock().unwrap_or_else(|p| p.into_inner());
-            health.send_started();
-            let result = client.send(&command);
-            health.send_finished(&result);
+        let send = |command: &str| worker_send(&client, &health, command);
+        // A job's commands are read-only queries, so letting an inline
+        // send run between two of them reorders nothing that matters.
+        // Without this yield the loop's 5 ms lock poll rarely lands in the
+        // gap between two job commands, and a long job starves it past
+        // SEND_LOCK_WAIT. The yield is bounded by the same wait: an inline
+        // send gives up at that point anyway.
+        let job_send = |command: &str| {
+            let deadline = Instant::now() + SEND_LOCK_WAIT;
+            while inline_waiters.load(Ordering::SeqCst) > 0 && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            send(command)
+        };
+        while let Ok(item) = inbox.recv() {
+            match item {
+                WorkItem::Send(command) => {
+                    let _ = send(&command);
+                }
+                WorkItem::Job(job) => {
+                    if results.send(run_job(job, &job_send)).is_err() {
+                        return;
+                    }
+                }
+            }
         }
     });
+}
+
+/// One worker-side command. The client lock is held for this command only,
+/// never across a job: the event loop's inline sends wait at most
+/// `SEND_LOCK_WAIT`, so a job holding the lock between its commands would
+/// make them fail for the job's whole duration.
+fn worker_send(
+    client: &Mutex<MuxSessionClient>,
+    health: &MuxHealth,
+    command: &str,
+) -> io::Result<Vec<String>> {
+    let mut client = client.lock().unwrap_or_else(|p| p.into_inner());
+    health.send_started();
+    let result = client.send(command);
+    health.send_finished(&result);
+    result
+}
+
+/// Run a [`MuxJob`] against `send` and package what it learned. Every
+/// command a job sends is a read-only query; anything that changes daemon
+/// state goes through the ordered `Send` queue instead.
+fn run_job(job: MuxJob, send: &dyn Fn(&str) -> io::Result<Vec<String>>) -> MuxJobResult {
+    match job {
+        MuxJob::DiscoverWindow(window) => {
+            let mut panes = Vec::new();
+            if let Ok(listed) = send("list-panes") {
+                for pane in listed
+                    .iter()
+                    .filter_map(|l| l.trim().strip_prefix('%')?.parse::<TmuxPaneId>().ok())
+                {
+                    if let Ok(info) = send(&format!("pane-info -t %{pane}"))
+                        && let Some((w, size)) = info.first().and_then(|l| parse_pane_info(l))
+                        && w == window
+                    {
+                        panes.push((pane, size));
+                    }
+                }
+            }
+            MuxJobResult::WindowPanes { window, panes }
+        }
+        MuxJob::SeedPanes(panes) => MuxJobResult::PaneSeeds(
+            panes
+                .into_iter()
+                .map(|pane| (pane, send(&format!("refresh-client -t %{pane}"))))
+                .collect(),
+        ),
+    }
+}
+
+/// The window a `pane-info` reply (`%N @W COLSxROWS [cmd=…]`) places the
+/// pane in, with the pane's grid size.
+pub(super) fn parse_pane_info(line: &str) -> Option<(par_term_tmux::TmuxWindowId, (u16, u16))> {
+    let mut fields = line.split_whitespace().skip(1);
+    let window = fields.next()?.strip_prefix('@')?.parse().ok()?;
+    let (cols, rows) = fields.next()?.split_once('x')?;
+    Some((window, (cols.parse().ok()?, rows.parse().ok()?)))
 }
 
 /// Daemon liveness as the poll loop needs it: whether the send currently
@@ -219,7 +334,7 @@ impl TmuxTransport for MuxTransport {
     }
 
     fn send_command_no_wait(&self, command: &str) -> io::Result<()> {
-        match self.outbox.try_send(command.to_string()) {
+        match self.outbox.try_send(WorkItem::Send(command.to_string())) {
             Ok(()) => Ok(()),
             // A full outbox means the daemon wedged while input kept
             // arriving: drop the command (the unresponsive toast says why)
@@ -254,5 +369,52 @@ impl TmuxTransport for MuxTransport {
                 }
                 DaemonHealthSignal::Recovered => "par-mux daemon responding again".into(),
             })
+    }
+
+    fn submit_job(&self, job: MuxJob) -> bool {
+        self.outbox.try_send(WorkItem::Job(job)).is_ok()
+    }
+
+    fn take_job_results(&self) -> Vec<MuxJobResult> {
+        let rx = self
+            .job_results
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        rx.try_iter().collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::mux::tests::{connect, socket_path, spawn_daemon};
+    use crate::app::tmux_handler::tmux_state::{MuxJob, TmuxTransport};
+
+    /// Inline reply-needing sends must not wait out a whole off-loop job.
+    /// A job's commands run back to back on the worker; without priority
+    /// the event loop's bounded lock wait (`SEND_LOCK_WAIT`) rarely lands
+    /// in the gap between two of them, and the send fails as if the daemon
+    /// were hung — which silently skips the close-confirm `pane-info` probe
+    /// and fails a split made right after a new window arrives.
+    #[test]
+    fn inline_sends_overtake_a_long_off_loop_job() {
+        let path = socket_path("job-priority");
+        spawn_daemon(&path);
+        let transport = connect(&path);
+        // Far longer than SEND_LOCK_WAIT even on a fast machine: each
+        // command is a full daemon round-trip.
+        assert!(transport.submit_job(MuxJob::SeedPanes(vec![0; 200_000])));
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let started = std::time::Instant::now();
+        for i in 0..40 {
+            transport
+                .send_command("list-sessions")
+                .unwrap_or_else(|e| panic!("inline send {i} starved behind the job: {e}"));
+        }
+        assert!(
+            transport.take_job_results().is_empty(),
+            "the job must still be running, or the test proves nothing (took {:?})",
+            started.elapsed()
+        );
+        let _ = std::fs::remove_file(&path);
     }
 }

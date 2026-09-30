@@ -169,8 +169,9 @@ impl WindowState {
         }
         // A delayed mux paste sends its due chunk here — before the
         // empty-drain early return below, or a quiet daemon would stall
-        // the paste mid-line.
-        let paste_sent = self.tick_pending_mux_paste();
+        // the paste mid-line. Off-loop discovery and seed results land
+        // here for the same reason.
+        let paste_sent = self.tick_pending_mux_paste() | self.apply_mux_job_results();
         if core_notifications.is_empty() && !disconnected {
             self.apply_pending_mux_screen_seeds();
             self.apply_pending_mux_pane_titles();
@@ -259,6 +260,7 @@ impl WindowState {
             self.tmux_state.agent_roster.clear();
             self.tmux_state.mux_pane_titles.clear();
             self.tmux_state.mux_exited_panes.clear();
+            self.tmux_state.clear_mux_seed_holds();
         }
 
         crate::debug_info!("MUX", "Processing {} notifications", notifications.len());

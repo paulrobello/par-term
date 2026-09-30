@@ -43,6 +43,43 @@ pub(crate) trait TmuxTransport {
     fn daemon_health_event(&self) -> Option<String> {
         None
     }
+    /// Queue `job` to run off the event loop; its result comes back through
+    /// [`TmuxTransport::take_job_results`]. `false` when the transport has
+    /// no worker to run it (test doubles, a worker already gone, a full
+    /// queue) — the caller then skips the work.
+    #[cfg(feature = "mux")]
+    fn submit_job(&self, _job: MuxJob) -> bool {
+        false
+    }
+    /// Results of jobs finished since the last call, in completion order.
+    #[cfg(feature = "mux")]
+    fn take_job_results(&self) -> Vec<MuxJobResult> {
+        Vec::new()
+    }
+}
+
+/// Daemon round-trips the par-mux send worker runs off the event loop —
+/// the queries a window that appeared mid-session needs before its panes
+/// can map and show their screens. A hung daemon holds each for the core
+/// client's reply timeout, which must never land on the winit thread.
+#[cfg(feature = "mux")]
+pub(crate) enum MuxJob {
+    /// `list-panes` + one `pane-info` per pane: which panes `window` holds.
+    DiscoverWindow(crate::tmux::TmuxWindowId),
+    /// One `refresh-client -t %N` per pane: each pane's current screen.
+    SeedPanes(Vec<TmuxPaneId>),
+}
+
+/// What a [`MuxJob`] learned, applied on the event loop.
+#[cfg(feature = "mux")]
+pub(crate) enum MuxJobResult {
+    /// The window's panes with their grid sizes, in daemon order.
+    WindowPanes {
+        window: crate::tmux::TmuxWindowId,
+        panes: Vec<(TmuxPaneId, (u16, u16))>,
+    },
+    /// Each pane's `refresh-client` reply.
+    PaneSeeds(Vec<(TmuxPaneId, std::io::Result<Vec<String>>)>),
 }
 
 /// A delayed mux paste in flight: the chunks still to send (each line
@@ -101,6 +138,20 @@ pub(crate) struct TmuxState {
     /// read it. Lives for the session like `mux_pane_titles`.
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) mux_exited_panes: std::collections::HashMap<TmuxPaneId, Option<i32>>,
+    /// Daemon panes with a screen seed requested off-loop and not yet
+    /// landed, counted per outstanding request. While a pane is here its
+    /// live output waits in `mux_held_output`: the seed is a clear plus a
+    /// snapshot, so output applied before it lands would be erased.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_seeds_in_flight: std::collections::HashMap<TmuxPaneId, u32>,
+    /// Live output held behind an in-flight seed, appended to the seed
+    /// when it lands so it replays after the snapshot, in arrival order.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_held_output: std::collections::HashMap<TmuxPaneId, Vec<u8>>,
+    /// Off-loop window discoveries (`MuxJob::DiscoverWindow`) not yet
+    /// applied — keeps the event loop polling until they land.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_discoveries_in_flight: u32,
     /// Cached par-mux agent roster (A2b task 1): the single owner of
     /// agent state on the app side — filled by `list-agents` on
     /// attach/reattach, updated by `%agent-state-changed` pushes, read by
@@ -179,6 +230,12 @@ impl TmuxState {
             mux_pane_titles: std::collections::HashMap::new(),
             mux_exited_panes: std::collections::HashMap::new(),
             #[cfg(feature = "mux")]
+            mux_seeds_in_flight: std::collections::HashMap::new(),
+            #[cfg(feature = "mux")]
+            mux_held_output: std::collections::HashMap::new(),
+            #[cfg(feature = "mux")]
+            mux_discoveries_in_flight: 0,
+            #[cfg(feature = "mux")]
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),
             #[cfg(feature = "mux")]
             mux_attach_pending: None,
@@ -198,6 +255,24 @@ impl TmuxState {
             #[cfg(feature = "mux")]
             mux_socket_dir_override: None,
         }
+    }
+
+    /// Drop off-loop seed bookkeeping with the view it belonged to (detach,
+    /// session end): a seed landing afterwards finds no count and is
+    /// discarded, and held output never outlives its session.
+    #[cfg(feature = "mux")]
+    pub(crate) fn clear_mux_seed_holds(&mut self) {
+        self.mux_seeds_in_flight.clear();
+        self.mux_held_output.clear();
+        self.mux_discoveries_in_flight = 0;
+    }
+
+    /// Whether off-loop daemon work is outstanding: the event loop must
+    /// keep polling to apply its result, even while the daemon is quiet.
+    #[cfg(feature = "mux")]
+    pub(crate) fn mux_jobs_in_flight(&self) -> bool {
+        self.transport.is_some()
+            && (!self.mux_seeds_in_flight.is_empty() || self.mux_discoveries_in_flight > 0)
     }
 
     /// UX.md T8: whether the attached control session is par-mux. Only
@@ -275,6 +350,15 @@ impl TmuxState {
             .iter()
             .find(|(_, (owner, pane))| *owner == tab_id && *pane == native_id)
             .map(|(&tmux, _)| tmux)
+    }
+
+    /// Whether `tab_id` mirrors daemon panes and every one of them is held
+    /// (its process exited). `false` for a tab with no mapped panes: an
+    /// empty set proves nothing about the daemon window behind it.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) fn all_tab_panes_held(&self, tab_id: TabId) -> bool {
+        let panes = self.tab_tmux_pane_ids(tab_id);
+        !panes.is_empty() && panes.iter().all(|p| self.mux_exited_panes.contains_key(p))
     }
 
     /// `tab_id`'s daemon panes — the existing set for layout delta

@@ -274,18 +274,24 @@ impl WindowState {
         // and the daemon deletes the session. Detach / End session /
         // Cancel is the user's call, not the close key's.
         if self.closing_active_tab_ends_mux_session() {
-            let session = self
-                .tmux_state
-                .tmux_session_name
-                .clone()
-                .unwrap_or_else(|| "session".to_string());
-            self.overlay_ui.mux_last_tab_ui.show_for_session(&session);
-            self.focus_state.needs_redraw = true;
-            self.request_redraw();
+            self.show_mux_last_tab_dialog();
             return false; // the dialog decides
         }
 
         self.close_current_tab_immediately()
+    }
+
+    /// Open the last-attached-tab dialog (UX.md M1): Detach / End session
+    /// / Cancel for the attached session.
+    fn show_mux_last_tab_dialog(&mut self) {
+        let session = self
+            .tmux_state
+            .tmux_session_name
+            .clone()
+            .unwrap_or_else(|| "session".to_string());
+        self.overlay_ui.mux_last_tab_ui.show_for_session(&session);
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
     }
 
     /// Close the current tab immediately without confirmation
@@ -304,6 +310,13 @@ impl WindowState {
     ///
     /// Returns true (close the window) only when no other tab could stay
     /// visible — the implicit-detach shape; the session survives daemon-side.
+    ///
+    /// A tab whose every daemon pane is HELD (exited, `%pane-exited`) is
+    /// not hidden: a window of dead panes kept running is a leak nobody can
+    /// see. It ends like a tab close — `kill-window` — unless it is the
+    /// session's last window, where the close key must not end the session
+    /// (an all-exited session is kept and restored as fresh shells), so
+    /// the last-tab dialog (UX.md M1) decides instead.
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) fn hide_active_mux_tab(&mut self) -> bool {
         let Some(tab_id) = self.tab_manager.active_tab_id() else {
@@ -314,6 +327,13 @@ impl WindowState {
             // window is unreachable from this client either way.
             return self.close_current_tab_inner(false);
         };
+        if self.tmux_state.all_tab_panes_held(tab_id) {
+            if self.closing_active_tab_ends_mux_session() {
+                self.show_mux_last_tab_dialog();
+                return false; // the dialog decides
+            }
+            return self.close_current_tab_inner(true);
+        }
         // The tab that stays visible and active: prefer an already-visible
         // sibling, else re-show a hidden one — a window with zero visible
         // tabs has no surface to render.

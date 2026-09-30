@@ -498,6 +498,17 @@ impl WindowState {
             }
         }
 
+        // 7b-2. par-mux off-loop jobs: window discovery and screen seeds
+        // run on the transport's worker, and nothing wakes the loop when
+        // one finishes. Poll at the idle-spin cadence until they land.
+        #[cfg(feature = "mux")]
+        if self.tmux_state.mux_jobs_in_flight() {
+            let next_poll = now + std::time::Duration::from_millis(UNFOCUSED_IDLE_SPIN_SLEEP_MS);
+            if next_poll < next_wake {
+                next_wake = next_poll;
+            }
+        }
+
         // 7c. Script Command Queue
         // `WindowManager::about_to_wait` drives the script command loop once per
         // event-loop wake, and the idle default is a full second. A script that

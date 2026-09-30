@@ -431,6 +431,7 @@ impl WindowState {
         self.tmux_state.mux_screen_seeds.clear();
         self.tmux_state.mux_pane_titles.clear();
         self.tmux_state.mux_exited_panes.clear();
+        self.tmux_state.clear_mux_seed_holds();
         self.tmux_state.agent_roster.clear();
         self.handle_tmux_session_ended();
         // Overwrite the shared cleanup's "connection lost" toast and chip
@@ -517,6 +518,7 @@ impl WindowState {
         self.tmux_state.mux_screen_seeds.clear();
         self.tmux_state.mux_pane_titles.clear();
         self.tmux_state.mux_exited_panes.clear();
+        self.tmux_state.clear_mux_seed_holds();
         self.tmux_state.agent_roster.clear();
         self.handle_tmux_session_ended();
         self.tmux_state.mux_daemon = None;
@@ -619,7 +621,7 @@ pub(crate) mod tests {
         std::thread::spawn(move || server.run());
     }
 
-    fn connect(path: &Path) -> MuxTransport {
+    pub(crate) fn connect(path: &Path) -> MuxTransport {
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             match MuxTransport::connect_or_spawn_at(path) {
@@ -5662,7 +5664,7 @@ out.flush()
     /// reply wait runs out its full timeout. Serves exactly one
     /// connection; the stream is read to completion so client writes
     /// never fill kernel buffers mid-test.
-    fn spawn_silent_daemon(path: &Path) {
+    pub(crate) fn spawn_silent_daemon(path: &Path) {
         use par_term_emu_core_rust::mux::{accept_connection, bind_local_listener};
         use std::io::Read;
         let listener = bind_local_listener(path).expect("silent daemon binds");

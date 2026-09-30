@@ -33,6 +33,14 @@ impl WindowState {
             );
         }
 
+        // A screen seed requested off-loop is still in flight: it clears
+        // the mirror and paints a snapshot, so output applied now would be
+        // erased when it lands. Hold it; the seed replays it afterwards.
+        #[cfg(feature = "mux")]
+        if self.hold_output_behind_seed(pane_id, data) {
+            return;
+        }
+
         // Check if output is paused - buffer if so
         if self.tmux_state.tmux_sync.buffer_output(pane_id, data) {
             crate::debug_trace!(

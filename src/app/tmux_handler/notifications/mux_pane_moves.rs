@@ -8,42 +8,71 @@
 //! stayed unmapped and input to that tab fell through to the hidden local
 //! shell. And a pane that moves between windows gets a NEW native mirror
 //! in its destination tab, which starts blank until re-seeded.
+//!
+//! Neither path waits on a daemon reply on the event loop: discovery and
+//! seed queries run as [`MuxJob`]s on the transport's send worker, and
+//! [`WindowState::apply_mux_job_results`] applies what they learned at the
+//! top of each drain.
 
+use crate::app::tmux_handler::tmux_state::{MuxJob, MuxJobResult};
 use crate::app::window_state::WindowState;
 use par_term_tmux::{TmuxPaneId, TmuxWindowId};
 
-/// The window a `pane-info` reply (`%N @W COLSxROWS [cmd=…]`) places the
-/// pane in, with the pane's grid size.
-fn parse_pane_info(line: &str) -> Option<(TmuxWindowId, (u16, u16))> {
-    let mut fields = line.split_whitespace().skip(1);
-    let window = fields.next()?.strip_prefix('@')?.parse().ok()?;
-    let (cols, rows) = fields.next()?.split_once('x')?;
-    Some((window, (cols.parse().ok()?, rows.parse().ok()?)))
-}
-
 impl WindowState {
-    /// Map a window that arrived by `%window-add` while attached: refit it
-    /// (the refit broadcasts its `%layout-change`, which the layout
-    /// consumer maps) and queue a screen seed per pane — a pane moved in
-    /// by `break-pane` already has content its new mirror lacks.
+    /// Map a window that arrived by `%window-add` while attached. The
+    /// pane discovery (`list-panes` + a `pane-info` per pane) runs off the
+    /// event loop; [`Self::apply_mux_job_results`] pumps the layout and
+    /// seeds the panes once it lands.
     pub(crate) fn adopt_new_mux_window(&mut self, window_id: TmuxWindowId) {
         let Some(transport) = &self.tmux_state.transport else {
             return;
         };
-        let Ok(listed) = transport.send_command("list-panes") else {
-            return;
+        if transport.submit_job(MuxJob::DiscoverWindow(window_id)) {
+            self.tmux_state.mux_discoveries_in_flight += 1;
+        } else {
+            log::warn!("par-mux: could not queue discovery for window @{window_id}");
+        }
+    }
+
+    /// Apply every finished [`MuxJob`]. Runs at the top of the mux drain,
+    /// before its quiet-daemon early return, so results land even when the
+    /// daemon sends nothing else.
+    pub(super) fn apply_mux_job_results(&mut self) -> bool {
+        let Some(transport) = &self.tmux_state.transport else {
+            return false;
         };
-        let mut panes: Vec<(TmuxPaneId, (u16, u16))> = Vec::new();
-        for pane in listed
-            .iter()
-            .filter_map(|l| l.trim().strip_prefix('%')?.parse::<TmuxPaneId>().ok())
-        {
-            if let Ok(info) = transport.send_command(&format!("pane-info -t %{pane}"))
-                && let Some((window, size)) = info.first().and_then(|l| parse_pane_info(l))
-                && window == window_id
-            {
-                panes.push((pane, size));
+        let results = transport.take_job_results();
+        let mut applied = false;
+        for result in results {
+            applied = true;
+            match result {
+                MuxJobResult::WindowPanes { window, panes } => {
+                    self.tmux_state.mux_discoveries_in_flight =
+                        self.tmux_state.mux_discoveries_in_flight.saturating_sub(1);
+                    self.finish_new_mux_window(window, &panes);
+                }
+                MuxJobResult::PaneSeeds(seeds) => self.land_mux_pane_seeds(seeds),
             }
+        }
+        applied
+    }
+
+    /// The loop-side half of [`Self::adopt_new_mux_window`]: refit the
+    /// window (the refit broadcasts its `%layout-change`, which the layout
+    /// consumer maps) and seed each pane — a pane moved in by `break-pane`
+    /// already has content its new mirror lacks.
+    fn finish_new_mux_window(
+        &mut self,
+        window_id: TmuxWindowId,
+        panes: &[(TmuxPaneId, (u16, u16))],
+    ) {
+        // Resurrection guard: a window closed (or detached) while its
+        // discovery was in flight is unmapped by now. Pumping it would
+        // bring back a late %layout-change for an unmapped window, and the
+        // layout fallback would recreate the closed tab. Daemon window ids
+        // are never reused, so a still-mapped id is still that window.
+        if self.tmux_state.tmux_sync.get_tab(window_id).is_none() {
+            return;
         }
         let Some(&(anchor, pane_size)) = panes.first() else {
             return;
@@ -57,11 +86,19 @@ impl WindowState {
             Some((w, h)) => format!("refresh-client -t %{anchor} -C {cols}x{rows} -p {w}x{h}"),
             None => format!("refresh-client -t %{anchor} -C {cols}x{rows}"),
         };
-        // Synchronous, not the fire-and-forget queue: a queued pump can
-        // reach the daemon after a later kill-window/close from this
-        // client, and its late %layout-change for the then-unmapped window
-        // makes the layout fallback resurrect the closed tab.
-        if let Err(e) = transport.send_command(&cmd) {
+        let Some(transport) = &self.tmux_state.transport else {
+            return;
+        };
+        // Queued, and still resurrection-safe. The guard above proves the
+        // window was mapped when the pump was queued. If a close reaches
+        // the daemon BEFORE the pump (an inline kill-window from this
+        // client can overtake the queue, or another client closes it), the
+        // anchor pane is gone and the daemon rejects the pump with no
+        // layout at all. If the close lands AFTER, the daemon's stream
+        // carries the pump's %layout-change ahead of %window-close: an
+        // earlier drain applies it to the still-mapped tab, and the same
+        // drain drops it through the closed-window set.
+        if let Err(e) = transport.send_command_no_wait(&cmd) {
             log::warn!("par-mux: layout pump for window @{window_id} failed: {e}");
         }
         let ids: Vec<TmuxPaneId> = panes.iter().map(|(p, _)| *p).collect();
@@ -198,22 +235,86 @@ impl WindowState {
         }
     }
 
-    /// Queue a `refresh-client -t %N` screen seed per pane; delivered by
+    /// Request a `refresh-client -t %N` screen seed per pane, off the
+    /// event loop. Until a pane's seed lands its live output is held (see
+    /// [`Self::hold_output_behind_seed`]); the landed seed is delivered by
     /// the end-of-poll sweep once the pane's native mirror exists.
     pub(crate) fn queue_mux_pane_seeds(&mut self, panes: &[TmuxPaneId]) {
+        if panes.is_empty() {
+            return;
+        }
         let Some(transport) = &self.tmux_state.transport else {
             return;
         };
+        if !transport.submit_job(MuxJob::SeedPanes(panes.to_vec())) {
+            log::warn!("par-mux: could not queue screen seeds for {panes:?}");
+            return;
+        }
         for &pane in panes {
-            match transport.send_command(&format!("refresh-client -t %{pane}")) {
+            *self.tmux_state.mux_seeds_in_flight.entry(pane).or_default() += 1;
+        }
+    }
+
+    /// Install landed seeds. Each reply is a clear plus the pane's screen
+    /// at the moment the daemon answered; output held while it was in
+    /// flight follows the snapshot inside the same seed, so nothing newer
+    /// than the snapshot is lost. Output the daemon emitted between the
+    /// move and the snapshot is replayed on top of it — the same overlap
+    /// the synchronous seed had, widened only by the worker's queue delay.
+    /// A pane still waiting on a later request keeps holding.
+    fn land_mux_pane_seeds(&mut self, seeds: Vec<(TmuxPaneId, std::io::Result<Vec<String>>)>) {
+        for (pane, reply) in seeds {
+            let left = match self.tmux_state.mux_seeds_in_flight.get_mut(&pane) {
+                Some(count) => {
+                    *count = count.saturating_sub(1);
+                    *count
+                }
+                // Detach cleared the bookkeeping: this seed is for a view
+                // that no longer exists.
+                None => continue,
+            };
+            if left == 0 {
+                self.tmux_state.mux_seeds_in_flight.remove(&pane);
+            }
+            match reply {
                 Ok(reply) => {
                     let mut bytes = b"\x1b[H\x1b[2J".to_vec();
                     bytes.extend_from_slice(reply.join("\n").as_bytes());
+                    self.tmux_state
+                        .mux_held_output
+                        .remove(&pane)
+                        .into_iter()
+                        .for_each(|held| bytes.extend_from_slice(&held));
                     self.tmux_state.mux_screen_seeds.insert(pane, bytes);
                 }
-                Err(e) => log::warn!("par-mux: seed for moved pane %{pane} failed: {e}"),
+                Err(e) => {
+                    log::warn!("par-mux: seed for moved pane %{pane} failed: {e}");
+                    if left == 0
+                        && let Some(held) = self.tmux_state.mux_held_output.remove(&pane)
+                    {
+                        self.tmux_state
+                            .mux_screen_seeds
+                            .entry(pane)
+                            .or_default()
+                            .extend_from_slice(&held);
+                    }
+                }
             }
         }
+    }
+
+    /// Hold `data` for `pane` when a seed request for it is in flight.
+    /// Returns whether the output was held (the caller must not apply it).
+    pub(super) fn hold_output_behind_seed(&mut self, pane: TmuxPaneId, data: &[u8]) -> bool {
+        if !self.tmux_state.mux_seeds_in_flight.contains_key(&pane) {
+            return false;
+        }
+        self.tmux_state
+            .mux_held_output
+            .entry(pane)
+            .or_default()
+            .extend_from_slice(data);
+        true
     }
 }
 
@@ -336,6 +437,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     fn pane_text(ws: &WindowState, pane: u64) -> String {
         let Some((tab, native)) = ws.tmux_state.tmux_pane_owner(pane) else {
             return String::new();
@@ -375,8 +477,9 @@ mod tests {
     /// client or the CLI would) keep every pane linked to the tab of its
     /// own window, leave no orphaned mirror, and re-seed a moved pane's new
     /// mirror with its screen — all from the daemon's broadcasts alone.
+    // The marker pipes through `tr`, which Windows panes (cmd.exe) lack.
+    #[cfg(unix)]
     #[test]
-    #[ignore = "needs a fea7bdc+ core: scripts/with-local-core.sh cargo test --lib -- --ignored mux_pane_moves"]
     fn pane_moves_keep_every_pane_linked_to_its_windows_tab() {
         let (mut ws, path) = attached("pane-moves");
 
@@ -471,7 +574,6 @@ mod tests {
     /// single-pane mux tab's pane into another mux tab, and the refused
     /// shapes (split mux source) never touch the daemon or the local tree.
     #[test]
-    #[ignore = "needs a fea7bdc+ core: scripts/with-local-core.sh cargo test --lib -- --ignored mux_pane_moves"]
     fn promote_and_demote_on_mux_tabs_break_and_join_daemon_side() {
         let (mut ws, path) = attached("promote-demote");
         send(&ws, "split-window -h -t %0");
@@ -589,12 +691,106 @@ mod tests {
 
     #[test]
     fn pane_info_reply_parses_window_and_size() {
-        assert_eq!(
-            super::parse_pane_info("%3 @2 80x24 cmd=enNo"),
-            Some((2, (80, 24)))
+        use super::super::mux_transport::parse_pane_info;
+        assert_eq!(parse_pane_info("%3 @2 80x24 cmd=enNo"), Some((2, (80, 24))));
+        assert_eq!(parse_pane_info("%3 @2 80x24"), Some((2, (80, 24))));
+        assert_eq!(parse_pane_info("%3 2 80x24"), None);
+        assert_eq!(parse_pane_info(""), None);
+    }
+
+    /// Card 01a0ef3b criterion 2: handling a daemon-created window makes no
+    /// synchronous daemon round-trip on the event loop. Against a daemon
+    /// that accepts but never answers, the old inline `list-panes` alone
+    /// sat out the core client's 10 s reply timeout (then one `pane-info`
+    /// per pane); the window-add handler, the drain that applies job
+    /// results, and a seed request must now all return at once.
+    #[test]
+    fn new_window_handling_never_waits_on_a_silent_daemon() {
+        use super::super::mux::tests::{connect, spawn_silent_daemon};
+        let path = socket_path("silent-adopt");
+        spawn_silent_daemon(&path);
+        let mut ws = manners_state();
+        ws.tmux_state.transport = Some(Box::new(connect(&path)));
+        ws.handle_tmux_window_add(7);
+        assert!(ws.tmux_state.tmux_sync.get_tab(7).is_some());
+
+        let started = Instant::now();
+        ws.adopt_new_mux_window(7);
+        ws.queue_mux_pane_seeds(&[3, 4]);
+        for _ in 0..5 {
+            ws.check_mux_notifications();
+        }
+        let took = started.elapsed();
+        assert!(
+            took < Duration::from_millis(500),
+            "new-window handling blocked the event loop for {took:?}"
         );
-        assert_eq!(super::parse_pane_info("%3 @2 80x24"), Some((2, (80, 24))));
-        assert_eq!(super::parse_pane_info("%3 2 80x24"), None);
-        assert_eq!(super::parse_pane_info(""), None);
+        assert!(
+            ws.tmux_state.mux_jobs_in_flight(),
+            "the queries are outstanding off-loop, so the loop keeps polling"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// An off-loop seed is a clear plus a snapshot, so live output that
+    /// arrives while it is in flight must replay AFTER it, not be erased
+    /// by it. Output for panes with no seed pending is untouched.
+    #[test]
+    fn output_behind_an_in_flight_seed_replays_after_it() {
+        let mut ws = manners_state();
+        ws.tmux_state.mux_seeds_in_flight.insert(5, 1);
+        assert!(ws.hold_output_behind_seed(5, b"late-1 "));
+        assert!(ws.hold_output_behind_seed(5, b"late-2"));
+        assert!(!ws.hold_output_behind_seed(6, b"other pane"));
+
+        ws.land_mux_pane_seeds(vec![(5, Ok(vec!["snapshot".to_string()]))]);
+        assert_eq!(
+            ws.tmux_state.mux_screen_seeds.get(&5).map(Vec::as_slice),
+            Some(&b"\x1b[H\x1b[2Jsnapshotlate-1 late-2"[..]),
+            "the held output follows the snapshot inside the seed"
+        );
+        assert!(ws.tmux_state.mux_seeds_in_flight.is_empty());
+        assert!(!ws.hold_output_behind_seed(5, b"live again"));
+
+        // A failed seed releases what it held instead of losing it.
+        ws.tmux_state.mux_screen_seeds.clear();
+        ws.tmux_state.mux_seeds_in_flight.insert(8, 1);
+        assert!(ws.hold_output_behind_seed(8, b"kept"));
+        ws.land_mux_pane_seeds(vec![(8, Err(std::io::Error::other("timed out")))]);
+        assert_eq!(
+            ws.tmux_state.mux_screen_seeds.get(&8).map(Vec::as_slice),
+            Some(&b"kept"[..])
+        );
+
+        // A seed landing after detach cleared the bookkeeping is dropped.
+        ws.tmux_state.mux_screen_seeds.clear();
+        ws.land_mux_pane_seeds(vec![(9, Ok(vec!["stale".to_string()]))]);
+        assert!(ws.tmux_state.mux_screen_seeds.is_empty());
+    }
+
+    /// The resurrection guard: discovery for a window that closed while
+    /// the query was in flight pumps nothing and seeds nothing — a late
+    /// %layout-change for an unmapped window would recreate its tab.
+    #[test]
+    fn discovery_result_for_a_closed_window_is_dropped() {
+        let (transport, sent) =
+            crate::app::tmux_handler::pane_write::tests::RecordingTransport::new();
+        let mut ws = manners_state();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.finish_new_mux_window(4, &[(9, (80, 24))]);
+        assert!(
+            sent.lock().unwrap().is_empty(),
+            "an unmapped window gets no layout pump: {:?}",
+            sent.lock().unwrap()
+        );
+        assert!(ws.tmux_state.mux_seeds_in_flight.is_empty());
+
+        ws.handle_tmux_window_add(4);
+        ws.finish_new_mux_window(4, &[(9, (80, 24))]);
+        assert_eq!(
+            sent.lock().unwrap().as_slice(),
+            ["refresh-client -t %9 -C 80x24"],
+            "a still-mapped window is pumped"
+        );
     }
 }

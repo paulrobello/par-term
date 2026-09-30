@@ -284,7 +284,6 @@ mod tests {
     /// without `-k`, `%pane-respawned` clears the chrome, and a restart of
     /// the now-live pane needs (and uses) `-k`.
     #[test]
-    #[ignore = "needs a fea7bdc+ core: scripts/with-local-core.sh cargo test --lib -- --ignored mux_pane_exit"]
     fn exited_pane_shows_code_and_restart_respawns_it() {
         use super::super::mux::MuxAttachPending;
         use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
@@ -405,6 +404,192 @@ mod tests {
             "the live-pane restart (-k) was accepted"
         );
 
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Attach through the app's install path and map window @0's %0 from
+    /// the drain alone: the created session's %window-add waits in the
+    /// client channel, and its adoption maps %0. A manual
+    /// `handle_tmux_window_add(0)` (the ladder above) would add a second
+    /// tab for @0 and make every window count wrong.
+    fn attached_with_pane_zero(
+        tag: &str,
+    ) -> (crate::app::window_state::WindowState, std::path::PathBuf) {
+        use super::super::mux::MuxAttachPending;
+        use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
+        use std::time::Duration;
+
+        let path = socket_path(tag);
+        spawn_daemon(&path);
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: tag.to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        pump_until(
+            &mut ws,
+            "the %window-add adoption maps %0",
+            Duration::from_secs(10),
+            |ws| ws.tmux_state.tmux_pane_owners.contains_key(&0),
+        );
+        assert_eq!(ws.tab_manager.tab_count(), 1, "one tab for @0");
+        (ws, path)
+    }
+
+    fn send_ok(ws: &crate::app::window_state::WindowState, cmd: &str) -> Vec<String> {
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .unwrap()
+            .send_command(cmd)
+            .unwrap_or_else(|e| panic!("{cmd}: {e}"))
+    }
+
+    /// Exit `pane`'s shell and pump until the daemon's `%pane-exited`
+    /// holds it.
+    fn exit_and_hold(ws: &mut crate::app::window_state::WindowState, pane: u64) {
+        send_ok(ws, &format!("send-keys -t %{pane} -l 'exit 7'"));
+        send_ok(ws, &format!("send-keys -t %{pane} Enter"));
+        pump_until(
+            ws,
+            "%pane-exited",
+            std::time::Duration::from_secs(30),
+            |ws| ws.tmux_state.mux_exited_panes.contains_key(&pane),
+        );
+    }
+
+    fn daemon_windows(ws: &crate::app::window_state::WindowState) -> Vec<u64> {
+        send_ok(ws, "list-windows")
+            .iter()
+            .filter_map(|l| l.strip_prefix('@')?.split(':').next()?.parse().ok())
+            .collect()
+    }
+
+    /// Card 01a0ef3b criterion 1: Cmd+W (close pane) on a tab whose only
+    /// pane is HELD ends its daemon window — the last-pane close normally
+    /// hides the tab and keeps the window running, which for a window of
+    /// dead panes is a leak nobody can see. The tab then closes through the
+    /// ordinary %window-close teardown.
+    #[test]
+    fn closing_a_held_last_pane_tab_kills_its_daemon_window() {
+        use std::time::Duration;
+        let (mut ws, path) = attached_with_pane_zero("held-close");
+
+        // A second window, so closing the held one does not end the session.
+        send_ok(&ws, "new-window");
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "window @1 never mapped"
+            );
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert_eq!(daemon_windows(&ws), vec![0, 1]);
+
+        exit_and_hold(&mut ws, 0);
+        let (held_tab, _) = ws.tmux_state.tmux_pane_owner(0).unwrap();
+        ws.tab_manager.switch_to(held_tab);
+        assert!(ws.tmux_state.all_tab_panes_held(held_tab));
+
+        assert!(!ws.close_focused_pane(), "the window stays open");
+        assert!(
+            !ws.overlay_ui.mux_last_tab_ui.is_visible(),
+            "another window survives, so no last-tab dialog"
+        );
+        assert_eq!(
+            daemon_windows(&ws),
+            vec![1],
+            "the held window is killed daemon-side, not left running"
+        );
+        pump_until(
+            &mut ws,
+            "%window-close tears the held tab down",
+            Duration::from_secs(10),
+            |ws| ws.tab_manager.get_tab(held_tab).is_none(),
+        );
+        assert!(
+            ws.tmux_state.tmux_sync.get_tab(0).is_none(),
+            "no stale window mapping"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The held-window kill must leave a VISIBLE tab active. With the only
+    /// other tab hidden (its live last pane was closed, D7), the hide path
+    /// used to re-show it; the kill path closes the held tab through the
+    /// %window-close teardown, whose index-based pick knows nothing of
+    /// hidden tabs.
+    #[test]
+    fn killing_a_held_tab_beside_a_hidden_tab_leaves_a_visible_tab_active() {
+        use std::time::Duration;
+        let (mut ws, path) = attached_with_pane_zero("held-beside-hidden");
+        send_ok(&ws, "new-window");
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "window @1 never mapped"
+            );
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let (tab_a, _) = ws.tmux_state.tmux_pane_owner(0).unwrap();
+        let (tab_b, _) = ws.tmux_state.tmux_pane_owner(1).unwrap();
+
+        // Hide B: its (live) last pane closes, the D7 shape.
+        ws.tab_manager.switch_to(tab_b);
+        assert!(!ws.close_focused_pane());
+        assert!(ws.tab_manager.get_tab(tab_b).is_some_and(|t| t.is_hidden));
+        assert_eq!(ws.tab_manager.active_tab_id(), Some(tab_a));
+
+        // A's shell exits; Cmd+W on the held tab kills its window.
+        exit_and_hold(&mut ws, 0);
+        assert!(!ws.close_focused_pane());
+        pump_until(
+            &mut ws,
+            "the held tab tears down",
+            Duration::from_secs(10),
+            |ws| ws.tab_manager.get_tab(tab_a).is_none(),
+        );
+        let active = ws.tab_manager.active_tab().expect("a tab stays active");
+        assert_eq!(active.id, tab_b);
+        assert!(
+            !active.is_hidden,
+            "the surviving tab must be re-shown, not left active-but-hidden"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The negative half: a held tab that is the session's ONLY window is
+    /// not killed by the close key (that would end the session, which is
+    /// kept and restored as fresh shells) — the last-tab dialog decides.
+    /// A live last pane still hides as before (D7).
+    #[test]
+    fn closing_the_sessions_only_held_tab_asks_instead_of_killing() {
+        let (mut ws, path) = attached_with_pane_zero("held-last");
+        let (tab, _) = ws.tmux_state.tmux_pane_owner(0).unwrap();
+        ws.tab_manager.switch_to(tab);
+        assert!(
+            !ws.tmux_state.all_tab_panes_held(tab),
+            "a live pane is not held"
+        );
+
+        exit_and_hold(&mut ws, 0);
+        assert!(!ws.close_focused_pane(), "the dialog decides");
+        assert!(
+            ws.overlay_ui.mux_last_tab_ui.is_visible(),
+            "closing the session's last (held) window asks first"
+        );
+        assert_eq!(daemon_windows(&ws), vec![0], "nothing was killed");
+        assert!(ws.tab_manager.get_tab(tab).is_some_and(|t| !t.is_hidden));
         let _ = std::fs::remove_file(&path);
     }
 

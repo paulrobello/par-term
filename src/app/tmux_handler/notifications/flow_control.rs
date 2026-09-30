@@ -128,6 +128,8 @@ impl WindowState {
                     let was_last = self.tab_manager.close_tab_fast(tab_id);
                     if was_last {
                         self.handle_tmux_session_ended();
+                    } else {
+                        self.ensure_visible_active_mux_tab();
                     }
                     needs_redraw = true;
                 }
@@ -190,5 +192,37 @@ impl WindowState {
             }
         }
         needs_redraw
+    }
+
+    /// After a daemon window's tab closes, the tab manager's pick of the
+    /// next active tab is index-based and may land on a HIDDEN mux tab
+    /// (UX.md D7), leaving the window with nothing visible to render.
+    /// Prefer a visible tab; with none left, re-show the picked one — the
+    /// same successor rule the last-pane hide uses.
+    fn ensure_visible_active_mux_tab(&mut self) {
+        if self.tmux_state.transport.is_none() {
+            return;
+        }
+        let Some(active) = self.tab_manager.active_tab() else {
+            return;
+        };
+        if !active.is_hidden {
+            return;
+        }
+        let active_id = active.id;
+        match self
+            .tab_manager
+            .tabs()
+            .iter()
+            .find(|t| !t.is_hidden)
+            .map(|t| t.id)
+        {
+            Some(visible) => self.tab_manager.switch_to(visible),
+            None => {
+                if let Some(tab) = self.tab_manager.get_tab_mut(active_id) {
+                    tab.is_hidden = false;
+                }
+            }
+        }
     }
 }
