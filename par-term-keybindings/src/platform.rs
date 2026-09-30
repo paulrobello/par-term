@@ -89,6 +89,35 @@ pub fn physical_key_matches_char(code: KeyCode, ch: char) -> bool {
     expected_char.eq_ignore_ascii_case(&ch)
 }
 
+/// The unshifted character on the same physical key as a US-layout shifted
+/// symbol (`:` shares a key with `;`), or `None` when `ch` is not one.
+pub fn us_unshifted_char(ch: char) -> Option<char> {
+    Some(match ch {
+        ':' => ';',
+        '"' => '\'',
+        '<' => ',',
+        '>' => '.',
+        '?' => '/',
+        '{' => '[',
+        '}' => ']',
+        '|' => '\\',
+        '_' => '-',
+        '+' => '=',
+        '~' => '`',
+        '!' => '1',
+        '@' => '2',
+        '#' => '3',
+        '$' => '4',
+        '%' => '5',
+        '^' => '6',
+        '&' => '7',
+        '*' => '8',
+        '(' => '9',
+        ')' => '0',
+        _ => return None,
+    })
+}
+
 /// Parse a named key string into a [`NamedKey`].
 ///
 /// Accepts human-readable aliases such as `"Enter"`, `"Return"`, `"Esc"`,

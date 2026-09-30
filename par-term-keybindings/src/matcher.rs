@@ -346,7 +346,14 @@ impl KeybindingMatcher {
             (ParsedKey::Character(combo_char), true) => {
                 // Try to match by physical key position first
                 if let Some(physical) = self.physical_key {
+                    // A shifted symbol (`:`) is reported by the OS as the
+                    // symbol, but its physical key is the base key (`;`), so
+                    // a Shift chord spelled with the symbol must match it.
                     platform::physical_key_matches_char(physical, *combo_char)
+                        || (combo.modifiers.shift
+                            && platform::us_unshifted_char(*combo_char).is_some_and(|base| {
+                                platform::physical_key_matches_char(physical, base)
+                            }))
                 } else if let Some(MatchKey::Character(event_char)) = &self.key {
                     // Fall back to logical match if no physical key
                     event_char.eq_ignore_ascii_case(combo_char)
@@ -626,6 +633,41 @@ mod tests {
             physical_key: Some(KeyCode::KeyW),
         };
         assert!(!matcher_wrong.matches(&combo));
+    }
+
+    /// The command-history default is spelled with the shifted symbol (`:`).
+    /// macOS reports Cmd+Shift+; as ':' logically but the physical key is
+    /// Semicolon, so both matching modes must accept the same press.
+    #[test]
+    fn test_shifted_symbol_chord_matches_in_both_modes() {
+        let combo = parse_key_combo("Cmd+Shift+:").unwrap();
+        let mods = Modifiers {
+            ctrl: false,
+            alt: false,
+            shift: true,
+            super_key: true,
+            cmd_or_ctrl: false,
+        };
+        let real_press = KeybindingMatcher {
+            modifiers: mods,
+            key: Some(MatchKey::Character(':')),
+            physical_key: Some(KeyCode::Semicolon),
+        };
+        assert!(real_press.matches_with_physical_preference(&combo, false));
+        assert!(real_press.matches_with_physical_preference(&combo, true));
+
+        // Physical mode must not over-match a different key carrying ':'.
+        let other_key = KeybindingMatcher {
+            modifiers: mods,
+            key: Some(MatchKey::Character(':')),
+            physical_key: Some(KeyCode::KeyA),
+        };
+        assert!(!other_key.matches_with_physical_preference(&combo, true));
+
+        // The base-key fallback needs Shift in the combo: plain Cmd+; is a
+        // different chord from Cmd+Shift+:.
+        let no_shift_combo = parse_key_combo("Cmd+:").unwrap();
+        assert!(!real_press.matches_with_physical_preference(&no_shift_combo, true));
     }
 
     /// Test that modifier remapping applied to left-only uses left remapping,
