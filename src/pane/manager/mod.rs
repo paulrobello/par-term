@@ -22,6 +22,7 @@
 //! `tmux/` sub-tree) because it also handles non-tmux session restore.  Only
 //! `tmux_layout.rs` is exclusively tmux-specific.
 
+mod balance;
 mod creation;
 mod focus;
 mod geometry;
@@ -34,7 +35,7 @@ mod tmux_layout;
 mod tmux_update;
 mod zoom;
 
-pub use geometry::LayoutPreset;
+pub use geometry::{LayoutPreset, ResizeStep};
 
 use crate::config::{Config, PaneBackgroundConfig};
 use crate::pane::types::{Pane, PaneBounds, PaneId, PaneNode};

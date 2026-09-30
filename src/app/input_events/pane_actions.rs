@@ -49,6 +49,11 @@ pub(super) fn cycle_layout(s: &mut WindowState) -> bool {
     true
 }
 
+pub(super) fn enter_resize_mode(s: &mut WindowState) -> bool {
+    s.enter_pane_resize_mode();
+    true
+}
+
 pub(super) fn split_left(s: &mut WindowState) -> bool {
     s.split_pane_before(crate::pane::SplitDirection::Vertical);
     true

@@ -64,7 +64,10 @@ pub(crate) fn section_for(action_id: &str) -> &'static str {
     if has("pane")
         || id.starts_with("split_")
         || id.starts_with("layout:")
-        || matches!(id, "toggle_broadcast_input" | "cycle_layout")
+        || matches!(
+            id,
+            "toggle_broadcast_input" | "cycle_layout" | "enter_resize_mode"
+        )
     {
         "Pane"
     } else if has("tab") {

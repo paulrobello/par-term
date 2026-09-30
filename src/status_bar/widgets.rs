@@ -45,6 +45,9 @@ pub struct WidgetContext {
     /// Hover text for the agent-roster widget (per-agent lines with
     /// reported/detected provenance); `None` hides the tooltip.
     pub agent_roster_tooltip: Option<String>,
+    /// Panes of the active tab receiving broadcast input (V5); `None` while
+    /// broadcast is off, which self-hides the widget.
+    pub broadcast_receivers: Option<usize>,
     /// Last `SetWidget` text per plugin id; absent or empty entries
     /// self-hide in the section loops, so a stopped plugin renders nothing.
     pub plugin_texts: std::collections::HashMap<String, String>,
@@ -123,6 +126,10 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
         ),
         WidgetId::AgentUsage => ctx.agent_usage_summary.clone().unwrap_or_default(),
         WidgetId::AgentRoster => ctx.agent_roster_summary.clone().unwrap_or_default(),
+        WidgetId::BroadcastInput => ctx
+            .broadcast_receivers
+            .map(|n| format!("\u{1f4e1} Broadcast: {n} panes"))
+            .unwrap_or_default(),
         WidgetId::Plugin(id) => ctx.plugin_texts.get(id).cloned().unwrap_or_default(),
         WidgetId::Custom(_) => String::new(),
     }
@@ -244,8 +251,22 @@ mod tests {
             agent_usage_summary: None,
             agent_roster_summary: None,
             agent_roster_tooltip: None,
+            broadcast_receivers: None,
             plugin_texts: std::collections::HashMap::new(),
         }
+    }
+
+    /// V5: the broadcast item names the receiving panes and hides itself
+    /// while broadcast is off.
+    #[test]
+    fn test_widget_text_broadcast_input() {
+        let mut ctx = make_ctx();
+        assert_eq!(widget_text(&WidgetId::BroadcastInput, &ctx, None), "");
+        ctx.broadcast_receivers = Some(3);
+        assert_eq!(
+            widget_text(&WidgetId::BroadcastInput, &ctx, None),
+            "\u{1f4e1} Broadcast: 3 panes"
+        );
     }
 
     #[test]

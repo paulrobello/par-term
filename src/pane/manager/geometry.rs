@@ -60,6 +60,24 @@ impl LayoutPreset {
     }
 }
 
+/// How far one keyboard resize moves a divider.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ResizeStep {
+    /// A fraction of the enclosing split (`pane_resize_step` / 100).
+    Fraction(f32),
+    /// Physical pixels (one cell for resize mode's Shift+arrow).
+    Pixels(f32),
+}
+
+impl ResizeStep {
+    fn signed(self, sign: f32) -> Self {
+        match self {
+            ResizeStep::Fraction(f) => ResizeStep::Fraction(f * sign),
+            ResizeStep::Pixels(px) => ResizeStep::Pixels(px * sign),
+        }
+    }
+}
+
 /// Whether `direction` splits along the x axis (side by side).
 fn is_x(direction: SplitDirection) -> bool {
     direction == SplitDirection::Vertical
@@ -190,6 +208,17 @@ impl PaneManager {
         direction: NavigationDirection,
         step: f32,
     ) -> bool {
+        self.resize_toward_by(pane, direction, ResizeStep::Fraction(step))
+    }
+
+    /// [`Self::resize_toward`] with the step as a fraction of the split or
+    /// as pixels (resize mode's Shift+arrow moves one cell, A6).
+    pub fn resize_toward_by(
+        &mut self,
+        pane: PaneId,
+        direction: NavigationDirection,
+        step: ResizeStep,
+    ) -> bool {
         self.unzoom();
         let (axis, sign) = match direction {
             NavigationDirection::Left => (SplitDirection::Vertical, -1.0),
@@ -203,17 +232,18 @@ impl PaneManager {
         // tmux semantics: the divider on the arrow's side of the pane
         // (its right border for Right), else the one on the other side.
         let arrow_side_first = sign > 0.0;
+        let step = step.signed(sign);
         let moved = match self.resize_in(
             &mut root,
             self.total_bounds,
             pane,
             axis,
-            sign * step,
+            step,
             Some(arrow_side_first),
         ) {
             Some(moved) => moved,
             None => self
-                .resize_in(&mut root, self.total_bounds, pane, axis, sign * step, None)
+                .resize_in(&mut root, self.total_bounds, pane, axis, step, None)
                 .unwrap_or(false),
         };
         self.root = Some(root);
@@ -230,7 +260,7 @@ impl PaneManager {
         bounds: PaneBounds,
         pane: PaneId,
         axis: SplitDirection,
-        delta: f32,
+        step: ResizeStep,
         side_first: Option<bool>,
     ) -> Option<bool> {
         let PaneNode::Split {
@@ -249,9 +279,9 @@ impl PaneManager {
             return None;
         }
         let nested = if in_first {
-            self.resize_in(first, first_bounds, pane, axis, delta, side_first)
+            self.resize_in(first, first_bounds, pane, axis, step, side_first)
         } else {
-            self.resize_in(second, second_bounds, pane, axis, delta, side_first)
+            self.resize_in(second, second_bounds, pane, axis, step, side_first)
         };
         if nested.is_some() {
             return nested;
@@ -261,6 +291,16 @@ impl PaneManager {
         }
         let Some((lo, hi)) = self.ratio_range(*direction, bounds, first, second) else {
             return Some(false);
+        };
+        let delta = match step {
+            ResizeStep::Fraction(f) => f,
+            ResizeStep::Pixels(px) => {
+                let available = extent(bounds, *direction) - self.divider_width;
+                if available <= 0.0 {
+                    return Some(false);
+                }
+                px / available
+            }
         };
         // Move toward the arrow only: a ratio already outside the range
         // stays put rather than jumping the other way.
@@ -345,7 +385,7 @@ impl PaneManager {
 
     /// Run a ratio-only change; restore the previous ratios if it made a
     /// feasible layout infeasible. Returns whether the change was kept.
-    fn guard_ratios(&mut self, change: impl FnOnce(&mut Self)) -> bool {
+    pub(super) fn guard_ratios(&mut self, change: impl FnOnce(&mut Self)) -> bool {
         let was_feasible = self.min_size_violations().is_empty();
         let before = self.root.as_ref().map(collect_ratios).unwrap_or_default();
         change(self);

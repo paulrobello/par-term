@@ -144,13 +144,15 @@ impl PaneManager {
             focus_new,
             config,
             runtime,
-            initial_command,
+            initial_command.map(|(cmd, args)| crate::pane::LaunchCommand::new(cmd, args)),
             ratio,
         )
     }
 
     /// [`Self::split`] with the new pane placed before (left of / above)
-    /// the focused one when `before` is set (UX.md A5).
+    /// the focused one when `before` is set (UX.md A5). `launch` is the new
+    /// pane's program (a split command, or the tab's inherited profile,
+    /// D5); `None` runs the configured shell.
     #[allow(clippy::too_many_arguments)] // split() plus the placement flag
     pub fn split_placed(
         &mut self,
@@ -159,7 +161,7 @@ impl PaneManager {
         focus_new: bool,
         config: &Config,
         runtime: Arc<Runtime>,
-        initial_command: Option<(String, Vec<String>)>,
+        launch: Option<crate::pane::LaunchCommand>,
         ratio: f32,
     ) -> Result<Option<PaneId>> {
         let focused_id = match self.focused_pane_id {
@@ -206,8 +208,8 @@ impl PaneManager {
         let new_id = self.next_pane_id;
         self.next_pane_id += 1;
 
-        let mut new_pane = if let Some((cmd, args)) = initial_command {
-            Pane::new_with_command(new_id, &pane_config, runtime, working_dir, cmd, args)?
+        let mut new_pane = if let Some(launch) = launch {
+            Pane::new_with_launch(new_id, &pane_config, runtime, working_dir, launch)?
         } else {
             Pane::new(new_id, &pane_config, runtime, working_dir)?
         };

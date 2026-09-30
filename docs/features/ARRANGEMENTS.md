@@ -1,6 +1,6 @@
 # Window Arrangements
 
-Save and restore complete window layouts, including window positions, sizes, tab working directories, and active tab indices. This feature provides iTerm2-style arrangement management for par-term.
+Save and restore complete window layouts, including window positions, sizes, tab working directories, split pane layouts, and active tab indices. This feature provides iTerm2-style arrangement management for par-term.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -37,6 +37,7 @@ Window arrangements capture the full state of your workspace and allow you to re
 - All open windows and their positions and sizes
 - The monitor each window belongs to
 - All tabs within each window and their working directories
+- Each tab's split pane layout: split directions, divider positions, and each pane's working directory and user-set title
 - Per-tab customizations: user-set tab names, custom tab colors, and custom tab icons
 - The active (focused) tab index in each window
 
@@ -124,7 +125,7 @@ When saving an arrangement with a name that already exists (matched case-insensi
 
 ## Restoring Arrangements
 
-Restoring an arrangement closes all current windows and recreates the saved layout. Each window is placed on the correct monitor with its saved position, size, tabs, and active tab index. Per-tab customizations -- user-set names, custom colors, and custom icons -- are faithfully reapplied to the correct tabs in each window. Windows with a saved tmux session are the exception: their tab bar is repopulated by tmux itself (see [tmux Session Capture and Restore](#tmux-session-capture-and-restore)).
+Restoring an arrangement closes all current windows and recreates the saved layout. Each window is placed on the correct monitor with its saved position, size, tabs, and active tab index. Per-tab customizations -- user-set names, custom colors, and custom icons -- are faithfully reapplied to the correct tabs in each window. A tab saved with split panes comes back with the same layout, each pane starting a fresh shell in its saved directory. Arrangements saved before pane layouts were stored load unchanged, with one pane per tab. Windows with a saved tmux session are the exception: their tab bar is repopulated by tmux itself (see [tmux Session Capture and Restore](#tmux-session-capture-and-restore)).
 
 In multi-window layouts, par-term uses the exact `WindowId` returned from each window creation to apply tab properties, ensuring that custom colors, icons, and user titles are never misapplied to the wrong window.
 
@@ -364,9 +365,9 @@ graph TD
 
 **Shared type in `par-term-config/src/snapshot_types.rs`:**
 
-- `TabSnapshot`: Stores a tab's working directory, title, and optional per-tab customizations (user-set name, custom color, custom icon). Shared between arrangements and the windows restored on launch.
+- `TabSnapshot`: Stores a tab's working directory, title, optional per-tab customizations (user-set name, custom color, custom icon), and its pane tree (`pane_layout`, split tabs only). Shared between arrangements, the windows restored on launch, and Duplicate Tab.
 
-**Capture flow** (`src/arrangements/capture.rs`): Enumerates all monitors via the winit event loop, iterates over all open windows, determines each window's monitor, computes the position relative to the monitor origin, and collects tab CWDs, titles, and per-tab customizations (user-set names, custom colors, and custom icons).
+**Capture flow** (`src/arrangements/capture.rs`): Enumerates all monitors via the winit event loop, iterates over all open windows, determines each window's monitor, computes the position relative to the monitor origin, and collects tab CWDs, titles, pane trees, and per-tab customizations (user-set names, custom colors, and custom icons). The per-tab snapshot is `capture_tab_snapshot` in `src/session/capture.rs`, the same one the windows restored on launch use.
 
 **Restore flow** (`src/arrangements/restore.rs`): Builds a monitor mapping from saved monitors to available monitors, converts relative positions back to absolute coordinates on the matched monitor, and clamps positions to ensure visibility. The window manager (`src/app/window_manager/arrangements.rs`) then creates each window and applies per-tab customizations using the exact `WindowId` from each created window to guarantee correct assignment in multi-window layouts.
 

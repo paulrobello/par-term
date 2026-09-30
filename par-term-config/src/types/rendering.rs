@@ -205,6 +205,62 @@ impl PaneTitlePosition {
     }
 }
 
+/// Auto-balance after a keyboard or menu split (UX.md PN7)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SplitBalance {
+    /// The split pane is halved; nothing else moves (default)
+    #[default]
+    None,
+    /// Even out the panes beside the new one along the split direction
+    Siblings,
+    /// Give every pane in the tab an equal area
+    All,
+}
+
+impl SplitBalance {
+    /// All options for UI dropdowns
+    pub const ALL: &'static [SplitBalance] = &[
+        SplitBalance::None,
+        SplitBalance::Siblings,
+        SplitBalance::All,
+    ];
+
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            SplitBalance::None => "Off (halve the split pane)",
+            SplitBalance::Siblings => "Even out the row or column",
+            SplitBalance::All => "Equalize the whole tab",
+        }
+    }
+}
+
+/// How unfocused panes are dimmed when `dim_inactive_panes` is on (UX.md PN9)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum InactivePaneDimMode {
+    /// Scale colors toward black; text stays opaque (default)
+    #[default]
+    Darken,
+    /// Lower opacity, text included, so a background image or shader shows through
+    Fade,
+}
+
+impl InactivePaneDimMode {
+    /// All modes for UI dropdowns
+    pub const ALL: &'static [InactivePaneDimMode] =
+        &[InactivePaneDimMode::Darken, InactivePaneDimMode::Fade];
+
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            InactivePaneDimMode::Darken => "Darken",
+            InactivePaneDimMode::Fade => "Fade (transparent)",
+        }
+    }
+}
+
 /// Style of dividers between panes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]

@@ -68,8 +68,13 @@ impl Tab {
     }
 }
 
-/// A pane title with its mode markers (V6: zoom).
-pub(crate) fn decorate_pane_title(title: String, zoomed: bool) -> String {
+/// A pane title with its mode markers (V6: zoom) and, when
+/// `show_pane_numbers` is on, its 1-based tree-order number (V7).
+pub(crate) fn decorate_pane_title(title: String, zoomed: bool, number: Option<usize>) -> String {
+    let title = match number {
+        Some(n) => format!("{n}: {title}"),
+        None => title,
+    };
     if zoomed {
         format!("{ZOOM_BADGE} {title}")
     } else {
@@ -83,7 +88,15 @@ mod tests {
 
     #[test]
     fn a_zoomed_pane_title_carries_the_zoom_marker() {
-        assert_eq!(decorate_pane_title("vim".into(), true), "⛶ vim");
-        assert_eq!(decorate_pane_title("vim".into(), false), "vim");
+        assert_eq!(decorate_pane_title("vim".into(), true, None), "⛶ vim");
+        assert_eq!(decorate_pane_title("vim".into(), false, None), "vim");
+    }
+
+    /// V7: `show_pane_numbers` prefixes the tree-order number, after the
+    /// zoom marker.
+    #[test]
+    fn a_numbered_pane_title_leads_with_its_number() {
+        assert_eq!(decorate_pane_title("vim".into(), false, Some(3)), "3: vim");
+        assert_eq!(decorate_pane_title("vim".into(), true, Some(1)), "⛶ 1: vim");
     }
 }

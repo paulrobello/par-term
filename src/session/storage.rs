@@ -110,8 +110,8 @@ mod tests {
                         user_title: None,
                         pane_user_title: None,
                         custom_icon: None,
+                        pane_layout: None,
                     },
-                    pane_layout: None,
                 }],
                 active_tab_index: 0,
                 tmux_session_name: None,
@@ -185,8 +185,8 @@ mod tests {
                             user_title: Some("My Custom Tab".to_string()),
                             pane_user_title: None,
                             custom_icon: Some("🔥".to_string()),
+                            pane_layout: None,
                         },
-                        pane_layout: None,
                     },
                     SessionTab {
                         snapshot: TabSnapshot {
@@ -196,8 +196,8 @@ mod tests {
                             user_title: None,
                             pane_user_title: None,
                             custom_icon: Some("📁".to_string()),
+                            pane_layout: None,
                         },
-                        pane_layout: None,
                     },
                     SessionTab {
                         snapshot: TabSnapshot {
@@ -207,8 +207,8 @@ mod tests {
                             user_title: None,
                             pane_user_title: None,
                             custom_icon: None,
+                            pane_layout: None,
                         },
-                        pane_layout: None,
                     },
                 ],
                 active_tab_index: 1,
@@ -284,27 +284,27 @@ mod tests {
                         user_title: None,
                         pane_user_title: None,
                         custom_icon: None,
-                    },
-                    pane_layout: Some(SessionPaneNode::Split {
-                        direction: SplitDirection::Vertical,
-                        ratio: 0.5,
-                        first: Box::new(SessionPaneNode::Leaf {
-                            cwd: Some("/home/user/code".to_string()),
-                            user_title: None,
-                        }),
-                        second: Box::new(SessionPaneNode::Split {
-                            direction: SplitDirection::Horizontal,
-                            ratio: 0.6,
+                        pane_layout: Some(SessionPaneNode::Split {
+                            direction: SplitDirection::Vertical,
+                            ratio: 0.5,
                             first: Box::new(SessionPaneNode::Leaf {
-                                cwd: Some("/home/user/logs".to_string()),
+                                cwd: Some("/home/user/code".to_string()),
                                 user_title: None,
                             }),
-                            second: Box::new(SessionPaneNode::Leaf {
-                                cwd: Some("/home/user/tests".to_string()),
-                                user_title: None,
+                            second: Box::new(SessionPaneNode::Split {
+                                direction: SplitDirection::Horizontal,
+                                ratio: 0.6,
+                                first: Box::new(SessionPaneNode::Leaf {
+                                    cwd: Some("/home/user/logs".to_string()),
+                                    user_title: None,
+                                }),
+                                second: Box::new(SessionPaneNode::Leaf {
+                                    cwd: Some("/home/user/tests".to_string()),
+                                    user_title: None,
+                                }),
                             }),
                         }),
-                    }),
+                    },
                 }],
                 active_tab_index: 0,
                 tmux_session_name: None,
@@ -320,8 +320,8 @@ mod tests {
 
         // Verify the nested pane layout survived roundtrip
         let tab = &loaded.windows[0].tabs[0];
-        assert!(tab.pane_layout.is_some());
-        match tab.pane_layout.as_ref().unwrap() {
+        assert!(tab.snapshot.pane_layout.is_some());
+        match tab.snapshot.pane_layout.as_ref().unwrap() {
             SessionPaneNode::Split {
                 direction, ratio, ..
             } => {

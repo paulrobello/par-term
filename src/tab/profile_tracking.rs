@@ -155,8 +155,7 @@ impl Tab {
     /// The user title of this tab's sole pane, for persistence (card
     /// 01a0d95dd318). `None` unless the tab has exactly one pane and that
     /// pane is user-named — multi-pane layouts persist pane titles per-leaf
-    /// in the session pane tree instead, and arrangements (which restore
-    /// single-pane tabs only) can only carry this form.
+    /// in the pane tree instead.
     pub fn sole_pane_user_title(&self) -> Option<String> {
         let pm = self.pane_manager.as_ref()?;
         if pm.pane_count() != 1 {

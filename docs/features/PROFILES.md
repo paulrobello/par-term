@@ -217,6 +217,12 @@ Click any icon to set it as the profile icon, or type a custom value directly in
 - Custom command runs (or default shell if not specified)
 - Tab name updates if specified
 
+**Splits and restarts keep the profile's program:**
+- Splitting a profile tab runs the same program in the new pane: the profile's SSH connection, command, or shell. The new pane starts in the focused pane's directory. Turn this off with `split_inherits_profile: false` (Settings > Window > Split Panes > "Splits run the tab's profile program") to get the default shell instead.
+- A profile that attaches a tmux or par-mux session is not inherited, since its program would attach again. Splits of those tabs, and of par-mux tabs, work as usual.
+- **Restart Pane** (`restart_pane`) reruns the program the pane was started with, so a profile tab's first pane restarts its SSH connection or command rather than a local shell. So do the `shell_exit_action` restart options.
+- An SSH connection typed by hand, or opened with SSH Quick Connect (which types `ssh` into the current shell), is not a profile program: a split of that tab starts a local shell.
+
 ## Default Startup Directory
 
 When opening a new terminal without a profile, par-term uses the configured startup directory mode.

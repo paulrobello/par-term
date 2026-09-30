@@ -92,18 +92,7 @@ pub fn capture_arrangement(
         let visible_tabs = window_state.tab_manager.visible_tabs();
         let tabs: Vec<TabSnapshot> = visible_tabs
             .iter()
-            .map(|tab| TabSnapshot {
-                cwd: tab.get_cwd(),
-                title: tab.title.clone(),
-                custom_color: tab.custom_color,
-                user_title: if tab.user_named {
-                    Some(tab.title.clone())
-                } else {
-                    None
-                },
-                pane_user_title: tab.sole_pane_user_title(),
-                custom_icon: tab.custom_icon.clone(),
-            })
+            .map(|tab| crate::session::capture::capture_tab_snapshot(tab))
             .collect();
 
         // active_tab_index must be relative to the visible-only list

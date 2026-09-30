@@ -21,6 +21,7 @@ use par_term_terminal::TerminalManager;
 
 use super::bounds::PaneBounds;
 use super::common::{PaneBackground, PaneId, RestartState};
+use super::launch::LaunchCommand;
 
 /// A single terminal pane with its own state
 ///
@@ -85,6 +86,9 @@ pub struct Pane {
     pub restart_state: Option<RestartState>,
     /// Excluded from its tab's broadcast (UX.md V5 per-pane opt-out, I21).
     pub broadcast_excluded: bool,
+    /// The program this pane was started with, rerun by a restart (A9).
+    /// `None` = the configured shell, resolved again at restart time.
+    pub launch: Option<LaunchCommand>,
     /// Whether the parent tab is active (shared with tab for refresh throttling)
     pub is_active: Arc<AtomicBool>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
@@ -156,6 +160,7 @@ impl Pane {
             background: PaneBackground::new(),
             restart_state: None,
             broadcast_excluded: false,
+            launch: None,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
         })
@@ -168,10 +173,27 @@ impl Pane {
     pub fn new_with_command(
         id: PaneId,
         config: &Config,
-        _runtime: Arc<Runtime>,
+        runtime: Arc<Runtime>,
         working_directory: Option<String>,
         command: String,
         args: Vec<String>,
+    ) -> anyhow::Result<Self> {
+        Self::new_with_launch(
+            id,
+            config,
+            runtime,
+            working_directory,
+            LaunchCommand::new(command, args),
+        )
+    }
+
+    /// Create a pane running `launch`, remembered so a restart reruns it.
+    pub fn new_with_launch(
+        id: PaneId,
+        config: &Config,
+        _runtime: Arc<Runtime>,
+        working_directory: Option<String>,
+        launch: LaunchCommand,
     ) -> anyhow::Result<Self> {
         // Create terminal with scrollback from config
         let mut terminal = TerminalManager::new_with_scrollback(
@@ -188,46 +210,21 @@ impl Pane {
             .as_deref()
             .or(config.shell.working_directory.as_deref());
 
-        // Spawn the caller-supplied command instead of the login shell
-        let shell_env = build_shell_env(config.shell.shell_env.as_ref());
         terminal.spawn_custom_shell_with_dir(
-            &command,
-            Some(args.as_slice()),
+            &launch.program,
+            launch.args.as_deref(),
             work_dir,
-            shell_env.as_ref(),
+            launch.env(config).as_ref(),
         )?;
 
-        // Create shared session logger
-        let session_logger = create_shared_logger();
-
-        let terminal = Arc::new(RwLock::new(terminal));
-
-        Ok(Self {
+        let mut pane = Self::new_wrapping_terminal(
             id,
-            terminal,
-            scroll_state: ScrollState::new(),
-            mouse: MouseState::new(),
-            bell: BellState::new(),
-            cache: RenderCache::new(),
-            refresh_task: None,
-            working_directory: working_directory.or_else(|| config.shell.working_directory.clone()),
-            last_activity_time: std::time::Instant::now(),
-            last_seen_generation: 0,
-            anti_idle_last_activity: std::time::Instant::now(),
-            anti_idle_last_generation: 0,
-            silence_notified: false,
-            exit_notified: false,
-            session_logger,
-            bounds: PaneBounds::default(),
-            title: String::new(),
-            has_default_title: true,
-            user_named: false,
-            background: PaneBackground::new(),
-            restart_state: None,
-            broadcast_excluded: false,
-            is_active: Arc::new(AtomicBool::new(false)),
-            shutdown_fast: false,
-        })
+            Arc::new(RwLock::new(terminal)),
+            working_directory.or_else(|| config.shell.working_directory.clone()),
+            Arc::new(AtomicBool::new(false)),
+        );
+        pane.launch = Some(launch);
+        Ok(pane)
     }
 
     /// Create a primary pane that wraps an already-running terminal session.
@@ -276,6 +273,7 @@ impl Pane {
             background: PaneBackground::new(),
             restart_state: None,
             broadcast_excluded: false,
+            launch: None,
             is_active,
             shutdown_fast: false,
         }
@@ -335,6 +333,7 @@ impl Pane {
             background: PaneBackground::new(),
             restart_state: None,
             broadcast_excluded: false,
+            launch: None,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
         })

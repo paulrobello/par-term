@@ -478,6 +478,12 @@ pub fn pane_min_size() -> usize {
     10 // Minimum pane size in cells (columns or rows)
 }
 
+/// Default keyboard pane resize step: the percent of the enclosing split
+/// one arrow press moves a divider (UX.md A6, PN3).
+pub fn pane_resize_step() -> f32 {
+    5.0
+}
+
 /// Default pane background opacity (1.0 = fully opaque).
 pub fn pane_background_opacity() -> f32 {
     1.0 // Fully opaque by default

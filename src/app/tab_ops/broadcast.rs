@@ -69,6 +69,12 @@ impl WindowState {
         Some(tab.broadcast_receivers())
     }
 
+    /// The broadcast status-bar item's value (V5): the active tab's
+    /// receiving pane count while broadcast is on.
+    pub(crate) fn broadcast_status_item(&self) -> Option<usize> {
+        self.broadcast_targets().map(|t| t.len())
+    }
+
     /// Write `bytes` to every broadcast receiver of the active tab: daemon
     /// panes through the transport, local panes to their PTY. Returns
     /// whether broadcast consumed the key.
@@ -231,6 +237,11 @@ mod tests {
         assert!(!other.broadcast_input, "the other tab is unaffected (D8)");
         assert_eq!(other.pane_mode_badge(), None);
         assert_eq!(ws.broadcast_targets().map(|t| t.len()), Some(2));
+        assert_eq!(
+            ws.broadcast_status_item(),
+            Some(2),
+            "the status-bar item counts the receivers (V5)"
+        );
 
         ws.tab_manager.switch_to(second);
         assert_eq!(
@@ -250,6 +261,7 @@ mod tests {
 
         ws.toggle_broadcast_input();
         assert_eq!(ws.broadcast_targets(), None, "toggled off");
+        assert_eq!(ws.broadcast_status_item(), None, "the item hides");
         assert_eq!(
             ws.tab_manager.get_tab(first).unwrap().pane_mode_badge(),
             None

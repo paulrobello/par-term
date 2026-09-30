@@ -11,8 +11,11 @@
 //! par-term-config::snapshot_types::TabSnapshot   (shared base)
 //!         ↑                                ↑
 //! par-term-settings-ui::arrangements       src/session
-//!   TabSnapshot (re-export)                SessionTab { #[serde(flatten)] TabSnapshot, pane_layout }
+//!   TabSnapshot (re-export)                SessionTab { #[serde(flatten)] TabSnapshot }
 //! ```
+//!
+//! The pane tree ([`SessionPaneNode`]) lives on [`TabSnapshot`] so that both
+//! session restore and named arrangements keep split layouts (UX.md PN11).
 //!
 //! # Serialization compatibility
 //!
@@ -48,12 +51,51 @@ pub struct TabSnapshot {
 
     /// User-set title of the tab's sole pane (present only when the user
     /// renamed a pane in a single-pane tab). Multi-pane layouts carry pane
-    /// titles per-leaf in the session pane tree instead — arrangements,
-    /// which do not restore pane trees, only ever have this form.
+    /// titles per-leaf in `pane_layout` instead.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pane_user_title: Option<String>,
 
     /// Custom icon set by the user (persists across sessions)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_icon: Option<String>,
+
+    /// Pane layout tree. `None` for a single-pane tab, which restores from
+    /// `cwd`; only split roots are stored, so a restore never replaces the
+    /// tab's own shell with a second one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pane_layout: Option<SessionPaneNode>,
+}
+
+/// Direction of a split
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SplitDirection {
+    /// Panes are stacked vertically (split creates top/bottom panes)
+    Horizontal,
+    /// Panes are side by side (split creates left/right panes)
+    Vertical,
+}
+
+/// Recursive pane tree node for session and arrangement persistence
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SessionPaneNode {
+    /// A terminal pane leaf
+    Leaf {
+        /// Working directory of this pane
+        cwd: Option<String>,
+        /// User-set title of this pane (present only when the pane was
+        /// user-named at save time; automatic titles are re-derived)
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        user_title: Option<String>,
+    },
+    /// A split containing two children
+    Split {
+        /// Split direction
+        direction: SplitDirection,
+        /// Split ratio (0.0-1.0)
+        ratio: f32,
+        /// First child (top/left)
+        first: Box<SessionPaneNode>,
+        /// Second child (bottom/right)
+        second: Box<SessionPaneNode>,
+    },
 }

@@ -30,36 +30,8 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
         let visible_tabs = window_state.tab_manager.visible_tabs();
         let tabs: Vec<SessionTab> = visible_tabs
             .iter()
-            .map(|tab| {
-                // Only capture pane_layout for multi-pane (Split) layouts.
-                // Single-pane tabs use pane_layout=None so that session restore
-                // uses the tab-level CWD (snapshot.cwd) without calling
-                // restore_pane_layout(). Capturing a Leaf here would cause
-                // restore_pane_layout() to spawn a second shell unnecessarily —
-                // and its Pane::Drop would kill the first shell via the shared Arc,
-                // leading to a window that closes on the first redraw after restore.
-                let pane_layout = tab.pane_manager.as_ref().and_then(|pm| pm.root()).and_then(
-                    |root| match root {
-                        PaneNode::Leaf(_) => None,
-                        PaneNode::Split { .. } => Some(capture_pane_node(root)),
-                    },
-                );
-
-                SessionTab {
-                    snapshot: TabSnapshot {
-                        cwd: tab.get_cwd(),
-                        title: tab.title.clone(),
-                        custom_color: tab.custom_color,
-                        user_title: if tab.user_named {
-                            Some(tab.title.clone())
-                        } else {
-                            None
-                        },
-                        pane_user_title: tab.sole_pane_user_title(),
-                        custom_icon: tab.custom_icon.clone(),
-                    },
-                    pane_layout,
-                }
+            .map(|tab| SessionTab {
+                snapshot: capture_tab_snapshot(tab),
             })
             .collect();
 
@@ -93,11 +65,45 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
     }
 }
 
+/// Snapshot one tab for session or arrangement persistence (PN11: both keep
+/// the pane tree).
+pub fn capture_tab_snapshot(tab: &crate::tab::Tab) -> TabSnapshot {
+    // Only capture pane_layout for multi-pane (Split) layouts. Single-pane
+    // tabs use pane_layout=None so that restore uses the tab-level CWD
+    // without calling restore_pane_layout(). Capturing a Leaf here would
+    // cause restore_pane_layout() to spawn a second shell unnecessarily —
+    // and its Pane::Drop would kill the first shell via the shared Arc,
+    // leading to a window that closes on the first redraw after restore.
+    let pane_layout =
+        tab.pane_manager
+            .as_ref()
+            .and_then(|pm| pm.root())
+            .and_then(|root| match root {
+                PaneNode::Leaf(_) => None,
+                PaneNode::Split { .. } => Some(capture_pane_node(root)),
+            });
+    TabSnapshot {
+        cwd: tab.get_cwd(),
+        title: tab.title.clone(),
+        custom_color: tab.custom_color,
+        user_title: if tab.user_named {
+            Some(tab.title.clone())
+        } else {
+            None
+        },
+        pane_user_title: tab.sole_pane_user_title(),
+        custom_icon: tab.custom_icon.clone(),
+        pane_layout,
+    }
+}
+
 /// Recursively capture a pane tree node into a session-serializable form
 pub fn capture_pane_node(node: &PaneNode) -> SessionPaneNode {
     match node {
         PaneNode::Leaf(pane) => SessionPaneNode::Leaf {
-            cwd: pane.get_cwd(),
+            // Without shell integration there is no live cwd; the directory
+            // the pane was started in is the next best.
+            cwd: pane.get_cwd().or_else(|| pane.working_directory.clone()),
             user_title: pane.user_named.then(|| pane.title.clone()),
         },
         PaneNode::Split {
@@ -111,5 +117,85 @@ pub fn capture_pane_node(node: &PaneNode) -> SessionPaneNode {
             first: Box::new(capture_pane_node(first)),
             second: Box::new(capture_pane_node(second)),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::capture_tab_snapshot;
+    use crate::pane::{Pane, PaneNode, SplitDirection};
+    use crate::tab::Tab;
+    use par_term_config::snapshot_types::SessionPaneNode;
+    use par_term_terminal::TerminalManager;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use tokio::sync::RwLock;
+
+    fn stub(id: crate::pane::PaneId, cwd: &str) -> Pane {
+        let terminal = TerminalManager::new_with_scrollback(20, 5, 0).expect("stub terminal");
+        Pane::new_wrapping_terminal(
+            id,
+            Arc::new(RwLock::new(terminal)),
+            Some(cwd.to_string()),
+            Arc::new(AtomicBool::new(false)),
+        )
+    }
+
+    fn leaf_cwd(node: &SessionPaneNode) -> Option<&str> {
+        match node {
+            SessionPaneNode::Leaf { cwd, .. } => cwd.as_deref(),
+            SessionPaneNode::Split { .. } => None,
+        }
+    }
+
+    /// PN11: the snapshot arrangements and Duplicate Tab share keeps a
+    /// split tab's pane tree with each leaf's directory; a single-pane tab
+    /// stores no tree.
+    #[test]
+    fn a_split_tab_snapshot_keeps_its_pane_tree() {
+        let mut tab = Tab::new_stub(1, 1);
+        assert!(
+            capture_tab_snapshot(&tab).pane_layout.is_none(),
+            "a single pane restores from the tab cwd"
+        );
+
+        tab.pane_manager_mut()
+            .expect("pm")
+            .set_root(PaneNode::split(
+                SplitDirection::Vertical,
+                0.3,
+                PaneNode::leaf(stub(1, "/left")),
+                PaneNode::split(
+                    SplitDirection::Horizontal,
+                    0.6,
+                    PaneNode::leaf(stub(2, "/top")),
+                    PaneNode::leaf(stub(3, "/bottom")),
+                ),
+            ));
+
+        let Some(SessionPaneNode::Split {
+            direction,
+            ratio,
+            first,
+            second,
+        }) = capture_tab_snapshot(&tab).pane_layout
+        else {
+            panic!("a split root is captured");
+        };
+        assert_eq!(direction, SplitDirection::Vertical);
+        assert!((ratio - 0.3).abs() < f32::EPSILON);
+        assert_eq!(leaf_cwd(&first), Some("/left"));
+        let SessionPaneNode::Split {
+            direction,
+            first,
+            second,
+            ..
+        } = *second
+        else {
+            panic!("the nested split is kept");
+        };
+        assert_eq!(direction, SplitDirection::Horizontal);
+        assert_eq!(leaf_cwd(&first), Some("/top"));
+        assert_eq!(leaf_cwd(&second), Some("/bottom"));
     }
 }

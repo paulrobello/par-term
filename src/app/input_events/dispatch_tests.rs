@@ -127,6 +127,8 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "split_left",
     "split_up",
     "toggle_pane_broadcast",
+    // UX P3b (A6), added deliberately.
+    "enter_resize_mode",
 ];
 
 /// Precedence order of the uniform shortcut layers in `handle_key_event`.

@@ -15,41 +15,23 @@ use super::super::window_state::WindowState;
 impl WindowState {
     /// Duplicate current tab
     pub fn duplicate_tab(&mut self) {
-        // Get current grid size from renderer
-        let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
-
-        match self.tab_manager.duplicate_active_tab(
-            &self.config.load(),
-            Arc::clone(&self.runtime),
-            grid_size,
-        ) {
-            Ok(Some(tab_id)) => {
-                // Start refresh task for the new tab
-                if let Some(window) = &self.window
-                    && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
-                {
-                    tab.start_refresh_task(
-                        Arc::clone(&self.runtime),
-                        Arc::clone(window),
-                        self.config.load().rendering.max_fps,
-                        self.config.load().power.inactive_tab_fps,
-                    );
-                }
-                self.focus_state.needs_redraw = true;
-                self.request_redraw();
-            }
-            Ok(None) => {
-                log::debug!("No active tab to duplicate");
-            }
-            Err(e) => {
-                log::error!("Failed to duplicate tab: {}", e);
-            }
+        match self.tab_manager.active_tab_id() {
+            Some(id) => self.duplicate_tab_by_id(id),
+            None => log::debug!("No active tab to duplicate"),
         }
     }
 
-    /// Duplicate a specific tab by ID
+    /// Duplicate a specific tab by ID: same cwd, color, and icon, and the
+    /// same pane layout with each pane in its source pane's directory
+    /// (PN11). A tmux or par-mux display tab's panes belong to the server,
+    /// so only its cwd is copied.
     pub fn duplicate_tab_by_id(&mut self, source_tab_id: crate::tab::TabId) {
         let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
+        let layout = self
+            .tab_manager
+            .get_tab(source_tab_id)
+            .filter(|t| t.tmux.tmux_pane_id.is_none() && !t.tmux.tmux_gateway_active)
+            .and_then(|t| crate::session::capture::capture_tab_snapshot(t).pane_layout);
 
         match self.tab_manager.duplicate_tab_by_id(
             source_tab_id,
@@ -58,15 +40,25 @@ impl WindowState {
             grid_size,
         ) {
             Ok(Some(tab_id)) => {
-                if let Some(window) = &self.window
-                    && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
-                {
-                    tab.start_refresh_task(
-                        Arc::clone(&self.runtime),
-                        Arc::clone(window),
-                        self.config.load().rendering.max_fps,
-                        self.config.load().power.inactive_tab_fps,
-                    );
+                let config = self.config.load_full();
+                if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+                    if let Some(layout) = &layout {
+                        tab.restore_pane_layout(layout, &config, Arc::clone(&self.runtime));
+                    }
+                    if let Some(window) = &self.window {
+                        tab.start_refresh_task(
+                            Arc::clone(&self.runtime),
+                            Arc::clone(window),
+                            config.rendering.max_fps,
+                            config.power.inactive_tab_fps,
+                        );
+                        tab.start_pane_refresh_tasks(
+                            Arc::clone(&self.runtime),
+                            Arc::clone(window),
+                            config.rendering.max_fps,
+                            config.power.inactive_tab_fps,
+                        );
+                    }
                 }
                 self.focus_state.needs_redraw = true;
                 self.request_redraw();

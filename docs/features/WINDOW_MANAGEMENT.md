@@ -10,6 +10,7 @@ par-term provides extensive window management features including edge-anchored w
 - [Window Title](#window-title)
 - [Prompt on Quit](#prompt-on-quit)
 - [Pane Title Bars](#pane-title-bars)
+- [Dimming Inactive Panes](#dimming-inactive-panes)
 - [Pane Divider Styles](#pane-divider-styles)
 - [Window Padding](#window-padding)
 - [Transparency](#transparency)
@@ -217,6 +218,7 @@ pane_title_height: 20.0                   # Height in pixels (14-30)
 pane_title_color: [200, 200, 200]         # Title text color (RGB)
 pane_title_bg_color: [40, 40, 50]         # Title background color (RGB)
 pane_title_font: ""                       # Title font family (empty falls back to main font)
+show_pane_numbers: false                  # Start each title with the pane's number (1, 2, ...)
 ```
 
 **Features:**
@@ -230,7 +232,20 @@ pane_title_font: ""                       # Title font family (empty falls back 
 
 A pane can be given a user title two ways: right-click its title bar (when `show_pane_titles` is on) and type a name, or trigger the bindable `rename_pane` action (also in the command palette as "Rename Pane"), which opens the same popup on the focused pane — title bars are not required for the action. Leave the field blank to revert to automatic titles.
 
-A user-named pane keeps its name when the program changes its OSC title or the directory changes — the same rule as a user-named tab. In a par-mux pane the name is pushed daemon-side (`select-pane -T`), so it survives detach and reattach, is visible to other clients, and can be used as a `-t` name target; a rename made from a shell (`par-mux -c`) or another client flows back through the `%pane-title-changed` notification. Local pane names persist per-leaf in saved sessions (and as the sole-pane title in saved arrangements); mux pane names persist through the daemon instead.
+A user-named pane keeps its name when the program changes its OSC title or the directory changes — the same rule as a user-named tab. In a par-mux pane the name is pushed daemon-side (`select-pane -T`), so it survives detach and reattach, is visible to other clients, and can be used as a `-t` name target; a rename made from a shell (`par-mux -c`) or another client flows back through the `%pane-title-changed` notification. Local pane names persist per-leaf in the windows restored on launch, in saved arrangements, and in a duplicated tab; mux pane names persist through the daemon instead.
+
+## Dimming Inactive Panes
+
+`dim_inactive_panes: true` dims every pane except the focused one. Two styles:
+
+| `inactive_pane_dim_mode` | Effect |
+|--------------------------|--------|
+| `darken` (default) | Colors fade toward black; text and backgrounds stay solid, so text stays readable over a background image or shader |
+| `fade` | The pane turns transparent, text included, letting a background image or shader show through |
+
+`inactive_pane_opacity` (0.3 to 1.0, default 0.7) is the brightness in `darken` mode and the opacity in `fade` mode. Inline images and per-pane background images are not dimmed.
+
+**Settings UI:** Settings > Window > Pane Appearance > "Dim inactive panes", then "Dim Style"
 
 ## Pane Divider Styles
 

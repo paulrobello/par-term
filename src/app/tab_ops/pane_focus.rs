@@ -64,7 +64,8 @@ impl WindowState {
     }
 
     /// Restart the focused pane's process in place (A9): `respawn-pane -k`
-    /// on a mux pane, a fresh shell in the same cwd on a local pane.
+    /// on a mux pane (the daemon reruns the pane's stored command), and on
+    /// a local pane the program it was started with, in its current cwd.
     pub(crate) fn restart_focused_pane(&mut self) {
         #[cfg(feature = "mux")]
         if self.restart_focused_mux_pane() {
@@ -102,6 +103,46 @@ impl WindowState {
         }
         self.focus_state.needs_redraw = true;
         self.request_redraw();
+    }
+
+    /// Pane hover focus (PN14, `pane_focus_follows_mouse`): focus the pane
+    /// under the pointer. Only a real change runs the focus tail, so moving
+    /// inside one pane never re-sends `select-pane` to a daemon. Skipped
+    /// while a button is held or a divider is dragged (a drag must not
+    /// change panes), while zoomed, in a modal mode or dialog, and in tmux
+    /// gateway tabs. Returns whether focus moved.
+    pub(crate) fn hover_focus_pane(&mut self, x: f32, y: f32) -> bool {
+        if !self.config.load().mouse.pane_focus_follows_mouse
+            || self.is_copy_mode_active()
+            || self.pane_hint_select.is_active()
+            || self.pane_resize_mode.is_active()
+            || self.any_modal_ui_visible()
+            || self.is_tmux_connected()
+        {
+            return false;
+        }
+        let Some(tab) = self.tab_manager.active_tab_mut() else {
+            return false;
+        };
+        let mouse = tab.active_mouse();
+        if mouse.button_pressed || mouse.is_selecting || mouse.dragging_divider.is_some() {
+            return false;
+        }
+        let Some(pm) = tab.pane_manager_mut() else {
+            return false;
+        };
+        if !pm.has_multiple_panes() || pm.is_zoomed() {
+            return false;
+        }
+        let Some(target) = pm.visible_pane_at(x, y).map(|p| p.id) else {
+            return false;
+        };
+        if pm.focused_pane_id() == Some(target) {
+            return false;
+        }
+        pm.focus_pane(target);
+        self.after_user_pane_focus();
+        true
     }
 
     /// The tail of every user-initiated pane focus change: route input to

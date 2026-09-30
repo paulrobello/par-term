@@ -83,6 +83,20 @@ pub(crate) fn pane_cell_overhead(
     (padding + scrollbar_inset, padding + title)
 }
 
+/// How an unfocused pane is dimmed (PN9): `(opacity, brightness)`
+/// multipliers. `darken` scales colors and keeps text opaque; `fade`
+/// lowers opacity, text included.
+pub(crate) fn inactive_pane_dim(config: &Config) -> (f32, f32) {
+    if !config.panes.dim_inactive_panes {
+        return (1.0, 1.0);
+    }
+    let level = config.panes.inactive_pane_opacity;
+    match config.panes.inactive_pane_dim_mode {
+        par_term_config::InactivePaneDimMode::Darken => (1.0, level),
+        par_term_config::InactivePaneDimMode::Fade => (level, 1.0),
+    }
+}
+
 /// Gather per-pane render data from the active tab's pane manager.
 ///
 /// This is a free function (not a `&mut self` method) so it can be called while
@@ -187,14 +201,17 @@ pub(super) fn gather_pane_render_data(
     let all_pane_ids: Vec<_> = pm.visible_panes().iter().map(|p| p.id).collect();
     let tab_pane_count = pm.pane_count();
     let zoomed_pane = pm.zoomed_pane_id();
+    // V7: tree-order numbers over every pane, so a zoomed pane keeps the
+    // number it has unzoomed (the identify overlay uses the same order).
+    let pane_numbers: Vec<_> = if config.panes.show_pane_numbers && tab_pane_count > 1 {
+        pm.all_panes().iter().map(|p| p.id).collect()
+    } else {
+        Vec::new()
+    };
     let dividers = pm.get_dividers();
 
     let pane_bg_opacity = config.panes.pane_background_opacity;
-    let inactive_opacity = if config.panes.dim_inactive_panes {
-        config.panes.inactive_pane_opacity
-    } else {
-        1.0
-    };
+    let (inactive_opacity, inactive_brightness) = inactive_pane_dim(config);
 
     // Title settings (all in physical pixels)
     let show_titles = config.panes.show_pane_titles;
@@ -315,6 +332,9 @@ pub(super) fn gather_pane_render_data(
             },
             viewport_padding,
         );
+        if !is_focused {
+            viewport.brightness = inactive_brightness;
+        }
         viewport.content_offset_x = center_offset_x;
         viewport.content_offset_y = center_offset_y;
 
@@ -336,6 +356,10 @@ pub(super) fn gather_pane_render_data(
                 title: crate::tab::pane_badges::decorate_pane_title(
                     pane.get_title(),
                     zoomed_pane == Some(*pane_id),
+                    pane_numbers
+                        .iter()
+                        .position(|id| id == pane_id)
+                        .map(|i| i + 1),
                 ),
                 focused: is_focused,
                 text_color: title_text_color,
@@ -859,5 +883,88 @@ mod copy_mode_cursor_tests {
 
     fn pm_get_pane(tab: &crate::tab::Tab, id: crate::pane::PaneId) -> Option<&crate::pane::Pane> {
         tab.pane_manager.as_ref()?.get_pane(id)
+    }
+
+    /// PN9: with `dim_inactive_panes` on, `darken` (the default) gives the
+    /// unfocused pane full opacity and reduced brightness; `fade` gives it
+    /// reduced opacity (the old behavior) and full brightness. The focused
+    /// pane is never dimmed.
+    #[test]
+    fn inactive_panes_darken_by_default_and_fade_on_request() {
+        use crate::pane::{Pane, PaneNode, SplitDirection};
+        use par_term_config::InactivePaneDimMode;
+
+        let (mut tab, _) = tab_with_fed_pane();
+        let stub = |id| {
+            Pane::new_wrapping_terminal(
+                id,
+                Arc::new(RwLock::new(
+                    TerminalManager::new_with_scrollback(40, 24, 0).expect("terminal"),
+                )),
+                None,
+                Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            )
+        };
+        let pm = tab.pane_manager.as_mut().expect("pm");
+        pm.set_root(PaneNode::split(
+            SplitDirection::Vertical,
+            0.5,
+            PaneNode::leaf(stub(1)),
+            PaneNode::leaf(stub(2)),
+        ));
+        pm.focus_pane(1);
+
+        let mut viewports = |config: &Config| -> Vec<(bool, f32, f32)> {
+            let (pane_data, ..) = gather_pane_render_data(
+                &mut tab,
+                config,
+                &sizing_80x24(),
+                0.0,
+                1.0,
+                2,
+                PaneLayoutOptions {
+                    scrollbar_inset: 0.0,
+                    mux_attached: false,
+                },
+                &CopyModeState::new(),
+            )
+            .expect("pane data");
+            pane_data
+                .iter()
+                .map(|p| {
+                    (
+                        p.viewport.focused,
+                        p.viewport.opacity,
+                        p.viewport.brightness,
+                    )
+                })
+                .collect()
+        };
+
+        let mut config = Config::default();
+        config.panes.dim_inactive_panes = true;
+        config.panes.inactive_pane_opacity = 0.6;
+        assert_eq!(
+            config.panes.inactive_pane_dim_mode,
+            InactivePaneDimMode::Darken
+        );
+        assert_eq!(
+            viewports(&config),
+            vec![(true, 1.0, 1.0), (false, 1.0, 0.6)],
+            "darken keeps opacity and lowers brightness"
+        );
+
+        config.panes.inactive_pane_dim_mode = InactivePaneDimMode::Fade;
+        assert_eq!(
+            viewports(&config),
+            vec![(true, 1.0, 1.0), (false, 0.6, 1.0)],
+            "fade lowers opacity, as before PN9"
+        );
+
+        config.panes.dim_inactive_panes = false;
+        assert_eq!(
+            viewports(&config),
+            vec![(true, 1.0, 1.0), (false, 1.0, 1.0)]
+        );
     }
 }

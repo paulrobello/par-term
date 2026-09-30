@@ -190,7 +190,7 @@ impl WindowState {
             return;
         }
         // Fall through to local split if tmux command failed or not connected
-        self.split_pane_direction(crate::pane::SplitDirection::Horizontal, true, None, 50);
+        self.user_split(crate::pane::SplitDirection::Horizontal, false);
     }
 
     /// Split the current pane vertically (panes side by side)
@@ -208,7 +208,26 @@ impl WindowState {
             return;
         }
         // Fall through to local split if tmux command failed or not connected
-        self.split_pane_direction(crate::pane::SplitDirection::Vertical, true, None, 50);
+        self.user_split(crate::pane::SplitDirection::Vertical, false);
+    }
+
+    /// A keyboard or menu split of a local tab: the new pane is focused and
+    /// the tab is rebalanced per `split_balance` (PN7). Trigger and snippet
+    /// splits pass their own percent through `split_pane_direction` and are
+    /// never rebalanced.
+    pub(crate) fn user_split(&mut self, direction: crate::pane::SplitDirection, before: bool) {
+        let Some(new_pane) = self.split_pane_placed(direction, before, true, None, 50) else {
+            return;
+        };
+        let balance = self.config.load().panes.split_balance;
+        let rebalanced = self
+            .tab_manager
+            .active_tab_mut()
+            .and_then(|t| t.pane_manager_mut())
+            .is_some_and(|pm| pm.balance_after_split(new_pane, balance));
+        if rebalanced {
+            self.after_pane_layout_change();
+        }
     }
 
     /// Close the focused pane in the current tab

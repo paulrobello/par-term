@@ -382,3 +382,69 @@ fn attached_split_left_places_the_new_pane_before_the_focused_one() {
     );
     let _ = std::fs::remove_file(&path);
 }
+
+/// Equalize (A3) in an attached tab: after a resize skews the split, the
+/// mirror computes equal sizes and sends them as absolute `resize-pane`;
+/// the daemon's panes come back within a cell of each other and a second
+/// client sees the `%layout-change`.
+#[test]
+fn attached_equalize_evens_the_daemon_panes() {
+    let (mut ws, second, path) = attached_split("p3b-equalize");
+    send(&ws, "refresh-client -t %0 -C 80x24");
+    drain_until(&mut ws, "mirror adopts the daemon grid", |ws| {
+        ws.tmux_state
+            .tmux_pane_owner(0)
+            .is_some_and(|(tab, native)| {
+                ws.tab_manager
+                    .get_tab(tab)
+                    .and_then(|t| t.pane_manager())
+                    .and_then(|pm| pm.get_pane(native))
+                    .and_then(|p| p.terminal.try_read().ok().map(|t| t.dimensions().0))
+                    == Some(daemon_size(ws, 0).0 as usize)
+            })
+    });
+    send(&ws, "resize-pane -t %0 -x 60");
+    drain_until(&mut ws, "skewed layout mirrored", |ws| {
+        daemon_size(ws, 0).0 >= 55
+    });
+    while second.notifications().try_recv().is_ok() {}
+
+    ws.equalize_panes();
+    second_sees(&second, "the equalize layout", |n| {
+        matches!(n, TmuxNotification::LayoutChange { .. })
+    });
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let (a, b) = (daemon_size(&ws, 0).0, daemon_size(&ws, 1).0);
+        if a.abs_diff(b) <= 1 {
+            break;
+        }
+        assert!(Instant::now() < deadline, "never evened out: {a} vs {b}");
+        ws.check_mux_notifications();
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    let _ = std::fs::remove_file(&path);
+}
+
+/// Layout presets (A4) are refused in an attached tab with a toast, and
+/// the daemon layout is untouched: core 0.57 has no `select-layout`, and
+/// a structural preset needs panes moved daemon-side (documented bound).
+#[test]
+fn attached_layout_presets_are_refused_and_leave_the_daemon_layout() {
+    let (mut ws, _second, path) = attached_split("p3b-preset");
+    let before = (daemon_size(&ws, 0), daemon_size(&ws, 1));
+    for preset in crate::pane::LayoutPreset::ALL {
+        ws.overlay_state.toast_message = None;
+        ws.apply_layout_preset(preset);
+        let toast = ws.overlay_state.toast_message.clone().unwrap_or_default();
+        assert!(
+            toast.contains("not available in par-mux tabs"),
+            "{}: {toast:?}",
+            preset.name()
+        );
+    }
+    std::thread::sleep(Duration::from_millis(200));
+    ws.check_mux_notifications();
+    assert_eq!((daemon_size(&ws, 0), daemon_size(&ws, 1)), before);
+    let _ = std::fs::remove_file(&path);
+}

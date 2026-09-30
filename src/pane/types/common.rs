@@ -15,14 +15,8 @@ pub enum RestartState {
     AwaitingDelay(std::time::Instant),
 }
 
-/// Direction of a split
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum SplitDirection {
-    /// Panes are stacked vertically (split creates top/bottom panes)
-    Horizontal,
-    /// Panes are side by side (split creates left/right panes)
-    Vertical,
-}
+// Defined beside the persisted pane tree that stores it.
+pub use par_term_config::snapshot_types::SplitDirection;
 
 /// Direction for pane navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

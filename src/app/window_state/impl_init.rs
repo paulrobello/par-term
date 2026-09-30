@@ -116,6 +116,7 @@ impl WindowState {
 
             pane_transfer_state: Default::default(),
             pane_hint_select: Default::default(),
+            pane_resize_mode: Default::default(),
 
             badge_state,
 

@@ -3,6 +3,7 @@
 //! This module handles saving the current window layout as a named arrangement,
 //! restoring arrangements by ID or name, and CRUD operations on stored arrangements.
 
+use std::sync::Arc;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
@@ -172,24 +173,28 @@ impl WindowManager {
                         log::warn!("Arrangement restore: tmux auto-connect failed: {}", e);
                     }
                 } else {
-                    // Non-tmux window: restore user titles, custom colors, and icons
+                    // Non-tmux window: restore pane layouts (PN11), user
+                    // titles, custom colors, and icons
                     let tabs = window_state.tab_manager.tabs_mut();
                     for (tab_idx, snapshot) in window_snapshot.tabs.iter().enumerate() {
                         if let Some(tab) = tabs.get_mut(tab_idx) {
-                            if let Some(ref user_title) = snapshot.user_title {
-                                tab.set_title(user_title);
-                                tab.user_named = true;
-                                // has_default_title = false is already set by set_title()
-                            }
-                            if let Some(ref pane_title) = snapshot.pane_user_title {
-                                tab.restore_sole_pane_title(pane_title);
-                            }
-                            if let Some(color) = snapshot.custom_color {
-                                tab.set_custom_color(color);
-                            }
-                            if let Some(ref icon) = snapshot.custom_icon {
-                                tab.custom_icon = Some(icon.clone());
-                            }
+                            crate::session::restore::apply_tab_snapshot(
+                                tab,
+                                snapshot,
+                                &self.config.load(),
+                                Arc::clone(&self.runtime),
+                            );
+                        }
+                    }
+                    // Restored panes need refresh tasks to redraw on output.
+                    if let Some(win) = &window_state.window {
+                        for tab in window_state.tab_manager.tabs_mut() {
+                            tab.start_pane_refresh_tasks(
+                                Arc::clone(&self.runtime),
+                                Arc::clone(win),
+                                self.config.load().rendering.max_fps,
+                                self.config.load().power.inactive_tab_fps,
+                            );
                         }
                     }
                 }

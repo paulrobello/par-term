@@ -97,6 +97,9 @@ pub struct StatusBarUI {
     pub agent_roster_summary: Option<String>,
     /// Hover text for the agent-roster widget; `None` hides the tooltip.
     pub agent_roster_tooltip: Option<String>,
+    /// Receiving pane count for the broadcast widget (V5), refreshed by
+    /// the render pipeline; `None` while broadcast is off.
+    pub broadcast_receivers: Option<usize>,
     /// Agent-usage records store (watched directory + snapshot). Lives here
     /// with the other background-data pollers; the popup panel reads it via
     /// [`StatusBarUI::usage_snapshot`].
@@ -137,6 +140,7 @@ impl StatusBarUI {
             update_available_version: None,
             agent_roster_summary: None,
             agent_roster_tooltip: None,
+            broadcast_receivers: None,
             usage: UsageStore::new(crate::agent_usage::default_records_dir()),
             usage_update: UpdateRunner::new(),
             plugins: PluginHost::new(),
@@ -354,6 +358,7 @@ impl StatusBarUI {
             agent_usage_summary: self.usage.summary_line(),
             agent_roster_summary: self.agent_roster_summary.clone(),
             agent_roster_tooltip: self.agent_roster_tooltip.clone(),
+            broadcast_receivers: self.broadcast_receivers,
             plugin_texts: self.plugins.widget_texts().clone(),
         };
 

@@ -30,9 +30,10 @@
 //!
 //! # Shared types
 //!
-//! The common per-tab fields (`cwd`, `title`, `custom_color`, `user_title`,
-//! `custom_icon`) are defined once in [`par_term_config::snapshot_types::TabSnapshot`]
-//! and are embedded into [`SessionTab`] via `#[serde(flatten)]`.  The arrangements
+//! The per-tab fields (`cwd`, `title`, `custom_color`, `user_title`,
+//! `custom_icon`, `pane_layout`) are defined once in
+//! [`par_term_config::snapshot_types::TabSnapshot`] and wrapped by
+//! [`SessionTab`] via `#[serde(transparent)]`.  The arrangements
 //! module re-exports the same type directly, eliminating the previous duplication.
 //! Existing YAML session files are fully backward-compatible — all fields remain at
 //! the same nesting level.
@@ -42,9 +43,9 @@ pub mod crash_guard;
 pub mod restore;
 pub mod storage;
 
-// Re-export TabSnapshot so session consumers can use `crate::session::TabSnapshot`.
-use crate::pane::SplitDirection;
-pub use par_term_config::snapshot_types::TabSnapshot;
+// Re-export the shared snapshot types so session consumers can use
+// `crate::session::TabSnapshot` / `crate::session::SessionPaneNode`.
+pub use par_term_config::snapshot_types::{SessionPaneNode, TabSnapshot};
 use serde::{Deserialize, Serialize};
 
 /// Top-level session state: all windows at the time of save
@@ -80,44 +81,15 @@ pub struct SessionWindow {
 
 /// A single tab in a saved session.
 ///
-/// The common tab fields (`cwd`, `title`, `custom_color`, `user_title`,
-/// `custom_icon`) are inherited from [`TabSnapshot`] via `#[serde(flatten)]`
-/// so that the serialized YAML layout is unchanged from before this refactor.
-/// The session-specific field `pane_layout` is appended alongside the flattened
-/// fields in the output.
+/// Serialized exactly as its [`TabSnapshot`] (`transparent`), so the YAML
+/// layout is unchanged: `pane_layout` stays a key of each tab. Not
+/// `flatten`: a flattened struct buffers its fields, and the YAML-tagged
+/// `SessionPaneNode` cannot be read back out of that buffer.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(transparent)]
 pub struct SessionTab {
-    /// Common tab snapshot fields shared with the arrangements module
-    #[serde(flatten)]
+    /// Tab snapshot fields shared with the arrangements module
     pub snapshot: TabSnapshot,
-    /// Pane layout tree (None = single pane, use cwd above)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pane_layout: Option<SessionPaneNode>,
-}
-
-/// Recursive pane tree node for session persistence
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SessionPaneNode {
-    /// A terminal pane leaf
-    Leaf {
-        /// Working directory of this pane
-        cwd: Option<String>,
-        /// User-set title of this pane (present only when the pane was
-        /// user-named at save time; automatic titles are re-derived)
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        user_title: Option<String>,
-    },
-    /// A split containing two children
-    Split {
-        /// Split direction
-        direction: SplitDirection,
-        /// Split ratio (0.0-1.0)
-        ratio: f32,
-        /// First child (top/left)
-        first: Box<SessionPaneNode>,
-        /// Second child (bottom/right)
-        second: Box<SessionPaneNode>,
-    },
 }
 
 #[cfg(test)]

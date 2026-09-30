@@ -183,6 +183,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("cycle_layout", "Cycle Layout Presets", None),
     ("split_left", "Split Left", None),
     ("split_up", "Split Up", None),
+    ("enter_resize_mode", "Resize Panes with Arrow Keys", None),
     // The font-size layer in the root crate uses the super key on macOS
     // (`font_mod = super_key` under `#[cfg(target_os = "macos")]`), so Ctrl does
     // not drive these actions here.
@@ -390,6 +391,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("cycle_layout", "Cycle Layout Presets", None),
     ("split_left", "Split Left", None),
     ("split_up", "Split Up", None),
+    ("enter_resize_mode", "Resize Panes with Arrow Keys", None),
     // Unbound here (UX.md K16): editors use Alt+Shift+Arrow and Windows
     // switches input language on Alt+Shift.
     ("swap_pane_left", "Swap Pane Left", None),

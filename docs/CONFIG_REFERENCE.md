@@ -246,6 +246,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `mouse_triple_click_threshold` | `u64` | `500` | Triple-click timing threshold in ms |
 | `option_click_moves_cursor` | `bool` | `true` | Option+Click / Alt+Click moves text cursor to clicked position |
 | `focus_follows_mouse` | `bool` | `false` | Focus window when mouse enters (no click required) |
+| `pane_focus_follows_mouse` | `bool` | `false` | Focus the split pane under the pointer as it moves (no click required); waits while a button is held and does nothing while a pane is zoomed |
 | `report_horizontal_scroll` | `bool` | `true` | Report horizontal scroll to terminal applications |
 
 ---
@@ -414,14 +415,19 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `pane_divider_hit_width` | `f32` | `8.0` | Drag-target width for resizing panes; double-click a divider to equalize its split |
 | `pane_padding` | `f32` | `1.0` | Padding inside each pane in pixels |
 | `pane_min_size` | `usize` | `10` | Minimum pane size in terminal cells; enforced on split, divider drag, keyboard resize, equalize, and layout presets |
+| `pane_resize_step` | `f32` | `5.0` | Percent of the enclosing split one keyboard resize press moves a divider (resize actions and resize mode arrows; `Shift` + arrow in resize mode moves one cell) |
 | `pane_background_opacity` | `f32` | `1.0` | Pane background opacity (allows shader/image show-through) |
 | `pane_divider_style` | `enum` | `solid` | Divider style: `solid`, `double`, `dashed`, `shadow` |
 | `pane_divider_color` | `[u8;3]` | `[80,80,80]` | Divider line color |
 | `pane_divider_hover_color` | `[u8;3]` | `[120,150,200]` | Divider color on hover (resize feedback) |
 | `max_panes` | `usize` | `16` | Maximum panes per tab (0=unlimited) |
+| `split_balance` | `enum` | `none` | Rebalance after a keyboard or menu split: `none` (halve the split pane), `siblings` (even out the row or column the new pane joined), `all` (equalize the whole tab). Trigger and snippet splits keep their own percent; par-mux tabs keep the daemon's layout |
+| `split_inherits_profile` | `bool` | `true` | A split of a profile tab runs the tab's profile program (its SSH connection, command, or shell) instead of the default shell; profiles that attach a tmux or par-mux session are never inherited |
 | `dim_inactive_panes` | `bool` | `false` | Visually dim inactive panes |
-| `inactive_pane_opacity` | `f32` | `0.7` | Inactive pane opacity |
+| `inactive_pane_dim_mode` | `enum` | `darken` | How inactive panes dim: `darken` (colors toward black, text stays solid) or `fade` (the pane turns transparent, text included) |
+| `inactive_pane_opacity` | `f32` | `0.7` | Dim level for inactive panes: brightness in `darken` mode, opacity in `fade` mode |
 | `show_pane_titles` | `bool` | `false` | Show title bar on each pane |
+| `show_pane_numbers` | `bool` | `false` | Start each pane title with the pane's number in layout order (needs `show_pane_titles`) |
 | `pane_title_height` | `f32` | `20.0` | Pane title bar height in pixels |
 | `pane_title_position` | `enum` | `top` | Title bar position: `top`, `bottom` |
 | `pane_title_color` | `[u8;3]` | `[200,200,200]` | Pane title text color |

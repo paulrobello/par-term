@@ -191,6 +191,73 @@ pub(super) fn show_panes_section(
             });
         });
 
+        ui.horizontal(|ui| {
+            ui.label("Keyboard Resize Step:");
+            if ui
+                .add(
+                    egui::Slider::new(&mut settings.config.panes.pane_resize_step, 1.0..=25.0)
+                        .suffix(" %"),
+                )
+                .on_hover_text(
+                    "How far one resize key press moves a divider, as a percent of its split. \
+                     In resize mode, holding the modifier while pressing an arrow moves one cell.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.panes.pane_resize_step
+            });
+        });
+
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new("New Panes").strong());
+
+        if ui
+            .checkbox(
+                &mut settings.config.panes.split_inherits_profile,
+                "Splits run the tab's profile program",
+            )
+            .on_hover_text(
+                "Splitting a tab opened from a profile runs that profile's SSH connection, \
+                 command, or shell in the new pane. Off: new panes run the default shell.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.horizontal(|ui| {
+            ui.label("Balance After Split:");
+            let current = settings.config.panes.split_balance;
+            egui::ComboBox::from_id_salt("split_balance")
+                .selected_text(current.display_name())
+                .show_ui(ui, |ui| {
+                    for balance in par_term_config::SplitBalance::ALL {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.panes.split_balance,
+                                *balance,
+                                balance.display_name(),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                })
+                .response
+                .on_hover_text(
+                    "After a split from the keyboard or menu, resize panes so repeated \
+                     splits don't shrink to 50/25/12.5%. Triggers and snippets keep \
+                     their own sizes.",
+                );
+        });
+
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Keyboard Shortcuts").weak().small());
         // DOC13: the live bindings, so a rebind shows here and an unbound
@@ -208,6 +275,7 @@ const PANE_HINT_ACTIONS: &[(&str, &str)] = &[
     ("close_pane", "Close pane"),
     ("navigate_pane_left", "Focus left (arrows likewise)"),
     ("resize_pane_left", "Resize left (arrows likewise)"),
+    ("enter_resize_mode", "Resize mode"),
     ("swap_pane_left", "Swap left (arrows likewise)"),
     ("select_pane_hint", "Select pane by letter"),
     ("toggle_broadcast_input", "Broadcast input"),
@@ -277,7 +345,7 @@ pub(super) fn show_pane_appearance_section(
                     &mut settings.config.panes.dim_inactive_panes,
                     "Dim inactive panes",
                 )
-                .on_hover_text("Reduce opacity of panes that don't have focus")
+                .on_hover_text("Dim panes that don't have focus")
                 .changed()
             {
                 settings.has_changes = true;
@@ -290,15 +358,51 @@ pub(super) fn show_pane_appearance_section(
                 "Dim inactive panes",
                 |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Inactive Opacity:");
+                        ui.label("Dim Style:");
+                        let current = settings.config.panes.inactive_pane_dim_mode;
+                        egui::ComboBox::from_id_salt("inactive_pane_dim_mode")
+                            .selected_text(current.display_name())
+                            .show_ui(ui, |ui| {
+                                for mode in par_term_config::InactivePaneDimMode::ALL {
+                                    if ui
+                                        .selectable_value(
+                                            &mut settings.config.panes.inactive_pane_dim_mode,
+                                            *mode,
+                                            mode.display_name(),
+                                        )
+                                        .changed()
+                                    {
+                                        settings.has_changes = true;
+                                        *changes_this_frame = true;
+                                    }
+                                }
+                            })
+                            .response
+                            .on_hover_text(
+                                "Darken: colors fade toward black and text stays solid. \
+                                 Fade: the pane turns transparent, text included, so a \
+                                 background image or shader shows through.",
+                            );
+                    });
+
+                    let fade = settings.config.panes.inactive_pane_dim_mode
+                        == par_term_config::InactivePaneDimMode::Fade;
+                    ui.horizontal(|ui| {
+                        ui.label(if fade {
+                            "Inactive Opacity:"
+                        } else {
+                            "Inactive Brightness:"
+                        });
                         if ui
                             .add(crate::units::percent(egui::Slider::new(
                                 &mut settings.config.panes.inactive_pane_opacity,
                                 0.3..=1.0,
                             )))
-                            .on_hover_text(
-                                "Opacity level for unfocused panes (1.0 = fully visible)",
-                            )
+                            .on_hover_text(if fade {
+                                "Opacity of unfocused panes (1.0 = fully visible)"
+                            } else {
+                                "Brightness of unfocused panes (1.0 = unchanged)"
+                            })
                             .changed()
                         {
                             settings.has_changes = true;
@@ -331,6 +435,20 @@ pub(super) fn show_pane_appearance_section(
                 settings.config.panes.show_pane_titles,
                 "Show pane titles",
                 |ui| {
+                    if ui
+                        .checkbox(
+                            &mut settings.config.panes.show_pane_numbers,
+                            "Show pane numbers in titles",
+                        )
+                        .on_hover_text(
+                            "Start each pane title with the pane's number (1, 2, ... in layout order)",
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
                     ui.horizontal(|ui| {
                         ui.label("Title Height:");
                         if ui

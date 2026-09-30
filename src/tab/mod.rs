@@ -13,6 +13,7 @@ mod manager_nav;
 mod pane_accessors;
 pub(crate) mod pane_badges;
 mod pane_ops;
+mod profile_launch;
 mod profile_state;
 mod profile_tracking;
 mod refresh_task;
@@ -135,6 +136,10 @@ pub struct Tab {
     pub(crate) is_hidden: bool,
     /// Broadcast input to every pane in this tab (UX.md V5; per tab, D8).
     pub(crate) broadcast_input: bool,
+    /// The program this tab's profile runs (its command, SSH connection, or
+    /// shell), which splits inherit when `split_inherits_profile` is on
+    /// (UX.md D5). `None` for a tab running the configured shell.
+    pub(crate) profile_launch: Option<crate::pane::LaunchCommand>,
     /// Last-known modifyOtherKeys level. Updated on every successful read of
     /// `terminal` from the input path; read as a fallback when `try_read()`
     /// fails. Lock contention with the renderer (`try_write` on every frame in

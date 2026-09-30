@@ -151,6 +151,7 @@ mod tests {
                     user_title: None,
                     pane_user_title: None,
                     custom_icon: None,
+                    pane_layout: None,
                 }],
                 active_tab_index: 0,
                 tmux_session_name: None,
@@ -209,6 +210,7 @@ mod tests {
                         user_title: Some("My Custom Tab".to_string()),
                         pane_user_title: None,
                         custom_icon: Some("🔥".to_string()),
+                        pane_layout: None,
                     },
                     TabSnapshot {
                         cwd: Some("/tmp".to_string()),
@@ -217,6 +219,7 @@ mod tests {
                         user_title: None,
                         pane_user_title: None,
                         custom_icon: Some("📁".to_string()),
+                        pane_layout: None,
                     },
                     TabSnapshot {
                         cwd: None,
@@ -225,6 +228,7 @@ mod tests {
                         user_title: None,
                         pane_user_title: None,
                         custom_icon: None,
+                        pane_layout: None,
                     },
                 ],
                 active_tab_index: 1,
@@ -299,6 +303,89 @@ mod tests {
             .mode()
             & 0o777;
         assert_eq!(mode, 0o600, "expected 0600, got {mode:o}");
+    }
+
+    /// PN11: an arrangement keeps a tab's pane tree across save and load,
+    /// and an arrangement file written before pane trees were stored (no
+    /// `pane_layout` key) still loads, as single-pane tabs.
+    #[test]
+    fn arrangements_round_trip_pane_trees_and_old_files_load() {
+        use par_term_config::snapshot_types::{SessionPaneNode, SplitDirection};
+        let temp = tempdir().expect("failed to create temp dir");
+        let path = temp.path().join("arrangements.yaml");
+
+        let mut manager = ArrangementManager::new();
+        manager.add(WindowArrangement {
+            id: Uuid::new_v4(),
+            name: "Split".to_string(),
+            monitor_layout: Vec::new(),
+            windows: vec![WindowSnapshot {
+                monitor: MonitorInfo {
+                    name: None,
+                    index: 0,
+                    position: (0, 0),
+                    size: (1920, 1080),
+                    scale_factor: 1.0,
+                },
+                position_relative: (0, 0),
+                size: (800, 600),
+                tabs: vec![TabSnapshot {
+                    cwd: Some("/work".to_string()),
+                    title: "work".to_string(),
+                    pane_layout: Some(SessionPaneNode::Split {
+                        direction: SplitDirection::Horizontal,
+                        ratio: 0.25,
+                        first: Box::new(SessionPaneNode::Leaf {
+                            cwd: Some("/work/a".to_string()),
+                            user_title: Some("logs".to_string()),
+                        }),
+                        second: Box::new(SessionPaneNode::Leaf {
+                            cwd: Some("/work/b".to_string()),
+                            user_title: None,
+                        }),
+                    }),
+                    ..TabSnapshot::default()
+                }],
+                active_tab_index: 0,
+                tmux_session_name: None,
+                mux_session_name: None,
+            }],
+            created_at: String::new(),
+            order: 0,
+        });
+        save_arrangements_to(&manager, path.clone()).expect("save");
+        let loaded = load_arrangements_from(path).expect("load");
+        let tab = &loaded.arrangements_ordered()[0].windows[0].tabs[0];
+        let Some(SessionPaneNode::Split {
+            direction, first, ..
+        }) = &tab.pane_layout
+        else {
+            panic!("the pane tree survives the round trip");
+        };
+        assert_eq!(*direction, SplitDirection::Horizontal);
+        assert!(matches!(
+            first.as_ref(),
+            SessionPaneNode::Leaf { user_title, .. } if user_title.as_deref() == Some("logs")
+        ));
+
+        let old = "\
+- id: 00000000-0000-0000-0000-000000000001
+  name: Old
+  monitor_layout: []
+  windows:
+    - monitor: { index: 0, position: [0, 0], size: [1920, 1080] }
+      position_relative: [0, 0]
+      size: [800, 600]
+      tabs:
+        - cwd: /home/user
+          title: bash
+";
+        let old_path = temp.path().join("old.yaml");
+        std::fs::write(&old_path, old).expect("write old file");
+        let loaded = load_arrangements_from(old_path).expect("old file loads");
+        let tab = &loaded.arrangements_ordered()[0].windows[0].tabs[0];
+        assert_eq!(tab.cwd.as_deref(), Some("/home/user"));
+        assert!(tab.pane_layout.is_none());
     }
 
     #[test]

@@ -124,10 +124,11 @@ impl CellRenderer {
                 ]
             };
             let alpha = self.window_opacity as f64 * viewport.opacity as f64;
+            let shade = alpha * viewport.brightness as f64;
             wgpu::Color {
-                r: base[0] as f64 * alpha,
-                g: base[1] as f64 * alpha,
-                b: base[2] as f64 * alpha,
+                r: base[0] as f64 * shade,
+                g: base[1] as f64 * shade,
+                b: base[2] as f64 * shade,
                 a: alpha,
             }
         });

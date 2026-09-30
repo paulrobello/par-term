@@ -95,6 +95,16 @@ pub(super) struct PaneInstanceRanges {
     pub text: std::ops::Range<usize>,
 }
 
+/// Scale a straight-alpha color's RGB by `brightness`, keeping alpha.
+pub(crate) fn darken_rgb(color: [f32; 4], brightness: f32) -> [f32; 4] {
+    [
+        color[0] * brightness,
+        color[1] * brightness,
+        color[2] * brightness,
+        color[3],
+    ]
+}
+
 /// Instance capacity one pane needs, given its grid size.
 ///
 /// Background: viewport fill + at most one RLE-merged quad per cell + one
@@ -287,6 +297,18 @@ impl CellRenderer {
             );
         }
 
+        // Inactive-pane darkening (PN9): one pass over everything this pane
+        // emitted — fill, cells, glyphs, block characters, separators —
+        // scaling RGB and leaving alpha, so dimmed text stays opaque.
+        if viewport.brightness < 1.0 {
+            for bg in &mut self.bg_instances[bg_base..bg_index] {
+                bg.color = darken_rgb(bg.color, viewport.brightness);
+            }
+            for text in &mut self.text_instances[text_base..text_index] {
+                text.color = darken_rgb(text.color, viewport.brightness);
+            }
+        }
+
         // Advance the batch cursors past this pane's region.
         self.buffers.pane_bg_cursor = bg_index;
         self.buffers.pane_text_cursor = text_index;
@@ -345,5 +367,18 @@ impl CellRenderer {
             cursor_overlays: cursor_overlay_start..bg_index,
             text: text_base..text_index,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::darken_rgb;
+
+    /// PN9: darkening scales RGB and never touches alpha, so a dimmed
+    /// glyph stays as opaque as a focused one.
+    #[test]
+    fn darken_scales_rgb_and_keeps_alpha() {
+        assert_eq!(darken_rgb([1.0, 0.5, 0.2, 0.9], 0.5), [0.5, 0.25, 0.1, 0.9]);
+        assert_eq!(darken_rgb([0.3, 0.3, 0.3, 1.0], 1.0), [0.3, 0.3, 0.3, 1.0]);
     }
 }

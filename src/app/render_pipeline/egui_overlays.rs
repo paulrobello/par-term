@@ -597,9 +597,10 @@ pub(super) fn render_broadcast_outlines(ctx: &egui::Context, panes: &[crate::pan
 /// Broadcast outline color: amber, distinct from the focus indicator.
 const BROADCAST_OUTLINE_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 176, 32);
 
-/// Badge entries for the pane-hint selection mode: (letter, pane bounds).
+/// Badge entries for the pane-hint selection mode: (label, pane bounds).
 pub(super) struct PaneHintBadge {
-    pub(super) letter: char,
+    /// One letter, or two once a tab has more than 26 panes (V7).
+    pub(super) label: String,
     pub(super) bounds: crate::pane::PaneBounds,
 }
 
@@ -631,8 +632,12 @@ pub(super) fn render_pane_hint_overlay(ctx: &egui::Context, badges: &[PaneHintBa
         painter.text(
             center,
             egui::Align2::CENTER_CENTER,
-            badge.letter.to_string(),
-            egui::FontId::monospace(32.0),
+            &badge.label,
+            egui::FontId::monospace(if badge.label.chars().count() > 1 {
+                24.0
+            } else {
+                32.0
+            }),
             egui::Color32::from_rgb(100, 200, 255),
         );
     }

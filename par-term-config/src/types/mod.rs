@@ -41,8 +41,8 @@ pub use integration::{
 pub use keybinding::{KeyBinding, KeyModifier};
 pub use rendering::{
     BackgroundImageMode, BackgroundMode, DividerRect, DividerStyle, ImageScalingMode,
-    PaneBackground, PaneBackgroundConfig, PaneId, PaneTitlePosition, PowerPreference,
-    SeparatorMark, TabId, VsyncMode,
+    InactivePaneDimMode, PaneBackground, PaneBackgroundConfig, PaneId, PaneTitlePosition,
+    PowerPreference, SeparatorMark, SplitBalance, TabId, VsyncMode,
 };
 pub use selection::{SmartSelectionPrecision, SmartSelectionRule, default_smart_selection_rules};
 pub use shader::{

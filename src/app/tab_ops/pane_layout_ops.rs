@@ -7,14 +7,19 @@
 //! layout push, and a second client would never see it (M7).
 
 use crate::app::window_state::WindowState;
-use crate::pane::{LayoutPreset, NavigationDirection, SplitDirection};
-
-/// Fraction of the enclosing split an arrow resize moves the divider by.
-const RESIZE_STEP: f32 = 0.05;
+use crate::pane::{LayoutPreset, NavigationDirection, ResizeStep, SplitDirection};
 
 impl WindowState {
     /// Move the divider nearest the focused pane in the arrow's direction
-    /// (PN3), never past `pane_min_size` (PN4).
+    /// by `pane_resize_step` percent of its split (PN3), never past
+    /// `pane_min_size` (PN4).
+    pub fn resize_pane(&mut self, direction: NavigationDirection) {
+        let step = self.config.load().panes.pane_resize_step.clamp(0.5, 50.0) / 100.0;
+        self.resize_pane_by(direction, ResizeStep::Fraction(step));
+    }
+
+    /// [`Self::resize_pane`] with an explicit step (resize mode's
+    /// Shift+arrow moves one cell, A6).
     ///
     /// Attached tabs run the same resize on the mirror and send the result
     /// as absolute pane sizes (the divider-drag path), which the daemon
@@ -23,14 +28,14 @@ impl WindowState {
     /// divider it sits on and reaches only its direct parent split, so it
     /// cannot express "move the divider in the arrow's direction" for a
     /// right-hand pane or a nested layout.
-    pub fn resize_pane(&mut self, direction: NavigationDirection) {
+    pub(crate) fn resize_pane_by(&mut self, direction: NavigationDirection, step: ResizeStep) {
         let moved = self
             .tab_manager
             .active_tab_mut()
             .and_then(|tab| tab.pane_manager_mut())
             .and_then(|pm| {
                 let focused = pm.focused_pane_id()?;
-                Some(pm.resize_toward(focused, direction, RESIZE_STEP))
+                Some(pm.resize_toward_by(focused, direction, step))
             });
         if moved == Some(true) {
             let horizontal_divider = matches!(
@@ -132,7 +137,7 @@ impl WindowState {
         if self.refuse_in_tmux_gateway("Split left/up") {
             return;
         }
-        self.split_pane_placed(direction, true, true, None, 50);
+        self.user_split(direction, true);
     }
 
     /// Attached tabs: the daemon has no `select-layout`, so a preset or

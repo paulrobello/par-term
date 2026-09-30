@@ -38,6 +38,12 @@ pub struct MouseConfig {
     #[serde(default = "crate::defaults::bool_false")]
     pub focus_follows_mouse: bool,
 
+    /// Focus the split pane under the pointer as it moves, without a click
+    /// (UX.md PN14). Independent of `focus_follows_mouse`, which focuses
+    /// the window
+    #[serde(default = "crate::defaults::bool_false")]
+    pub pane_focus_follows_mouse: bool,
+
     /// Report horizontal scroll events to terminal applications when mouse reporting is enabled
     /// Horizontal scroll uses button codes 6 (left) and 7 (right) in the mouse protocol
     #[serde(default = "crate::defaults::bool_true")]
@@ -52,6 +58,7 @@ impl Default for MouseConfig {
             mouse_triple_click_threshold: crate::defaults::triple_click_threshold(),
             option_click_moves_cursor: crate::defaults::bool_true(),
             focus_follows_mouse: crate::defaults::bool_false(),
+            pane_focus_follows_mouse: crate::defaults::bool_false(),
             report_horizontal_scroll: crate::defaults::bool_true(),
         }
     }

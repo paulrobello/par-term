@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [Unreleased — Pane Dimming, Splits, and Restart](#unreleased--pane-dimming-splits-and-restart)
 - [Unreleased — Default Shortcuts Aligned with iTerm2](#unreleased--default-shortcuts-aligned-with-iterm2)
 - [Unreleased — Close-Safety Defaults Aligned with iTerm2](#unreleased--close-safety-defaults-aligned-with-iterm2)
 - [Unreleased — Renamed Labels, Stable Tab Numbers, and Tab Behavior](#unreleased--renamed-labels-stable-tab-numbers-and-tab-behavior)
@@ -25,6 +26,14 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## Unreleased — Pane Dimming, Splits, and Restart
+
+- **Inactive panes darken instead of fading.** With `dim_inactive_panes: true`, unfocused panes now scale their colors toward black and keep text solid (`inactive_pane_dim_mode: darken`, the new default). `inactive_pane_opacity` sets the brightness in that mode. The previous look, where the whole pane including its text turned transparent over a background image or shader, is `inactive_pane_dim_mode: fade`.
+- **Splits of a profile tab run the profile's program.** Splitting a tab opened from a profile with an SSH host, command, or shell starts that program in the new pane instead of the default shell. Set `split_inherits_profile: false` to keep the old behavior.
+- **Restart Pane reruns the pane's program.** A profile tab's first pane and a split started with a command restart that program, not the default shell. The `shell_exit_action` restart options follow the same rule.
 
 ---
 

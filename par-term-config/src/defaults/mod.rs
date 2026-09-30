@@ -70,8 +70,8 @@ pub use misc::{
     command_separator_thickness, cursor_boost, cursor_shadow_blur, cursor_shadow_offset,
     custom_action_prefix_key, inactive_pane_opacity, keybindings, max_panes, mdns_timeout,
     normalization_form, pane_background_opacity, pane_divider_hit_width, pane_divider_width,
-    pane_focus_width, pane_min_size, pane_padding, pane_title_height, progress_bar_height,
-    progress_bar_opacity, tmux_auto_attach_session, tmux_default_session, tmux_path,
-    tmux_prefix_key, tmux_status_bar_left, tmux_status_bar_refresh_ms, tmux_status_bar_right,
-    unicode_version, update_check_frequency, zero,
+    pane_focus_width, pane_min_size, pane_padding, pane_resize_step, pane_title_height,
+    progress_bar_height, progress_bar_opacity, tmux_auto_attach_session, tmux_default_session,
+    tmux_path, tmux_prefix_key, tmux_status_bar_left, tmux_status_bar_refresh_ms,
+    tmux_status_bar_right, unicode_version, update_check_frequency, zero,
 };

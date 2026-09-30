@@ -13,6 +13,7 @@
 
 mod bounds;
 mod common;
+mod launch;
 mod pane;
 mod pane_node;
 mod pane_ops;
@@ -26,5 +27,6 @@ pub use bounds::PaneBounds;
 pub use common::{
     DividerRect, NavigationDirection, PaneBackground, PaneId, RestartState, SplitDirection,
 };
+pub use launch::LaunchCommand;
 pub use pane::Pane;
 pub use pane_node::{PaneNode, split_child_bounds};

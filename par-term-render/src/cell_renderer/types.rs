@@ -80,6 +80,10 @@ pub struct PaneViewport {
     pub focused: bool,
     /// Opacity multiplier for inactive pane dimming (0.0-1.0)
     pub opacity: f32,
+    /// RGB multiplier for inactive pane darkening (0.0-1.0): scales colors
+    /// toward black and leaves alpha alone, so text stays opaque over a
+    /// background image or shader (`inactive_pane_dim_mode: darken`).
+    pub brightness: f32,
     /// Padding inside the pane (content inset from edges)
     pub padding: f32,
     /// Horizontal offset to center the cell grid within the content area
@@ -98,6 +102,7 @@ impl PaneViewport {
             height,
             focused,
             opacity,
+            brightness: 1.0,
             padding: 0.0,
             content_offset_x: 0.0,
             content_offset_y: 0.0,
@@ -121,6 +126,7 @@ impl PaneViewport {
             height,
             focused,
             opacity,
+            brightness: 1.0,
             padding,
             content_offset_x: 0.0,
             content_offset_y: 0.0,

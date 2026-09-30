@@ -284,7 +284,12 @@ middle_click_paste: true
 
 # Window focus
 focus_follows_mouse: false
+
+# Split pane focus: the pane under the pointer takes focus as it moves
+pane_focus_follows_mouse: false
 ```
+
+`pane_focus_follows_mouse` focuses the split pane under the pointer without a click. It waits while a mouse button is held (a text selection or divider drag keeps its pane), and does nothing while a pane is zoomed, in copy mode, resize mode, or pane-letter selection, while a dialog is open, or in a tmux gateway tab. In a par-mux tab the daemon's active pane follows, as it does for a click.
 
 ### Settings UI
 
@@ -297,6 +302,7 @@ The Input tab in Settings provides:
 | **Middle-click paste** | Enable middle-click paste |
 | **Option+Click moves cursor** | Alt/Option+click cursor positioning |
 | **Focus follows mouse** | Auto-focus window on cursor enter |
+| **Pane focus follows mouse** | Focus the split pane under the pointer as it moves |
 | **Report horizontal scroll events** | Forward horizontal scroll to applications |
 
 ## Platform Differences

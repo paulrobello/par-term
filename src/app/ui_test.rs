@@ -788,6 +788,15 @@ impl WindowManager {
             ws.resolve_pane_hint_select(typed);
             return StepOutcome::Performed(format!("chord {chord} -> resolved pane-hint mode"));
         }
+        if ws.pane_resize_mode.is_active() {
+            let key = crate::app::pane_resize_mode::ResizeModeKey::from_key(
+                &logical,
+                modifiers.state().shift_key(),
+            );
+            let cell = ws.resize_mode_cell_size();
+            ws.resolve_pane_resize_key(key, cell);
+            return StepOutcome::Performed(format!("chord {chord} -> resize mode"));
+        }
         if ws.status_bar_ui.plugin_host().focused_overlay().is_some() {
             let is_escape = matches!(&logical, Key::Named(NamedKey::Escape));
             ws.resolve_focused_overlay_key(is_escape);

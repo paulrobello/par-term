@@ -245,6 +245,8 @@ pub struct WindowState {
     pub(crate) pane_transfer_state: crate::app::tab_ops::pane_transfer::PaneTransferState,
     /// State machine for the built-in pane-hint selection mode
     pub(crate) pane_hint_select: crate::app::pane_hint_select::PaneHintSelectState,
+    /// Keyboard resize mode (UX.md A6)
+    pub(crate) pane_resize_mode: crate::app::pane_resize_mode::PaneResizeModeState,
     /// Badge state for session information display
     pub(crate) badge_state: BadgeState,
     /// Copy mode state machine

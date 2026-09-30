@@ -1,6 +1,38 @@
 //! Helpers for restoring session state
 
+use par_term_config::snapshot_types::{SessionPaneNode, TabSnapshot};
 use std::path::Path;
+use std::sync::Arc;
+
+/// Apply a saved tab snapshot to a freshly created local tab: the pane tree
+/// (split roots only — see `capture_tab_snapshot`), then the user title,
+/// sole-pane title, color, and icon. Shared by session restore and
+/// arrangement restore (PN11). The caller starts pane refresh tasks.
+pub fn apply_tab_snapshot(
+    tab: &mut crate::tab::Tab,
+    snapshot: &TabSnapshot,
+    config: &crate::config::Config,
+    runtime: Arc<tokio::runtime::Runtime>,
+) {
+    if let Some(layout) = &snapshot.pane_layout
+        && matches!(layout, SessionPaneNode::Split { .. })
+    {
+        tab.restore_pane_layout(layout, config, runtime);
+    }
+    if let Some(ref user_title) = snapshot.user_title {
+        tab.set_title(user_title);
+        tab.user_named = true;
+    }
+    if let Some(ref pane_title) = snapshot.pane_user_title {
+        tab.restore_sole_pane_title(pane_title);
+    }
+    if let Some(color) = snapshot.custom_color {
+        tab.set_custom_color(color);
+    }
+    if let Some(ref icon) = snapshot.custom_icon {
+        tab.custom_icon = Some(icon.clone());
+    }
+}
 
 /// Validate a working directory path, falling back to $HOME if invalid
 pub fn validate_cwd(cwd: &Option<String>) -> Option<String> {

@@ -13,6 +13,10 @@
 mod broadcast;
 mod lifecycle;
 mod pane_focus;
+#[cfg(test)]
+mod pane_hover_tests;
+#[cfg(test)]
+mod pane_launch_tests;
 mod pane_layout_ops;
 mod pane_ops;
 pub(crate) mod pane_transfer;

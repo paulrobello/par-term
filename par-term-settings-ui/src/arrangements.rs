@@ -351,6 +351,7 @@ mod tests {
                     user_title: None,
                     pane_user_title: None,
                     custom_icon: None,
+                    pane_layout: None,
                 }],
                 active_tab_index: 0,
                 tmux_session_name: None,

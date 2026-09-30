@@ -126,6 +126,10 @@ impl WindowState {
             self.status_bar_ui.agent_roster_tooltip = None;
         }
 
+        // Broadcast status-bar item (V5): the active tab's receivers while
+        // broadcast is on.
+        self.status_bar_ui.broadcast_receivers = self.broadcast_status_item();
+
         // Capture values for badge insets (before egui borrow to avoid method-call borrows)
         let badge_is_tmux = self.is_tmux_connected();
         let badge_tmux_sb_height =
@@ -214,6 +218,7 @@ impl WindowState {
         let pane_hint_badges: Vec<egui_overlays::PaneHintBadge> =
             if let crate::app::pane_hint_select::PaneHintSelectState::Selecting {
                 assignments,
+                typed,
                 ..
             } = &self.pane_hint_select
             {
@@ -223,12 +228,15 @@ impl WindowState {
                     .and_then(|tab| tab.pane_manager())
                     .map(|pm| {
                         let all = pm.all_panes();
+                        // After the first of two letters, only the labels
+                        // it starts stay on screen.
                         assignments
                             .iter()
-                            .filter_map(|(letter, pane_id)| {
+                            .filter(|(label, _)| label.starts_with(typed.as_str()))
+                            .filter_map(|(label, pane_id)| {
                                 let pane = all.iter().find(|p| p.id == *pane_id)?;
                                 Some(egui_overlays::PaneHintBadge {
-                                    letter: *letter,
+                                    label: label.clone(),
                                     bounds: pane.bounds,
                                 })
                             })

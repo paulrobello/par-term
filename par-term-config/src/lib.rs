@@ -114,8 +114,8 @@ pub mod prelude {
         // Rendering and layout
         pub use crate::types::rendering::{
             BackgroundImageMode, BackgroundMode, DividerRect, DividerStyle, ImageScalingMode,
-            PaneBackground, PaneBackgroundConfig, PaneId, PaneTitlePosition, PowerPreference,
-            SeparatorMark, TabId, VsyncMode,
+            InactivePaneDimMode, PaneBackground, PaneBackgroundConfig, PaneId, PaneTitlePosition,
+            PowerPreference, SeparatorMark, SplitBalance, TabId, VsyncMode,
         };
         // Selection
         pub use crate::types::selection::{
@@ -275,15 +275,16 @@ pub use automation::{
 pub use types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, BellAudio,
     CursorShaderConfig, CursorShaderMetadata, CursorStyle, DividerRect, DividerStyle,
-    DownloadSaveLocation, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
+    DownloadSaveLocation, DroppedFileQuoteStyle, FontRange, ImageScalingMode,
+    InactivePaneDimMode, InstallPromptState,
     IntegrationVersions, KeyBinding, LinkUnderlineStyle, LogLevel, ModifierRemapping,
     ModifierTarget, NewTabPosition, OptionKeyMode, PaneBackground, PaneBackgroundConfig, PaneId,
     PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
     RemoteTabTitleFormat, SemanticHistoryEditorMode, SeparatorMark, SessionLogFormat,
     ShaderBackgroundBlendMode, ShaderConfig, ShaderInstallPrompt, ShaderMetadata,
     ShaderSafetyBadge, ShellExitAction, ShellType, SmartSelectionPrecision, SmartSelectionRule,
-    StartupDirectoryMode, StatusBarPosition, TabBarMode, TabBarPosition, TabId, TabStyle,
-    TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode,
+    SplitBalance, StartupDirectoryMode, StatusBarPosition, TabBarMode, TabBarPosition, TabId,
+    TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode,
     WindowType, bell_audio, default_smart_selection_rules,
 };
 // Scripting / observer scripts

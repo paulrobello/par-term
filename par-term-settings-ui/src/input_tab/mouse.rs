@@ -111,6 +111,21 @@ pub(super) fn show_mouse_section(
 
         if ui
             .checkbox(
+                &mut settings.config.mouse.pane_focus_follows_mouse,
+                "Pane focus follows mouse",
+            )
+            .on_hover_text(
+                "Focus the split pane under the pointer as it moves, without a click. \
+                 Not while a mouse button is held or a pane is zoomed.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
                 &mut settings.config.mouse.report_horizontal_scroll,
                 "Report horizontal scroll events",
             )

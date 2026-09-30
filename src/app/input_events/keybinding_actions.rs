@@ -297,6 +297,7 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
     ("cycle_layout", pane_actions::cycle_layout),
     ("split_left", pane_actions::split_left),
     ("split_up", pane_actions::split_up),
+    ("enter_resize_mode", pane_actions::enter_resize_mode),
     ("toggle_tmux_session_picker", |s: &mut WindowState| {
         s.overlay_ui.tmux_session_picker_ui.toggle();
         s.request_redraw();

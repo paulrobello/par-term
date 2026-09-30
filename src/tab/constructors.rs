@@ -259,6 +259,7 @@ impl Tab {
             cached_application_cursor: AtomicBool::new(false),
             cached_alt_screen_active: AtomicBool::new(false),
             cached_has_tmux_child: AtomicBool::new(false),
+            profile_launch: None,
         })
     }
 
@@ -367,50 +368,23 @@ impl Tab {
             .as_deref()
             .or(effective_startup_dir.as_deref());
 
-        // Determine command and args with priority:
-        // 0. profile.ssh_host → build ssh command with user/port/identity args
-        // 1. profile.command → use as-is (non-shell commands like tmux, ssh)
-        // 2. profile.shell → use as shell, apply login_shell logic
-        // 3. neither → fall back to global config shell / $SHELL
-        let is_ssh_profile = profile.ssh_host.is_some();
-        let (shell_cmd, mut shell_args) = if let Some(ssh_args) = profile.ssh_command_args() {
-            ("ssh".to_string(), Some(ssh_args))
-        } else if let Some(ref cmd) = profile.command {
-            (cmd.clone(), profile.command_args.clone())
-        } else if let Some(ref shell) = profile.shell {
-            (shell.clone(), None)
-        } else {
-            get_shell_command(config)
-        };
-
-        // Apply login shell flag when using a shell (not a custom command or SSH profile).
-        // Per-profile login_shell overrides global config.login_shell.
-        if profile.command.is_none() && !is_ssh_profile {
-            let use_login_shell = profile.login_shell.unwrap_or(config.shell.login_shell);
-            if use_login_shell {
-                let args = shell_args.get_or_insert_with(Vec::new);
-                #[cfg(not(target_os = "windows"))]
-                if !args.iter().any(|a| a == "-l" || a == "--login") {
-                    args.insert(0, "-l".to_string());
-                }
+        let launch = super::profile_launch::profile_launch_command(profile, config);
+        let (shell_cmd, shell_args) = match &launch {
+            Some(l) => (l.program.clone(), l.args.clone()),
+            None => {
+                let (cmd, mut args) = get_shell_command(config);
+                apply_login_shell_flag(&mut args, config);
+                (cmd, args)
             }
-        }
-
-        let shell_args_deref = shell_args.as_deref();
-        let mut shell_env = build_shell_env(config.shell.shell_env.as_ref());
-
-        // When a profile specifies a shell, set the SHELL env var so child
-        // processes (and $SHELL) reflect the selected shell, not the login shell.
-        if profile.command.is_none()
-            && let Some(ref shell_path) = profile.shell
-            && let Some(ref mut env) = shell_env
-        {
-            env.insert("SHELL".to_string(), shell_path.clone());
-        }
+        };
+        let shell_env = match &launch {
+            Some(l) => l.env(config),
+            None => build_shell_env(config.shell.shell_env.as_ref()),
+        };
 
         terminal.spawn_custom_shell_with_dir(
             &shell_cmd,
-            shell_args_deref,
+            shell_args.as_deref(),
             work_dir,
             shell_env.as_ref(),
         )?;
@@ -429,7 +403,7 @@ impl Tab {
         // Session log title uses profile name (Tab::new uses "Tab N")
         let session_title = profile.name.clone();
 
-        Self::new_internal(
+        let mut tab = Self::new_internal(
             TabInitParams {
                 id,
                 title,
@@ -442,7 +416,18 @@ impl Tab {
             terminal,
             config,
             session_title,
-        )
+        )?;
+        // The primary pane wraps the tab terminal; recording the launch
+        // there makes Restart Pane rerun the profile's program (A9).
+        if let Some(pane) = tab
+            .pane_manager
+            .as_mut()
+            .and_then(|pm| pm.focused_pane_mut())
+        {
+            pane.launch = launch;
+        }
+        tab.profile_launch = super::profile_launch::inheritable_launch(profile, config);
+        Ok(tab)
     }
 
     /// Create a new tab wrapping an existing `Pane` (e.g., from a promote operation).
@@ -495,6 +480,7 @@ impl Tab {
             cached_application_cursor: AtomicBool::new(false),
             cached_alt_screen_active: AtomicBool::new(false),
             cached_has_tmux_child: AtomicBool::new(false),
+            profile_launch: None,
         }
     }
 }
@@ -543,6 +529,7 @@ impl Tab {
             cached_application_cursor: AtomicBool::new(false),
             cached_alt_screen_active: AtomicBool::new(false),
             cached_has_tmux_child: AtomicBool::new(false),
+            profile_launch: None,
         }
     }
 }

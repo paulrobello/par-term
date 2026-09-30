@@ -43,6 +43,10 @@ impl WindowState {
             return; // Mouse is on tab bar, let egui handle it
         }
 
+        // Pane hover focus (PN14) runs before URL hover and motion
+        // reporting, so both see the pane the pointer is over.
+        self.hover_focus_pane(position.0 as f32, position.1 as f32);
+
         // --- 1. Shader Uniform Updates ---
         // Update current mouse position for custom shaders (iMouse.xy)
         if let Some(ref mut renderer) = self.renderer {

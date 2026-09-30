@@ -184,10 +184,11 @@ Bound to `Cmd+Shift+J` (`Ctrl+Shift+J` on Linux and Windows) by default, and reb
 
 **Behavior:**
 - The duplicated tab inherits the working directory of the source tab
+- A tab with split panes is duplicated with the same layout: split directions, divider positions, and each pane's working directory and user-set title. A par-mux or tmux tab copies only its working directory, since its panes live on the server
 - Any custom tab color set on the source tab carries over to the new tab
 - Any custom tab icon set on the source tab carries over to the new tab
 - Duplication works on any tab via context menu, not just the currently active tab
-- The new tab starts a fresh shell in the inherited directory
+- The new tab starts a fresh shell in the inherited directory (one per pane)
 
 > **📝 Note:** The duplicated tab launches a new shell process. Running commands and shell state from the original tab are not carried over.
 
@@ -297,6 +298,8 @@ A tmux `display-panes` style pick mode for quickly focusing a pane in a split ta
 **Behavior:**
 - Invoking the binding draws a letter badge (a letter on a circle background) centered in every pane of the focused tab; the letters come from a home-row set assigned in pane-tree order, so the same layout always yields the same letters
 - Typing a pane's letter focuses that pane and exits the mode; letters match case-insensitively
+- A tab with more than 26 panes (`max_panes` allows 32, or unlimited) gets a two-letter label on every pane instead. The first letter keeps the mode armed and leaves only the badges it starts on screen; the second picks the pane
+- To see pane numbers all the time, turn on `show_pane_numbers` with `show_pane_titles`: each title bar then starts with the pane's number in layout order (Settings > Window > Pane Appearance > "Show pane numbers in titles")
 - Any other key, including `Escape`, cancels the mode without changing focus
 - Switching tabs or closing the pane-hint tab cancels the mode
 - Tabs with a single pane do not arm the mode — there is nothing to choose

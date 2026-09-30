@@ -22,6 +22,27 @@ pub(crate) const PANE_HINT_LETTERS: &[char] = &[
     'z', 'x', 'c', 'v', 'b', 'n', 'm',
 ];
 
+/// Badge labels for `count` panes in tree order (V7): one letter each up to
+/// 26 panes, and two letters for every pane beyond that — never a mix, so
+/// no label is a prefix of another.
+pub(crate) fn pane_hint_labels(count: usize) -> Vec<String> {
+    let n = PANE_HINT_LETTERS.len();
+    if count <= n {
+        return PANE_HINT_LETTERS[..count]
+            .iter()
+            .map(|c| c.to_string())
+            .collect();
+    }
+    (0..count.min(n * n))
+        .map(|i| {
+            let mut s = String::with_capacity(2);
+            s.push(PANE_HINT_LETTERS[i / n]);
+            s.push(PANE_HINT_LETTERS[i % n]);
+            s
+        })
+        .collect()
+}
+
 #[derive(Default)]
 pub(crate) enum PaneHintSelectState {
     #[default]
@@ -29,8 +50,10 @@ pub(crate) enum PaneHintSelectState {
     Selecting {
         /// Tab whose panes the badges describe; leaving that tab cancels.
         tab_id: TabId,
-        /// Letter → pane, in tree order at arm time.
-        assignments: Vec<(char, PaneId)>,
+        /// Label → pane, in tree order at arm time.
+        assignments: Vec<(String, PaneId)>,
+        /// Letters typed so far toward a two-letter label.
+        typed: String,
     },
 }
 
@@ -56,11 +79,11 @@ impl WindowState {
         let Some(pm) = tab.pane_manager() else {
             return;
         };
-        let assignments: Vec<(char, PaneId)> = pm
-            .all_panes()
-            .iter()
-            .zip(PANE_HINT_LETTERS.iter())
-            .map(|(pane, &letter)| (letter, pane.id))
+        let panes = pm.all_panes();
+        let assignments: Vec<(String, PaneId)> = pane_hint_labels(panes.len())
+            .into_iter()
+            .zip(panes.iter())
+            .map(|(label, pane)| (label, pane.id))
             .collect();
         if assignments.len() < 2 {
             return;
@@ -68,6 +91,7 @@ impl WindowState {
         self.pane_hint_select = PaneHintSelectState::Selecting {
             tab_id,
             assignments,
+            typed: String::new(),
         };
         self.focus_state.needs_redraw = true;
         self.request_redraw();
@@ -96,21 +120,43 @@ impl WindowState {
     }
 
     /// Resolve the armed mode against a typed character (lowercase matched;
-    /// `None` = non-character key such as Escape — always a cancel).
-    /// `pub(crate)` so the ui-test chord injector can drive the mode's
-    /// resolution the way a real key event would (winit `KeyEvent`s cannot
-    /// be fabricated in tests).
+    /// `None` = non-character key such as Escape — always a cancel). A
+    /// letter that starts a two-letter label keeps the mode armed for the
+    /// second. `pub(crate)` so the ui-test chord injector can drive the
+    /// mode's resolution the way a real key event would (winit `KeyEvent`s
+    /// cannot be fabricated in tests).
     pub(crate) fn resolve_pane_hint_select(&mut self, typed: Option<char>) -> bool {
         let PaneHintSelectState::Selecting {
             tab_id,
             assignments,
+            typed: mut so_far,
         } = std::mem::replace(&mut self.pane_hint_select, PaneHintSelectState::Idle)
         else {
             return false;
         };
 
-        if let Some(c) = typed.map(|c| c.to_ascii_lowercase())
-            && let Some(&(_, pane_id)) = assignments.iter().find(|(letter, _)| *letter == c)
+        if let Some(c) = typed {
+            so_far.push(c.to_ascii_lowercase());
+        }
+        if typed.is_some()
+            && !assignments.iter().any(|(label, _)| *label == so_far)
+            && assignments
+                .iter()
+                .any(|(label, _)| label.starts_with(&so_far))
+        {
+            self.pane_hint_select = PaneHintSelectState::Selecting {
+                tab_id,
+                assignments,
+                typed: so_far,
+            };
+            self.focus_state.needs_redraw = true;
+            self.request_redraw();
+            return true;
+        }
+
+        if typed.is_some()
+            && let Some((_, pane_id)) = assignments.iter().find(|(label, _)| *label == so_far)
+            && let pane_id = *pane_id
             && self.tab_manager.active_tab_id() == Some(tab_id)
             && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
             && let Some(pm) = tab.pane_manager_mut()
@@ -317,8 +363,66 @@ mod tests {
             };
             assert_eq!(
                 assignments,
-                &vec![('a', PaneId::from(1u64)), ('s', PaneId::from(2u64))],
+                &vec![
+                    ("a".to_string(), PaneId::from(1u64)),
+                    ("s".to_string(), PaneId::from(2u64))
+                ],
             );
         }
+    }
+
+    /// V7: 26 panes or fewer get one letter each; more get two letters
+    /// each, so no label is a prefix of another.
+    #[test]
+    fn labels_are_single_up_to_26_and_all_double_beyond() {
+        let few = pane_hint_labels(3);
+        assert_eq!(few, vec!["a", "s", "d"]);
+        let full = pane_hint_labels(26);
+        assert!(full.iter().all(|l| l.len() == 1));
+        let many = pane_hint_labels(30);
+        assert_eq!(many.len(), 30);
+        assert!(many.iter().all(|l| l.len() == 2));
+        assert_eq!(&many[..3], &["aa", "as", "ad"]);
+        for (i, a) in many.iter().enumerate() {
+            for b in &many[i + 1..] {
+                assert!(!b.starts_with(a.as_str()) && !a.starts_with(b.as_str()));
+            }
+        }
+    }
+
+    /// V7: with more than 26 panes, the first letter keeps the mode armed
+    /// and the second focuses the pane; a letter no label starts with
+    /// cancels.
+    #[test]
+    fn two_letter_labels_resolve_over_two_key_presses() {
+        let mut state = WindowState::new(Config::default(), test_runtime());
+        let mut tab = Tab::new_stub(1, 1);
+        let pm = tab.pane_manager_mut().expect("pm");
+        // A right-leaning chain of 30 panes, ids 1..=30 in tree order.
+        let mut node = PaneNode::leaf(stub_pane(30, "/30"));
+        for id in (1..30).rev() {
+            node = PaneNode::split(
+                SplitDirection::Vertical,
+                0.5,
+                PaneNode::leaf(stub_pane(id, "/p")),
+                node,
+            );
+        }
+        pm.set_root(node);
+        pm.focus_pane(1);
+        state.tab_manager.push_tab_for_test(tab);
+
+        state.enter_pane_hint_select();
+        // Pane 28 (index 27) is "s" + PANE_HINT_LETTERS[1] = "ss".
+        assert!(state.resolve_pane_hint_select(Some('s')));
+        assert!(state.pane_hint_select.is_active(), "one letter is a prefix");
+        state.resolve_pane_hint_select(Some('S'));
+        assert!(!state.pane_hint_select.is_active());
+        assert_eq!(focused_pane_id(&state), Some(28));
+
+        state.enter_pane_hint_select();
+        state.resolve_pane_hint_select(Some('1'));
+        assert!(!state.pane_hint_select.is_active(), "not a prefix: cancel");
+        assert_eq!(focused_pane_id(&state), Some(28));
     }
 }

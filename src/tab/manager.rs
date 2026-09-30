@@ -455,25 +455,6 @@ impl TabManager {
         }
     }
 
-    /// Duplicate the active tab (creates new tab with same working directory and color)
-    ///
-    /// # Arguments
-    /// * `config` - Terminal configuration
-    /// * `runtime` - Tokio runtime for async operations
-    /// * `grid_size` - Optional (cols, rows) override for initial terminal size
-    pub fn duplicate_active_tab(
-        &mut self,
-        config: &Config,
-        runtime: Arc<Runtime>,
-        grid_size: Option<(usize, usize)>,
-    ) -> Result<Option<TabId>> {
-        if let Some(tab_id) = self.active_tab_id {
-            self.duplicate_tab_by_id(tab_id, config, runtime, grid_size)
-        } else {
-            Ok(None)
-        }
-    }
-
     /// Duplicate a specific tab by ID (creates new tab with same working directory and color)
     ///
     /// # Arguments

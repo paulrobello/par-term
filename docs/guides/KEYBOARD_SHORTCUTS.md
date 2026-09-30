@@ -194,6 +194,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | Restart pane process | *(unbound)* | *(unbound)* |
 | Cycle layout presets | *(unbound)* | *(unbound)* |
 | Split left / split up | *(unbound)* | *(unbound)* |
+| Resize mode (arrows resize until `Esc`) | *(unbound)* | *(unbound)* |
 | Swap pane left / right / up / down | `Cmd + Opt + Shift + Arrow` | *(unbound)* |
 | Promote pane to tab | *(unbound)* | *(unbound)* |
 | Demote tab to pane | *(unbound)* | *(unbound)* |
@@ -203,11 +204,13 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 
 > **📝 Note:** Pane swap ships unbound on Linux and Windows: editors use `Alt + Shift + Arrow`, and Windows switches the input language on `Alt + Shift`. Bind `swap_pane_*` yourself if you want it.
 
-> **📝 Note:** A resize arrow moves the divider on that side of the focused pane in the arrow's direction (tmux semantics); a pane with no divider on that side moves the one on its other side. No resize, split, drag, equalize, or layout preset takes a pane below `pane_min_size` cells. Double-click a divider to equalize its split.
+> **📝 Note:** A resize arrow moves the divider on that side of the focused pane in the arrow's direction (tmux semantics); a pane with no divider on that side moves the one on its other side. Each press moves it `pane_resize_step` percent of its split (default 5). **Resize mode** (`enter_resize_mode`) keeps the arrows resizing until `Esc` or `Enter`: plain arrows move by `pane_resize_step`, `Shift` + arrows by one cell, and every other key is ignored so nothing reaches the shell. No resize, split, drag, equalize, or layout preset takes a pane below `pane_min_size` cells. `split_balance: siblings` or `all` rebalances after each keyboard or menu split, so repeated splits share the space evenly instead of halving. Double-click a divider to equalize its split.
+
+> **📝 Note:** In a par-mux tab, equalize works: par-term computes equal sizes and sends them to the daemon, so other clients see the change. Layout presets (`cycle_layout`, `layout:<name>`) are refused there with a message: the daemon has no `select-layout`, and every preset except an equalize of the existing arrangement needs panes moved between splits daemon-side. The same limit applies to `split_balance`, which the daemon's layout overrides. tmux gateway tabs refuse both, because tmux owns their layout.
 
 > **📝 Note:** Zoom fills the tab with the focused pane and shows ⛶ on the tab and the pane title; splitting, closing, or moving focus unzooms. In a par-mux tab the zoom is daemon-side (`resize-pane -Z`), so other clients see it.
 
-> **📝 Note:** Broadcast input is per tab: every pane that receives it gets an amber outline, the tab shows 📡, and pastes are broadcast along with keystrokes.
+> **📝 Note:** Broadcast input is per tab: every pane that receives it gets an amber outline, the tab shows 📡, the status bar (when enabled) shows how many panes receive it, and pastes are broadcast along with keystrokes.
 
 > **📝 Note:** Promote and demote actions have no default keybinding. Bind them in Settings → Input → Keybindings or via config YAML using the `promote_pane_to_tab` and `demote_tab_to_pane` action names. See [Tabs](../features/TABS.md#promoting-and-demoting-panes) for details.
 
@@ -330,7 +333,8 @@ without a binding there is no way to open the in-app menu.
 - `next_pane`, `prev_pane`, `last_pane` — cycle panes in tree order, or return to the previously focused pane
 - `equalize_panes`, `cycle_layout`, `layout:<name>` — equal pane sizes; step through or pick a layout (`even-horizontal`, `even-vertical`, `main-left`, `main-top`, `tiled`)
 - `split_left`, `split_up` — split with the new pane before the focused one
-- `restart_pane` — restart the focused pane's process in place
+- `enter_resize_mode` — resize panes with the arrow keys until `Esc` or `Enter`
+- `restart_pane` — restart the focused pane's process in place: the program it was started with (a profile's command or SSH connection), else the default shell
 - `toggle_pane_broadcast` — exclude or include the focused pane in its tab's broadcast
 - `promote_pane_to_tab`, `demote_tab_to_pane`
 - `rename_pane` - Open the inline rename field on the focused pane's title bar

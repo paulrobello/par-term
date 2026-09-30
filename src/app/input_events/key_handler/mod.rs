@@ -166,6 +166,13 @@ impl WindowState {
             return;
         }
 
+        // Resize mode (A6) is the same kind of modal mode: it owns every
+        // key until Escape or Enter.
+        if self.pane_resize_mode.is_active() {
+            self.handle_pane_resize_mode_key(&event);
+            return;
+        }
+
         // A focused plugin overlay is focus consumer 2 in the mode stack:
         // it swallows every key (the plugin owns no raw keys — design
         // constitutional) except Escape, which returns focus to the

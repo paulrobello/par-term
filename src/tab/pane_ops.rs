@@ -159,6 +159,19 @@ impl Tab {
             }
         }
 
+        // A split's explicit command wins; otherwise the tab's profile
+        // program when splits inherit it (D5).
+        let launch = request
+            .initial_command
+            .map(|(cmd, args)| crate::pane::LaunchCommand::new(cmd, args))
+            .or_else(|| {
+                config
+                    .panes
+                    .split_inherits_profile
+                    .then(|| self.profile_launch.clone())
+                    .flatten()
+            });
+
         // Perform the split
         if let Some(ref mut pm) = self.pane_manager {
             let ratio = (request.split_percent.clamp(10, 90) as f32) / 100.0;
@@ -168,7 +181,7 @@ impl Tab {
                 request.focus_new,
                 config,
                 Arc::clone(&runtime),
-                request.initial_command,
+                launch,
                 ratio,
             )?;
             if let Some(id) = new_pane_id {

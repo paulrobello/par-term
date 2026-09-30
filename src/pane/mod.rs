@@ -14,10 +14,10 @@ mod tmux_helpers;
 mod types;
 
 pub use manager::ExtractResult;
-pub use manager::LayoutPreset;
 pub use manager::PaneIdRemap;
 pub use manager::PaneManager;
+pub use manager::{LayoutPreset, ResizeStep};
 pub use types::{
-    DividerRect, NavigationDirection, Pane, PaneBackground, PaneBounds, PaneId, PaneNode,
-    RestartState, SplitDirection,
+    DividerRect, LaunchCommand, NavigationDirection, Pane, PaneBackground, PaneBounds, PaneId,
+    PaneNode, RestartState, SplitDirection,
 };

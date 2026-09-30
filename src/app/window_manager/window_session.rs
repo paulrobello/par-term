@@ -256,32 +256,13 @@ impl WindowManager {
                     // Non-tmux window: restore pane layouts, user titles, custom colors, icons
                     let tabs = window_state.tab_manager.tabs_mut();
                     for (tab_idx, session_tab) in session_window.tabs.iter().enumerate() {
-                        if let Some(ref layout) = session_tab.pane_layout
-                            && let Some(tab) = tabs.get_mut(tab_idx)
-                            && matches!(layout, crate::session::SessionPaneNode::Split { .. })
-                        {
-                            tab.restore_pane_layout(
-                                layout,
+                        if let Some(tab) = tabs.get_mut(tab_idx) {
+                            crate::session::restore::apply_tab_snapshot(
+                                tab,
+                                &session_tab.snapshot,
                                 &self.config.load(),
                                 Arc::clone(&self.runtime),
                             );
-                        }
-                    }
-                    for (tab_idx, session_tab) in session_window.tabs.iter().enumerate() {
-                        if let Some(tab) = tabs.get_mut(tab_idx) {
-                            if let Some(ref user_title) = session_tab.snapshot.user_title {
-                                tab.set_title(user_title);
-                                tab.user_named = true;
-                            }
-                            if let Some(ref pane_title) = session_tab.snapshot.pane_user_title {
-                                tab.restore_sole_pane_title(pane_title);
-                            }
-                            if let Some(color) = session_tab.snapshot.custom_color {
-                                tab.set_custom_color(color);
-                            }
-                            if let Some(ref icon) = session_tab.snapshot.custom_icon {
-                                tab.custom_icon = Some(icon.clone());
-                            }
                         }
                     }
                     // Start refresh tasks for restored pane layouts so secondary

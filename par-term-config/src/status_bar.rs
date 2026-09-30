@@ -59,6 +59,9 @@ pub enum WidgetId {
     /// par-mux agent roster summary (self-hiding; click opens the command
     /// palette). Empty without an attached mux session.
     AgentRoster,
+    /// Broadcast input indicator (UX.md V5): how many panes of the active
+    /// tab receive typing. Empty (self-hiding) while broadcast is off.
+    BroadcastInput,
     /// Custom widget (user-defined via format string)
     Custom(String),
     /// Plugin-provided status bar widget (`plugin:<id>` key)
@@ -82,6 +85,7 @@ impl WidgetId {
             WidgetId::UpdateAvailable => "Update Available",
             WidgetId::AgentUsage => "Agent Usage",
             WidgetId::AgentRoster => "Agent Roster",
+            WidgetId::BroadcastInput => "Broadcast Input",
             WidgetId::Custom(name) => name.as_str(),
             WidgetId::Plugin(id) => id.as_str(),
         }
@@ -103,6 +107,7 @@ impl WidgetId {
             WidgetId::UpdateAvailable => "\u{2b06}",   // upwards arrow
             WidgetId::AgentUsage => "\u{25c6}",        // diamond (matches the summary glyph)
             WidgetId::AgentRoster => "\u{1f465}",      // busts in silhouette (a roster of agents)
+            WidgetId::BroadcastInput => "\u{1f4e1}",   // satellite antenna (the tab badge)
             WidgetId::Custom(_) => "\u{2699}",         // gear
             WidgetId::Plugin(_) => "\u{1f9e9}",        // puzzle piece
         }
@@ -138,6 +143,7 @@ impl WidgetId {
             WidgetId::UpdateAvailable => "update_available".to_string(),
             WidgetId::AgentUsage => "agent_usage".to_string(),
             WidgetId::AgentRoster => "agent_roster".to_string(),
+            WidgetId::BroadcastInput => "broadcast_input".to_string(),
             WidgetId::Custom(name) => format!("custom:{name}"),
             WidgetId::Plugin(id) => format!("plugin:{id}"),
         }
@@ -166,6 +172,7 @@ impl WidgetId {
             "update_available" => WidgetId::UpdateAvailable,
             "agent_usage" => WidgetId::AgentUsage,
             "agent_roster" => WidgetId::AgentRoster,
+            "broadcast_input" => WidgetId::BroadcastInput,
             _ => return None,
         })
     }
@@ -310,6 +317,13 @@ pub fn default_widgets() -> Vec<StatusBarWidgetConfig> {
             enabled: false,
             section: StatusBarSection::Right,
             order: 8,
+            format: None,
+        },
+        StatusBarWidgetConfig {
+            id: WidgetId::BroadcastInput,
+            enabled: true,
+            section: StatusBarSection::Left,
+            order: 0,
             format: None,
         },
     ]

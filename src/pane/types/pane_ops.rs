@@ -17,12 +17,32 @@ use super::pane::Pane;
 impl Pane {
     /// Respawn the shell in this pane
     ///
-    /// This resets the terminal state and spawns a new shell process.
-    /// Used when shell_exit_action is one of the restart variants.
+    /// This resets the terminal state and spawns a new process: the one the
+    /// pane was started with ([`Pane::launch`]: a profile's command or SSH
+    /// connection, a split's command), else the configured shell. Used by
+    /// Restart Pane and the `shell_exit_action` restart variants.
     pub fn respawn_shell(&mut self, config: &Config) -> anyhow::Result<()> {
         // Clear restart state
         self.restart_state = None;
         self.exit_notified = false;
+
+        if let Some(launch) = self.launch.clone() {
+            let work_dir = self
+                .get_cwd()
+                .or_else(|| self.working_directory.clone())
+                .or_else(|| config.shell.working_directory.clone());
+            if let Ok(mut term) = self.terminal.try_write() {
+                term.process_data(b"\x1b[2J\x1b[H");
+                term.spawn_custom_shell_with_dir(
+                    &launch.program,
+                    launch.args.as_deref(),
+                    work_dir.as_deref(),
+                    launch.env(config).as_ref(),
+                )?;
+                log::info!("Restarted '{}' in pane {}", launch.program, self.id);
+            }
+            return Ok(());
+        }
 
         // Determine the shell command to use
         #[allow(unused_mut)] // mut is needed on Unix for login shell modification
