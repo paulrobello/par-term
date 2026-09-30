@@ -46,30 +46,38 @@ pub(super) fn show_scrollbar_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.scrollbar.scrollbar_width, 4.0..=50.0),
+                    egui::Slider::new(&mut settings.config.scrollbar.scrollbar_width, 4.0..=50.0)
+                        .suffix(" px"),
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.scrollbar.scrollbar_width
+            });
         });
 
         ui.horizontal(|ui| {
-            ui.label("Autohide delay (ms, 0=never):");
+            ui.label("Autohide delay (0 = never):");
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
                     egui::Slider::new(
                         &mut settings.config.scrollbar.scrollbar_autohide_delay,
                         0..=5000,
-                    ),
+                    )
+                    .suffix(" ms"),
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.scrollbar.scrollbar_autohide_delay
+            });
         });
 
         ui.add_space(8.0);

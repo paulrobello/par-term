@@ -62,7 +62,7 @@ pub fn show(
             "profile indicator",
         ],
     ) {
-        management::show_display_options_section(ui, settings, changes_this_frame, collapsed);
+        management::show_display_options_section(ui, settings, collapsed);
     }
 
     // Dynamic profile sources section

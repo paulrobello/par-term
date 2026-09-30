@@ -135,7 +135,7 @@ fn show_per_cursor_shader_settings(
         let mut value = effective_value;
         ui.horizontal(|ui| {
             ui.label("Animation speed:");
-            let response = ui.add(egui::Slider::new(&mut value, 0.0..=5.0));
+            let response = ui.add(egui::Slider::new(&mut value, 0.0..=5.0).suffix("×"));
 
             if response.changed() {
                 let override_entry = settings

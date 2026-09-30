@@ -47,10 +47,7 @@ impl ProfileModalUI {
 
         ui.separator();
 
-        // Form in a scrollable area to handle many fields
-        egui::ScrollArea::vertical()
-            .max_height(ui.available_height() - 60.0)
-            .show(ui, |ui| {
+        ui.scope(|ui| {
                 // Disable all form fields for dynamic (read-only) profiles
                 if is_dynamic_profile {
                     ui.disable();
@@ -278,12 +275,7 @@ impl ProfileModalUI {
                         ui.horizontal(|ui| {
                             ui.text_edit_singleline(&mut self.temp_keyboard_shortcut);
                             ui.label(
-                                egui::RichText::new({
-                                    #[cfg(target_os = "macos")]
-                                    { "(e.g. Cmd+1)" }
-                                    #[cfg(not(target_os = "macos"))]
-                                    { "(e.g. Ctrl+Shift+1)" }
-                                })
+                                egui::RichText::new("(modifiers and a key joined with \"+\")")
                                     .small()
                                     .color(egui::Color32::GRAY),
                             );
@@ -386,10 +378,21 @@ impl ProfileModalUI {
                     self.cancel_edit();
                 }
             } else {
-                if ui.button("Save Profile").clicked() {
+                if ui
+                    .button("Done")
+                    .on_hover_text(
+                        "Keep these edits and return to the list. Save at the bottom of \
+                         the window writes them; Revert drops them.",
+                    )
+                    .clicked()
+                {
                     self.save_form();
                 }
-                if ui.button("Cancel").clicked() {
+                if ui
+                    .button("Cancel")
+                    .on_hover_text("Drop the edits to this profile")
+                    .clicked()
+                {
                     self.cancel_edit();
                 }
             }

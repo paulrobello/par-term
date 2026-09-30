@@ -45,7 +45,7 @@ pub(super) fn show_display_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.cols, 40..=300),
+                    egui::Slider::new(&mut settings.config.cols, 40..=300).suffix(" columns"),
                 )
                 .on_hover_text("Number of columns in the terminal grid (determines window width)")
                 .changed()
@@ -53,6 +53,7 @@ pub(super) fn show_display_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| &mut c.cols);
         });
 
         ui.horizontal(|ui| {
@@ -60,7 +61,7 @@ pub(super) fn show_display_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.rows, 10..=100),
+                    egui::Slider::new(&mut settings.config.rows, 10..=100).suffix(" rows"),
                 )
                 .on_hover_text("Number of rows in the terminal grid (determines window height)")
                 .changed()
@@ -68,6 +69,7 @@ pub(super) fn show_display_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| &mut c.rows);
         });
 
         // Show current size and button to use it
@@ -104,13 +106,17 @@ pub(super) fn show_display_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.window.window_padding, 0.0..=50.0),
+                    egui::Slider::new(&mut settings.config.window.window_padding, 0.0..=50.0)
+                        .suffix(" px"),
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.window.window_padding
+            });
         });
 
         if ui

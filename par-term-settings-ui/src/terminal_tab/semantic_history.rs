@@ -79,13 +79,14 @@ pub(super) fn show_semantic_history_section(
                     &mut settings.config.semantic_history.allow_file_scheme_urls,
                     "Allow opening file:// links",
                 )
-                .on_hover_text(
-                    "Let Cmd+Click (macOS) / Ctrl+Click open `file://` hyperlinks via the OS \
-                     default handler (e.g. browser for .html, Finder for folders).\n\n\
+                .on_hover_text(format!(
+                    "Let {}-click open `file://` hyperlinks via the OS \
+                     default handler (e.g. browser for .html, the file manager for folders).\n\n\
                      Off by default for security: a remote program can emit a `file://` OSC 8 \
-                     hyperlink to open an arbitrary local path. Enable only if you trust your \
-                     terminal sessions.",
-                )
+                     hyperlink to open an arbitrary local path. Enable only if you trust the \
+                     programs you run.",
+                    crate::live_binding::primary_modifier_name()
+                ))
                 .changed()
             {
                 settings.has_changes = true;
@@ -102,10 +103,10 @@ pub(super) fn show_semantic_history_section(
                     &mut settings.config.semantic_history.semantic_history_enabled,
                     "Enable file path detection",
                 )
-                .on_hover_text(
-                    "Detect file paths in terminal output.\n\
-                 Cmd+Click (macOS) or Ctrl+Click (Windows/Linux) to open.",
-                )
+                .on_hover_text(format!(
+                    "Detect file paths in terminal output. {}-click a path to open it.",
+                    crate::live_binding::primary_modifier_name()
+                ))
                 .changed()
             {
                 settings.has_changes = true;
@@ -153,34 +154,42 @@ pub(super) fn show_semantic_history_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.semantic_history.link_highlight_underline {
-                ui.horizontal(|ui| {
-                    ui.label("Underline style:");
-                    egui::ComboBox::from_id_salt("link_underline_style")
-                        .selected_text(
-                            settings
-                                .config
-                                .semantic_history
-                                .link_underline_style
-                                .display_name(),
-                        )
-                        .show_ui(ui, |ui| {
-                            for style in par_term_config::LinkUnderlineStyle::all() {
-                                if ui
-                                    .selectable_value(
-                                        &mut settings.config.semantic_history.link_underline_style,
-                                        *style,
-                                        style.display_name(),
-                                    )
-                                    .changed()
-                                {
-                                    settings.has_changes = true;
-                                    *changes_this_frame = true;
+            crate::dependent::dependent(
+                ui,
+                settings.config.semantic_history.link_highlight_underline,
+                "Underline highlighted links",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Underline style:");
+                        egui::ComboBox::from_id_salt("link_underline_style")
+                            .selected_text(
+                                settings
+                                    .config
+                                    .semantic_history
+                                    .link_underline_style
+                                    .display_name(),
+                            )
+                            .show_ui(ui, |ui| {
+                                for style in par_term_config::LinkUnderlineStyle::all() {
+                                    if ui
+                                        .selectable_value(
+                                            &mut settings
+                                                .config
+                                                .semantic_history
+                                                .link_underline_style,
+                                            *style,
+                                            style.display_name(),
+                                        )
+                                        .changed()
+                                    {
+                                        settings.has_changes = true;
+                                        *changes_this_frame = true;
+                                    }
                                 }
-                            }
-                        });
-                });
-            }
+                            });
+                    });
+                },
+            );
 
             ui.add_space(8.0);
 

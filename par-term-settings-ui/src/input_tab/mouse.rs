@@ -22,56 +22,68 @@ pub(super) fn show_mouse_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.mouse.mouse_scroll_speed, 0.1..=10.0),
+                    egui::Slider::new(&mut settings.config.mouse.mouse_scroll_speed, 0.1..=10.0)
+                        .suffix("×"),
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.mouse.mouse_scroll_speed
+            });
         });
 
         ui.horizontal(|ui| {
-            ui.label("Double-click threshold (ms):");
+            ui.label("Double-click threshold:");
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
                     egui::Slider::new(
                         &mut settings.config.mouse.mouse_double_click_threshold,
                         100..=1000,
-                    ),
+                    )
+                    .suffix(" ms"),
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.mouse.mouse_double_click_threshold
+            });
         });
 
         ui.horizontal(|ui| {
-            ui.label("Triple-click threshold (ms):");
+            ui.label("Triple-click threshold:");
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
                     egui::Slider::new(
                         &mut settings.config.mouse.mouse_triple_click_threshold,
                         100..=1000,
-                    ),
+                    )
+                    .suffix(" ms"),
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.mouse.mouse_triple_click_threshold
+            });
         });
 
         ui.separator();
         ui.label("Advanced Mouse Features");
 
         #[cfg(target_os = "macos")]
-        let option_click_label = "Option+Click moves cursor";
+        let option_click_label = "Option+Click moves the cursor";
         #[cfg(not(target_os = "macos"))]
-        let option_click_label = "Alt+Click moves cursor";
+        let option_click_label = "Alt+Click moves the cursor";
 
         if ui
             .checkbox(

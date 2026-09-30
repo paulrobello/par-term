@@ -19,12 +19,16 @@ pub(super) fn show_management_section(
         collapsed,
         |ui, collapsed| {
             // Render the profile list/edit UI inline
+            settings.profile_modal_ui.global_tmux_enabled = settings.config.tmux.tmux_enabled;
             let action = settings.profile_modal_ui.show_inline(ui, collapsed);
 
             // Handle returned actions
             match action {
+                // Only the empty-list confirmation returns Save now; it
+                // runs the Settings window's Save, which persists config and
+                // profiles together (UX.md SS5).
                 ProfileModalAction::Save => {
-                    settings.profile_save_requested = true;
+                    settings.global_save_requested = true;
                 }
                 ProfileModalAction::OpenProfile(id) => {
                     settings.profile_open_requested = Some(id);
@@ -39,7 +43,6 @@ pub(super) fn show_management_section(
 pub(super) fn show_display_options_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
     use crate::section::collapsing_section;
@@ -51,25 +54,33 @@ pub(super) fn show_display_options_section(
         true,
         collapsed,
         |ui| {
-            if ui
-            .checkbox(
-                &mut settings.config.tabs.show_profile_drawer_button,
-                "Show profile drawer toggle button",
-            )
-            .on_hover_text("Show/hide the profile drawer toggle button on the right edge of the terminal window. The drawer can still be accessed via keyboard shortcuts when hidden.")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-            ui.add_space(8.0);
-
+            // UX.md SC7: the profile drawer button has one control, on
+            // Window › Tab Bar. This section points there instead of
+            // repeating it.
+            ui.horizontal(|ui| {
+                let state = if settings.config.tabs.show_profile_drawer_button {
+                    "shown"
+                } else {
+                    "hidden"
+                };
+                ui.label(format!("Profile drawer button: {state}."));
+                if ui
+                    .link("Change in Window › Tab Bar")
+                    .on_hover_text("show_profile_drawer_button")
+                    .clicked()
+                {
+                    settings.selected_tab = crate::sidebar::SettingsTab::Window;
+                }
+            });
+            ui.add_space(4.0);
             ui.label(
-            egui::RichText::new("The profile drawer provides quick access to your profiles without opening the full settings window.")
+                egui::RichText::new(
+                    "The profile drawer gives quick access to your profiles without opening \
+                     Settings.",
+                )
                 .small()
                 .color(egui::Color32::GRAY),
-        );
+            );
         },
     );
 }

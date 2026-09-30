@@ -91,6 +91,17 @@ impl WindowState {
     // Debounced Config Save
     // ========================================================================
 
+    /// Queue this window's current integration prompt state for the window
+    /// manager to persist (through Settings' baseline when it is open).
+    pub(crate) fn queue_integrations_change(&mut self) {
+        let integrations = self.config.load().integrations.clone();
+        self.render_loop
+            .external_config_changes
+            .push(super::ExternalConfigChange::Integrations(Box::new(
+                integrations,
+            )));
+    }
+
     /// Save config with debouncing to prevent rapid concurrent writes.
     ///
     /// Multiple code paths may request config saves in quick succession (e.g.,

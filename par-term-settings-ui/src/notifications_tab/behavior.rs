@@ -42,13 +42,17 @@ pub(super) fn show_behavior_section(
                         egui::Slider::new(
                             &mut settings.config.notifications.notification_max_buffer,
                             10..=1000,
-                        ),
+                        )
+                        .suffix(" entries"),
                     )
                     .changed()
                 {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.notifications.notification_max_buffer
+                });
             });
 
             ui.add_space(8.0);

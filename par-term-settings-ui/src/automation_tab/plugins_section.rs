@@ -63,6 +63,11 @@ fn show_plugins_collapsing(
             "Local plugins run as subprocesses and publish status-bar widgets, contribute command-palette actions, or push panel content.",
         );
         ui.label("Plugins are disabled until enabled here. Install from a git URL below, or copy a plugin directory into the plugins folder by hand.");
+        crate::saved_immediately::saved_immediately(
+            ui,
+            "Installing, updating, and removing plugins are",
+            &par_term_config::Config::config_dir().join("plugins"),
+        );
         ui.add_space(4.0);
 
         // Poll any in-flight git operation (add / fetch / apply / remove);

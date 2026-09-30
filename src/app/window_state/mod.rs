@@ -97,7 +97,7 @@ pub(crate) use egui_state::EguiState;
 pub(crate) use focus_state::FocusState;
 pub(crate) use notifications::NotificationClickState;
 pub(crate) use overlay_state::OverlayState;
-pub(crate) use render_loop_state::{ConfigSaveState, RenderLoopState};
+pub(crate) use render_loop_state::{ConfigSaveState, ExternalConfigChange, RenderLoopState};
 pub(crate) use trigger_state::{PendingTriggerAction, TriggerState};
 pub(crate) use update_state::UpdateState;
 pub(crate) use watcher_state::WatcherState;

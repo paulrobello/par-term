@@ -34,99 +34,94 @@ pub(super) fn show_anti_idle_section(
                 *changes_this_frame = true;
             }
 
-            ui.horizontal(|ui| {
-                ui.label("Seconds before sending:");
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut settings.config.notifications.anti_idle_seconds)
-                            .range(10..=3600)
-                            .speed(1.0),
-                    )
-                    .on_hover_text("How long to wait before sending keep-alive (10-3600 seconds)")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Character to send:");
-                egui::ComboBox::from_id_salt("notifications_anti_idle_code")
-                    .selected_text(match settings.config.notifications.anti_idle_code {
-                        0 => "NUL (0x00)",
-                        5 => "ENQ (0x05)",
-                        27 => "ESC (0x1B)",
-                        32 => "Space (0x20)",
-                        _ => "Custom",
-                    })
-                    .show_ui(ui, |ui| {
+            crate::dependent::dependent(
+                ui,
+                settings.config.notifications.anti_idle_enabled,
+                "Send code when idle",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Send after:");
                         if ui
-                            .selectable_value(
-                                &mut settings.config.notifications.anti_idle_code,
-                                0,
-                                "NUL (0x00) - Null character, most common",
+                            .add(
+                                egui::DragValue::new(
+                                    &mut settings.config.notifications.anti_idle_seconds,
+                                )
+                                .range(10..=3600)
+                                .speed(1.0)
+                                .suffix(" s"),
                             )
+                            .on_hover_text("Idle time before the keep-alive is sent (10-3600 s)")
                             .changed()
                         {
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
-                        if ui
-                            .selectable_value(
-                                &mut settings.config.notifications.anti_idle_code,
-                                27,
-                                "ESC (0x1B) - Escape, safe for most apps",
-                            )
-                            .changed()
-                        {
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                        if ui
-                            .selectable_value(
-                                &mut settings.config.notifications.anti_idle_code,
-                                5,
-                                "ENQ (0x05) - Enquiry, may trigger answerback",
-                            )
-                            .changed()
-                        {
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                        if ui
-                            .selectable_value(
-                                &mut settings.config.notifications.anti_idle_code,
-                                32,
-                                "Space (0x20) - Visible but harmless",
-                            )
-                            .changed()
-                        {
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.notifications.anti_idle_seconds
+                        });
                     });
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Custom ASCII code:");
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut settings.config.notifications.anti_idle_code)
-                            .range(0..=127)
-                            .speed(1.0),
-                    )
-                    .on_hover_text("ASCII code (0-127) to send as keep-alive")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-                ui.label(format!(
-                    "(0x{:02X})",
-                    settings.config.notifications.anti_idle_code
-                ));
-            });
+                    show_anti_idle_code(ui, settings, changes_this_frame);
+                },
+            );
         },
     );
+}
+
+/// Named keep-alive characters offered in the picker.
+const NAMED_CODES: &[(u8, &str, &str)] = &[
+    (0, "NUL (0x00)", "Null character, most common"),
+    (27, "ESC (0x1B)", "Escape, safe for most apps"),
+    (5, "ENQ (0x05)", "Enquiry, may trigger answerback"),
+    (32, "Space (0x20)", "Visible but harmless"),
+];
+
+/// One control for `anti_idle_code` (UX.md B50): a picker of named
+/// characters plus "Custom", which shows the ASCII value field. Before, a
+/// combo and an always-visible number both wrote the same field.
+fn show_anti_idle_code(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
+    let code = &mut settings.config.notifications.anti_idle_code;
+    let named = NAMED_CODES.iter().find(|(c, _, _)| *c == *code);
+    let mut custom = named.is_none() || settings.advanced_tab.anti_idle_custom_code;
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label("Character to send:");
+        egui::ComboBox::from_id_salt("notifications_anti_idle_code")
+            .selected_text(match (custom, named) {
+                (false, Some((_, name, _))) => (*name).to_string(),
+                _ => format!("Custom (0x{code:02X})"),
+            })
+            .show_ui(ui, |ui| {
+                for (value, name, hint) in NAMED_CODES {
+                    if ui
+                        .selectable_label(!custom && *code == *value, *name)
+                        .on_hover_text(*hint)
+                        .clicked()
+                    {
+                        *code = *value;
+                        custom = false;
+                        changed = true;
+                    }
+                }
+                if ui.selectable_label(custom, "Custom…").clicked() {
+                    custom = true;
+                }
+            });
+        if custom
+            && ui
+                .add(egui::DragValue::new(code).range(0..=127).speed(1.0))
+                .on_hover_text("ASCII code (0-127) to send as the keep-alive")
+                .changed()
+        {
+            changed = true;
+        }
+    });
+    settings.advanced_tab.anti_idle_custom_code = custom;
+    if changed {
+        settings.has_changes = true;
+        *changes_this_frame = true;
+    }
 }

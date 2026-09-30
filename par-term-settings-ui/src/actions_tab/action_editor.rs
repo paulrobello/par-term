@@ -49,151 +49,147 @@ pub fn show_action_edit_form(
 
     ui.separator();
 
-    // Scrollable area for form fields
-    egui::ScrollArea::vertical()
-        .max_height(300.0)
-        .show(ui, |ui| {
-            ui.label("Title:");
-            if ui
-                .text_edit_singleline(&mut settings.actions_tab.temp_action_title)
-                .changed()
-            {
-                *changes_this_frame = true;
-            }
+    ui.scope(|ui| {
+        ui.label("Title:");
+        if ui
+            .text_edit_singleline(&mut settings.actions_tab.temp_action_title)
+            .changed()
+        {
+            *changes_this_frame = true;
+        }
 
-            ui.label("ID:");
-            ui.label(
-                egui::RichText::new(&settings.actions_tab.temp_action_id)
-                    .monospace()
-                    .small(),
-            );
+        ui.label("ID:");
+        ui.label(
+            egui::RichText::new(&settings.actions_tab.temp_action_id)
+                .monospace()
+                .small(),
+        );
 
-            ui.label("Type:");
-            let types = [
-                "Shell Command",
-                "New Tab",
-                "Insert Text",
-                "Key Sequence",
-                "Split Pane",
-                "Sequence",
-                "Condition",
-                "Repeat",
-            ];
-            egui::ComboBox::from_id_salt("action_type")
-                .selected_text(types[settings.actions_tab.temp_action_type])
-                .width(150.0)
-                .show_ui(ui, |ui| {
-                    for (i, &type_name) in types.iter().enumerate() {
-                        if ui
-                            .selectable_label(settings.actions_tab.temp_action_type == i, type_name)
-                            .clicked()
-                        {
-                            settings.actions_tab.temp_action_type = i;
-                            *changes_this_frame = true;
-                        }
-                    }
-                });
-
-            ui.label("Keybinding:");
-            ui.horizontal(|ui| {
-                // Check for recording state
-                if settings.actions_tab.recording_action_keybinding {
-                    // Show recording indicator and capture key combo
-                    ui.label(egui::RichText::new("🔴 Recording...").color(egui::Color32::RED));
-                    if let Some(combo) = capture_key_combo(ui) {
-                        settings.actions_tab.action_recorded_combo = Some(combo.clone());
-                        settings.actions_tab.temp_action_keybinding = combo;
-                        settings.actions_tab.recording_action_keybinding = false;
-                        *changes_this_frame = true;
-                    }
-                } else {
-                    // Show text input and record button
+        ui.label("Type:");
+        let types = [
+            "Shell Command",
+            "New Tab",
+            "Insert Text",
+            "Key Sequence",
+            "Split Pane",
+            "Sequence",
+            "Condition",
+            "Repeat",
+        ];
+        egui::ComboBox::from_id_salt("action_type")
+            .selected_text(types[settings.actions_tab.temp_action_type])
+            .width(150.0)
+            .show_ui(ui, |ui| {
+                for (i, &type_name) in types.iter().enumerate() {
                     if ui
-                        .text_edit_singleline(&mut settings.actions_tab.temp_action_keybinding)
-                        .changed()
-                    {
-                        *changes_this_frame = true;
-                    }
-
-                    // Record button
-                    if ui
-                        .small_button("🎤")
-                        .on_hover_text("Record keybinding")
+                        .selectable_label(settings.actions_tab.temp_action_type == i, type_name)
                         .clicked()
                     {
-                        settings.actions_tab.recording_action_keybinding = true;
-                        settings.actions_tab.action_recorded_combo = None;
+                        settings.actions_tab.temp_action_type = i;
+                        *changes_this_frame = true;
                     }
                 }
             });
 
-            // Conflict warning — shown below the keybinding row so it doesn't push the record button off-screen
-            if !settings.actions_tab.recording_action_keybinding
-                && !settings.actions_tab.temp_action_keybinding.is_empty()
-            {
-                let exclude_id = if let Some(i) = edit_index {
-                    settings.config.actions.get(i).map(|a| a.id())
-                } else {
-                    None
-                };
-                if let Some(conflict) = settings.check_keybinding_conflict(
-                    &settings.actions_tab.temp_action_keybinding,
-                    exclude_id,
-                ) {
-                    ui.label(
-                        egui::RichText::new(format!("⚠️ {}", conflict))
-                            .color(egui::Color32::from_rgb(255, 180, 0))
-                            .small(),
-                    );
+        ui.label("Keybinding:");
+        ui.horizontal(|ui| {
+            // Check for recording state
+            if settings.actions_tab.recording_action_keybinding {
+                // Show recording indicator and capture key combo
+                ui.label(egui::RichText::new("🔴 Recording...").color(egui::Color32::RED));
+                if let Some(combo) = capture_key_combo(ui) {
+                    settings.actions_tab.action_recorded_combo = Some(combo.clone());
+                    settings.actions_tab.temp_action_keybinding = combo;
+                    settings.actions_tab.recording_action_keybinding = false;
+                    *changes_this_frame = true;
                 }
-            }
-
-            ui.label("Prefix char:");
-            if ui
-                .text_edit_singleline(&mut settings.actions_tab.temp_action_prefix_char)
-                .changed()
-            {
-                settings.actions_tab.temp_action_prefix_char = settings
-                    .actions_tab
-                    .temp_action_prefix_char
-                    .chars()
-                    .find(|ch| !ch.is_whitespace())
-                    .map(|ch| ch.to_string())
-                    .unwrap_or_default();
-                *changes_this_frame = true;
-            }
-
-            if let Some(prefix_char) = settings.actions_tab.temp_action_prefix_char.chars().next() {
-                let exclude_id = if let Some(i) = edit_index {
-                    settings.config.actions.get(i).map(|a| a.id())
-                } else {
-                    None
-                };
-
-                if let Some(conflict) =
-                    settings.check_action_prefix_char_conflict(prefix_char, exclude_id)
+            } else {
+                // Show text input and record button
+                if ui
+                    .text_edit_singleline(&mut settings.actions_tab.temp_action_keybinding)
+                    .changed()
                 {
-                    ui.label(
-                        egui::RichText::new(format!("⚠️ {}", conflict))
-                            .color(egui::Color32::from_rgb(255, 180, 0))
-                            .small(),
-                    );
+                    *changes_this_frame = true;
                 }
-            }
 
-            // Type-specific fields — each action type is rendered by a dedicated helper.
-            match settings.actions_tab.temp_action_type {
-                0 => show_shell_command_form(ui, settings, changes_this_frame),
-                1 => show_new_tab_form(ui, settings, changes_this_frame),
-                2 => show_insert_text_form(ui, settings, changes_this_frame),
-                3 => show_key_sequence_form(ui, settings, changes_this_frame),
-                4 => show_split_pane_form(ui, settings, changes_this_frame),
-                5 => show_sequence_form(ui, settings, changes_this_frame),
-                6 => show_condition_form(ui, settings, changes_this_frame),
-                7 => show_repeat_form(ui, settings, changes_this_frame),
-                _ => {}
+                // Record button
+                if ui
+                    .small_button("🎤")
+                    .on_hover_text("Record keybinding")
+                    .clicked()
+                {
+                    settings.actions_tab.recording_action_keybinding = true;
+                    settings.actions_tab.action_recorded_combo = None;
+                }
             }
         });
+
+        // Conflict warning — shown below the keybinding row so it doesn't push the record button off-screen
+        if !settings.actions_tab.recording_action_keybinding
+            && !settings.actions_tab.temp_action_keybinding.is_empty()
+        {
+            let exclude_id = if let Some(i) = edit_index {
+                settings.config.actions.get(i).map(|a| a.id())
+            } else {
+                None
+            };
+            if let Some(conflict) = settings
+                .check_keybinding_conflict(&settings.actions_tab.temp_action_keybinding, exclude_id)
+            {
+                ui.label(
+                    egui::RichText::new(format!("⚠️ {}", conflict))
+                        .color(egui::Color32::from_rgb(255, 180, 0))
+                        .small(),
+                );
+            }
+        }
+
+        ui.label("Prefix char:");
+        if ui
+            .text_edit_singleline(&mut settings.actions_tab.temp_action_prefix_char)
+            .changed()
+        {
+            settings.actions_tab.temp_action_prefix_char = settings
+                .actions_tab
+                .temp_action_prefix_char
+                .chars()
+                .find(|ch| !ch.is_whitespace())
+                .map(|ch| ch.to_string())
+                .unwrap_or_default();
+            *changes_this_frame = true;
+        }
+
+        if let Some(prefix_char) = settings.actions_tab.temp_action_prefix_char.chars().next() {
+            let exclude_id = if let Some(i) = edit_index {
+                settings.config.actions.get(i).map(|a| a.id())
+            } else {
+                None
+            };
+
+            if let Some(conflict) =
+                settings.check_action_prefix_char_conflict(prefix_char, exclude_id)
+            {
+                ui.label(
+                    egui::RichText::new(format!("⚠️ {}", conflict))
+                        .color(egui::Color32::from_rgb(255, 180, 0))
+                        .small(),
+                );
+            }
+        }
+
+        // Type-specific fields — each action type is rendered by a dedicated helper.
+        match settings.actions_tab.temp_action_type {
+            0 => show_shell_command_form(ui, settings, changes_this_frame),
+            1 => show_new_tab_form(ui, settings, changes_this_frame),
+            2 => show_insert_text_form(ui, settings, changes_this_frame),
+            3 => show_key_sequence_form(ui, settings, changes_this_frame),
+            4 => show_split_pane_form(ui, settings, changes_this_frame),
+            5 => show_sequence_form(ui, settings, changes_this_frame),
+            6 => show_condition_form(ui, settings, changes_this_frame),
+            7 => show_repeat_form(ui, settings, changes_this_frame),
+            _ => {}
+        }
+    });
 
     ui.separator();
 }

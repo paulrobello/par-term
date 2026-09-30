@@ -75,17 +75,16 @@ pub(super) fn show_script_edit_form(
             });
         });
 
-        // Restart delay (only shown when restart policy is not Never)
-        if settings.scripts_tab.temp_script_restart_policy != RestartPolicy::Never {
+        crate::dependent::dependent(ui, settings.scripts_tab.temp_script_restart_policy != RestartPolicy::Never, "Restart policy: not Never", |ui| {
             ui.horizontal(|ui| {
-                ui.label("Restart delay (ms):");
+                ui.label("Restart delay:");
                 ui.add(
-                    egui::DragValue::new(&mut settings.scripts_tab.temp_script_restart_delay_ms)
+                    egui::DragValue::new(&mut settings.scripts_tab.temp_script_restart_delay_ms).suffix(" ms")
                         .range(0..=60000)
                         .speed(100.0),
                 );
             });
-        }
+        });
 
         ui.add_space(4.0);
 
@@ -127,11 +126,12 @@ fn show_permissions_section(ui: &mut egui::Ui, settings: &mut SettingsUI) {
                 );
 
                 ui.horizontal(|ui| {
-                    ui.label("Rate limit (writes/sec, 0 = default 10/s):");
+                    ui.label("Rate limit (0 = default 10/s):");
                     ui.add(
                         egui::DragValue::new(
                             &mut settings.scripts_tab.temp_script_write_text_rate_limit,
                         )
+                        .suffix(" writes/s")
                         .range(0..=100)
                         .speed(1.0),
                     );
@@ -151,11 +151,12 @@ fn show_permissions_section(ui: &mut egui::Ui, settings: &mut SettingsUI) {
         if settings.scripts_tab.temp_script_allow_run_command {
             ui.indent("run_command_rate", |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Rate limit (runs/sec, 0 = default 1/s):");
+                    ui.label("Rate limit (0 = default 1/s):");
                     ui.add(
                         egui::DragValue::new(
                             &mut settings.scripts_tab.temp_script_run_command_rate_limit,
                         )
+                        .suffix(" runs/s")
                         .range(0..=10)
                         .speed(1.0),
                     );

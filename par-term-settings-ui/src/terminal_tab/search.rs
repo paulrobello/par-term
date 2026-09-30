@@ -95,10 +95,15 @@ pub(super) fn show_search_section(
 
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Keyboard Shortcuts").weak().small());
+        let open = crate::live_binding::binding_for(&settings.config, "toggle_search")
+            .map(|chord| format!("{chord}: Open search, "))
+            .unwrap_or_default();
         ui.label(
-            egui::RichText::new("  Cmd/Ctrl+F: Open search, Enter: Next, Shift+Enter: Previous")
-                .weak()
-                .small(),
+            egui::RichText::new(format!(
+                "  {open}Enter: Next match, Shift+Enter: Previous match"
+            ))
+            .weak()
+            .small(),
         );
     });
 }
@@ -120,9 +125,11 @@ pub(super) fn show_command_history_section(
         true,
         collapsed,
         |ui| {
-            ui.label(
-                "Fuzzy search through previously executed commands (Cmd+Shift+; / Ctrl+Alt+R).",
-            );
+            ui.label(crate::live_binding::with_binding(
+                &settings.config,
+                "Fuzzy search through previously run commands",
+                "toggle_command_history",
+            ));
             ui.add_space(4.0);
 
             ui.horizontal(|ui| {
@@ -133,13 +140,17 @@ pub(super) fn show_command_history_section(
                         egui::Slider::new(
                             &mut settings.config.command_history_max_entries,
                             100..=10000,
-                        ),
+                        )
+                        .suffix(" entries"),
                     )
                     .changed()
                 {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.command_history_max_entries
+                });
             });
         },
     );
@@ -177,7 +188,7 @@ pub(super) fn show_command_separator_section(
                 settings.config.command_separator.command_separator_enabled,
                 |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Thickness (px):");
+                        ui.label("Thickness:");
                         if ui
                             .add_sized(
                                 [SLIDER_WIDTH, SLIDER_HEIGHT],
@@ -187,13 +198,17 @@ pub(super) fn show_command_separator_section(
                                         .command_separator
                                         .command_separator_thickness,
                                     0.5..=5.0,
-                                ),
+                                )
+                                .suffix(" px"),
                             )
                             .changed()
                         {
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.command_separator.command_separator_thickness
+                        });
                     });
 
                     ui.horizontal(|ui| {
@@ -201,19 +216,22 @@ pub(super) fn show_command_separator_section(
                         if ui
                             .add_sized(
                                 [SLIDER_WIDTH, SLIDER_HEIGHT],
-                                egui::Slider::new(
+                                crate::units::percent(egui::Slider::new(
                                     &mut settings
                                         .config
                                         .command_separator
                                         .command_separator_opacity,
                                     0.0..=1.0,
-                                ),
+                                )),
                             )
                             .changed()
                         {
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.command_separator.command_separator_opacity
+                        });
                     });
 
                     if ui

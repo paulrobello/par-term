@@ -218,9 +218,7 @@ impl WindowState {
                     .agent_skill_prompted_version = Some(v.clone());
                 std::sync::Arc::new(new)
             });
-            if let Err(e) = self.save_config_debounced() {
-                log::error!("Failed to save config after skipping integrations: {}", e);
-            }
+            self.queue_integrations_change();
         }
 
         // Handle "Never Ask" - disable prompting permanently
@@ -235,9 +233,7 @@ impl WindowState {
                 new.integrations.agent_skill_state = crate::config::InstallPromptState::Never;
                 std::sync::Arc::new(new)
             });
-            if let Err(e) = self.save_config_debounced() {
-                log::error!("Failed to save config after declining integrations: {}", e);
-            }
+            self.queue_integrations_change();
         }
 
         // Handle dialog closed (OK button after success)
@@ -365,10 +361,7 @@ impl WindowState {
             ));
         }
 
-        // Save config
-        if let Err(e) = self.save_config_debounced() {
-            log::error!("Failed to save config after integration install: {}", e);
-        }
+        self.queue_integrations_change();
 
         // Clear pending flags
         self.overlay_ui.integrations_ui.pending_install_shaders = false;

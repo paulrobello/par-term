@@ -16,12 +16,14 @@ pub(super) fn show_keyboard_section(
     collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(ui, "Keyboard", "input_keyboard", true, collapsed, |ui| {
-        ui.label("Option/Alt key behavior for emacs, vim, and other terminal applications.");
+        ui.label(format!(
+            "{OPTION_KEY} key behavior for emacs, vim, and other terminal applications."
+        ));
         ui.add_space(4.0);
 
         // Left Option/Alt key mode
         ui.horizontal(|ui| {
-            ui.label("Left Option/Alt sends:");
+            ui.label(format!("Left {OPTION_KEY} sends:"));
             let current = settings.config.input.left_option_key_mode;
             egui::ComboBox::from_id_salt("input_left_option_key_mode")
                 .selected_text(option_key_mode_label(current))
@@ -60,7 +62,7 @@ pub(super) fn show_keyboard_section(
 
         // Right Option/Alt key mode
         ui.horizontal(|ui| {
-            ui.label("Right Option/Alt sends:");
+            ui.label(format!("Right {OPTION_KEY} sends:"));
             let current = settings.config.input.right_option_key_mode;
             egui::ComboBox::from_id_salt("input_right_option_key_mode")
                 .selected_text(option_key_mode_label(current))
@@ -322,16 +324,28 @@ fn option_key_mode_label(mode: OptionKeyMode) -> &'static str {
     }
 }
 
-fn option_key_mode_description(mode: OptionKeyMode) -> &'static str {
+/// The key the Option/Alt settings refer to, named as this platform's
+/// keyboard labels it (UX.md SC8).
+const OPTION_KEY: &str = if cfg!(target_os = "macos") {
+    "Option"
+} else {
+    "Alt"
+};
+
+fn option_key_mode_description(mode: OptionKeyMode) -> String {
     match mode {
         OptionKeyMode::Normal => {
-            "Sends special characters (e.g., Option+f → ƒ). Default macOS behavior."
+            if cfg!(target_os = "macos") {
+                "Sends special characters (e.g., Option+F → ƒ). Default macOS behavior.".to_string()
+            } else {
+                "Sends the key unchanged, as the keyboard layout produces it.".to_string()
+            }
         }
-        OptionKeyMode::Meta => {
-            "Sets high bit on character (e.g., Option+f → 0xE6). Legacy Meta key mode."
-        }
-        OptionKeyMode::Esc => {
-            "Sends Escape prefix (e.g., Option+f → ESC f). Best for emacs/vim compatibility."
-        }
+        OptionKeyMode::Meta => format!(
+            "Sets the high bit on the character (e.g., {OPTION_KEY}+F → 0xE6). Legacy Meta key mode."
+        ),
+        OptionKeyMode::Esc => format!(
+            "Sends an Escape prefix (e.g., {OPTION_KEY}+F → ESC f). Best for emacs/vim compatibility."
+        ),
     }
 }

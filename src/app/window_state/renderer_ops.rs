@@ -266,10 +266,12 @@ impl WindowState {
                 new.ai_inspector.ai_inspector_width = self.overlay_ui.ai_inspector.width;
                 std::sync::Arc::new(new)
             });
-            // Save to disk so the width is remembered across sessions.
-            if let Err(e) = self.save_config_debounced() {
-                log::error!("Failed to save AI inspector width: {}", e);
-            }
+            // Remembered across launches; the window manager writes it.
+            self.render_loop.external_config_changes.push(
+                crate::app::window_state::ExternalConfigChange::AssistantPanelWidth(
+                    self.overlay_ui.ai_inspector.width,
+                ),
+            );
         }
 
         self.overlay_ui.last_inspector_width = current_width;

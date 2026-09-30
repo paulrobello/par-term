@@ -89,17 +89,7 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                         self.apply_config_to_windows(&config);
                     }
                     SettingsWindowAction::SaveConfig(config) => {
-                        // Save config to disk and apply to all windows
-                        if let Err(e) = config.save() {
-                            log::error!("Failed to save config: {}", e);
-                        } else {
-                            log::info!("Configuration saved successfully");
-                        }
-                        self.apply_config_to_windows(&config);
-                        // Update settings window with saved config
-                        if let Some(settings_window) = &mut self.settings_window {
-                            settings_window.update_config(config);
-                        }
+                        self.save_config_from_settings(config);
                     }
                     SettingsWindowAction::ApplyShader(shader_result) => {
                         let _ = self.apply_shader_from_editor(&shader_result.source);
@@ -112,16 +102,7 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                         self.send_test_notification();
                     }
                     SettingsWindowAction::SaveProfiles(profiles) => {
-                        // Apply saved profiles to all terminal windows
-                        for window_state in self.windows.values_mut() {
-                            window_state.apply_profile_changes(profiles.clone());
-                        }
-                        // Update the profiles menu
-                        if let Some(menu) = &mut self.menu {
-                            let profile_refs: Vec<&crate::profile::Profile> =
-                                profiles.iter().collect();
-                            menu.update_profiles(&profile_refs);
-                        }
+                        self.save_profiles_from_settings(profiles);
                     }
                     SettingsWindowAction::OpenProfile(id) => {
                         // Open profile in the focused terminal window
@@ -379,6 +360,10 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                 cursor_shader_result = Some(result);
             }
         }
+
+        // Persist config changes windows made on their own this tick, through
+        // Settings' baseline when it is open.
+        self.persist_window_config_changes();
 
         // Populate per-window "move tab candidates" caches so the tab
         // right-click context menu has fresh sibling-window labels each

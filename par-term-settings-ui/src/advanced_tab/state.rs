@@ -9,4 +9,7 @@ pub struct AdvancedTabState {
     pub import_export_status: Option<String>,
     /// Whether the import/export status is an error (true) or success (false)
     pub import_export_is_error: bool,
+    /// The anti-idle picker is on "Custom" even though the value matches a
+    /// named character (the user is typing one in).
+    pub anti_idle_custom_code: bool,
 }

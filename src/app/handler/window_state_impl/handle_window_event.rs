@@ -597,9 +597,9 @@ impl WindowState {
                 }
 
                 if theme_changed || tab_style_changed {
-                    if let Err(e) = self.save_config_debounced() {
-                        log::error!("Failed to save config after theme change: {}", e);
-                    }
+                    self.render_loop.external_config_changes.push(
+                        crate::app::window_state::ExternalConfigChange::SystemTheme { is_dark },
+                    );
                     self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }

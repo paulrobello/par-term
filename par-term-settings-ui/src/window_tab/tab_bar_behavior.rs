@@ -38,9 +38,11 @@ pub(super) fn show_tab_bar_section(
                 });
         });
 
-        // Show light/dark sub-style dropdowns when Automatic is selected
-        if settings.config.tabs.tab_style == TabStyle::Automatic {
-            ui.indent("auto_tab_style_indent", |ui| {
+        crate::dependent::dependent(
+            ui,
+            settings.config.tabs.tab_style == TabStyle::Automatic,
+            "Tab style: Automatic",
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Light tab style:");
                     let current = settings.config.tabs.light_tab_style;
@@ -83,8 +85,8 @@ pub(super) fn show_tab_bar_section(
                             }
                         });
                 });
-            });
-        }
+            },
+        );
 
         ui.horizontal(|ui| {
             ui.label("Show tab bar:");
@@ -215,24 +217,34 @@ pub(super) fn show_tab_bar_section(
                 });
         });
 
-        // Show tab bar width slider only for Left position
-        if settings.config.tabs.tab_bar_position == TabBarPosition::Left {
-            ui.horizontal(|ui| {
-                ui.label("Tab bar width:");
-                if ui
-                    .add(
-                        egui::Slider::new(&mut settings.config.tabs.tab_bar_width, 100.0..=300.0)
+        crate::dependent::dependent(
+            ui,
+            settings.config.tabs.tab_bar_position == TabBarPosition::Left,
+            "Position: Left",
+            |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Tab bar width:");
+                    if ui
+                        .add(
+                            egui::Slider::new(
+                                &mut settings.config.tabs.tab_bar_width,
+                                100.0..=300.0,
+                            )
                             .step_by(1.0)
-                            .suffix("px"),
-                    )
-                    .on_hover_text("Width of the left tab bar panel")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-        }
+                            .suffix(" px"),
+                        )
+                        .on_hover_text("Width of the left tab bar panel")
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                    crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                        &mut c.tabs.tab_bar_width
+                    });
+                });
+            },
+        );
 
         ui.horizontal(|ui| {
             ui.label("Tab bar height:");
@@ -240,7 +252,7 @@ pub(super) fn show_tab_bar_section(
                 .add(
                     egui::Slider::new(&mut settings.config.tabs.tab_bar_height, 20.0..=50.0)
                         .step_by(1.0)
-                        .suffix("px"),
+                        .suffix(" px"),
                 )
                 .on_hover_text("Height of the tab bar in pixels")
                 .changed()
@@ -248,6 +260,9 @@ pub(super) fn show_tab_bar_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.tabs.tab_bar_height
+            });
         });
 
         if ui
@@ -362,9 +377,12 @@ pub(super) fn show_tab_bar_section(
                 &mut settings.config.tabs.new_tab_shortcut_shows_profiles,
                 "New tab shortcut shows profile picker",
             )
-            .on_hover_text(
-                "When enabled, the new tab keyboard shortcut (Cmd+T / Ctrl+Shift+T) shows a profile selection dropdown instead of immediately creating a default tab",
-            )
+            .on_hover_text(crate::live_binding::with_binding(
+                &settings.config,
+                "When enabled, the new tab shortcut shows a profile picker instead of \
+                 immediately opening a default tab",
+                "new_tab",
+            ))
             .changed()
         {
             settings.has_changes = true;
@@ -376,7 +394,7 @@ pub(super) fn show_tab_bar_section(
             // Convert usize to u32 for slider
             let mut max_tabs = settings.config.tabs.max_tabs as u32;
             if ui
-                .add(egui::Slider::new(&mut max_tabs, 0..=50))
+                .add(egui::Slider::new(&mut max_tabs, 0..=50).suffix(" tabs"))
                 .on_hover_text("Maximum number of tabs allowed (0 = unlimited)")
                 .changed()
             {

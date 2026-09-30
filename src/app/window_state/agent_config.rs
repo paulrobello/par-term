@@ -138,6 +138,7 @@ impl WindowState {
                 }
 
                 self.focus_state.needs_redraw = true;
+                self.render_loop.config_reloaded_from_disk = true;
                 debug_info!("CONFIG", "Config reloaded successfully");
             }
             Err(e) => {

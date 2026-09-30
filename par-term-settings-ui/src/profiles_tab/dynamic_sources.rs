@@ -221,94 +221,91 @@ fn show_dynamic_source_edit_form(
             )
         };
 
-        egui::ScrollArea::vertical()
-            .max_height(350.0)
-            .id_salt("dynamic_source_edit_scroll")
-            .show(ui, |ui| {
-                egui::Grid::new("dynamic_source_edit_grid")
-                    .num_columns(2)
-                    .spacing([12.0, 6.0])
-                    .show(ui, |ui| {
-                        // URL
-                        ui.label("URL:");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut source.url)
-                                .desired_width(350.0)
-                                .hint_text("https://example.com/profiles.yaml"),
-                        );
-                        ui.end_row();
+        ui.scope(|ui| {
+            egui::Grid::new("dynamic_source_edit_grid")
+                .num_columns(2)
+                .spacing([12.0, 6.0])
+                .show(ui, |ui| {
+                    // URL
+                    ui.label("URL:");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut source.url)
+                            .desired_width(350.0)
+                            .hint_text("https://example.com/profiles.yaml"),
+                    );
+                    ui.end_row();
 
-                        // Enabled
-                        ui.label("Enabled:");
-                        ui.checkbox(&mut source.enabled, "");
-                        ui.end_row();
+                    // Enabled
+                    ui.label("Enabled:");
+                    ui.checkbox(&mut source.enabled, "");
+                    ui.end_row();
 
-                        // Refresh interval (seconds -> displayed as minutes)
-                        ui.label("Refresh interval:");
-                        let mut minutes = (source.refresh_interval_secs as f32 / 60.0).round();
-                        if ui
-                            .add(
-                                egui::Slider::new(&mut minutes, 1.0..=60.0)
-                                    .suffix(" min")
-                                    .integer(),
-                            )
-                            .changed()
-                        {
-                            source.refresh_interval_secs = (minutes as u64) * 60;
-                        }
-                        ui.end_row();
+                    // Refresh interval (seconds -> displayed as minutes)
+                    ui.label("Refresh interval:");
+                    let mut minutes = (source.refresh_interval_secs as f32 / 60.0).round();
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut minutes, 1.0..=60.0)
+                                .suffix(" min")
+                                .integer(),
+                        )
+                        .changed()
+                    {
+                        source.refresh_interval_secs = (minutes as u64) * 60;
+                    }
+                    ui.end_row();
 
-                        // Max download size (bytes -> displayed as KB)
-                        ui.label("Max download size:");
-                        let mut kb = (source.max_size_bytes as f32 / 1024.0).round() as u32;
-                        if ui
-                            .add(
-                                egui::DragValue::new(&mut kb)
-                                    .range(1..=10240)
-                                    .suffix(" KB")
-                                    .speed(10),
-                            )
-                            .changed()
-                        {
-                            source.max_size_bytes = kb as usize * 1024;
-                        }
-                        ui.end_row();
+                    // Max download size (bytes -> displayed as KB)
+                    ui.label("Max download size:");
+                    let mut kb = (source.max_size_bytes as f32 / 1024.0).round() as u32;
+                    if ui
+                        .add(
+                            egui::DragValue::new(&mut kb)
+                                .range(1..=10240)
+                                .suffix(" KB")
+                                .speed(10),
+                        )
+                        .changed()
+                    {
+                        source.max_size_bytes = kb as usize * 1024;
+                    }
+                    ui.end_row();
 
-                        // Fetch timeout
-                        ui.label("Fetch timeout:");
-                        let mut timeout = source.fetch_timeout_secs as u32;
-                        if ui
-                            .add(
-                                egui::Slider::new(&mut timeout, 5..=60)
-                                    .suffix(" sec")
-                                    .integer(),
-                            )
-                            .changed()
-                        {
-                            source.fetch_timeout_secs = timeout as u64;
-                        }
-                        ui.end_row();
+                    // Fetch timeout
+                    ui.label("Fetch timeout:");
+                    let mut timeout = source.fetch_timeout_secs as u32;
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut timeout, 5..=60)
+                                .suffix(" s")
+                                .integer(),
+                        )
+                        .changed()
+                    {
+                        source.fetch_timeout_secs = timeout as u64;
+                    }
+                    ui.end_row();
 
-                        // Conflict resolution
-                        ui.label("Conflict resolution:");
-                        egui::ComboBox::from_id_salt("dynamic_source_conflict")
-                            .selected_text(source.conflict_resolution.display_name())
-                            .show_ui(ui, |ui| {
-                                for variant in ConflictResolution::variants() {
-                                    ui.selectable_value(
-                                        &mut source.conflict_resolution,
-                                        variant.clone(),
-                                        variant.display_name(),
-                                    );
-                                }
-                            });
-                        ui.end_row();
-                    });
+                    // Conflict resolution
+                    ui.label("Conflict resolution:");
+                    egui::ComboBox::from_id_salt("dynamic_source_conflict")
+                        .selected_text(source.conflict_resolution.display_name())
+                        .show_ui(ui, |ui| {
+                            for variant in ConflictResolution::variants() {
+                                ui.selectable_value(
+                                    &mut source.conflict_resolution,
+                                    variant.clone(),
+                                    variant.display_name(),
+                                );
+                            }
+                        });
+                    ui.end_row();
+                });
 
-                ui.add_space(8.0);
+            ui.add_space(8.0);
 
-                show_headers_section(ui, source, new_header_key, new_header_value, collapsed);
-            });
+            show_headers_section(ui, source, new_header_key, new_header_value, collapsed);
+        });
     }
 
     ui.separator();

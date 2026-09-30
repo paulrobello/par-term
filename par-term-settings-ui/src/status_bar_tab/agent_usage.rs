@@ -70,7 +70,7 @@ pub fn show_agent_usage_section(
             ui.horizontal(|ui| {
                 ui.label("Refresh interval (s):");
                 if ui
-                    .add(egui::Slider::new(&mut interval, 30.0..=3600.0))
+                    .add(egui::Slider::new(&mut interval, 30.0..=3600.0).suffix(" s"))
                     .on_hover_text(
                         "How often the records directory is rescanned when no file change \
                          arrives, and how often the update command runs when configured. \

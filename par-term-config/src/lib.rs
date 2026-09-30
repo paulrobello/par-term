@@ -273,18 +273,18 @@ pub use automation::{
     check_command_denylist, warn_prompt_before_run_false,
 };
 pub use types::{
-    AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
-    CursorShaderMetadata, CursorStyle, DividerRect, DividerStyle, DownloadSaveLocation,
-    DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState, IntegrationVersions,
-    KeyBinding, LinkUnderlineStyle, LogLevel, ModifierRemapping, ModifierTarget, NewTabPosition,
-    OptionKeyMode, PaneBackground, PaneBackgroundConfig, PaneId, PaneTitlePosition,
-    PowerPreference, ProgressBarPosition, ProgressBarStyle, RemoteTabTitleFormat,
-    SemanticHistoryEditorMode, SeparatorMark, SessionLogFormat, ShaderBackgroundBlendMode,
-    ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShaderSafetyBadge, ShellExitAction,
-    ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
-    StatusBarPosition, TabBarMode, TabBarPosition, TabId, TabStyle, TabTitleMode, ThinStrokesMode,
-    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
-    default_smart_selection_rules,
+    AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, BellAudio,
+    CursorShaderConfig, CursorShaderMetadata, CursorStyle, DividerRect, DividerStyle,
+    DownloadSaveLocation, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
+    IntegrationVersions, KeyBinding, LinkUnderlineStyle, LogLevel, ModifierRemapping,
+    ModifierTarget, NewTabPosition, OptionKeyMode, PaneBackground, PaneBackgroundConfig, PaneId,
+    PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
+    RemoteTabTitleFormat, SemanticHistoryEditorMode, SeparatorMark, SessionLogFormat,
+    ShaderBackgroundBlendMode, ShaderConfig, ShaderInstallPrompt, ShaderMetadata,
+    ShaderSafetyBadge, ShellExitAction, ShellType, SmartSelectionPrecision, SmartSelectionRule,
+    StartupDirectoryMode, StatusBarPosition, TabBarMode, TabBarPosition, TabId, TabStyle,
+    TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode,
+    WindowType, bell_audio, default_smart_selection_rules,
 };
 // Scripting / observer scripts
 pub use scripting::ScriptConfig;

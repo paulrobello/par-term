@@ -55,7 +55,7 @@ pub(super) fn show_per_shader_settings(
         let mut value = effective_value;
         ui.horizontal(|ui| {
             ui.label("Animation speed:");
-            let response = ui.add(egui::Slider::new(&mut value, 0.0..=5.0));
+            let response = ui.add(egui::Slider::new(&mut value, 0.0..=5.0).suffix("×"));
 
             if response.changed() {
                 let override_entry = settings.config.get_or_create_shader_override(shader_name);
@@ -134,7 +134,10 @@ pub(super) fn show_per_shader_settings(
         let mut value = effective_value;
         ui.horizontal(|ui| {
             ui.label("Text opacity:");
-            let response = ui.add(egui::Slider::new(&mut value, 0.0..=1.0));
+            let response = ui.add(crate::units::percent(egui::Slider::new(
+                &mut value,
+                0.0..=1.0,
+            )));
 
             if response.changed() {
                 let override_entry = settings.config.get_or_create_shader_override(shader_name);

@@ -88,28 +88,37 @@ fn show_general_section(
         }
 
         ui.add_space(8.0);
-        ui.label("Badge format:");
-        ui.add_space(2.0);
+        crate::dependent::dependent(
+            ui,
+            settings.config.badge.badge_enabled,
+            "Enable badge",
+            |ui| {
+                ui.label("Badge format:");
+                ui.add_space(2.0);
 
-        // Multi-line text editor for format string
-        if ui
-            .add(
-                egui::TextEdit::singleline(&mut settings.config.badge.badge_format)
-                    .hint_text("\\(session.username)@\\(session.hostname)")
-                    .desired_width(ui.available_width() - 20.0),
-            )
-            .on_hover_text("Format string with variable placeholders like \\(session.hostname)")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+                // Multi-line text editor for format string
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.config.badge.badge_format)
+                            .hint_text("\\(session.username)@\\(session.hostname)")
+                            .desired_width(ui.available_width() - 20.0),
+                    )
+                    .on_hover_text(
+                        "Format string with variable placeholders like \\(session.hostname)",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
 
-        ui.add_space(4.0);
-        ui.label(
-            egui::RichText::new("Use \\(session.variable) syntax for dynamic values")
-                .small()
-                .color(egui::Color32::GRAY),
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new("Use \\(session.variable) syntax for dynamic values")
+                        .small()
+                        .color(egui::Color32::GRAY),
+                );
+            },
         );
     });
 }
@@ -131,63 +140,78 @@ fn show_appearance_section(
         true,
         collapsed,
         |ui| {
-            // Color picker
-            ui.horizontal(|ui| {
-                ui.label("Text color:");
-                if crate::color_helpers::rgb_color_button(
-                    ui,
-                    &mut settings.config.badge.badge_color,
-                )
-                .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+            crate::dependent::dependent(
+                ui,
+                settings.config.badge.badge_enabled,
+                "Enable badge",
+                |ui| {
+                    // Color picker
+                    ui.horizontal(|ui| {
+                        ui.label("Text color:");
+                        if crate::color_helpers::rgb_color_button(
+                            ui,
+                            &mut settings.config.badge.badge_color,
+                        )
+                        .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
 
-            // Opacity slider
-            ui.horizontal(|ui| {
-                ui.label("Opacity:");
-                if ui
-                    .add_sized(
-                        [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.badge.badge_color_alpha, 0.0..=1.0)
-                            .show_value(true),
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+                    // Opacity slider
+                    ui.horizontal(|ui| {
+                        ui.label("Opacity:");
+                        if ui
+                            .add_sized(
+                                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                                crate::units::percent(egui::Slider::new(
+                                    &mut settings.config.badge.badge_color_alpha,
+                                    0.0..=1.0,
+                                ))
+                                .show_value(true),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.badge.badge_color_alpha
+                        });
+                    });
 
-            ui.add_space(8.0);
+                    ui.add_space(8.0);
 
-            // Font family
-            ui.horizontal(|ui| {
-                ui.label("Font:");
-                if ui
-                    .add(
-                        egui::TextEdit::singleline(&mut settings.config.badge.badge_font)
-                            .hint_text("Helvetica")
-                            .desired_width(150.0),
-                    )
-                    .on_hover_text("Font family for badge text (uses system font if not found)")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+                    // Font family
+                    ui.horizontal(|ui| {
+                        ui.label("Font:");
+                        if ui
+                            .add(
+                                egui::TextEdit::singleline(&mut settings.config.badge.badge_font)
+                                    .hint_text("Helvetica")
+                                    .desired_width(150.0),
+                            )
+                            .on_hover_text(
+                                "Font family for badge text (uses system font if not found)",
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
 
-            // Bold checkbox
-            if ui
-                .checkbox(&mut settings.config.badge.badge_font_bold, "Bold")
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
+                    // Bold checkbox
+                    if ui
+                        .checkbox(&mut settings.config.badge.badge_font_bold, "Bold")
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                },
+            );
         },
     );
 }
@@ -209,73 +233,103 @@ fn show_position_section(
         false,
         collapsed,
         |ui| {
-            ui.label("Margins (pixels):");
+            crate::dependent::dependent(
+                ui,
+                settings.config.badge.badge_enabled,
+                "Enable badge",
+                |ui| {
+                    ui.label("Margins:");
 
-            ui.horizontal(|ui| {
-                ui.label("Top:");
-                if ui
-                    .add_sized(
-                        [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.badge.badge_top_margin, 0.0..=100.0),
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+                    ui.horizontal(|ui| {
+                        ui.label("Top:");
+                        if ui
+                            .add_sized(
+                                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                                egui::Slider::new(
+                                    &mut settings.config.badge.badge_top_margin,
+                                    0.0..=100.0,
+                                )
+                                .suffix(" px"),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.badge.badge_top_margin
+                        });
+                    });
 
-            ui.horizontal(|ui| {
-                ui.label("Right:");
-                if ui
-                    .add_sized(
-                        [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(
-                            &mut settings.config.badge.badge_right_margin,
-                            0.0..=100.0,
-                        ),
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+                    ui.horizontal(|ui| {
+                        ui.label("Right:");
+                        if ui
+                            .add_sized(
+                                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                                egui::Slider::new(
+                                    &mut settings.config.badge.badge_right_margin,
+                                    0.0..=100.0,
+                                )
+                                .suffix(" px"),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.badge.badge_right_margin
+                        });
+                    });
 
-            ui.add_space(8.0);
-            ui.label("Maximum size (fraction of terminal):");
+                    ui.add_space(8.0);
+                    ui.label("Maximum size (fraction of terminal):");
 
-            ui.horizontal(|ui| {
-                ui.label("Max width:");
-                if ui
-                    .add_sized(
-                        [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.badge.badge_max_width, 0.1..=1.0)
-                            .show_value(true),
-                    )
-                    .on_hover_text("Maximum badge width as fraction of terminal width")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+                    ui.horizontal(|ui| {
+                        ui.label("Max width:");
+                        if ui
+                            .add_sized(
+                                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                                crate::units::percent(egui::Slider::new(
+                                    &mut settings.config.badge.badge_max_width,
+                                    0.1..=1.0,
+                                ))
+                                .show_value(true),
+                            )
+                            .on_hover_text("Maximum badge width as fraction of terminal width")
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.badge.badge_max_width
+                        });
+                    });
 
-            ui.horizontal(|ui| {
-                ui.label("Max height:");
-                if ui
-                    .add_sized(
-                        [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.badge.badge_max_height, 0.05..=0.5)
-                            .show_value(true),
-                    )
-                    .on_hover_text("Maximum badge height as fraction of terminal height")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+                    ui.horizontal(|ui| {
+                        ui.label("Max height:");
+                        if ui
+                            .add_sized(
+                                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                                crate::units::percent(egui::Slider::new(
+                                    &mut settings.config.badge.badge_max_height,
+                                    0.05..=0.5,
+                                ))
+                                .show_value(true),
+                            )
+                            .on_hover_text("Maximum badge height as fraction of terminal height")
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.badge.badge_max_height
+                        });
+                    });
+                },
+            );
         },
     );
 }

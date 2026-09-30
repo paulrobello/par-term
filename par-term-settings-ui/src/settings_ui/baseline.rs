@@ -4,9 +4,10 @@
 //! config each frame), so the working config alone cannot tell what is saved.
 //! The baseline is the config as it was when Settings opened or last saved:
 //!
-//! - **Revert** copies the baseline back into the working config; the next
-//!   live update carries it to every window.
-//! - **Save** writes the working config and moves the baseline to it.
+//! - **Revert** copies the baseline back into the working config and profile
+//!   list; the next live update carries it to every window.
+//! - **Save** writes the working config and, when they changed, the profiles
+//!   (UX.md SS5: one Save for both), and moves the baseline to them.
 //! - **Close** with unsaved changes shows a Save / Revert / Cancel prompt.
 //!   Closing never persists unsaved edits: the host restores the baseline and
 //!   persists only the collapsed-section state.
@@ -94,8 +95,54 @@ impl SettingsUI {
         self.has_changes = false;
         self.sync_collapsed_sections_to_config();
         self.config.generate_snippet_action_keybindings();
-        self.baseline_config = self.config.clone();
+        self.config_save_rollback = Some(std::mem::replace(
+            &mut self.baseline_config,
+            self.config.clone(),
+        ));
+        self.disk_config_pending = None;
         self.config.clone()
+    }
+
+    /// Record a config change made outside Settings while it is open (an
+    /// automatic theme switch, the Assistant panel width, "Skip This
+    /// Version", an update check timestamp).
+    ///
+    /// The change lands in both the working config and the baseline, so it
+    /// is neither an unsaved Settings edit nor undone by Revert, and the
+    /// next live update does not wipe it from the terminal windows. Returns
+    /// the config to write to disk: the baseline plus the change, never the
+    /// live preview.
+    pub fn apply_external_change(&mut self, change: impl Fn(&mut Config)) -> Config {
+        change(&mut self.config);
+        change(&mut self.baseline_config);
+        self.baseline_config.clone()
+    }
+
+    /// The footer Save (and the close prompt's Save): persist the config and,
+    /// when they changed, the profiles. Returns the config for the host to
+    /// write; profiles are queued through the profile-save request.
+    ///
+    /// Returns `None` without saving anything when the profile editor must
+    /// ask first: an open profile form that fails validation, or a profile
+    /// list emptied over saved profiles. Either way the Profiles tab is
+    /// selected so the question is on screen.
+    pub fn request_save(&mut self) -> Option<Config> {
+        if self.profile_modal_ui.has_unsaved_changes() {
+            if self.profile_modal_ui.finish_open_edit().is_err() {
+                self.selected_tab = crate::sidebar::SettingsTab::Profiles;
+                return None;
+            }
+            if self.profile_modal_ui.has_unsaved_changes() {
+                if self.profile_modal_ui.request_list_save()
+                    != crate::profile_modal_ui::ProfileModalAction::Save
+                {
+                    self.selected_tab = crate::sidebar::SettingsTab::Profiles;
+                    return None;
+                }
+                self.profile_save_requested = true;
+            }
+        }
+        Some(self.commit_save())
     }
 
     /// Restore the baseline config and profiles, dropping every unsaved edit.
@@ -177,20 +224,11 @@ impl SettingsUI {
                 None
             }
             ClosePromptChoice::Save => {
-                if self.profile_modal_ui.has_unsaved_changes() {
-                    self.profile_modal_ui.finish_open_edit();
-                    // Emptying a non-empty profile list needs its own
-                    // confirmation; stay open on the Profiles tab to ask.
-                    if self.profile_modal_ui.request_list_save()
-                        != crate::profile_modal_ui::ProfileModalAction::Save
-                    {
-                        self.selected_tab = crate::sidebar::SettingsTab::Profiles;
-                        return None;
-                    }
-                    self.profile_save_requested = true;
-                }
-                self.close_pending = true;
-                Some(self.commit_save())
+                // A profile question (invalid form, emptied list) keeps the
+                // window open on the Profiles tab to ask it.
+                let saved = self.request_save();
+                self.close_pending = saved.is_some();
+                saved
             }
         }
     }
@@ -445,6 +483,120 @@ mod tests {
         settings.revert_to_baseline();
 
         assert_eq!(settings.profile_modal_ui.get_working_profiles().len(), 2);
+        assert!(!settings.has_unsaved_changes());
+    }
+
+    #[test]
+    fn profile_edit_marks_settings_dirty_and_saves_with_the_global_save() {
+        let mut settings = SettingsUI::new_for_tests(opaque_config());
+        settings.sync_profiles(vec![Profile::new("a")]);
+        assert!(!settings.has_unsaved_changes());
+
+        settings
+            .profile_modal_ui
+            .add_profile_for_test(Profile::new("b"));
+        assert!(settings.has_unsaved_changes(), "a profile edit is unsaved");
+
+        let saved = settings.request_save();
+        assert!(saved.is_some(), "the global Save writes the config");
+        let profiles = settings
+            .take_profile_save_request()
+            .expect("the same Save queues the profiles");
+        assert_eq!(profiles.len(), 2);
+        assert!(!settings.has_unsaved_changes());
+    }
+
+    #[test]
+    fn global_save_without_profile_edits_leaves_profiles_alone() {
+        let mut settings = SettingsUI::new_for_tests(opaque_config());
+        settings.sync_profiles(vec![Profile::new("a")]);
+        settings.config.window.window_opacity = 0.5;
+
+        assert!(settings.request_save().is_some());
+        assert!(settings.take_profile_save_request().is_none());
+    }
+
+    #[test]
+    fn global_save_is_blocked_by_an_invalid_open_profile_form() {
+        let mut settings = SettingsUI::new_for_tests(opaque_config());
+        settings.sync_profiles(vec![Profile::new("a")]);
+        settings
+            .profile_modal_ui
+            .start_create_with_name_for_test("   ");
+
+        assert!(settings.request_save().is_none(), "nothing is written");
+        assert!(settings.take_profile_save_request().is_none());
+        assert_eq!(settings.selected_tab, crate::sidebar::SettingsTab::Profiles);
+        assert!(
+            settings.has_unsaved_changes(),
+            "the invalid form stays open, not dropped"
+        );
+    }
+
+    #[test]
+    fn emptied_profile_list_asks_then_saves_after_confirmation() {
+        let mut settings = SettingsUI::new_for_tests(opaque_config());
+        settings.sync_profiles(vec![Profile::new("keep")]);
+        settings.profile_modal_ui.clear_working_profiles_for_test();
+
+        assert!(settings.request_save().is_none());
+        assert!(settings.profile_modal_ui.is_confirming_empty_save());
+
+        settings.profile_modal_ui.confirm_empty_list_save();
+        assert!(settings.request_save().is_some());
+        let profiles = settings.take_profile_save_request().expect("queued");
+        assert!(profiles.is_empty());
+    }
+
+    #[test]
+    fn viewing_a_dynamic_profile_is_not_an_unsaved_change() {
+        let mut settings = SettingsUI::new_for_tests(opaque_config());
+        let mut remote = Profile::new("remote");
+        remote.source = par_term_config::ProfileSource::Dynamic {
+            url: "https://example.com/p.yaml".to_string(),
+            last_fetched: None,
+        };
+        let id = remote.id;
+        settings.sync_profiles(vec![remote]);
+
+        settings.profile_modal_ui.start_edit_for_test(id);
+        assert!(!settings.has_unsaved_changes());
+        assert!(settings.request_close(), "closes without a prompt");
+    }
+
+    #[test]
+    fn external_change_moves_baseline_and_keeps_unsaved_edits() {
+        let mut settings = SettingsUI::new_for_tests(opaque_config());
+        settings.config.window.window_opacity = 0.4;
+
+        let to_write = settings.apply_external_change(|c| {
+            c.ai_inspector.ai_inspector_width = 512.0;
+        });
+
+        assert_eq!(to_write.ai_inspector.ai_inspector_width, 512.0);
+        assert_eq!(
+            to_write.window.window_opacity, 1.0,
+            "the disk write never carries the live preview"
+        );
+        assert_eq!(settings.config.ai_inspector.ai_inspector_width, 512.0);
+        assert!(
+            settings.has_unsaved_changes(),
+            "the opacity edit is still unsaved"
+        );
+
+        settings.revert_to_baseline();
+        assert_eq!(
+            settings.config.ai_inspector.ai_inspector_width, 512.0,
+            "Revert keeps the outside change"
+        );
+    }
+
+    #[test]
+    fn external_change_on_clean_settings_stays_clean() {
+        let mut settings = SettingsUI::new_for_tests(opaque_config());
+        settings.apply_external_change(|c| {
+            c.updates.skipped_version = Some("9.9.9".to_string());
+        });
         assert!(!settings.has_unsaved_changes());
     }
 

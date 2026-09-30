@@ -13,21 +13,18 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
             bg,
             duration_ms,
         } => {
-            // Background color picker
-            if let Some(bg_color) = bg {
-                crate::color_helpers::rgb_color_button(ui, bg_color);
-            }
-            // Foreground color picker
-            if let Some(fg_color) = fg {
-                ui.label("fg:");
-                crate::color_helpers::rgb_color_button(ui, fg_color);
-            }
-            ui.label("ms:");
+            // Each color has a checkbox that sets or clears it, so a color
+            // that is unset can still be turned on (UX.md B47: the text color
+            // picker used to appear only when a color was already set).
+            optional_color(ui, "Background", bg, [255, 255, 0]);
+            optional_color(ui, "Text", fg, [0, 0, 0]);
             ui.add(
                 egui::DragValue::new(duration_ms)
                     .range(100..=60000)
-                    .speed(100.0),
-            );
+                    .speed(100.0)
+                    .suffix(" ms"),
+            )
+            .on_hover_text("How long the highlight stays");
         }
         TriggerActionConfig::Notify { title, message } => {
             ui.label("title:");
@@ -101,13 +98,23 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
                 }
             }
             ui.label("vol:");
-            ui.add(egui::DragValue::new(volume).range(0..=100).speed(1.0));
+            ui.add(
+                egui::DragValue::new(volume)
+                    .suffix(" %")
+                    .range(0..=100)
+                    .speed(1.0),
+            );
         }
         TriggerActionConfig::SendText { text, delay_ms } => {
             ui.label("text:");
             ui.add(egui::TextEdit::singleline(text).desired_width(100.0));
             ui.label("delay:");
-            ui.add(egui::DragValue::new(delay_ms).range(0..=10000).speed(10.0));
+            ui.add(
+                egui::DragValue::new(delay_ms)
+                    .suffix(" ms")
+                    .range(0..=10000)
+                    .speed(10.0),
+            );
         }
         TriggerActionConfig::SplitPane {
             direction,
@@ -165,7 +172,7 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
                     ui.label("Split %:");
                     let mut pct = *split_percent as u32;
                     if ui
-                        .add(egui::DragValue::new(&mut pct).range(10..=90).suffix("%"))
+                        .add(egui::DragValue::new(&mut pct).range(10..=90).suffix(" %"))
                         .on_hover_text("Existing pane size after split (new pane gets the rest). Default: 66%.")
                         .changed()
                     {
@@ -221,8 +228,8 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
                             ui.text_edit_singleline(text);
                         });
                         ui.horizontal(|ui| {
-                            ui.label("Delay (ms):");
-                            ui.add(egui::DragValue::new(delay_ms).range(0..=5000).speed(10.0));
+                            ui.label("Delay:");
+                            ui.add(egui::DragValue::new(delay_ms).suffix(" ms").range(0..=5000).speed(10.0));
                         });
                     }
                     Some(SplitPaneCommand::InitialCommand {
@@ -245,5 +252,25 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
                 }
             });
         }
+    }
+}
+
+/// A checkbox that sets or clears an optional color, with the picker enabled
+/// while the color is set.
+fn optional_color(ui: &mut egui::Ui, label: &str, color: &mut Option<[u8; 3]>, default: [u8; 3]) {
+    let mut on = color.is_some();
+    if ui.checkbox(&mut on, label).changed() {
+        *color = on.then_some(color.unwrap_or(default));
+    }
+    let enabled = color.is_some();
+    let mut shown = color.unwrap_or(default);
+    let changed = ui
+        .add_enabled_ui(enabled, |ui| {
+            crate::color_helpers::rgb_color_button(ui, &mut shown)
+        })
+        .inner
+        .changed();
+    if changed && enabled {
+        *color = Some(shown);
     }
 }

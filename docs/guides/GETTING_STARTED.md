@@ -207,7 +207,7 @@ Once installed, enable a background shader in Settings under **Effects**, or tog
 
 ### Opening Settings
 
-Press `F12` (or `Cmd + ,` on macOS) to open the Settings window. Settings are organized into tabs with a searchable sidebar. Click **Save** to apply and persist changes -- an `* Unsaved changes` marker tracks pending edits. Font changes use the **Apply font changes** button in the Fonts section.
+Press `F12` (or `Cmd + ,` on macOS) to open the Settings window. Settings are organized into tabs with a searchable sidebar. Most changes preview live in every window; **Save** writes them (and any profile edits) to disk, and **Revert** puts every window back to the last saved state -- an `* Unsaved changes` marker tracks pending edits, and closing with unsaved edits asks first. Font changes wait for the **Apply font changes** button in the Fonts and Font Variants sections; Save also applies them.
 
 ### Profiles
 

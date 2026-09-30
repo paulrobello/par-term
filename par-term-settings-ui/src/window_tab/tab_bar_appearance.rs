@@ -26,7 +26,7 @@ pub(super) fn show_tab_bar_appearance_section(
                             120.0..=512.0,
                         )
                         .step_by(1.0)
-                        .suffix("px"),
+                        .suffix(" px"),
                     )
                     .on_hover_text("Minimum width for tabs before horizontal scrolling is enabled")
                     .changed()
@@ -34,6 +34,9 @@ pub(super) fn show_tab_bar_appearance_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.tab_colors.tab_min_width
+                });
             });
 
             ui.add_space(8.0);
@@ -48,7 +51,7 @@ pub(super) fn show_tab_bar_appearance_section(
                             0.0..=3.0,
                         )
                         .step_by(0.5)
-                        .suffix("px"),
+                        .suffix(" px"),
                     )
                     .on_hover_text("Width of the border around each tab (0 = no border)")
                     .changed()
@@ -56,6 +59,9 @@ pub(super) fn show_tab_bar_appearance_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.tab_colors.tab_border_width
+                });
             });
 
             ui.horizontal(|ui| {
@@ -94,24 +100,32 @@ pub(super) fn show_tab_bar_appearance_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.tab_colors.dim_inactive_tabs {
-                ui.horizontal(|ui| {
-                    ui.label("Opacity:");
-                    if ui
-                        .add(
-                            egui::Slider::new(
-                                &mut settings.config.tab_colors.inactive_tab_opacity,
-                                0.2..=1.0,
+            crate::dependent::dependent(
+                ui,
+                settings.config.tab_colors.dim_inactive_tabs,
+                "Dim inactive tabs",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Opacity:");
+                        if ui
+                            .add(
+                                crate::units::percent(egui::Slider::new(
+                                    &mut settings.config.tab_colors.inactive_tab_opacity,
+                                    0.2..=1.0,
+                                ))
+                                .step_by(0.05),
                             )
-                            .step_by(0.05),
-                        )
-                        .changed()
-                    {
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
-            }
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.tab_colors.inactive_tab_opacity
+                        });
+                    });
+                },
+            );
 
             ui.add_space(8.0);
             ui.label(egui::RichText::new("Background Colors").strong());

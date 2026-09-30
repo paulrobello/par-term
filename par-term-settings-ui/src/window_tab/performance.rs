@@ -25,13 +25,17 @@ pub(super) fn show_performance_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.rendering.max_fps, 1..=240),
+                        egui::Slider::new(&mut settings.config.rendering.max_fps, 1..=240)
+                            .suffix(" fps"),
                     )
                     .changed()
                 {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.rendering.max_fps
+                });
             });
 
             ui.horizontal(|ui| {
@@ -128,11 +132,8 @@ pub(super) fn show_performance_section(
                             }
                         }
                     });
+                crate::deferred_badge(ui, crate::Deferred::Restart);
             });
-            ui.colored_label(
-                egui::Color32::GRAY,
-                "Note: Requires app restart to take effect",
-            );
 
             ui.add_space(8.0);
             ui.label(egui::RichText::new("Power Saving").strong());
@@ -170,7 +171,8 @@ pub(super) fn show_performance_section(
                 if ui
                     .add_enabled(
                         settings.config.power.pause_refresh_on_blur,
-                        egui::Slider::new(&mut settings.config.power.unfocused_fps, 1..=30),
+                        egui::Slider::new(&mut settings.config.power.unfocused_fps, 1..=30)
+                            .suffix(" fps"),
                     )
                     .on_hover_text(
                         "Target frame rate when window is unfocused (lower = more power savings)",
@@ -180,6 +182,9 @@ pub(super) fn show_performance_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.power.unfocused_fps
+                });
             });
 
             ui.horizontal(|ui| {
@@ -187,7 +192,8 @@ pub(super) fn show_performance_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.power.inactive_tab_fps, 1..=30),
+                        egui::Slider::new(&mut settings.config.power.inactive_tab_fps, 1..=30)
+                            .suffix(" fps"),
                     )
                     .on_hover_text(
                         "Refresh rate for non-visible tabs. Lower values reduce CPU usage\n\
@@ -199,6 +205,9 @@ pub(super) fn show_performance_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.power.inactive_tab_fps
+                });
             });
 
             ui.add_space(8.0);
@@ -229,7 +238,7 @@ pub(super) fn show_performance_section(
                             &mut settings.config.rendering.reduce_flicker_delay_ms,
                             1..=100,
                         )
-                        .suffix("ms"),
+                        .suffix(" ms"),
                     )
                     .on_hover_text(
                         "Maximum time to wait for cursor to become visible.\n\
@@ -241,22 +250,24 @@ pub(super) fn show_performance_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.rendering.reduce_flicker_delay_ms
+                });
             });
 
             ui.add_space(10.0);
             ui.label(egui::RichText::new("Throughput Mode").strong());
 
+            let throughput_label = crate::live_binding::with_binding(
+                &settings.config,
+                "Maximize throughput",
+                "toggle_throughput_mode",
+            );
             if ui
-                .checkbox(&mut settings.config.rendering.maximize_throughput, {
-                    #[cfg(target_os = "macos")]
-                    {
-                        "Maximize throughput (command palette)"
-                    }
-                    #[cfg(not(target_os = "macos"))]
-                    {
-                        "Maximize throughput (Ctrl+Shift+M)"
-                    }
-                })
+                .checkbox(
+                    &mut settings.config.rendering.maximize_throughput,
+                    throughput_label,
+                )
                 .on_hover_text(
                     "Batches screen updates during bulk terminal output.\n\
                  Reduces CPU overhead when processing large outputs.\n\
@@ -277,7 +288,7 @@ pub(super) fn show_performance_section(
                             &mut settings.config.rendering.throughput_render_interval_ms,
                             50..=500,
                         )
-                        .suffix("ms"),
+                        .suffix(" ms"),
                     )
                     .on_hover_text(
                         "How often to update the display in throughput mode.\n\
@@ -289,6 +300,9 @@ pub(super) fn show_performance_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.rendering.throughput_render_interval_ms
+                });
             });
         },
     );

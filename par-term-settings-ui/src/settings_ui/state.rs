@@ -267,6 +267,11 @@ impl SettingsUI {
             baseline_config,
             show_close_prompt: false,
             close_pending: false,
+            banner: None,
+            config_save_rollback: None,
+            profile_save_rollback: None,
+            disk_config_pending: None,
+            global_save_requested: false,
             pending_list_delete: None,
         }
     }
@@ -494,6 +499,7 @@ impl SettingsUI {
             // The consumer persists what we hand over, so the editor's
             // working set is now in sync — clear the unsaved-changes marker
             // (it is otherwise only reset by open()/load_profiles()).
+            self.profile_save_rollback = Some(self.profile_modal_ui.baseline_profiles().to_vec());
             self.profile_modal_ui.mark_saved();
             Some(self.profile_modal_ui.get_working_profiles().to_vec())
         } else {

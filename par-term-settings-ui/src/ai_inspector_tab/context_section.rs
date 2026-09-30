@@ -64,7 +64,11 @@ pub(super) fn show_panel_section(
                     &mut settings.config.ai_inspector.ai_inspector_enabled,
                     "Enable Assistant Panel",
                 )
-                .on_hover_text("Show Assistant panel toggle keybinding (Cmd+I / Ctrl+Shift+I)")
+                .on_hover_text(crate::live_binding::with_binding(
+                    &settings.config,
+                    "Allow the Assistant panel to be opened",
+                    "toggle_ai_inspector",
+                ))
                 .changed()
             {
                 settings.has_changes = true;
@@ -93,13 +97,16 @@ pub(super) fn show_panel_section(
                             &mut settings.config.ai_inspector.ai_inspector_width,
                             200.0..=600.0,
                         )
-                        .suffix("px"),
+                        .suffix(" px"),
                     )
                     .changed()
                 {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.ai_inspector.ai_inspector_width
+                });
             });
 
             ui.add_space(4.0);
@@ -112,7 +119,7 @@ pub(super) fn show_panel_section(
                             &mut settings.config.ai_inspector.ai_inspector_chat_font_size,
                             10.0..=24.0,
                         )
-                        .suffix("pt")
+                        .suffix(" pt")
                         .step_by(1.0),
                     )
                     .on_hover_text("Font size for chat message text in the Assistant panel")
@@ -121,6 +128,9 @@ pub(super) fn show_panel_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.ai_inspector.ai_inspector_chat_font_size
+                });
             });
 
             ui.add_space(4.0);
@@ -159,23 +169,22 @@ pub(super) fn show_panel_section(
 
             ui.horizontal(|ui| {
                 ui.label("Default scope:");
+                let current = settings
+                    .config
+                    .ai_inspector
+                    .ai_inspector_default_scope
+                    .clone();
                 egui::ComboBox::from_id_salt("ai_scope")
-                    .selected_text(&settings.config.ai_inspector.ai_inspector_default_scope)
+                    .selected_text(label_for(SCOPES, &current))
                     .show_ui(ui, |ui| {
-                        for scope in &[
-                            "visible",
-                            "recent_5",
-                            "recent_10",
-                            "recent_25",
-                            "recent_50",
-                            "full",
-                        ] {
+                        for (value, label) in SCOPES {
                             if ui
                                 .selectable_value(
                                     &mut settings.config.ai_inspector.ai_inspector_default_scope,
-                                    scope.to_string(),
-                                    *scope,
+                                    value.to_string(),
+                                    *label,
                                 )
+                                .on_hover_text(format!("ai_inspector_default_scope: {value}"))
                                 .changed()
                             {
                                 settings.has_changes = true;
@@ -189,16 +198,18 @@ pub(super) fn show_panel_section(
 
             ui.horizontal(|ui| {
                 ui.label("Default view:");
+                let current = settings.config.ai_inspector.ai_inspector_view_mode.clone();
                 egui::ComboBox::from_id_salt("ai_view")
-                    .selected_text(&settings.config.ai_inspector.ai_inspector_view_mode)
+                    .selected_text(label_for(VIEWS, &current))
                     .show_ui(ui, |ui| {
-                        for mode in &["cards", "timeline", "tree", "list_detail"] {
+                        for (value, label) in VIEWS {
                             if ui
                                 .selectable_value(
                                     &mut settings.config.ai_inspector.ai_inspector_view_mode,
-                                    mode.to_string(),
-                                    *mode,
+                                    value.to_string(),
+                                    *label,
                                 )
+                                .on_hover_text(format!("ai_inspector_view_mode: {value}"))
                                 .changed()
                             {
                                 settings.has_changes = true;
@@ -320,15 +331,21 @@ pub(super) fn show_agent_section(
             ui.horizontal(|ui| {
                 ui.label("Max context lines:");
                 if ui
-                    .add(egui::Slider::new(
-                        &mut settings.config.ai_inspector.ai_inspector_context_max_lines,
-                        50..=1000,
-                    ))
+                    .add(
+                        egui::Slider::new(
+                            &mut settings.config.ai_inspector.ai_inspector_context_max_lines,
+                            50..=1000,
+                        )
+                        .suffix(" lines"),
+                    )
                     .changed()
                 {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.ai_inspector.ai_inspector_context_max_lines
+                });
             });
 
             ui.add_space(8.0);
@@ -397,4 +414,32 @@ pub(super) fn show_agent_section(
             }
         });
     }
+}
+
+/// Assistant context scopes: `(YAML value, label)`. UX.md SC5: combos show
+/// what a value means, the YAML value goes in the hover text.
+const SCOPES: &[(&str, &str)] = &[
+    ("visible", "Visible screen"),
+    ("recent_5", "Last 5 commands"),
+    ("recent_10", "Last 10 commands"),
+    ("recent_25", "Last 25 commands"),
+    ("recent_50", "Last 50 commands"),
+    ("full", "Full scrollback"),
+];
+
+/// Assistant panel views: `(YAML value, label)`.
+const VIEWS: &[(&str, &str)] = &[
+    ("cards", "Cards"),
+    ("timeline", "Timeline"),
+    ("tree", "Tree"),
+    ("list_detail", "List and detail"),
+];
+
+/// The label for a stored value, or the value itself when it is unknown.
+fn label_for(options: &[(&str, &'static str)], value: &str) -> String {
+    options
+        .iter()
+        .find(|(v, _)| *v == value)
+        .map(|(_, label)| label.to_string())
+        .unwrap_or_else(|| value.to_string())
 }

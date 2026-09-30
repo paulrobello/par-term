@@ -168,8 +168,8 @@ flowchart LR
    - **Arguments**: Space-separated command arguments
    - **Tab Name**: Custom tab title (optional)
 5. Optionally click the icon picker button to choose a Nerd Font icon
-6. Click **Save Profile**
-7. Click **Save** to persist changes
+6. Click **Done** to return to the profile list
+7. Click **Save** at the bottom of the Settings window. It writes profile and configuration changes together; **Revert** drops them
 
 ### Profile Icon Picker
 

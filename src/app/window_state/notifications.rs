@@ -378,11 +378,16 @@ impl WindowState {
     /// Check for bell events and trigger appropriate feedback.
     pub(crate) fn check_bell(&mut self) {
         // Skip if all bell notifications are disabled
-        if self.config.load().notifications.notification_bell_sound == 0
-            && !self.config.load().notifications.notification_bell_visual
-            && !self.config.load().notifications.notification_bell_desktop
         {
-            return;
+            let config = self.config.load();
+            let n = &config.notifications;
+            if par_term_config::bell_audio(n.notification_bell_sound, &n.alert_sounds)
+                == par_term_config::BellAudio::Silent
+                && !n.notification_bell_visual
+                && !n.notification_bell_desktop
+            {
+                return;
+            }
         }
 
         // Get current bell count from focused pane's terminal (not tab.terminal,
@@ -423,40 +428,27 @@ impl WindowState {
                 self.config.load().notifications.notification_bell_desktop
             );
 
-            // Play audio bell if enabled (volume > 0)
-            // Check alert_sounds config first, fall back to legacy bell_sound setting
-            if let Some(alert_cfg) = self
-                .config
-                .load()
-                .notifications
-                .alert_sounds
-                .get(&crate::config::AlertEvent::Bell)
+            // One bell model (UX.md B40): see `par_term_config::bell_audio`.
             {
-                if alert_cfg.enabled
-                    && alert_cfg.volume > 0
-                    && let Some(tab) = self.tab_manager.active_tab()
-                    && let Some(audio_bell) = tab.active_bell().audio
-                {
-                    log::info!(
-                        "  Playing alert sound for bell at {}% volume",
-                        alert_cfg.volume
-                    );
-                    audio_bell.play_alert(alert_cfg);
+                let config = self.config.load();
+                let n = &config.notifications;
+                let audio = par_term_config::bell_audio(n.notification_bell_sound, &n.alert_sounds);
+                let player = self
+                    .tab_manager
+                    .active_tab()
+                    .and_then(|tab| tab.active_bell().audio.as_ref());
+                match (audio, player) {
+                    (par_term_config::BellAudio::Silent, _) => log::debug!("  Audio bell off"),
+                    (_, None) => log::warn!("  Audio bell requested but not initialized"),
+                    (par_term_config::BellAudio::Tone(volume), Some(player)) => {
+                        log::info!("  Playing audio bell at {}% volume", volume);
+                        player.play(volume);
+                    }
+                    (par_term_config::BellAudio::Alert(alert), Some(player)) => {
+                        log::info!("  Playing alert sound for bell at {}% volume", alert.volume);
+                        player.play_alert(alert);
+                    }
                 }
-            } else if self.config.load().notifications.notification_bell_sound > 0 {
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Some(audio_bell) = tab.active_bell().audio
-                {
-                    log::info!(
-                        "  Playing audio bell at {}% volume",
-                        self.config.load().notifications.notification_bell_sound
-                    );
-                    audio_bell.play(self.config.load().notifications.notification_bell_sound);
-                } else {
-                    log::warn!("  Audio bell requested but not initialized");
-                }
-            } else {
-                log::debug!("  Audio bell disabled (volume=0)");
             }
 
             // Trigger visual bell flash if enabled

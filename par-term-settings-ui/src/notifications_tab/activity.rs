@@ -31,26 +31,36 @@ pub(super) fn show_activity_section(
                 *changes_this_frame = true;
             }
 
-            ui.horizontal(|ui| {
-                ui.label("Activity threshold (seconds):");
-                if ui
-                    .add_sized(
-                        [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(
-                            &mut settings
-                                .config
-                                .notifications
-                                .notification_activity_threshold,
-                            1..=300,
-                        ),
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-
+            crate::dependent::dependent(
+                ui,
+                settings.config.notifications.notification_activity_enabled,
+                "Notify on activity after inactivity",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Activity threshold:");
+                        if ui
+                            .add_sized(
+                                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                                egui::Slider::new(
+                                    &mut settings
+                                        .config
+                                        .notifications
+                                        .notification_activity_threshold,
+                                    1..=300,
+                                )
+                                .suffix(" s"),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.notifications.notification_activity_threshold
+                        });
+                    });
+                },
+            );
             ui.separator();
             ui.label("Silence Notifications:");
             if ui
@@ -64,23 +74,36 @@ pub(super) fn show_activity_section(
                 *changes_this_frame = true;
             }
 
-            ui.horizontal(|ui| {
-                ui.label("Silence threshold (seconds):");
-                if ui
-                    .add_sized(
-                        [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(
-                            &mut settings.config.notifications.notification_silence_threshold,
-                            1..=600,
-                        ),
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-
+            crate::dependent::dependent(
+                ui,
+                settings.config.notifications.notification_silence_enabled,
+                "Notify after prolonged silence",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Silence threshold:");
+                        if ui
+                            .add_sized(
+                                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                                egui::Slider::new(
+                                    &mut settings
+                                        .config
+                                        .notifications
+                                        .notification_silence_threshold,
+                                    1..=600,
+                                )
+                                .suffix(" s"),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.notifications.notification_silence_threshold
+                        });
+                    });
+                },
+            );
             ui.separator();
             ui.label("Shell Exit Notifications:");
             if ui

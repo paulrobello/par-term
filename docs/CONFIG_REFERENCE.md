@@ -459,7 +459,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `notification_bell_desktop` | `bool` | `false` | Forward BEL to desktop notification center |
-| `notification_bell_sound` | `u8` | `50` | Bell sound volume (0=disabled, 1–100) |
+| `notification_bell_sound` | `u8` | `50` | Bell sound volume (0=disabled, 1–100). Not used while `alert_sounds.bell` is enabled, which sets the bell's sound instead |
 | `notification_bell_visual` | `bool` | `true` | Show visual flash on BEL |
 | `notification_visual_bell_color` | `[u8;3]` | `[255,255,255]` | Visual bell flash color |
 | `notification_activity_enabled` | `bool` | `false` | Notify when activity resumes after inactivity |
@@ -469,7 +469,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `notification_session_ended` | `bool` | `false` | Notify when a shell exits |
 | `suppress_notifications_when_focused` | `bool` | `true` | Suppress desktop notifications when window is focused |
 | `notification_max_buffer` | `usize` | `64` | Max OSC 9/777 notifications retained |
-| `alert_sounds` | `{event: config}` | `{}` | Per-event sound config: keys are `bell`, `command_complete`, `new_tab`, `tab_close` |
+| `alert_sounds` | `{event: config}` | `{}` | Per-event sound config: keys are `bell`, `command_complete`, `new_tab`, `tab_close`. An enabled `bell` entry replaces `notification_bell_sound` (it plays even when that is 0); a disabled entry leaves `notification_bell_sound` in charge |
 | `anti_idle_enabled` | `bool` | `false` | Send keep-alive after idle period |
 | `anti_idle_seconds` | `u64` | `60` | Idle seconds before sending keep-alive |
 | `anti_idle_code` | `u8` | `0` | ASCII code to send as keep-alive (0=NUL) |

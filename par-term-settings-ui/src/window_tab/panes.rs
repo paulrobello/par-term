@@ -51,6 +51,9 @@ pub(super) fn show_panes_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.panes.pane_divider_hit_width
+            });
         });
 
         ui.horizontal(|ui| {
@@ -66,6 +69,9 @@ pub(super) fn show_panes_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.panes.pane_padding
+            });
         });
 
         ui.horizontal(|ui| {
@@ -105,35 +111,46 @@ pub(super) fn show_panes_section(
             *changes_this_frame = true;
         }
 
-        if settings.config.panes.pane_focus_indicator {
-            ui.horizontal(|ui| {
-                ui.label("Focus Color:");
-                if crate::color_helpers::rgb_color_button(
-                    ui,
-                    &mut settings.config.panes.pane_focus_color,
-                )
-                .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Focus Width:");
-                if ui
-                    .add(
-                        egui::Slider::new(&mut settings.config.panes.pane_focus_width, 1.0..=5.0)
-                            .suffix(" px"),
+        crate::dependent::dependent(
+            ui,
+            settings.config.panes.pane_focus_indicator,
+            "Show focus indicator",
+            |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Focus Color:");
+                    if crate::color_helpers::rgb_color_button(
+                        ui,
+                        &mut settings.config.panes.pane_focus_color,
                     )
-                    .on_hover_text("Width of the focus indicator border")
                     .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-        }
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Focus Width:");
+                    if ui
+                        .add(
+                            egui::Slider::new(
+                                &mut settings.config.panes.pane_focus_width,
+                                1.0..=5.0,
+                            )
+                            .suffix(" px"),
+                        )
+                        .on_hover_text("Width of the focus indicator border")
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                    crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                        &mut c.panes.pane_focus_width
+                    });
+                });
+            },
+        );
 
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Limits").strong());
@@ -141,16 +158,19 @@ pub(super) fn show_panes_section(
         ui.horizontal(|ui| {
             ui.label("Max Panes:");
             if ui
-                .add(egui::Slider::new(
-                    &mut settings.config.panes.max_panes,
-                    0..=32,
-                ))
+                .add(
+                    egui::Slider::new(&mut settings.config.panes.max_panes, 0..=32)
+                        .suffix(" panes"),
+                )
                 .on_hover_text("Maximum number of panes per tab (0 = unlimited)")
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.panes.max_panes
+            });
         });
 
         ui.horizontal(|ui| {
@@ -166,6 +186,9 @@ pub(super) fn show_panes_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.panes.pane_min_size
+            });
         });
 
         ui.add_space(8.0);
@@ -261,22 +284,32 @@ pub(super) fn show_pane_appearance_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.panes.dim_inactive_panes {
-                ui.horizontal(|ui| {
-                    ui.label("Inactive Opacity:");
-                    if ui
-                        .add(egui::Slider::new(
-                            &mut settings.config.panes.inactive_pane_opacity,
-                            0.3..=1.0,
-                        ))
-                        .on_hover_text("Opacity level for unfocused panes (1.0 = fully visible)")
-                        .changed()
-                    {
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
-            }
+            crate::dependent::dependent(
+                ui,
+                settings.config.panes.dim_inactive_panes,
+                "Dim inactive panes",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Inactive Opacity:");
+                        if ui
+                            .add(crate::units::percent(egui::Slider::new(
+                                &mut settings.config.panes.inactive_pane_opacity,
+                                0.3..=1.0,
+                            )))
+                            .on_hover_text(
+                                "Opacity level for unfocused panes (1.0 = fully visible)",
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.panes.inactive_pane_opacity
+                        });
+                    });
+                },
+            );
 
             ui.add_space(8.0);
             ui.label(egui::RichText::new("Pane Titles").strong());
@@ -293,67 +326,75 @@ pub(super) fn show_pane_appearance_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.panes.show_pane_titles {
-                ui.horizontal(|ui| {
-                    ui.label("Title Height:");
-                    if ui
-                        .add(
-                            egui::Slider::new(
-                                &mut settings.config.panes.pane_title_height,
-                                14.0..=30.0,
+            crate::dependent::dependent(
+                ui,
+                settings.config.panes.show_pane_titles,
+                "Show pane titles",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Title Height:");
+                        if ui
+                            .add(
+                                egui::Slider::new(
+                                    &mut settings.config.panes.pane_title_height,
+                                    14.0..=30.0,
+                                )
+                                .suffix(" px"),
                             )
-                            .suffix(" px"),
-                        )
-                        .on_hover_text("Height of pane title bars")
-                        .changed()
-                    {
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Title Position:");
-                    let current_pos = settings.config.panes.pane_title_position;
-                    egui::ComboBox::from_id_salt("pane_title_position")
-                        .selected_text(current_pos.display_name())
-                        .show_ui(ui, |ui| {
-                            for pos in PaneTitlePosition::ALL {
-                                if ui
-                                    .selectable_value(
-                                        &mut settings.config.panes.pane_title_position,
-                                        *pos,
-                                        pos.display_name(),
-                                    )
-                                    .changed()
-                                {
-                                    settings.has_changes = true;
-                                    *changes_this_frame = true;
-                                }
-                            }
+                            .on_hover_text("Height of pane title bars")
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.panes.pane_title_height
                         });
-                });
+                    });
 
-                ui.horizontal(|ui| {
-                    ui.label("Title text color:");
-                    let mut color = settings.config.panes.pane_title_color;
-                    if ui.color_edit_button_srgb(&mut color).changed() {
-                        settings.config.panes.pane_title_color = color;
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
+                    ui.horizontal(|ui| {
+                        ui.label("Title Position:");
+                        let current_pos = settings.config.panes.pane_title_position;
+                        egui::ComboBox::from_id_salt("pane_title_position")
+                            .selected_text(current_pos.display_name())
+                            .show_ui(ui, |ui| {
+                                for pos in PaneTitlePosition::ALL {
+                                    if ui
+                                        .selectable_value(
+                                            &mut settings.config.panes.pane_title_position,
+                                            *pos,
+                                            pos.display_name(),
+                                        )
+                                        .changed()
+                                    {
+                                        settings.has_changes = true;
+                                        *changes_this_frame = true;
+                                    }
+                                }
+                            });
+                    });
 
-                ui.horizontal(|ui| {
-                    ui.label("Title background:");
-                    let mut color = settings.config.panes.pane_title_bg_color;
-                    if ui.color_edit_button_srgb(&mut color).changed() {
-                        settings.config.panes.pane_title_bg_color = color;
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
-            }
+                    ui.horizontal(|ui| {
+                        ui.label("Title text color:");
+                        let mut color = settings.config.panes.pane_title_color;
+                        if ui.color_edit_button_srgb(&mut color).changed() {
+                            settings.config.panes.pane_title_color = color;
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Title background:");
+                        let mut color = settings.config.panes.pane_title_bg_color;
+                        if ui.color_edit_button_srgb(&mut color).changed() {
+                            settings.config.panes.pane_title_bg_color = color;
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
+                },
+            );
 
             ui.add_space(8.0);
             ui.label(egui::RichText::new("Background Integration").strong());
@@ -361,10 +402,10 @@ pub(super) fn show_pane_appearance_section(
             ui.horizontal(|ui| {
                 ui.label("Pane Opacity:");
                 if ui
-                    .add(egui::Slider::new(
+                    .add(crate::units::percent(egui::Slider::new(
                         &mut settings.config.panes.pane_background_opacity,
                         0.5..=1.0,
-                    ))
+                    )))
                     .on_hover_text(
                         "Pane background opacity (lower values let background image/shader show through)",
                     )
@@ -373,6 +414,7 @@ pub(super) fn show_pane_appearance_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| &mut c.panes.pane_background_opacity);
             });
         },
     );

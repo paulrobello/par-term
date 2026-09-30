@@ -169,7 +169,7 @@ Profiles can act as SSH bookmarks by setting SSH-specific fields.
 | **SSH Identity File** | Path to private key | `~/.ssh/id_work` |
 | **SSH Extra Args** | Additional SSH flags | `-o ServerAliveInterval=60` |
 
-6. Click **Save Profile**
+6. Click **Done**, then **Save** at the bottom of the Settings window
 
 > **Note:** When `SSH Host` is set, opening the profile connects via SSH instead of launching a local shell.
 

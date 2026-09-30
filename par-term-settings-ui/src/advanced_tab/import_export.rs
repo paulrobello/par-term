@@ -192,6 +192,16 @@ enum ImportMode {
     Merge,
 }
 
+/// Record an import/export outcome in the section's status line and, for a
+/// failure, in the window's error banner (UX.md SS7).
+fn set_import_export_status(settings: &mut SettingsUI, message: String, is_error: bool) {
+    if is_error {
+        settings.show_error_banner(message.clone());
+    }
+    settings.advanced_tab.import_export_status = Some(message);
+    settings.advanced_tab.import_export_is_error = is_error;
+}
+
 /// Export the current configuration to a YAML file.
 fn export_preferences(settings: &mut SettingsUI) {
     let path = rfd::FileDialog::new()
@@ -204,21 +214,27 @@ fn export_preferences(settings: &mut SettingsUI) {
         match serde_yaml_ng::to_string(&settings.config) {
             Ok(yaml) => {
                 if let Err(e) = std::fs::write(&path, yaml) {
-                    settings.advanced_tab.import_export_status =
-                        Some(format!("Failed to write file: {}", e));
-                    settings.advanced_tab.import_export_is_error = true;
+                    set_import_export_status(
+                        settings,
+                        format!("Failed to write file: {}", e),
+                        true,
+                    );
                     log::error!("Failed to export preferences: {}", e);
                 } else {
-                    settings.advanced_tab.import_export_status =
-                        Some(format!("Exported to {}", path.display()));
-                    settings.advanced_tab.import_export_is_error = false;
+                    set_import_export_status(
+                        settings,
+                        format!("Exported to {}", path.display()),
+                        false,
+                    );
                     log::info!("Exported preferences to {}", path.display());
                 }
             }
             Err(e) => {
-                settings.advanced_tab.import_export_status =
-                    Some(format!("Failed to serialize config: {}", e));
-                settings.advanced_tab.import_export_is_error = true;
+                set_import_export_status(
+                    settings,
+                    format!("Failed to serialize config: {}", e),
+                    true,
+                );
                 log::error!("Failed to serialize preferences: {}", e);
             }
         }
@@ -242,9 +258,7 @@ fn import_preferences_from_file(
                 apply_imported_config(settings, changes_this_frame, &content, mode);
             }
             Err(e) => {
-                settings.advanced_tab.import_export_status =
-                    Some(format!("Failed to read file: {}", e));
-                settings.advanced_tab.import_export_is_error = true;
+                set_import_export_status(settings, format!("Failed to read file: {}", e), true);
                 log::error!("Failed to read preferences file: {}", e);
             }
         }
@@ -282,8 +296,7 @@ fn import_preferences_from_url(
     if let Err(message) = par_term_config::url_policy::validate_scheme(&url, false) {
         // The returned string is already a complete user-facing sentence.
         log::warn!("[SEC-020] refusing preference import: {}", message);
-        settings.advanced_tab.import_export_status = Some(message);
-        settings.advanced_tab.import_export_is_error = true;
+        set_import_export_status(settings, message, true);
         return;
     }
 
@@ -301,18 +314,19 @@ fn import_preferences_from_url(
                 apply_imported_config(settings, changes_this_frame, &body, mode);
             }
             Err(e) => {
-                settings.advanced_tab.import_export_status = Some(format!(
-                    "Failed to read response (limit {} bytes): {}",
-                    MAX_IMPORT_SIZE_BYTES, e
-                ));
-                settings.advanced_tab.import_export_is_error = true;
+                set_import_export_status(
+                    settings,
+                    format!(
+                        "Failed to read response (limit {} bytes): {}",
+                        MAX_IMPORT_SIZE_BYTES, e
+                    ),
+                    true,
+                );
                 log::error!("Failed to read URL response body: {}", e);
             }
         },
         Err(e) => {
-            settings.advanced_tab.import_export_status =
-                Some(format!("Failed to fetch URL: {}", e));
-            settings.advanced_tab.import_export_is_error = true;
+            set_import_export_status(settings, format!("Failed to fetch URL: {}", e), true);
             log::error!("Failed to fetch preferences from URL: {}", e);
         }
     }
@@ -338,11 +352,14 @@ fn apply_imported_config(
             settings.sync_all_temps_from_config();
             settings.has_changes = true;
             *changes_this_frame = true;
-            settings.advanced_tab.import_export_status = Some(match mode {
-                ImportMode::Replace => "Configuration replaced successfully.".to_string(),
-                ImportMode::Merge => "Configuration merged successfully.".to_string(),
-            });
-            settings.advanced_tab.import_export_is_error = false;
+            set_import_export_status(
+                settings,
+                match mode {
+                    ImportMode::Replace => "Configuration replaced successfully.".to_string(),
+                    ImportMode::Merge => "Configuration merged successfully.".to_string(),
+                },
+                false,
+            );
             log::info!(
                 "Imported preferences (mode={:?})",
                 match mode {
@@ -352,9 +369,7 @@ fn apply_imported_config(
             );
         }
         Err(e) => {
-            settings.advanced_tab.import_export_status =
-                Some(format!("Invalid config file: {}", e));
-            settings.advanced_tab.import_export_is_error = true;
+            set_import_export_status(settings, format!("Invalid config file: {}", e), true);
             log::error!("Failed to parse imported config: {}", e);
         }
     }
@@ -397,5 +412,39 @@ pub fn merge_config(current: &mut Config, imported: &Config) {
     // Deserialize the merged value back into Config
     if let Ok(merged) = serde_yaml_ng::from_value::<Config>(current_val) {
         *current = merged;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings_ui::BannerKind;
+
+    #[test]
+    fn invalid_import_shows_an_error_banner_and_keeps_the_config() {
+        let mut settings = SettingsUI::new_for_tests(Config::default());
+        let mut changed = false;
+
+        apply_imported_config(
+            &mut settings,
+            &mut changed,
+            "font_size: [",
+            ImportMode::Replace,
+        );
+
+        assert_eq!(settings.banner().map(|b| b.kind), Some(BannerKind::Error));
+        assert!(!changed);
+        assert!(!settings.has_unsaved_changes());
+    }
+
+    #[test]
+    fn scheme_rejection_shows_an_error_banner() {
+        let mut settings = SettingsUI::new_for_tests(Config::default());
+        settings.advanced_tab.temp_import_url = "http://example.com/c.yaml".to_string();
+        let mut changed = false;
+
+        import_preferences_from_url(&mut settings, &mut changed, ImportMode::Merge);
+
+        assert_eq!(settings.banner().map(|b| b.kind), Some(BannerKind::Error));
     }
 }

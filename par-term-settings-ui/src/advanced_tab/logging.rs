@@ -109,7 +109,7 @@ pub(super) fn show_logging_section(
                 .on_hover_text(
                     "Detects password prompts (sudo, ssh, etc.) and replaces \
                      keyboard input with a redaction marker. Prevents passwords \
-                     from being written to session log files on disk.",
+                     from being written to output recordings on disk.",
                 )
                 .changed()
             {

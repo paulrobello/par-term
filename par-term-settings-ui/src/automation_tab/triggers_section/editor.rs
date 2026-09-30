@@ -76,21 +76,25 @@ pub(super) fn show_trigger_edit_form(
             .iter_mut()
             .enumerate()
         {
-            ui.horizontal(|ui| {
-                ui.label(format!("{}.", j + 1));
-                ui.label(
-                    egui::RichText::new(action_type_label(action))
-                        .color(egui::Color32::from_rgb(120, 180, 255)),
-                );
-                show_action_fields(ui, action);
-                if ui
-                    .small_button(
-                        egui::RichText::new("x").color(egui::Color32::from_rgb(200, 80, 80)),
-                    )
-                    .clicked()
-                {
-                    action_delete_index = Some(j);
-                }
+            // Each row gets its own id scope, so two actions of the same type
+            // (two SplitPane rows) do not share combo box state (UX.md B48).
+            ui.push_id(("trigger_action", j), |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{}.", j + 1));
+                    ui.label(
+                        egui::RichText::new(action_type_label(action))
+                            .color(egui::Color32::from_rgb(120, 180, 255)),
+                    );
+                    show_action_fields(ui, action);
+                    if ui
+                        .small_button(
+                            egui::RichText::new("x").color(egui::Color32::from_rgb(200, 80, 80)),
+                        )
+                        .clicked()
+                    {
+                        action_delete_index = Some(j);
+                    }
+                })
             });
         }
 

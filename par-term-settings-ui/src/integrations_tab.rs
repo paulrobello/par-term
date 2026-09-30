@@ -118,6 +118,20 @@ impl SettingsUI {
             collapsed,
             |ui| {
                 ui.label("Shell integration provides enhanced terminal features like directory tracking and command notifications.");
+                crate::saved_immediately::saved_immediately(
+                    ui,
+                    "Install and uninstall are",
+                    &par_term_config::Config::shell_integration_dir(),
+                );
+                ui.label(
+                    egui::RichText::new(
+                        "Install also adds one line to your shell's startup file \
+                         (.bashrc or .bash_profile, .zshrc, or config.fish); \
+                         Uninstall removes it.",
+                    )
+                    .small()
+                    .color(egui::Color32::GRAY),
+                );
                 ui.add_space(8.0);
 
                 // Detect shell and installation status
@@ -236,6 +250,11 @@ impl SettingsUI {
             collapsed,
             |ui| {
                 ui.label("Custom shaders provide background effects and cursor animations for your terminal.");
+                crate::saved_immediately::saved_immediately(
+                    ui,
+                    "Installing and uninstalling shaders are",
+                    &par_term_config::Config::shaders_dir(),
+                );
                 ui.add_space(8.0);
 
                 // Check installation status

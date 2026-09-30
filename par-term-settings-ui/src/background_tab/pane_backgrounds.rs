@@ -146,10 +146,10 @@ pub fn show_pane_backgrounds(
             ui.horizontal(|ui| {
                 ui.label("Opacity:");
                 if ui
-                    .add(egui::Slider::new(
+                    .add(crate::units::percent(egui::Slider::new(
                         &mut settings.background_tab.temp_pane_bg_opacity,
                         0.0..=1.0,
-                    ))
+                    )))
                     .changed()
                 {
                     pane_bg_changed = true;
@@ -160,10 +160,10 @@ pub fn show_pane_backgrounds(
             ui.horizontal(|ui| {
                 ui.label("Darken:");
                 if ui
-                    .add(egui::Slider::new(
+                    .add(crate::units::percent(egui::Slider::new(
                         &mut settings.background_tab.temp_pane_bg_darken,
                         0.0..=1.0,
-                    ))
+                    )))
                     .on_hover_text(
                         "Darken the background image (0.0 = original, 1.0 = fully black)",
                     )

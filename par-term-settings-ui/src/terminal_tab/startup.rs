@@ -38,7 +38,7 @@ pub(super) fn show_startup_section(
                         &mut settings.config.session_restore.session_undo_timeout_secs,
                     )
                     .range(0..=60)
-                    .suffix("s"),
+                    .suffix(" s"),
                 )
                 .on_hover_text(
                     "How long closed tab metadata is kept for undo (reopen).\n\
@@ -49,6 +49,9 @@ pub(super) fn show_startup_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.session_restore.session_undo_timeout_secs
+            });
 
             ui.label("Max entries:");
             if ui
@@ -56,6 +59,7 @@ pub(super) fn show_startup_section(
                     egui::DragValue::new(
                         &mut settings.config.session_restore.session_undo_max_entries,
                     )
+                    .suffix(" tabs")
                     .range(1..=50),
                 )
                 .on_hover_text("Maximum number of closed tabs to remember for undo.")
@@ -64,6 +68,9 @@ pub(super) fn show_startup_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.session_restore.session_undo_max_entries
+            });
         });
 
         if ui
@@ -94,10 +101,11 @@ pub(super) fn show_startup_section(
         }
 
         ui.horizontal(|ui| {
-            ui.label("Delay (ms):");
+            ui.label("Delay:");
             if ui
                 .add(
                     egui::DragValue::new(&mut settings.config.shell.initial_text_delay_ms)
+                        .suffix(" ms")
                         .range(0..=5000),
                 )
                 .changed()
@@ -105,6 +113,9 @@ pub(super) fn show_startup_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                &mut c.shell.initial_text_delay_ms
+            });
 
             if ui
                 .checkbox(

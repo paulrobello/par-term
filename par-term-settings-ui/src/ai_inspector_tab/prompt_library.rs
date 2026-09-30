@@ -37,6 +37,11 @@ pub(super) fn show_prompt_library_section(
         collapsed,
         |ui| {
             ui.label("Saved Assistant prompts are stored as Markdown files with YAML frontmatter.");
+            crate::saved_immediately::saved_immediately(
+                ui,
+                "Prompts are",
+                &par_term_config::assistant_prompts::assistant_prompts_dir(),
+            );
             ui.add_space(4.0);
 
             if let Some(error) = &settings.ai_inspector_tab.assistant_prompt_error {

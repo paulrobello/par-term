@@ -28,7 +28,7 @@ pub mod unicode;
 
 // Re-export everything so callers of `types::*` continue to work.
 
-pub use alert::{AlertEvent, AlertSoundConfig};
+pub use alert::{AlertEvent, AlertSoundConfig, BellAudio, bell_audio};
 pub use color::{
     color_tuple_to_f32_a, color_u8_to_f32, color_u8_to_f32_a, color_u8x4_rgb_to_f32,
     color_u8x4_rgb_to_f32_a, color_u8x4_to_f32,

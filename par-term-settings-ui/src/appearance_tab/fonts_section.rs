@@ -170,7 +170,7 @@ pub(super) fn show_fonts_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, 18.0],
-                        egui::Slider::new(&mut settings.temp_font_size, 6.0..=48.0),
+                        egui::Slider::new(&mut settings.temp_font_size, 6.0..=48.0).suffix(" pt"),
                     )
                     .changed()
                 {
@@ -183,7 +183,7 @@ pub(super) fn show_fonts_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, 18.0],
-                        egui::Slider::new(&mut settings.temp_line_spacing, 0.8..=2.0),
+                        egui::Slider::new(&mut settings.temp_line_spacing, 0.8..=2.0).suffix("×"),
                     )
                     .changed()
                 {
@@ -196,7 +196,7 @@ pub(super) fn show_fonts_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, 18.0],
-                        egui::Slider::new(&mut settings.temp_char_spacing, 0.5..=1.0),
+                        egui::Slider::new(&mut settings.temp_char_spacing, 0.5..=1.0).suffix("×"),
                     )
                     .changed()
                 {
@@ -204,24 +204,50 @@ pub(super) fn show_fonts_section(
                 }
             });
 
-            ui.horizontal(|ui| {
-                if ui.button("Apply font changes").clicked() {
-                    settings.apply_font_changes();
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-                if settings.font_pending_changes {
-                    ui.colored_label(egui::Color32::YELLOW, "(pending)");
-                }
-            });
+            staged_font_apply_row(ui, settings, changes_this_frame);
         });
     }
+}
+
+/// Font fields are staged (UX.md SS9): typing a family name would otherwise
+/// rebuild the renderer on every keystroke. Every section that holds staged
+/// font fields shows this row, so Apply is next to what it applies. Save
+/// also applies staged fonts and Revert drops them.
+fn staged_font_apply_row(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
+    #[cfg(test)]
+    APPLY_ROWS.with(|n| n.set(n.get() + 1));
+    ui.horizontal(|ui| {
+        if ui
+            .add_enabled(
+                settings.font_pending_changes,
+                egui::Button::new("Apply font changes"),
+            )
+            .on_hover_text("Font changes wait for Apply; Save also applies them")
+            .clicked()
+        {
+            settings.apply_font_changes();
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+        if settings.font_pending_changes {
+            ui.colored_label(egui::Color32::YELLOW, "(pending)");
+        }
+    });
+}
+
+#[cfg(test)]
+thread_local! {
+    static APPLY_ROWS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 pub(super) fn show_font_variants_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
-    _changes_this_frame: &mut bool,
+    changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
     if section_matches(
@@ -274,6 +300,8 @@ pub(super) fn show_font_variants_section(
                         settings.font_pending_changes = true;
                     }
                 });
+
+                staged_font_apply_row(ui, settings, changes_this_frame);
             },
         );
     }
@@ -376,9 +404,10 @@ pub(super) fn show_font_rendering_section(
                 ui.horizontal(|ui| {
                     ui.label("Minimum contrast:");
                     let mut contrast = settings.config.font_rendering.minimum_contrast;
-                    let slider = egui::Slider::new(&mut contrast, 0.0..=0.99)
-                        .text("")
-                        .clamping(egui::SliderClamping::Always);
+                    let slider =
+                        crate::units::percent(egui::Slider::new(&mut contrast, 0.0..=0.99))
+                            .text("")
+                            .clamping(egui::SliderClamping::Always);
                     if ui.add(slider).changed() {
                         settings.config.font_rendering.minimum_contrast = contrast;
                         settings.has_changes = true;
@@ -402,5 +431,36 @@ pub(super) fn show_font_rendering_section(
                 );
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use par_term_config::Config;
+
+    #[test]
+    fn font_variants_section_has_its_own_apply_row() {
+        let mut settings = SettingsUI::new_for_tests(Config::default());
+        // Font Variants starts collapsed; mark it toggled so it renders open.
+        settings
+            .collapsed_sections
+            .insert("appearance_font_variants".to_string());
+        settings.temp_font_bold = "Some Bold Font".to_string();
+        settings.font_pending_changes = true;
+        APPLY_ROWS.with(|n| n.set(0));
+
+        let ctx = egui::Context::default();
+        let mut changes = false;
+        let mut collapsed = std::mem::take(&mut settings.collapsed_sections);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                show_font_variants_section(ui, &mut settings, &mut changes, &mut collapsed);
+            });
+        });
+        output.textures_delta.clear();
+
+        assert_eq!(APPLY_ROWS.with(|n| n.get()), 1);
+        assert!(settings.font_pending_changes);
     }
 }

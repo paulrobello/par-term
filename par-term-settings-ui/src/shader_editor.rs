@@ -45,11 +45,11 @@ impl SettingsUI {
                     }),
             )
             .show(ctx, |ui| {
-                ui.heading("GLSL Shader Editor (F11 to toggle)");
+                ui.heading("GLSL Shader Editor");
                 ui.horizontal(|ui| {
                     ui.label("Edit your custom shader below. Click Apply to test changes.");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.small("Ctrl+F to search");
+                        ui.small(format!("{} to search", find_shortcut_text(ui.ctx())));
                     });
                 });
                 ui.separator();
@@ -228,7 +228,11 @@ impl SettingsUI {
                         save_to_file_clicked = true;
                     }
                     ui.label("|");
-                    if ui.button("Find").on_hover_text("Ctrl+F").clicked() {
+                    if ui
+                        .button("Find")
+                        .on_hover_text(find_shortcut_text(ui.ctx()))
+                        .clicked()
+                    {
                         self.shader_search_visible = !self.shader_search_visible;
                     }
                     ui.label("|");
@@ -264,7 +268,7 @@ impl SettingsUI {
         shader_apply_result
     }
 
-    /// Handle Ctrl+F and Escape for search bar toggle
+    /// Handle the find shortcut and Escape for search bar toggle
     fn handle_shader_search_toggle(&mut self, ui: &egui::Ui) {
         let ctrl_f = ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::F));
         let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
@@ -457,4 +461,13 @@ impl SettingsUI {
         self.shader_search_current = 0;
         self.shader_search_visible = false;
     }
+}
+
+/// The shader editor's find shortcut as egui formats it for this platform
+/// (the handlers check `modifiers.command`, which is Cmd on macOS).
+fn find_shortcut_text(ctx: &egui::Context) -> String {
+    ctx.format_shortcut(&egui::KeyboardShortcut::new(
+        egui::Modifiers::COMMAND,
+        egui::Key::F,
+    ))
 }

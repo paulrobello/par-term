@@ -53,13 +53,21 @@ pub mod ai_inspector_tab;
 pub mod appearance_tab;
 pub mod automation_tab;
 pub mod color_helpers;
+#[cfg(test)]
+mod consistency_tests;
 pub mod delete_confirm;
+pub mod dependent;
+#[cfg(test)]
+mod dependent_tests;
 pub mod effects_tab;
 pub mod input_tab;
 pub mod integrations_tab;
+pub mod live_binding;
 pub mod notifications_tab;
 pub mod profiles_tab;
 pub mod quick_settings;
+pub mod reset;
+pub mod saved_immediately;
 pub mod scripts_tab;
 pub mod search_keywords;
 pub mod section;
@@ -68,6 +76,7 @@ pub mod snippets_tab;
 pub mod ssh_tab;
 pub mod status_bar_tab;
 pub mod terminal_tab;
+pub mod units;
 pub mod window_tab;
 
 // Internal implementation modules (no longer exposed as standalone tabs)
@@ -88,7 +97,8 @@ mod shader_utils;
 // SettingsUI struct and impl
 mod settings_ui;
 pub use settings_ui::{
-    ClosePromptChoice, SettingsUI, collapsed_sections_to_persist, configs_equal,
+    Banner, BannerKind, ClosePromptChoice, Deferred, SettingsUI, collapsed_sections_to_persist,
+    configs_equal, deferred_badge,
 };
 
 pub use sidebar::SettingsTab;

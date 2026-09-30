@@ -44,7 +44,10 @@ fn show_coprocesses_collapsing(
         true,
         collapsed,
         |ui| {
-            ui.label("Define external processes that can exchange data with the terminal.");
+            ui.label(
+                "A coprocess is a program that runs beside a tab. It can receive a copy of \
+                 the tab's output on its input; what it prints shows in its output viewer here.",
+            );
             ui.add_space(4.0);
 
             // Collect mutations to apply after iteration
@@ -340,19 +343,24 @@ fn show_coprocess_edit_form(
             });
         });
 
-        // Restart delay (only shown when restart policy is not Never)
-        if settings.automation_tab.temp_coprocess_restart_policy != RestartPolicy::Never {
-            ui.horizontal(|ui| {
-                ui.label("Restart delay (ms):");
-                ui.add(
-                    egui::DragValue::new(
-                        &mut settings.automation_tab.temp_coprocess_restart_delay_ms,
-                    )
-                    .range(0..=60000)
-                    .speed(100.0),
-                );
-            });
-        }
+        crate::dependent::dependent(
+            ui,
+            settings.automation_tab.temp_coprocess_restart_policy != RestartPolicy::Never,
+            "Restart policy: not Never",
+            |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Restart delay:");
+                    ui.add(
+                        egui::DragValue::new(
+                            &mut settings.automation_tab.temp_coprocess_restart_delay_ms,
+                        )
+                        .suffix(" ms")
+                        .range(0..=60000)
+                        .speed(100.0),
+                    );
+                });
+            },
+        );
 
         ui.add_space(4.0);
 

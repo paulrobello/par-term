@@ -87,10 +87,14 @@ impl SettingsUI {
                 ui.add_space(4.0);
 
                 ui.horizontal(|ui| {
-                    ui.label("Scan timeout (seconds):");
+                    ui.label("Scan timeout:");
                     let mut timeout = self.config.ssh.mdns_scan_timeout_secs as f32;
                     if ui
-                        .add(egui::Slider::new(&mut timeout, 1.0..=10.0).integer())
+                        .add(
+                            egui::Slider::new(&mut timeout, 1.0..=10.0)
+                                .suffix(" s")
+                                .integer(),
+                        )
                         .changed()
                     {
                         self.config.ssh.mdns_scan_timeout_secs = timeout as u32;
@@ -105,7 +109,14 @@ impl SettingsUI {
             ui.group(|ui| {
                 ui.label(egui::RichText::new("Quick Connect").strong());
                 ui.add_space(4.0);
-                ui.label("Press Cmd+Shift+S to open the SSH Quick Connect dialog.");
+                ui.label(
+                    match crate::live_binding::binding_for(&self.config, "ssh_quick_connect") {
+                        Some(chord) => format!("Press {chord} to open the SSH Quick Connect dialog."),
+                        None => "Bind the \"SSH Quick Connect\" action in Input › Keybindings \
+                                 to open the SSH Quick Connect dialog."
+                            .to_string(),
+                    },
+                );
                 ui.label(
                     egui::RichText::new(
                         "The dialog shows hosts from SSH config, known_hosts, shell history, and mDNS.",

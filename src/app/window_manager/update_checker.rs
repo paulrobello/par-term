@@ -140,6 +140,7 @@ impl WindowManager {
             force,
         } = outcome;
         let mut config_changed = should_save;
+        let mut notified_version: Option<String> = None;
         match &result {
             UpdateCheckResult::UpdateAvailable(info) => {
                 let version_str = info
@@ -168,11 +169,7 @@ impl WindowManager {
 
                     if !already_notified {
                         notify_update_available(info);
-                        self.config.rcu(|old| {
-                            let mut new = (**old).clone();
-                            new.updates.last_notified_version = Some(version_str.clone());
-                            std::sync::Arc::new(new)
-                        });
+                        notified_version = Some(version_str.clone());
                         config_changed = true;
                     }
                 }
@@ -211,16 +208,19 @@ impl WindowManager {
             settings_window.request_redraw();
         }
 
-        // Save config with updated timestamp if check was successful
+        // Record the check (and any notified version). Goes through Settings'
+        // baseline when it is open, so unsaved Settings edits are not written.
         if config_changed {
-            self.config.rcu(|old| {
-                let mut new = (**old).clone();
-                new.updates.last_update_check = Some(current_timestamp());
-                std::sync::Arc::new(new)
-            });
-            if let Err(e) = self.config.load().save() {
-                log::warn!("Failed to save config after update check: {}", e);
-            }
+            let timestamp = current_timestamp();
+            self.persist_config_change(
+                |config| {
+                    config.updates.last_update_check = Some(timestamp.clone());
+                    if let Some(version) = &notified_version {
+                        config.updates.last_notified_version = Some(version.clone());
+                    }
+                },
+                "an update check",
+            );
         }
     }
 

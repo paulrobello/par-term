@@ -142,43 +142,54 @@ pub fn show_cursor_shader(
                 );
             }
 
-            if ui
-                .checkbox(
-                    &mut settings.config.shader.cursor_shader_enabled,
-                    "Enable cursor shader",
-                )
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
+            crate::dependent::dependent(
+                ui,
+                !settings.temp_cursor_shader.is_empty(),
+                "Shader: a cursor shader selected",
+                |ui| {
+                    if ui
+                        .checkbox(
+                            &mut settings.config.shader.cursor_shader_enabled,
+                            "Enable cursor shader",
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
 
-            if ui
-                .checkbox(
-                    &mut settings.config.shader.cursor_shader_animation,
-                    "Enable cursor shader animation",
-                )
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
+                    if ui
+                        .checkbox(
+                            &mut settings.config.shader.cursor_shader_animation,
+                            "Enable cursor shader animation",
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
 
-            ui.horizontal(|ui| {
-                ui.label("Animation speed:");
-                if ui
-                    .add(egui::Slider::new(
-                        &mut settings.config.shader.cursor_shader_animation_speed,
-                        0.0..=5.0,
-                    ))
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+                    ui.horizontal(|ui| {
+                        ui.label("Animation speed:");
+                        if ui
+                            .add(
+                                egui::Slider::new(
+                                    &mut settings.config.shader.cursor_shader_animation_speed,
+                                    0.0..=5.0,
+                                )
+                                .suffix("×"),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.shader.cursor_shader_animation_speed
+                        });
+                    });
 
-            if ui
+                    if ui
             .checkbox(
                 &mut settings.config.shader.cursor_shader_hides_cursor,
                 "Hide default cursor (let shader handle it)",
@@ -190,7 +201,7 @@ pub fn show_cursor_shader(
             *changes_this_frame = true;
         }
 
-            if ui
+                    if ui
             .checkbox(
                 &mut settings.config.shader.cursor_shader_disable_in_alt_screen,
                 "Disable cursor shader in alt screen (vim/less/htop)",
@@ -202,22 +213,25 @@ pub fn show_cursor_shader(
             *changes_this_frame = true;
         }
 
-            ui.horizontal(|ui| {
-                ui.label("Cursor color:");
-                let mut color = settings.config.shader.cursor_shader_color;
-                if ui
-                    .color_edit_button_srgb(&mut color)
-                    .on_hover_text("Color passed to cursor shader via iCursorShaderColor uniform")
-                    .changed()
-                {
-                    settings.config.shader.cursor_shader_color = color;
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+                    ui.horizontal(|ui| {
+                        ui.label("Cursor color:");
+                        let mut color = settings.config.shader.cursor_shader_color;
+                        if ui
+                            .color_edit_button_srgb(&mut color)
+                            .on_hover_text(
+                                "Color passed to cursor shader via iCursorShaderColor uniform",
+                            )
+                            .changed()
+                        {
+                            settings.config.shader.cursor_shader_color = color;
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
 
-            ui.add_space(8.0);
-
+                    ui.add_space(8.0);
+                },
+            );
             // Edit Shader button - only enabled when a shader path is set
             let has_shader_path = !settings.temp_cursor_shader.is_empty();
             ui.horizontal(|ui| {

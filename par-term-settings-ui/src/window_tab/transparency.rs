@@ -23,7 +23,10 @@ pub(super) fn show_transparency_section(
                 ui.label("Opacity:");
                 let response = ui.add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.window.window_opacity, 0.1..=1.0),
+                    crate::units::percent(egui::Slider::new(
+                        &mut settings.config.window.window_opacity,
+                        0.1..=1.0,
+                    )),
                 );
                 if response.changed() {
                     log::info!(
@@ -33,6 +36,9 @@ pub(super) fn show_transparency_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.window.window_opacity
+                });
             });
 
             if ui
@@ -76,22 +82,27 @@ pub(super) fn show_transparency_section(
                     *changes_this_frame = true;
                 }
 
-                if settings.config.window.blur_enabled {
-                    ui.horizontal(|ui| {
-                        ui.label("Blur radius:");
-                        // Convert u32 to i32 for slider, clamp to valid range
-                        let mut radius_i32 = settings.config.window.blur_radius.min(64) as i32;
-                        if ui
-                            .add(egui::Slider::new(&mut radius_i32, 1..=64))
-                            .on_hover_text("Blur intensity (higher = more blur)")
-                            .changed()
-                        {
-                            settings.config.window.blur_radius = radius_i32 as u32;
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                    });
-                }
+                crate::dependent::dependent(
+                    ui,
+                    settings.config.window.blur_enabled,
+                    "Enable window blur",
+                    |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Blur radius:");
+                            // Convert u32 to i32 for slider, clamp to valid range
+                            let mut radius_i32 = settings.config.window.blur_radius.min(64) as i32;
+                            if ui
+                                .add(egui::Slider::new(&mut radius_i32, 1..=64).suffix(" px"))
+                                .on_hover_text("Blur intensity (higher = more blur)")
+                                .changed()
+                            {
+                                settings.config.window.blur_radius = radius_i32 as u32;
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        });
+                    },
+                );
             }
         },
     );

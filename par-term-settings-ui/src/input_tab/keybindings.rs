@@ -123,75 +123,71 @@ pub(super) fn show_keybindings_section(
             let mut start_recording: Option<usize> = None;
             let mut cancel_recording = false;
 
-            egui::ScrollArea::vertical()
-                .min_scrolled_height(600.0)
-                .show(ui, |ui| {
-                    egui::Grid::new("input_keybindings_grid")
-                        .num_columns(3)
-                        .spacing([20.0, 8.0])
-                        .striped(true)
-                        .show(ui, |ui| {
-                            ui.strong("Action");
-                            ui.strong("Key Combo");
-                            ui.strong("");
-                            ui.end_row();
+            ui.scope(|ui| {
+                egui::Grid::new("input_keybindings_grid")
+                    .num_columns(3)
+                    .spacing([20.0, 8.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.strong("Action");
+                        ui.strong("Key Combo");
+                        ui.strong("");
+                        ui.end_row();
 
-                            for (
-                                idx,
-                                action_name,
-                                display_name,
-                                custom_binding,
-                                default_binding,
-                                is_custom,
-                            ) in &binding_info
-                            {
-                                let (binding_display, show_as_default) =
-                                    if let Some(custom) = custom_binding {
-                                        (display_key_combo(custom), false)
-                                    } else if let Some(default) = default_binding {
-                                        (display_key_combo(default), true)
-                                    } else {
-                                        ("(not set)".to_string(), false)
-                                    };
-
-                                ui.label(*display_name);
-
-                                let is_recording =
-                                    settings.keybinding_recording_index == Some(*idx);
-                                if is_recording {
-                                    ui.colored_label(
-                                        egui::Color32::YELLOW,
-                                        "Press key combo... (Esc to cancel)",
-                                    );
-                                } else if show_as_default {
-                                    ui.colored_label(
-                                        egui::Color32::from_rgb(128, 128, 128),
-                                        egui::RichText::new(&binding_display).monospace(),
-                                    );
+                        for (
+                            idx,
+                            action_name,
+                            display_name,
+                            custom_binding,
+                            default_binding,
+                            is_custom,
+                        ) in &binding_info
+                        {
+                            let (binding_display, show_as_default) =
+                                if let Some(custom) = custom_binding {
+                                    (display_key_combo(custom), false)
+                                } else if let Some(default) = default_binding {
+                                    (display_key_combo(default), true)
                                 } else {
-                                    ui.monospace(&binding_display);
+                                    ("(not set)".to_string(), false)
+                                };
+
+                            ui.label(*display_name);
+
+                            let is_recording = settings.keybinding_recording_index == Some(*idx);
+                            if is_recording {
+                                ui.colored_label(
+                                    egui::Color32::YELLOW,
+                                    "Press key combo... (Esc to cancel)",
+                                );
+                            } else if show_as_default {
+                                ui.colored_label(
+                                    egui::Color32::from_rgb(128, 128, 128),
+                                    egui::RichText::new(&binding_display).monospace(),
+                                );
+                            } else {
+                                ui.monospace(&binding_display);
+                            }
+
+                            ui.horizontal(|ui| {
+                                let button_text = if is_recording { "Cancel" } else { "Record" };
+                                if ui.button(button_text).clicked() {
+                                    if is_recording {
+                                        cancel_recording = true;
+                                    } else {
+                                        start_recording = Some(*idx);
+                                    }
                                 }
 
-                                ui.horizontal(|ui| {
-                                    let button_text =
-                                        if is_recording { "Cancel" } else { "Record" };
-                                    if ui.button(button_text).clicked() {
-                                        if is_recording {
-                                            cancel_recording = true;
-                                        } else {
-                                            start_recording = Some(*idx);
-                                        }
-                                    }
+                                if *is_custom && !is_recording && ui.button("Clear").clicked() {
+                                    action_to_clear = Some(*action_name);
+                                }
+                            });
 
-                                    if *is_custom && !is_recording && ui.button("Clear").clicked() {
-                                        action_to_clear = Some(*action_name);
-                                    }
-                                });
-
-                                ui.end_row();
-                            }
-                        });
-                });
+                            ui.end_row();
+                        }
+                    });
+            });
 
             if cancel_recording {
                 settings.keybinding_recording_index = None;
@@ -219,16 +215,11 @@ pub(super) fn show_keybindings_section(
             ui.separator();
             ui.add_space(4.0);
 
+            ui.label("Key combo format: modifiers and a key joined with \"+\"");
             #[cfg(target_os = "macos")]
-            {
-                ui.label("Key combo format: Modifiers+Key (e.g., 'Cmd+Shift+B', 'Ctrl+T')");
-                ui.label("Available modifiers: Cmd, Ctrl, Alt, Shift");
-            }
+            ui.label("Available modifiers: Cmd, Ctrl, Alt, Shift");
             #[cfg(not(target_os = "macos"))]
-            {
-                ui.label("Key combo format: Modifiers+Key (e.g., 'Ctrl+Shift+B', 'Alt+T')");
-                ui.label("Available modifiers: Ctrl, Alt, Shift, Super");
-            }
+            ui.label("Available modifiers: Ctrl, Alt, Shift, Super");
         },
     );
 }

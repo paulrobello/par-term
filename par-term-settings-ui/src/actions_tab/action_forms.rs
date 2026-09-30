@@ -159,7 +159,7 @@ pub fn show_split_pane_form(
         ui.label("Split percent (existing pane):");
         let mut pct = settings.actions_tab.temp_action_split_percent as u32;
         if ui
-            .add(egui::DragValue::new(&mut pct).range(10..=90).suffix("%"))
+            .add(egui::DragValue::new(&mut pct).range(10..=90).suffix(" %"))
             .on_hover_text(
                 "Percentage of the current pane that the existing pane retains.\n\
                  The new pane receives the remainder.\n\
@@ -176,7 +176,7 @@ pub fn show_split_pane_form(
         && !settings.actions_tab.temp_action_split_command_is_direct
     {
         ui.horizontal(|ui| {
-            ui.label("Command delay (ms):");
+            ui.label("Command delay:");
             let mut delay_str = settings.actions_tab.temp_action_split_delay_ms.to_string();
             if ui.text_edit_singleline(&mut delay_str).changed() {
                 if let Ok(v) = delay_str.parse::<u64>() {
@@ -238,10 +238,14 @@ pub fn show_sequence_form(
                         }
                     }
                 });
-            ui.label("delay ms:");
+            ui.label("delay:");
             let mut delay = settings.actions_tab.temp_action_steps[step_idx].1;
             if ui
-                .add(egui::DragValue::new(&mut delay).range(0..=60000))
+                .add(
+                    egui::DragValue::new(&mut delay)
+                        .suffix(" ms")
+                        .range(0..=60000),
+                )
                 .changed()
             {
                 settings.actions_tab.temp_action_steps[step_idx].1 = delay;
@@ -606,6 +610,7 @@ pub fn show_repeat_form(
         if ui
             .add(
                 egui::DragValue::new(&mut settings.actions_tab.temp_action_repeat_count)
+                    .suffix("×")
                     .range(1..=100),
             )
             .changed()
@@ -614,10 +619,11 @@ pub fn show_repeat_form(
         }
     });
     ui.horizontal(|ui| {
-        ui.label("Delay between (ms):");
+        ui.label("Delay between:");
         if ui
             .add(
                 egui::DragValue::new(&mut settings.actions_tab.temp_action_repeat_delay_ms)
+                    .suffix(" ms")
                     .range(0..=60000),
             )
             .changed()

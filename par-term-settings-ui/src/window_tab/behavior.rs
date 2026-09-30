@@ -124,12 +124,7 @@ pub(super) fn show_behavior_section(
                 }
             });
 
-            if settings.config.placement.window_type.is_edge() {
-                ui.colored_label(
-                    egui::Color32::YELLOW,
-                    "Note: Edge-anchored windows take effect on next window creation",
-                );
-            }
+            crate::deferred_badge(ui, crate::Deferred::NewWindows);
 
             // Target macOS Space setting (only visible on macOS)
             if cfg!(target_os = "macos") {
@@ -165,10 +160,7 @@ pub(super) fn show_behavior_section(
                         *changes_this_frame = true;
                     }
                 });
-                ui.colored_label(
-                    egui::Color32::YELLOW,
-                    "Note: Target Space takes effect on next window creation",
-                );
+                crate::deferred_badge(ui, crate::Deferred::NewWindows);
             }
         },
     );

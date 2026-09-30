@@ -39,6 +39,7 @@ fn show_commands_body(ui: &mut egui::Ui, state: &mut ActionsTabState, dir: &std:
          (agent-cmd:<id>), a keybinding, or `par-term <id>`.",
         dir.display()
     ));
+    crate::saved_immediately::saved_immediately(ui, "Command files are", dir);
     ui.add_space(4.0);
 
     let refresh = ui.button("Refresh").clicked();

@@ -74,6 +74,39 @@ impl SettingsUI {
         }
     }
 
+    /// Config file path, "Edit Config File", and "Reveal" (UX.md SS10). A
+    /// failure to open either shows in the banner (SS7).
+    fn show_config_file_buttons(&mut self, ui: &mut Ui) {
+        let config_path = Config::config_path();
+        if ui
+            .button("Edit Config File")
+            .on_hover_text(format!(
+                "Open {} in your default editor",
+                config_path.display()
+            ))
+            .clicked()
+            && let Err(e) = open::that(&config_path)
+        {
+            self.show_error_banner(format!("Could not open {}: {e}", config_path.display()));
+        }
+        if ui
+            .button("Reveal")
+            .on_hover_text("Show the folder that holds config.yaml")
+            .clicked()
+        {
+            let dir = Config::config_dir();
+            if let Err(e) = open::that(&dir) {
+                self.show_error_banner(format!("Could not open {}: {e}", dir.display()));
+            }
+        }
+        ui.label(
+            egui::RichText::new(config_path.display().to_string())
+                .small()
+                .color(Color32::GRAY),
+        )
+        .on_hover_text("Settings are saved to this file");
+    }
+
     /// Begin shader install asynchronously with optional force overwrite.
     /// The caller must provide a function that performs the actual installation.
     pub fn show(
@@ -151,6 +184,7 @@ impl SettingsUI {
                             response.request_focus();
                         }
                     });
+                    self.render_banner(ui);
                     ui.separator();
 
                     // Settings sections (sidebar + content) fill remaining space
@@ -174,16 +208,7 @@ impl SettingsUI {
                             close_requested = true;
                         }
                         ui.separator();
-                        if ui
-                            .button("Edit Config File")
-                            .on_hover_text("Open config.yaml in your default editor")
-                            .clicked()
-                        {
-                            let config_path = Config::config_path();
-                            if let Err(e) = open::that(&config_path) {
-                                log::error!("Failed to open config file: {}", e);
-                            }
-                        }
+                        self.show_config_file_buttons(ui);
                         if ui
                             .button("Reset to Defaults")
                             .on_hover_text("Reset all settings to their default values")
@@ -209,8 +234,8 @@ impl SettingsUI {
             self.visible = false;
         }
 
-        let config_to_save = if save_requested {
-            Some(self.commit_save())
+        let config_to_save = if save_requested || std::mem::take(&mut self.global_save_requested) {
+            self.request_save()
         } else {
             None
         };
@@ -290,6 +315,7 @@ impl SettingsUI {
                         response.request_focus();
                     }
                 });
+                self.render_banner(ui);
                 ui.separator();
 
                 // Settings sections (sidebar + content) fill remaining space
@@ -310,16 +336,7 @@ impl SettingsUI {
                         revert_requested = true;
                     }
                     ui.separator();
-                    if ui
-                        .button("Edit Config File")
-                        .on_hover_text("Open config.yaml in your default editor")
-                        .clicked()
-                    {
-                        let config_path = Config::config_path();
-                        if let Err(e) = open::that(&config_path) {
-                            log::error!("Failed to open config file: {}", e);
-                        }
-                    }
+                    self.show_config_file_buttons(ui);
                     if ui
                         .button("Reset to Defaults")
                         .on_hover_text("Reset all settings to their default values")
@@ -341,8 +358,8 @@ impl SettingsUI {
         self.show_reset_defaults_dialog_window(ctx);
         let close_prompt_save = self.show_close_prompt_window(ctx);
 
-        let config_to_save = if save_requested {
-            Some(self.commit_save())
+        let config_to_save = if save_requested || std::mem::take(&mut self.global_save_requested) {
+            self.request_save()
         } else {
             close_prompt_save
         };

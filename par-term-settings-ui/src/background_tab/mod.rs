@@ -181,15 +181,18 @@ pub fn show_background(
                     ui.horizontal(|ui| {
                         ui.label("Background image opacity:");
                         if ui
-                            .add(egui::Slider::new(
+                            .add(crate::units::percent(egui::Slider::new(
                                 &mut settings.config.background.background_image_opacity,
                                 0.0..=1.0,
-                            ))
+                            )))
                             .changed()
                         {
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.background.background_image_opacity
+                        });
                     });
                 }
             }
@@ -331,56 +334,71 @@ fn show_background_shader_controls(
         show_shader_metadata_and_settings(ui, settings, changes_this_frame, collapsed);
     }
 
-    if ui
-        .checkbox(
-            &mut settings.config.shader.custom_shader_enabled,
-            "Enable custom shader",
-        )
-        .changed()
-    {
-        settings.has_changes = true;
-        *changes_this_frame = true;
-    }
+    crate::dependent::dependent(
+        ui,
+        !settings.temp_custom_shader.is_empty(),
+        "Shader: a background shader selected",
+        |ui| {
+            if ui
+                .checkbox(
+                    &mut settings.config.shader.custom_shader_enabled,
+                    "Enable custom shader",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-    if ui
-        .checkbox(
-            &mut settings.config.shader.custom_shader_animation,
-            "Enable shader animation",
-        )
-        .changed()
-    {
-        settings.has_changes = true;
-        *changes_this_frame = true;
-    }
+            if ui
+                .checkbox(
+                    &mut settings.config.shader.custom_shader_animation,
+                    "Enable shader animation",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-    ui.horizontal(|ui| {
-        ui.label("Animation speed:");
-        if ui
-            .add(egui::Slider::new(
-                &mut settings.config.shader.custom_shader_animation_speed,
-                0.0..=5.0,
-            ))
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-    });
+            ui.horizontal(|ui| {
+                ui.label("Animation speed:");
+                if ui
+                    .add(
+                        egui::Slider::new(
+                            &mut settings.config.shader.custom_shader_animation_speed,
+                            0.0..=5.0,
+                        )
+                        .suffix("×"),
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.shader.custom_shader_animation_speed
+                });
+            });
 
-    if ui
-        .checkbox(
-            &mut settings.config.shader_watch.shader_hot_reload,
-            "Enable shader hot reload",
-        )
-        .on_hover_text("Automatically reload shaders when files change on disk")
-        .changed()
-    {
-        settings.has_changes = true;
-        *changes_this_frame = true;
-    }
+            if ui
+                .checkbox(
+                    &mut settings.config.shader_watch.shader_hot_reload,
+                    "Enable shader hot reload",
+                )
+                .on_hover_text("Automatically reload shaders when files change on disk")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-    if settings.config.shader_watch.shader_hot_reload {
-        ui.horizontal(|ui| {
+            crate::dependent::dependent(
+                ui,
+                settings.config.shader_watch.shader_hot_reload,
+                "Enable shader hot reload",
+                |ui| {
+                    ui.horizontal(|ui| {
             ui.label("Hot reload delay:");
             // Convert u64 to u32 for slider
             let mut delay = settings.config.shader_watch.shader_hot_reload_delay as u32;
@@ -397,41 +415,48 @@ fn show_background_shader_controls(
                 *changes_this_frame = true;
             }
         });
-    }
+                },
+            );
 
-    ui.horizontal(|ui| {
-        ui.label("Shader brightness:");
-        if ui
-            .add(
-                egui::Slider::new(
-                    &mut settings.config.shader.custom_shader_brightness,
-                    0.05..=1.0,
-                )
-                .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
-            )
-            .on_hover_text("Dim the shader background to improve text readability")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-    });
+            ui.horizontal(|ui| {
+                ui.label("Shader brightness:");
+                if ui
+                    .add(
+                        egui::Slider::new(
+                            &mut settings.config.shader.custom_shader_brightness,
+                            0.05..=1.0,
+                        )
+                        .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
+                    )
+                    .on_hover_text("Dim the shader background to improve text readability")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.shader.custom_shader_brightness
+                });
+            });
 
-    ui.horizontal(|ui| {
-        ui.label("Shader text opacity:");
-        if ui
-            .add(egui::Slider::new(
-                &mut settings.config.shader.custom_shader_text_opacity,
-                0.0..=1.0,
-            ))
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-    });
+            ui.horizontal(|ui| {
+                ui.label("Shader text opacity:");
+                if ui
+                    .add(crate::units::percent(egui::Slider::new(
+                        &mut settings.config.shader.custom_shader_text_opacity,
+                        0.0..=1.0,
+                    )))
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.shader.custom_shader_text_opacity
+                });
+            });
 
-    if ui
+            if ui
         .checkbox(
             &mut settings.config.shader.custom_shader_auto_dim_under_text,
             "Auto-dim under text",
@@ -445,85 +470,101 @@ fn show_background_shader_controls(
         *changes_this_frame = true;
     }
 
-    if settings.config.shader.custom_shader_auto_dim_under_text {
-        ui.horizontal(|ui| {
-            ui.label("Auto-dim strength:");
-            if ui
-                .add(egui::Slider::new(
-                    &mut settings.config.shader.custom_shader_auto_dim_strength,
-                    0.0..=1.0,
-                ))
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-    }
+            crate::dependent::dependent(
+                ui,
+                settings.config.shader.custom_shader_auto_dim_under_text,
+                "Auto-dim under text",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Auto-dim strength:");
+                        if ui
+                            .add(crate::units::percent(egui::Slider::new(
+                                &mut settings.config.shader.custom_shader_auto_dim_strength,
+                                0.0..=1.0,
+                            )))
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.shader.custom_shader_auto_dim_strength
+                        });
+                    });
+                },
+            );
 
-    ui.horizontal(|ui| {
-        if ui
-            .button("Cycle shader")
-            .on_hover_text("Action: cycle_background_shader")
-            .clicked()
-        {
-            let shaders = settings.background_shaders();
-            if !shaders.is_empty() {
-                let next = shaders
-                    .iter()
-                    .position(|shader| shader == &settings.temp_custom_shader)
-                    .map(|index| (index + 1) % shaders.len())
-                    .unwrap_or(0);
-                settings.temp_custom_shader = shaders[next].clone();
-                settings.config.shader.custom_shader = Some(shaders[next].clone());
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        }
-        if ui
-            .button(if settings.config.shader.custom_shader_animation {
-                "Pause animation"
-            } else {
-                "Resume animation"
-            })
-            .on_hover_text("Action: toggle_shader_animation")
-            .clicked()
-        {
-            settings.config.shader.custom_shader_animation =
-                !settings.config.shader.custom_shader_animation;
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-        if ui
-            .checkbox(
-                &mut settings.config.shader.custom_shader_readability_mode,
+            ui.horizontal(|ui| {
+                if ui
+                    .button("Cycle shader")
+                    .on_hover_text("Action: cycle_background_shader")
+                    .clicked()
+                {
+                    let shaders = settings.background_shaders();
+                    if !shaders.is_empty() {
+                        let next = shaders
+                            .iter()
+                            .position(|shader| shader == &settings.temp_custom_shader)
+                            .map(|index| (index + 1) % shaders.len())
+                            .unwrap_or(0);
+                        settings.temp_custom_shader = shaders[next].clone();
+                        settings.config.shader.custom_shader = Some(shaders[next].clone());
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                }
+                if ui
+                    .button(if settings.config.shader.custom_shader_animation {
+                        "Pause animation"
+                    } else {
+                        "Resume animation"
+                    })
+                    .on_hover_text("Action: toggle_shader_animation")
+                    .clicked()
+                {
+                    settings.config.shader.custom_shader_animation =
+                        !settings.config.shader.custom_shader_animation;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                if ui
+                    .checkbox(
+                        &mut settings.config.shader.custom_shader_readability_mode,
+                        "Readability/low-power mode",
+                    )
+                    .on_hover_text("Action: toggle_shader_readability_mode")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            crate::dependent::dependent(
+                ui,
+                settings.config.shader.custom_shader_readability_mode,
                 "Readability/low-power mode",
-            )
-            .on_hover_text("Action: toggle_shader_readability_mode")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-    });
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Readability brightness cap:");
+                        if ui
+                            .add(crate::units::percent(egui::Slider::new(
+                                &mut settings.config.shader.custom_shader_readability_brightness,
+                                0.05..=1.0,
+                            )))
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.shader.custom_shader_readability_brightness
+                        });
+                    });
+                },
+            );
 
-    if settings.config.shader.custom_shader_readability_mode {
-        ui.horizontal(|ui| {
-            ui.label("Readability brightness cap:");
             if ui
-                .add(egui::Slider::new(
-                    &mut settings.config.shader.custom_shader_readability_brightness,
-                    0.05..=1.0,
-                ))
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-    }
-
-    if ui
     .checkbox(
         &mut settings.config.shader.custom_shader_full_content,
         "Full content mode",
@@ -535,42 +576,45 @@ fn show_background_shader_controls(
         *changes_this_frame = true;
     }
 
-    // Cubemap settings
-    ui.add_space(8.0);
-    show_cubemap_controls(ui, settings, changes_this_frame);
+            // Cubemap settings
+            ui.add_space(8.0);
+            show_cubemap_controls(ui, settings, changes_this_frame);
 
-    // Edit Shader button - only enabled when a shader path is set
-    let has_shader_path = !settings.temp_custom_shader.is_empty();
-    ui.horizontal(|ui| {
-        let edit_button = ui.add_enabled(has_shader_path, egui::Button::new("Edit Shader..."));
-        if edit_button.clicked() {
-            // Load shader source from file
-            let shader_path = par_term_config::Config::shader_path(&settings.temp_custom_shader);
-            match std::fs::read_to_string(&shader_path) {
-                Ok(source) => {
-                    settings.shader_editor_source = source.clone();
-                    settings.shader_editor_original = source;
-                    settings.shader_editor_error = None;
-                    settings.shader_editor_visible = true;
+            // Edit Shader button - only enabled when a shader path is set
+            let has_shader_path = !settings.temp_custom_shader.is_empty();
+            ui.horizontal(|ui| {
+                let edit_button =
+                    ui.add_enabled(has_shader_path, egui::Button::new("Edit Shader..."));
+                if edit_button.clicked() {
+                    // Load shader source from file
+                    let shader_path =
+                        par_term_config::Config::shader_path(&settings.temp_custom_shader);
+                    match std::fs::read_to_string(&shader_path) {
+                        Ok(source) => {
+                            settings.shader_editor_source = source.clone();
+                            settings.shader_editor_original = source;
+                            settings.shader_editor_error = None;
+                            settings.shader_editor_visible = true;
+                        }
+                        Err(e) => {
+                            settings.shader_editor_error = Some(format!(
+                                "Failed to read shader file '{}': {}",
+                                shader_path.display(),
+                                e
+                            ));
+                        }
+                    }
                 }
-                Err(e) => {
-                    settings.shader_editor_error = Some(format!(
-                        "Failed to read shader file '{}': {}",
-                        shader_path.display(),
-                        e
-                    ));
+                if !has_shader_path {
+                    ui.label("(set shader path first)");
                 }
-            }
-        }
-        if !has_shader_path {
-            ui.label("(set shader path first)");
-        }
-    });
+            });
 
-    // Shader channel textures (iChannel0-3) section
-    ui.add_space(8.0);
-    show_global_channel_textures(ui, settings, changes_this_frame);
-
+            // Shader channel textures (iChannel0-3) section
+            ui.add_space(8.0);
+            show_global_channel_textures(ui, settings, changes_this_frame);
+        },
+    );
     // Use background as iChannel0
     ui.add_space(8.0);
     show_background_channel0_controls(ui, settings, changes_this_frame);

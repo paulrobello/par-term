@@ -41,9 +41,12 @@ impl WindowState {
             demote,
         } = actions;
 
-        // Persist config if any render-pass handler requested it (e.g., "Skip This Version").
-        if save_config && let Err(e) = self.save_config_debounced() {
-            log::error!("Failed to save config after render action: {}", e);
+        // "Skip This Version" changed the config; the window manager writes it.
+        if save_config {
+            let version = self.config.load().updates.skipped_version.clone();
+            self.render_loop
+                .external_config_changes
+                .push(crate::app::window_state::ExternalConfigChange::SkippedVersion(version));
         }
 
         // Handle demote direction-choice overlay action
@@ -310,9 +313,7 @@ impl WindowState {
                         new.integrations.shader_install_prompt = ShaderInstallPrompt::Installed;
                         std::sync::Arc::new(new)
                     });
-                    if let Err(e) = self.save_config_debounced() {
-                        log::error!("Failed to save config after shader install: {}", e);
-                    }
+                    self.queue_integrations_change();
                 }
                 Err(e) => {
                     log::error!("Failed to install shaders: {}", e);
@@ -354,9 +355,7 @@ impl WindowState {
                     new.integrations.shader_install_prompt = ShaderInstallPrompt::Never;
                     std::sync::Arc::new(new)
                 });
-                if let Err(e) = self.save_config_debounced() {
-                    log::error!("Failed to save config after declining shaders: {}", e);
-                }
+                self.queue_integrations_change();
             }
             ShaderInstallResponse::Later => {
                 log::info!("User deferred shader installation");

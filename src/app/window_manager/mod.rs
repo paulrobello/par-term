@@ -25,6 +25,7 @@ mod coprocess;
 mod menu_actions;
 mod scripting;
 mod settings_actions;
+mod settings_persistence;
 mod update_checker;
 mod window_close;
 mod window_lifecycle;
@@ -84,6 +85,9 @@ pub(crate) struct WindowManager {
     pending_window_count: usize,
     /// Separate settings window (if open)
     pub(crate) settings_window: Option<SettingsWindow>,
+    /// Exact text of the last config.yaml this process wrote, so the file
+    /// watcher's echo of our own write is not treated as an outside edit.
+    pub(crate) last_written_config_yaml: Option<String>,
     /// Runtime options from CLI
     pub(crate) runtime_options: RuntimeOptions,
     /// When the app started (for timing-based CLI options)
@@ -152,6 +156,7 @@ impl WindowManager {
             session_saved_for_quit: false,
             pending_window_count: 0,
             settings_window: None,
+            last_written_config_yaml: None,
             runtime_options,
             start_time: None,
             command_sent: false,

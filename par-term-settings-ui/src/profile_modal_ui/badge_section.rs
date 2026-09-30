@@ -57,7 +57,10 @@ impl ProfileModalUI {
                                 }
                             }
                             if let Some(ref mut alpha) = self.temp_badge_color_alpha {
-                                ui.add(egui::Slider::new(alpha, 0.0..=1.0).step_by(0.05));
+                                ui.add(
+                                    crate::units::percent(egui::Slider::new(alpha, 0.0..=1.0))
+                                        .step_by(0.05),
+                                );
                             } else {
                                 ui.label(
                                     egui::RichText::new("(use global)")
@@ -263,6 +266,7 @@ impl ProfileModalUI {
                             &mut self.temp_shader_brightness,
                             0.05..=1.0,
                             0.35,
+                            true,
                         );
                         optional_slider_row(
                             ui,
@@ -270,6 +274,7 @@ impl ProfileModalUI {
                             &mut self.temp_shader_text_opacity,
                             0.0..=1.0,
                             1.0,
+                            true,
                         );
                         optional_slider_row(
                             ui,
@@ -277,6 +282,7 @@ impl ProfileModalUI {
                             &mut self.temp_shader_animation_speed,
                             0.0..=5.0,
                             1.0,
+                            false,
                         );
 
                         for index in 0..4 {
@@ -312,6 +318,18 @@ impl ProfileModalUI {
                     .small()
                     .color(egui::Color32::GRAY),
                 );
+                // UX.md B57: the runtime only auto-connects while the global
+                // switch is on, in either connection mode.
+                if !self.global_tmux_enabled {
+                    ui.label(
+                        egui::RichText::new(
+                            "⚠ Has no effect while \"Enable tmux integration\" (Advanced › \
+                             tmux Integration) is off, in either connection mode.",
+                        )
+                        .small()
+                        .color(egui::Color32::from_rgb(255, 193, 7)),
+                    );
+                }
                 ui.add_space(6.0);
 
                 egui::Grid::new("profile_tmux_form")
@@ -455,6 +473,7 @@ fn optional_slider_row(
     value: &mut Option<f32>,
     range: std::ops::RangeInclusive<f32>,
     default_value: f32,
+    percent: bool,
 ) {
     ui.label(label);
     ui.horizontal(|ui| {
@@ -467,7 +486,11 @@ fn optional_slider_row(
             };
         }
         if let Some(current) = value {
-            ui.add(egui::Slider::new(current, range));
+            if percent {
+                ui.add(crate::units::percent(egui::Slider::new(current, range)));
+            } else {
+                ui.add(egui::Slider::new(current, range).suffix("×"));
+            }
         } else {
             ui.label(egui::RichText::new("(use global)").small().weak());
         }

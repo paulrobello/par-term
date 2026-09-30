@@ -59,8 +59,9 @@ pub(super) fn show_custom_agents_section(
             collapsed,
             |ui| {
                 ui.label(
-                    "Define additional ACP agents directly in config. \
-                     Entries override bundled/discovered agents with the same identity.",
+                    "Define additional agents directly in config. ACP (Agent Client \
+                     Protocol) is how the Assistant panel talks to a coding agent. Entries \
+                     override bundled/discovered agents with the same identity.",
                 );
                 ui.add_space(6.0);
 

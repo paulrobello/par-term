@@ -77,8 +77,10 @@ pub fn show_actions_section(
                 }
 
                 if settings.config.tmux.tmux_enabled
-                    && settings.config.custom_action_prefix_key
-                        == settings.config.tmux.tmux_prefix_key
+                    && crate::settings_ui::chord_matches_tmux_prefix(
+                        &settings.config.custom_action_prefix_key,
+                        &settings.config.tmux.tmux_prefix_key,
+                    )
                 {
                     ui.label(
                         egui::RichText::new(

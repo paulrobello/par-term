@@ -121,6 +121,12 @@ pub struct ProfileModalUI {
     pub(super) baseline_profiles: Vec<Profile>,
     /// Set while the "save an empty profile list?" confirmation is showing.
     pub(super) confirm_empty_save: bool,
+    /// The empty-list confirmation was accepted; the next save request goes
+    /// through without asking again.
+    pub(super) empty_save_confirmed: bool,
+    /// Global `tmux_enabled`, set by the Settings window each frame; the
+    /// per-profile tmux section warns when it is off (UX.md B57).
+    pub global_tmux_enabled: bool,
 }
 
 impl ProfileModalUI {
@@ -177,6 +183,8 @@ impl ProfileModalUI {
             pending_delete: None,
             baseline_profiles: Vec::new(),
             confirm_empty_save: false,
+            empty_save_confirmed: false,
+            global_tmux_enabled: true,
         }
     }
 
@@ -239,11 +247,34 @@ impl ProfileModalUI {
     }
 
     /// Whether the working set differs from what was last loaded or saved,
-    /// including an edit form that is still open.
+    /// including an edit form that is still open. Viewing a read-only
+    /// dynamic profile is not an edit.
     pub fn has_unsaved_changes(&self) -> bool {
         self.has_changes
-            || !matches!(self.mode, ModalMode::List)
+            || self.is_editing_local_profile()
             || !profiles_equal(&self.working_profiles, &self.baseline_profiles)
+    }
+
+    fn is_editing_local_profile(&self) -> bool {
+        match self.mode {
+            ModalMode::List => false,
+            ModalMode::Create => true,
+            ModalMode::Edit(id) => !self
+                .working_profiles
+                .iter()
+                .any(|p| p.id == id && p.source.is_dynamic()),
+        }
+    }
+
+    /// Profiles as last loaded or saved.
+    pub fn baseline_profiles(&self) -> &[Profile] {
+        &self.baseline_profiles
+    }
+
+    /// Put back a baseline that a failed save moved: the working set stays,
+    /// so the edits show as unsaved again and Save can be retried.
+    pub fn restore_baseline(&mut self, baseline: Vec<Profile>) {
+        self.baseline_profiles = baseline;
     }
 
     /// List-view Cancel: drop unsaved edits by restoring the baseline.
@@ -266,7 +297,8 @@ impl ProfileModalUI {
     /// set may be persisted. Saving an empty set over a non-empty baseline
     /// arms a confirmation instead and returns [`ProfileModalAction::None`].
     pub fn request_list_save(&mut self) -> ProfileModalAction {
-        if self.working_profiles.is_empty() && !self.baseline_profiles.is_empty() {
+        let confirmed = std::mem::take(&mut self.empty_save_confirmed);
+        if self.working_profiles.is_empty() && !self.baseline_profiles.is_empty() && !confirmed {
             self.confirm_empty_save = true;
             return ProfileModalAction::None;
         }
@@ -274,9 +306,11 @@ impl ProfileModalUI {
         ProfileModalAction::Save
     }
 
-    /// Confirm the "save an empty profile list?" prompt.
+    /// Confirm the "save an empty profile list?" prompt. The next
+    /// [`Self::request_list_save`] goes through without asking again.
     pub fn confirm_empty_list_save(&mut self) -> ProfileModalAction {
         self.confirm_empty_save = false;
+        self.empty_save_confirmed = true;
         ProfileModalAction::Save
     }
 
@@ -286,19 +320,43 @@ impl ProfileModalUI {
     }
 
     /// Fold an open edit form into the working set before a save. A form
-    /// that fails validation is dropped rather than blocking the save.
-    pub fn finish_open_edit(&mut self) {
-        if !matches!(self.mode, ModalMode::List) {
-            self.save_form();
-            if !matches!(self.mode, ModalMode::List) {
-                self.cancel_edit();
-            }
+    /// that fails validation stays open and its message is returned, so the
+    /// caller can block the save instead of dropping the edit. A read-only
+    /// dynamic profile view is simply closed.
+    pub fn finish_open_edit(&mut self) -> Result<(), String> {
+        if matches!(self.mode, ModalMode::List) {
+            return Ok(());
+        }
+        if !self.is_editing_local_profile() {
+            self.cancel_edit();
+            return Ok(());
+        }
+        self.save_form();
+        match &self.validation_error {
+            Some(error) if !matches!(self.mode, ModalMode::List) => Err(error.clone()),
+            _ => Ok(()),
         }
     }
 
     #[cfg(test)]
     pub(crate) fn clear_working_profiles_for_test(&mut self) {
         self.working_profiles.clear();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn add_profile_for_test(&mut self, profile: Profile) {
+        self.working_profiles.push(profile);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn start_create_with_name_for_test(&mut self, name: &str) {
+        self.start_create();
+        self.temp_name = name.to_string();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn start_edit_for_test(&mut self, id: ProfileId) {
+        self.start_edit(id);
     }
 
     // =========================================================================

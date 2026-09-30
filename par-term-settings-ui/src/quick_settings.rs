@@ -33,7 +33,11 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         ui.horizontal(|ui| {
             ui.label("Size:");
             if ui
-                .add(egui::Slider::new(&mut settings.temp_font_size, 6.0..=48.0).show_value(true))
+                .add(
+                    egui::Slider::new(&mut settings.temp_font_size, 6.0..=48.0)
+                        .suffix(" pt")
+                        .show_value(true),
+                )
                 .changed()
             {
                 settings.font_pending_changes = true;
@@ -70,10 +74,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         ui.horizontal(|ui| {
             ui.label("Opacity:");
             if ui
-                .add(egui::Slider::new(
+                .add(crate::units::percent(egui::Slider::new(
                     &mut settings.config.window.window_opacity,
                     0.1..=1.0,
-                ))
+                )))
                 .changed()
             {
                 settings.has_changes = true;

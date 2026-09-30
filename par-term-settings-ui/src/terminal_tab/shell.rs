@@ -104,46 +104,49 @@ pub(super) fn show_shell_section(
                 })
                 .response
                 .on_hover_text(
-                    "Controls where new terminal sessions start:\n\
+                    "Controls where new shells start:\n\
                      • Home: Start in your home directory\n\
                      • Previous Session: Remember and restore the last working directory\n\
                      • Custom: Start in a specific directory",
                 );
         });
 
-        // Custom directory path (only shown when mode is Custom)
-        if settings.config.shell.startup_directory_mode
-            == par_term_config::StartupDirectoryMode::Custom
-        {
-            ui.horizontal(|ui| {
-                ui.label("Custom directory:");
-                if ui
-                    .add(
-                        egui::TextEdit::singleline(&mut settings.temp_startup_directory)
-                            .desired_width(INPUT_WIDTH),
-                    )
-                    .changed()
-                {
-                    settings.config.shell.startup_directory =
-                        if settings.temp_startup_directory.is_empty() {
-                            None
-                        } else {
-                            Some(settings.temp_startup_directory.clone())
-                        };
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
+        crate::dependent::dependent(
+            ui,
+            settings.config.shell.startup_directory_mode
+                == par_term_config::StartupDirectoryMode::Custom,
+            "Mode: Custom",
+            |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Custom directory:");
+                    if ui
+                        .add(
+                            egui::TextEdit::singleline(&mut settings.temp_startup_directory)
+                                .desired_width(INPUT_WIDTH),
+                        )
+                        .changed()
+                    {
+                        settings.config.shell.startup_directory =
+                            if settings.temp_startup_directory.is_empty() {
+                                None
+                            } else {
+                                Some(settings.temp_startup_directory.clone())
+                            };
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
 
-                if ui.button("Browse...").clicked()
-                    && let Some(path) = settings.pick_folder_path("Select startup directory")
-                {
-                    settings.temp_startup_directory = path.clone();
-                    settings.config.shell.startup_directory = Some(path);
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-        }
+                    if ui.button("Browse...").clicked()
+                        && let Some(path) = settings.pick_folder_path("Select startup directory")
+                    {
+                        settings.temp_startup_directory = path.clone();
+                        settings.config.shell.startup_directory = Some(path);
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+            },
+        );
 
         // Show last working directory info when in Previous mode
         if settings.config.shell.startup_directory_mode

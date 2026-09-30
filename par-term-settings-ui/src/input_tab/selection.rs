@@ -75,11 +75,12 @@ pub(super) fn show_selection_section(
             }
 
             ui.horizontal(|ui| {
-                ui.label("Paste delay (ms):");
+                ui.label("Paste delay:");
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.selection.paste_delay_ms, 0..=500),
+                        egui::Slider::new(&mut settings.config.selection.paste_delay_ms, 0..=500)
+                            .suffix(" ms"),
                     )
                     .on_hover_text(
                         "Delay between pasted lines in milliseconds (0 = no delay). \
@@ -90,6 +91,9 @@ pub(super) fn show_selection_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.selection.paste_delay_ms
+                });
             });
 
             ui.separator();
@@ -152,13 +156,17 @@ pub(super) fn show_clipboard_limits_section(
                         egui::Slider::new(
                             &mut settings.config.clipboard.clipboard_max_sync_events,
                             8..=256,
-                        ),
+                        )
+                        .suffix(" events"),
                     )
                     .changed()
                 {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.clipboard.clipboard_max_sync_events
+                });
             });
 
             ui.horizontal(|ui| {
@@ -169,13 +177,17 @@ pub(super) fn show_clipboard_limits_section(
                         egui::Slider::new(
                             &mut settings.config.clipboard.clipboard_max_event_bytes,
                             512..=16384,
-                        ),
+                        )
+                        .suffix(" bytes"),
                     )
                     .changed()
                 {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.clipboard.clipboard_max_event_bytes
+                });
             });
         },
     );

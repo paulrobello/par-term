@@ -19,49 +19,60 @@ pub fn show_auto_hide_section(
         false,
         collapsed,
         |ui| {
-            if ui
-                .checkbox(
-                    &mut settings.config.status_bar.status_bar_auto_hide_fullscreen,
-                    "Hide in fullscreen",
-                )
-                .on_hover_text("Automatically hide the status bar when the window is fullscreen")
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-
-            if ui
-                .checkbox(
-                    &mut settings
-                        .config
-                        .status_bar
-                        .status_bar_auto_hide_mouse_inactive,
-                    "Hide on mouse inactivity",
-                )
-                .on_hover_text("Automatically hide the status bar when the mouse has been inactive")
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-
-            // Timeout slider (only shown when mouse inactivity hide is enabled)
-            if settings
-                .config
-                .status_bar
-                .status_bar_auto_hide_mouse_inactive
-            {
-                ui.horizontal(|ui| {
-                    ui.label("Timeout:");
+            crate::dependent::dependent(
+                ui,
+                settings.config.status_bar.status_bar_enabled,
+                "Enable status bar",
+                |ui| {
                     if ui
+                        .checkbox(
+                            &mut settings.config.status_bar.status_bar_auto_hide_fullscreen,
+                            "Hide in fullscreen",
+                        )
+                        .on_hover_text(
+                            "Automatically hide the status bar when the window is fullscreen",
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
+                    if ui
+                        .checkbox(
+                            &mut settings
+                                .config
+                                .status_bar
+                                .status_bar_auto_hide_mouse_inactive,
+                            "Hide on mouse inactivity",
+                        )
+                        .on_hover_text(
+                            "Automatically hide the status bar when the mouse has been inactive",
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
+                    crate::dependent::dependent(
+                        ui,
+                        settings
+                            .config
+                            .status_bar
+                            .status_bar_auto_hide_mouse_inactive,
+                        "Hide on mouse inactivity",
+                        |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label("Timeout:");
+                                if ui
                         .add_sized(
                             [SLIDER_WIDTH, SLIDER_HEIGHT],
                             egui::Slider::new(
                                 &mut settings.config.status_bar.status_bar_mouse_inactive_timeout,
                                 1.0..=30.0,
                             )
-                            .suffix(" sec")
+                            .suffix(" s")
                             .show_value(true),
                         )
                         .on_hover_text(
@@ -72,8 +83,14 @@ pub fn show_auto_hide_section(
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
-                });
-            }
+                                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                                    &mut c.status_bar.status_bar_mouse_inactive_timeout
+                                });
+                            });
+                        },
+                    );
+                },
+            );
         },
     );
 }

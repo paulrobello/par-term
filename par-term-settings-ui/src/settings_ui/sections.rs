@@ -230,6 +230,48 @@ fn chords_equal(a: &str, b: &str) -> bool {
     }
 }
 
+/// Whether a par-term chord (`Ctrl+B`) is the same key as a tmux prefix in
+/// tmux's own notation (`C-b`, `M-a`, `C-S-x`) (UX.md B49: comparing the two
+/// strings directly could never match).
+pub(crate) fn chord_matches_tmux_prefix(chord: &str, tmux_prefix: &str) -> bool {
+    let mut rest = tmux_prefix.trim();
+    let mut parts: Vec<String> = Vec::new();
+    loop {
+        let modifier = match rest.get(..2) {
+            Some("C-") => "Ctrl",
+            Some("M-") | Some("A-") => "Alt",
+            Some("S-") => "Shift",
+            _ => break,
+        };
+        parts.push(modifier.to_string());
+        rest = &rest[2..];
+    }
+    if rest.is_empty() {
+        return false;
+    }
+    parts.push(if rest.chars().count() == 1 {
+        rest.to_uppercase()
+    } else {
+        rest.to_string()
+    });
+    chords_equal(chord, &parts.join("+"))
+}
+
+#[cfg(test)]
+mod tmux_prefix_tests {
+    use super::chord_matches_tmux_prefix;
+
+    #[test]
+    fn par_term_chord_matches_tmux_notation() {
+        assert!(chord_matches_tmux_prefix("Ctrl+B", "C-b"));
+        assert!(chord_matches_tmux_prefix("Control+b", "C-b"));
+        assert!(chord_matches_tmux_prefix("Ctrl+Alt+X", "C-M-x"));
+        assert!(chord_matches_tmux_prefix("Ctrl+Space", "C-Space"));
+        assert!(!chord_matches_tmux_prefix("Ctrl+A", "C-b"));
+        assert!(!chord_matches_tmux_prefix("Ctrl+B", ""));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

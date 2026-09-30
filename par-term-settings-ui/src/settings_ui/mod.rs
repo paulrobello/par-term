@@ -339,14 +339,33 @@ pub struct SettingsUI {
     /// A close-prompt choice was made; the window closes once pending saves
     /// have been handed to the host.
     pub(crate) close_pending: bool,
+    /// Inline message under the header: save, import, export, and editor
+    /// failures (UX.md SS7), and informational notices (SS8, SS10).
+    pub(crate) banner: Option<banner::Banner>,
+    /// Baseline in effect before the last Save moved it; put back when the
+    /// host reports that writing the config failed.
+    pub(crate) config_save_rollback: Option<Config>,
+    /// Profile baseline before the last Save; put back on a failed write.
+    pub(crate) profile_save_rollback: Option<Vec<par_term_config::Profile>>,
+    /// config.yaml changed on disk while there were unsaved edits; held
+    /// until the user loads it (dropping the edits) or saves over it.
+    pub(crate) disk_config_pending: Option<Config>,
+    /// A control inside a tab asked for the footer Save (the profile list's
+    /// empty-list confirmation). Consumed by the next frame's footer.
+    pub(crate) global_save_requested: bool,
     /// List row armed for delete by its first click, as `(list, item key)`.
     /// The second click on the same row deletes it.
     pub pending_list_delete: crate::delete_confirm::PendingDelete,
 }
 
 mod async_ops;
+mod banner;
+pub use banner::{Banner, BannerKind};
 mod baseline;
+mod deferred;
 pub use baseline::{ClosePromptChoice, collapsed_sections_to_persist, configs_equal};
+pub use deferred::{Deferred, deferred_badge};
 mod display;
 mod sections;
+pub(crate) use sections::chord_matches_tmux_prefix;
 mod state;

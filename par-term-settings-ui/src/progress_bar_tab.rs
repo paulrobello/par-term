@@ -158,6 +158,9 @@ fn show_general_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.progress_bar.progress_bar_height
+                });
             });
 
             // Opacity slider
@@ -166,10 +169,10 @@ fn show_general_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(
+                        crate::units::percent(egui::Slider::new(
                             &mut settings.config.progress_bar.progress_bar_opacity,
                             0.1..=1.0,
-                        )
+                        ))
                         .show_value(true),
                     )
                     .on_hover_text("Opacity of the progress bar overlay")
@@ -178,6 +181,9 @@ fn show_general_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.progress_bar.progress_bar_opacity
+                });
             });
         },
     );
