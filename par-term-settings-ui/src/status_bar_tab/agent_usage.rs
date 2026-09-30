@@ -2,7 +2,7 @@
 //! interval, hidden agents).
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::section::keyword_section;
 use std::collections::HashSet;
 
 pub fn show_agent_usage_section(
@@ -11,10 +11,11 @@ pub fn show_agent_usage_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Agent Usage",
         "status_bar_agent_usage",
+        &["subscription", "limits", "codex", "tokens"],
         false,
         collapsed,
         |ui| {

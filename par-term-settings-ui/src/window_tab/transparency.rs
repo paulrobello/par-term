@@ -1,6 +1,7 @@
 //! Transparency section of the window settings tab.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::{SLIDER_WIDTH, collapsing_section};
 use std::collections::HashSet;
 
@@ -21,13 +22,15 @@ pub(super) fn show_transparency_section(
         |ui| {
             ui.horizontal(|ui| {
                 ui.label("Opacity:");
-                let response = ui.add_sized(
-                    [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    crate::units::percent(egui::Slider::new(
-                        &mut settings.config.window.window_opacity,
-                        0.1..=1.0,
-                    )),
-                );
+                let response = ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        crate::units::percent(egui::Slider::new(
+                            &mut settings.config.window.window_opacity,
+                            0.1..=1.0,
+                        )),
+                    )
+                    .search_tag(&["window_opacity"]);
                 if response.changed() {
                     log::info!(
                         "Opacity slider changed to: {}",
@@ -45,7 +48,7 @@ pub(super) fn show_transparency_section(
                 .checkbox(
                     &mut settings.config.background.transparency_affects_only_default_background,
                     "Transparency affects only default background",
-                )
+                ).search_tag(&["transparency_affects_only_default_background"])
                 .on_hover_text(
                     "When enabled, colored backgrounds (syntax highlighting, status bars) remain opaque for better readability",
                 )
@@ -56,7 +59,7 @@ pub(super) fn show_transparency_section(
             }
 
             if ui
-                .checkbox(&mut settings.config.background.keep_text_opaque, "Keep text opaque")
+                .checkbox(&mut settings.config.background.keep_text_opaque, "Keep text opaque").search_tag(&["keep_text_opaque"])
                 .on_hover_text(
                     "When enabled, text is always rendered at full opacity regardless of window transparency",
                 )
@@ -72,7 +75,7 @@ pub(super) fn show_transparency_section(
                 ui.add_space(8.0);
 
                 if ui
-                    .checkbox(&mut settings.config.window.blur_enabled, "Enable window blur")
+                    .checkbox(&mut settings.config.window.blur_enabled, "Enable window blur").search_tag(&["blur_enabled"])
                     .on_hover_text(
                         "Blur content behind the transparent window for better readability (requires transparency)",
                     )

@@ -4,7 +4,7 @@
 
 use crate::SettingsUI;
 use crate::format_timestamp;
-use crate::section::{INPUT_WIDTH, collapsing_section};
+use crate::section::{INPUT_WIDTH, keyword_section};
 use par_term_config::{DownloadSaveLocation, LogLevel, UpdateCheckFrequency};
 use std::collections::HashSet;
 
@@ -18,10 +18,11 @@ pub(super) fn show_screenshot_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Screenshots",
         "advanced_screenshots",
+        &["capture"],
         false,
         collapsed,
         |ui| {
@@ -61,173 +62,188 @@ pub(super) fn show_updates_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Updates", "advanced_updates", true, collapsed, |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Current version:");
-            ui.label(settings.app_version);
-        });
+    keyword_section(
+        ui,
+        "Updates",
+        "advanced_updates",
+        &[
+            "release",
+            "homebrew",
+            "cargo",
+            "self-update",
+            "skipped version",
+            "brew",
+        ],
+        true,
+        collapsed,
+        |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Current version:");
+                ui.label(settings.app_version);
+            });
 
-        ui.add_space(8.0);
+            ui.add_space(8.0);
 
-        ui.horizontal(|ui| {
-            ui.label("Check for updates:");
+            ui.horizontal(|ui| {
+                ui.label("Check for updates:");
 
-            let current = settings.config.updates.update_check_frequency;
-            egui::ComboBox::from_id_salt("advanced_update_check_frequency")
-                .selected_text(current.display_name())
-                .show_ui(ui, |ui| {
-                    for freq in [
-                        UpdateCheckFrequency::Never,
-                        UpdateCheckFrequency::Hourly,
-                        UpdateCheckFrequency::Daily,
-                        UpdateCheckFrequency::Weekly,
-                        UpdateCheckFrequency::Monthly,
-                    ] {
-                        if ui
-                            .selectable_value(
-                                &mut settings.config.updates.update_check_frequency,
-                                freq,
-                                freq.display_name(),
-                            )
-                            .changed()
-                        {
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
+                let current = settings.config.updates.update_check_frequency;
+                egui::ComboBox::from_id_salt("advanced_update_check_frequency")
+                    .selected_text(current.display_name())
+                    .show_ui(ui, |ui| {
+                        for freq in [
+                            UpdateCheckFrequency::Never,
+                            UpdateCheckFrequency::Hourly,
+                            UpdateCheckFrequency::Daily,
+                            UpdateCheckFrequency::Weekly,
+                            UpdateCheckFrequency::Monthly,
+                        ] {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.updates.update_check_frequency,
+                                    freq,
+                                    freq.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
                         }
+                    });
+            });
+
+            if let Some(ref last_check) = settings.config.updates.last_update_check {
+                ui.horizontal(|ui| {
+                    ui.label("Last checked:");
+                    ui.label(format_timestamp(last_check));
+                });
+            }
+
+            if let Some(skipped) = settings.config.updates.skipped_version.clone() {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!("Skipping notifications for v{}", skipped))
+                            .small()
+                            .color(egui::Color32::GRAY),
+                    );
+                    if ui.small_button("Clear").clicked() {
+                        settings.config.updates.skipped_version = None;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
                     }
                 });
-        });
-
-        if let Some(ref last_check) = settings.config.updates.last_update_check {
-            ui.horizontal(|ui| {
-                ui.label("Last checked:");
-                ui.label(format_timestamp(last_check));
-            });
-        }
-
-        if let Some(skipped) = settings.config.updates.skipped_version.clone() {
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new(format!("Skipping notifications for v{}", skipped))
-                        .small()
-                        .color(egui::Color32::GRAY),
-                );
-                if ui.small_button("Clear").clicked() {
-                    settings.config.updates.skipped_version = None;
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-        }
-
-        ui.add_space(8.0);
-
-        // Check Now button
-        ui.horizontal(|ui| {
-            if ui
-                .button("Check Now")
-                .on_hover_text("Check for updates immediately")
-                .clicked()
-            {
-                settings.check_now_requested = true;
             }
-        });
 
-        // Show update check result
-        if let Some(ref result) = settings.last_update_result {
-            ui.add_space(4.0);
-            match result {
-                crate::UpdateCheckResult::UpToDate => {
-                    ui.label(
-                        egui::RichText::new("You are running the latest version.")
-                            .color(egui::Color32::from_rgb(100, 200, 100)),
-                    );
+            ui.add_space(8.0);
+
+            // Check Now button
+            ui.horizontal(|ui| {
+                if ui
+                    .button("Check Now")
+                    .on_hover_text("Check for updates immediately")
+                    .clicked()
+                {
+                    settings.check_now_requested = true;
                 }
-                crate::UpdateCheckResult::UpdateAvailable(info) => {
-                    let version_str = info.version.strip_prefix('v').unwrap_or(&info.version);
-                    ui.label(
-                        egui::RichText::new(format!("Version {} is available!", version_str))
-                            .color(egui::Color32::YELLOW)
-                            .strong(),
-                    );
+            });
 
-                    // Show release URL as clickable link
-                    ui.hyperlink_to("View release on GitHub", &info.release_url);
+            // Show update check result
+            if let Some(ref result) = settings.last_update_result {
+                ui.add_space(4.0);
+                match result {
+                    crate::UpdateCheckResult::UpToDate => {
+                        ui.label(
+                            egui::RichText::new("You are running the latest version.")
+                                .color(egui::Color32::from_rgb(100, 200, 100)),
+                        );
+                    }
+                    crate::UpdateCheckResult::UpdateAvailable(info) => {
+                        let version_str = info.version.strip_prefix('v').unwrap_or(&info.version);
+                        ui.label(
+                            egui::RichText::new(format!("Version {} is available!", version_str))
+                                .color(egui::Color32::YELLOW)
+                                .strong(),
+                        );
 
-                    ui.add_space(4.0);
+                        // Show release URL as clickable link
+                        ui.hyperlink_to("View release on GitHub", &info.release_url);
 
-                    // Detect installation type to decide what button to show
-                    let installation = settings.installation_type;
-                    match installation {
-                        crate::InstallationType::Homebrew => {
-                            ui.label(
-                                egui::RichText::new(
-                                    "Update via Homebrew: brew upgrade --cask par-term",
-                                )
-                                .color(egui::Color32::GRAY),
-                            );
-                        }
-                        crate::InstallationType::CargoInstall => {
-                            ui.label(
-                                egui::RichText::new("Update via cargo: cargo install par-term")
+                        ui.add_space(4.0);
+
+                        // Detect installation type to decide what button to show
+                        let installation = settings.installation_type;
+                        match installation {
+                            crate::InstallationType::Homebrew => {
+                                ui.label(
+                                    egui::RichText::new(
+                                        "Update via Homebrew: brew upgrade --cask par-term",
+                                    )
                                     .color(egui::Color32::GRAY),
-                            );
-                        }
-                        _ => {
-                            // Show Install Update button
-                            let installing = settings.update_installing;
-                            let button_text = if installing {
-                                "Installing..."
-                            } else {
-                                "Install Update"
-                            };
+                                );
+                            }
+                            crate::InstallationType::CargoInstall => {
+                                ui.label(
+                                    egui::RichText::new("Update via cargo: cargo install par-term")
+                                        .color(egui::Color32::GRAY),
+                                );
+                            }
+                            _ => {
+                                // Show Install Update button
+                                let installing = settings.update_installing;
+                                let button_text = if installing {
+                                    "Installing..."
+                                } else {
+                                    "Install Update"
+                                };
 
-                            let button =
-                                egui::Button::new(egui::RichText::new(button_text).strong());
+                                let button =
+                                    egui::Button::new(egui::RichText::new(button_text).strong());
 
-                            if ui
-                                .add_enabled(!installing, button)
-                                .on_hover_text(format!("Download and install v{}", version_str))
-                                .clicked()
-                            {
-                                settings.update_install_requested = true;
+                                if ui
+                                    .add_enabled(!installing, button)
+                                    .on_hover_text(format!("Download and install v{}", version_str))
+                                    .clicked()
+                                {
+                                    settings.update_install_requested = true;
+                                }
                             }
                         }
                     }
+                    crate::UpdateCheckResult::Error(e) => {
+                        ui.label(
+                            egui::RichText::new(format!("Check failed: {}", e))
+                                .color(egui::Color32::from_rgb(255, 100, 100)),
+                        );
+                    }
+                    _ => {}
                 }
-                crate::UpdateCheckResult::Error(e) => {
-                    ui.label(
-                        egui::RichText::new(format!("Check failed: {}", e))
-                            .color(egui::Color32::from_rgb(255, 100, 100)),
-                    );
-                }
-                _ => {}
             }
-        }
 
-        // Show update status/result
-        if let Some(ref status) = settings.update_status {
+            // Show update status/result
+            if let Some(ref status) = settings.update_status {
+                ui.add_space(4.0);
+                let color = if settings.update_result.as_ref().is_some_and(|r| r.is_err()) {
+                    egui::Color32::from_rgb(255, 100, 100)
+                } else if settings.update_result.as_ref().is_some_and(|r| r.is_ok()) {
+                    egui::Color32::from_rgb(100, 200, 100)
+                } else {
+                    egui::Color32::YELLOW
+                };
+                ui.label(egui::RichText::new(status.as_str()).color(color));
+            }
+
             ui.add_space(4.0);
-            let color = if settings.update_result.as_ref().is_some_and(|r| r.is_err()) {
-                egui::Color32::from_rgb(255, 100, 100)
-            } else if settings.update_result.as_ref().is_some_and(|r| r.is_ok()) {
-                egui::Color32::from_rgb(100, 200, 100)
-            } else {
-                egui::Color32::YELLOW
-            };
-            ui.label(egui::RichText::new(status.as_str()).color(color));
-        }
-
-        ui.add_space(4.0);
-        ui.label(
-            egui::RichText::new(
-                "par-term checks for updates periodically based on the frequency above.",
-            )
-            .small()
-            .color(egui::Color32::GRAY),
-        );
-    });
+            ui.label(
+                egui::RichText::new(
+                    "par-term checks for updates periodically based on the frequency above.",
+                )
+                .small()
+                .color(egui::Color32::GRAY),
+            );
+        },
+    );
 }
 
 // ============================================================================
@@ -240,10 +256,11 @@ pub(super) fn show_file_transfers_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "File Transfers",
         "advanced_file_transfers",
+        &["upload"],
         true,
         collapsed,
         |ui| {
@@ -341,10 +358,11 @@ pub(super) fn show_debug_logging_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Debug Logging",
         "advanced_debug_logging",
+        &["verbose"],
         true,
         collapsed,
         |ui| {
@@ -412,62 +430,70 @@ pub(super) fn show_security_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Security", "advanced_security", true, collapsed, |ui| {
-        ui.label("Environment variable substitution in config files.");
-        ui.add_space(8.0);
+    keyword_section(
+        ui,
+        "Security",
+        "advanced_security",
+        &["allowlist", "escape sequence limit"],
+        true,
+        collapsed,
+        |ui| {
+            ui.label("Environment variable substitution in config files.");
+            ui.add_space(8.0);
 
-        let mut allow_all = settings.config.security.allow_all_env_vars;
-        if ui
-            .checkbox(
-                &mut allow_all,
-                "Allow all environment variables in config substitution",
-            )
-            .changed()
-        {
-            settings.config.security.allow_all_env_vars = allow_all;
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.add_space(4.0);
-        ui.label(
-            egui::RichText::new(
-                "When disabled (default), only safe environment variables (HOME, USER, \
-                     SHELL, XDG_*, PAR_TERM_*, LC_*, etc.) are substituted in config files. \
-                     Enable this to allow any environment variable — use with caution if \
-                     loading configs from untrusted sources.",
-            )
-            .small()
-            .color(egui::Color32::GRAY),
-        );
-
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            ui.label("Max OSC data length:");
-            let mut mib = (settings.config.max_osc_data_length / (1024 * 1024)).max(1);
+            let mut allow_all = settings.config.security.allow_all_env_vars;
             if ui
-                .add_sized(
-                    [INPUT_WIDTH, 18.0],
-                    egui::DragValue::new(&mut mib)
-                        .range(1..=1024)
-                        .suffix(" MiB"),
+                .checkbox(
+                    &mut allow_all,
+                    "Allow all environment variables in config substitution",
                 )
                 .changed()
             {
-                settings.config.max_osc_data_length = mib * 1024 * 1024;
+                settings.config.security.allow_all_env_vars = allow_all;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
-        ui.add_space(4.0);
-        ui.label(
-            egui::RichText::new(
-                "Maximum total OSC (escape sequence) payload size before a sequence is \
+
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(
+                    "When disabled (default), only safe environment variables (HOME, USER, \
+                     SHELL, XDG_*, PAR_TERM_*, LC_*, etc.) are substituted in config files. \
+                     Enable this to allow any environment variable — use with caution if \
+                     loading configs from untrusted sources.",
+                )
+                .small()
+                .color(egui::Color32::GRAY),
+            );
+
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label("Max OSC data length:");
+                let mut mib = (settings.config.max_osc_data_length / (1024 * 1024)).max(1);
+                if ui
+                    .add_sized(
+                        [INPUT_WIDTH, 18.0],
+                        egui::DragValue::new(&mut mib)
+                            .range(1..=1024)
+                            .suffix(" MiB"),
+                    )
+                    .changed()
+                {
+                    settings.config.max_osc_data_length = mib * 1024 * 1024;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(
+                    "Maximum total OSC (escape sequence) payload size before a sequence is \
                      rejected as a memory-exhaustion guard. Must be large enough for inline \
                      images (iTerm2/Kitty base64) if used.",
-            )
-            .small()
-            .color(egui::Color32::GRAY),
-        );
-    });
+                )
+                .small()
+                .color(egui::Color32::GRAY),
+            );
+        },
+    );
 }

@@ -2,14 +2,21 @@
 //!
 //! This component provides a vertical tab list on the left side of the settings UI,
 //! replacing the previous horizontal tab bar for better organization.
+//!
+//! While a search is active the sidebar shows the results, grouped
+//! `Tab › Section › Control` (UX.md SQ4), above the tab list. Tabs with no
+//! result are dimmed but stay clickable (SQ5).
 
 use super::SettingsUI;
-use crate::search_keywords::tab_search_keywords;
+use crate::search::Hit;
 
 // --- Sidebar color palette ---
 
 /// Text color for tabs that do not match the current search query (dimmed).
-const COLOR_TAB_DIMMED: egui::Color32 = egui::Color32::from_rgb(80, 80, 80);
+const COLOR_TAB_DIMMED: egui::Color32 = egui::Color32::from_rgb(110, 110, 110);
+
+/// Results listed before "N more" (the rest are one click away on their tab).
+const MAX_RESULTS: usize = 60;
 
 /// Text color for the currently selected tab (bright white).
 const COLOR_TAB_SELECTED: egui::Color32 = egui::Color32::from_rgb(255, 255, 255);
@@ -113,22 +120,121 @@ impl SettingsTab {
     }
 }
 
-/// Render the sidebar navigation.
+/// Render the sidebar: search results (while searching), then the tabs.
 ///
 /// Returns true if the selected tab changed.
-pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str) -> bool {
-    let mut tab_changed = false;
+pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI) -> bool {
+    let before = settings.selected_tab;
+    if !settings.search_query.trim().is_empty() {
+        show_results(ui, settings);
+        ui.separator();
+    }
+    show_tabs(ui, settings);
+    settings.selected_tab != before
+}
 
+/// The grouped result list, or the "No settings match" message.
+fn show_results(ui: &mut egui::Ui, settings: &mut SettingsUI) {
+    let hits: Vec<Hit> = settings.search_hits().to_vec();
+    let registry = settings.search_registry();
+    ui.add_space(TAB_LIST_PADDING);
+    if hits.is_empty() {
+        ui.label(
+            egui::RichText::new(no_match_message(settings.search_query.trim()))
+                .color(COLOR_TAB_NORMAL),
+        );
+        ui.label(
+            egui::RichText::new("Try fewer words, or the command palette for actions.")
+                .small()
+                .color(COLOR_TAB_DIMMED),
+        );
+        return;
+    }
+    let mut chosen = None;
+    let mut last_tab = None;
+    let mut last_section = None;
+    for hit in hits.iter().take(MAX_RESULTS) {
+        let section = &registry.sections[hit.section];
+        if last_tab != Some(section.tab) {
+            last_tab = Some(section.tab);
+            last_section = None;
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} {}",
+                    section.tab.icon(),
+                    section.tab.display_name()
+                ))
+                .strong()
+                .color(COLOR_TAB_SELECTED),
+            );
+        }
+        let row = match registry.control(*hit) {
+            None => {
+                last_section = Some(hit.section);
+                section_row(ui, &section.title)
+            }
+            Some(control) => {
+                if last_section != Some(hit.section) {
+                    last_section = Some(hit.section);
+                    section_row(ui, &section.title);
+                }
+                ui.horizontal(|ui| {
+                    ui.add_space(RESULT_INDENT * 2.0);
+                    ui.add(
+                        egui::Button::new(egui::RichText::new(&control.label).small())
+                            .frame(false)
+                            .truncate(),
+                    )
+                })
+                .inner
+            }
+        };
+        if row.clicked() {
+            chosen = Some(*hit);
+        }
+    }
+    if hits.len() > MAX_RESULTS {
+        ui.label(
+            egui::RichText::new(format!("{} more", hits.len() - MAX_RESULTS))
+                .small()
+                .color(COLOR_TAB_DIMMED),
+        );
+    }
+    if let Some(hit) = chosen {
+        settings.go_to_result(ui.ctx(), hit);
+    }
+}
+
+/// Indent of section and control rows under their tab heading.
+const RESULT_INDENT: f32 = 8.0;
+
+fn section_row(ui: &mut egui::Ui, title: &str) -> egui::Response {
+    ui.horizontal(|ui| {
+        ui.add_space(RESULT_INDENT);
+        ui.add(
+            egui::Button::new(egui::RichText::new(title).color(COLOR_TAB_NORMAL))
+                .frame(false)
+                .truncate(),
+        )
+    })
+    .inner
+}
+
+/// The empty-result message (UX.md SQ5).
+pub fn no_match_message(query: &str) -> String {
+    format!("No settings match \u{201c}{query}\u{201d}")
+}
+
+fn show_tabs(ui: &mut egui::Ui, settings: &mut SettingsUI) {
     // Add some vertical spacing at the top
     ui.add_space(TAB_LIST_PADDING);
 
     for tab in SettingsTab::all() {
-        let is_selected = *current_tab == *tab;
+        let is_selected = settings.selected_tab == *tab;
 
-        // Check if this tab has any matches for the search query
-        let has_matches = search_query.trim().is_empty() || tab_matches_search(*tab, search_query);
+        let has_matches = settings.tab_has_results(*tab);
 
-        // Dim tabs that don't match search
+        // Dim tabs with no result; they stay clickable (UX.md SQ5).
         let text_color = if !has_matches {
             COLOR_TAB_DIMMED
         } else if is_selected {
@@ -158,9 +264,8 @@ pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str
             }),
         );
 
-        if response.clicked() && has_matches {
-            *current_tab = *tab;
-            tab_changed = true;
+        if response.clicked() {
+            settings.selected_tab = *tab;
         }
 
         // Show tooltip with tab contents summary
@@ -168,22 +273,6 @@ pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str
     }
 
     ui.add_space(TAB_LIST_PADDING);
-
-    tab_changed
-}
-
-/// Check if a tab matches the search query.
-pub fn tab_matches_search(tab: SettingsTab, query: &str) -> bool {
-    let query = query.trim().to_lowercase();
-    let keywords = tab_search_keywords(tab);
-
-    // Check tab name
-    if tab.display_name().to_lowercase().contains(&query) {
-        return true;
-    }
-
-    // Check keywords
-    keywords.iter().any(|k| k.to_lowercase().contains(&query))
 }
 
 /// Get a summary of tab contents for tooltip.

@@ -1,7 +1,7 @@
 //! Variables reference section — built-in snippet variable documentation.
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::section::keyword_section;
 use std::collections::HashSet;
 
 pub(super) fn show_variables_reference_section(
@@ -9,10 +9,11 @@ pub(super) fn show_variables_reference_section(
     _settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Variables Reference",
         "snippets_variables",
+        &["builtin"],
         false,
         collapsed,
         |ui| {

@@ -14,32 +14,8 @@ use par_term_config::ImageScalingMode;
 use std::collections::HashSet;
 
 use super::SettingsUI;
-use super::section::{collapsing_section, section_matches};
-
-const BACKGROUND_SECTION_KEYWORDS: &[&str] = &[
-    "background",
-    "image",
-    "color",
-    "mode",
-    "wallpaper",
-    "shader",
-    "glsl",
-    "fit",
-    "fill",
-    "stretch",
-    "tile",
-    "center",
-    "noise",
-    "built-in noise",
-    "blend",
-    "blend mode",
-    "background blend",
-    "iBackgroundBlendMode",
-];
-
-fn background_section_keywords() -> &'static [&'static str] {
-    BACKGROUND_SECTION_KEYWORDS
-}
+use super::section::keyword_section;
+use crate::search::SearchTag;
 
 /// Show the effects tab content.
 pub fn show(
@@ -48,65 +24,10 @@ pub fn show(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    let query = settings.search_query.trim().to_lowercase();
-
-    // Background section
-    if section_matches(&query, "Background", background_section_keywords()) {
-        // Delegate to the existing background_tab implementation
-        super::background_tab::show_background(ui, settings, changes_this_frame, collapsed);
-    }
-
-    // Per-Pane Background section
-    if section_matches(
-        &query,
-        "Per-Pane Background",
-        &[
-            "per-pane",
-            "pane background",
-            "pane image",
-            "split background",
-            "per pane",
-        ],
-    ) {
-        super::background_tab::show_pane_backgrounds(ui, settings, changes_this_frame, collapsed);
-    }
-
-    // Inline Images section (Sixel, iTerm2, Kitty)
-    if section_matches(
-        &query,
-        "Inline Images",
-        &[
-            "inline",
-            "image",
-            "sixel",
-            "iterm",
-            "kitty",
-            "scaling",
-            "aspect",
-            "graphics protocol",
-            "nearest neighbor",
-            "linear",
-        ],
-    ) {
-        show_inline_images(ui, settings, changes_this_frame, collapsed);
-    }
-
-    // Cursor Shader section
-    if section_matches(
-        &query,
-        "Cursor Shader",
-        &[
-            "cursor shader",
-            "trail",
-            "glow",
-            "cursor effect",
-            "glsl",
-            "animation",
-        ],
-    ) {
-        // Delegate to the existing cursor shader implementation
-        super::background_tab::show_cursor_shader(ui, settings, changes_this_frame, collapsed);
-    }
+    super::background_tab::show_background(ui, settings, changes_this_frame, collapsed);
+    super::background_tab::show_pane_backgrounds(ui, settings, changes_this_frame, collapsed);
+    show_inline_images(ui, settings, changes_this_frame, collapsed);
+    super::background_tab::show_cursor_shader(ui, settings, changes_this_frame, collapsed);
 }
 
 /// Show inline image settings (Sixel, iTerm2, Kitty protocols).
@@ -116,10 +37,11 @@ fn show_inline_images(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Inline Images (Sixel, iTerm2, Kitty)",
         "inline_images",
+        &["graphics protocol", "nearest neighbor"],
         true,
         collapsed,
         |ui| {
@@ -151,7 +73,7 @@ fn show_inline_images(
                 .checkbox(
                     &mut settings.config.image.image_preserve_aspect_ratio,
                     "Preserve aspect ratio",
-                )
+                ).search_tag(&["image_preserve_aspect_ratio"])
                 .on_hover_text(
                     "Maintain image proportions when scaling. When disabled, images stretch to fill their cell grid.",
                 )
@@ -164,130 +86,22 @@ fn show_inline_images(
     );
 }
 
-/// Search keywords for the Effects settings tab.
-pub fn keywords() -> &'static [&'static str] {
-    &[
-        // Background
-        "background",
-        "background mode",
-        "background image",
-        "background color",
-        "image",
-        "image mode",
-        "noise",
-        "built-in noise",
-        "fit",
-        "fill",
-        "stretch",
-        "tile",
-        "center",
-        // Background shader
-        "shader",
-        "custom shader",
-        "blend",
-        "blend mode",
-        "background blend",
-        "iBackgroundBlendMode",
-        "animation",
-        "animation speed",
-        "hot reload",
-        "brightness",
-        "text opacity",
-        "auto dim",
-        "adaptive brightness",
-        "readability mode",
-        "low power",
-        "cycle shader",
-        "pause animation",
-        "safety badges",
-        "uniform groups",
-        "full content",
-        // Shader channels
-        "channel",
-        "ichannel",
-        "texture",
-        "cubemap",
-        // Inline images
-        "inline image",
-        "sixel",
-        "iterm",
-        "kitty",
-        "scaling",
-        "aspect ratio",
-        "nearest",
-        "linear",
-        // Cursor shader
-        "cursor shader",
-        "cursor effect",
-        "trail",
-        "glow",
-        "hides cursor",
-        "alt screen",
-        // Per-pane background
-        "per-pane background",
-        "pane image",
-        "split background",
-        "per pane",
-        "darken",
-        "pane darken",
-        // Hot reload extras
-        "hot reload delay",
-        "reload delay",
-        // Shader overrides
-        "per-shader",
-        "shader override",
-        "shader defaults",
-        // Cubemap extras
-        "cubemap enabled",
-        "enable cubemap",
-        // Per-pane extras
-        "identify panes",
-        // Background as texture
-        "background as ichannel",
-        "background as texture",
-        // Section titles and section keywords
-        "inline images",
-        "graphics protocol",
-        "nearest neighbor",
-        "glsl",
-    ]
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    const SHADER_TEXTURE_KEYWORDS: &[&str] = &[
-        "noise",
-        "built-in noise",
-        "blend",
-        "blend mode",
-        "background blend",
-        "iBackgroundBlendMode",
-    ];
+    use crate::sidebar::SettingsTab;
 
     #[test]
-    fn background_section_matches_shader_texture_keywords() {
-        for keyword in SHADER_TEXTURE_KEYWORDS {
+    fn shader_texture_terms_find_the_effects_tab() {
+        for keyword in [
+            "noise",
+            "built-in noise",
+            "blend",
+            "blend mode",
+            "background blend",
+        ] {
             assert!(
-                crate::section::section_matches(
-                    &keyword.to_lowercase(),
-                    "Background",
-                    background_section_keywords()
-                ),
-                "background section should match keyword: {keyword}"
-            );
-        }
-    }
-
-    #[test]
-    fn effects_global_keywords_include_shader_texture_controls() {
-        let global_keywords = keywords();
-
-        for keyword in SHADER_TEXTURE_KEYWORDS {
-            assert!(
-                global_keywords.contains(keyword),
-                "global effects keywords should include: {keyword}"
+                crate::search::tab_has_result(SettingsTab::Effects, keyword),
+                "Effects should have a result for {keyword:?}"
             );
         }
     }

@@ -2,7 +2,7 @@
 //!
 //! Manages remote URL profile sources: list, enable/disable, edit form, HTTP headers.
 
-use crate::section::{collapsing_section, collapsing_section_with_state};
+use crate::section::{collapsing_section, keyword_section_with_state};
 use crate::settings_ui::SettingsUI;
 use par_term_config::ConflictResolution;
 use par_term_config::DynamicProfileSource;
@@ -16,10 +16,18 @@ pub(super) fn show_dynamic_sources_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section_with_state(
+    keyword_section_with_state(
         ui,
         "Dynamic Profile Sources",
         "profiles_dynamic_sources",
+        &[
+            "download",
+            "sync",
+            "http headers",
+            "conflict resolution",
+            "max download",
+            "fetch timeout",
+        ],
         true,
         collapsed,
         |ui, collapsed| {

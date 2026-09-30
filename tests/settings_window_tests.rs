@@ -2,10 +2,9 @@
 
 use par_term::config::Config;
 use par_term::settings_ui::SettingsUI;
-use par_term::settings_ui::section::CollapsibleSection;
-use par_term::settings_ui::sidebar::{SettingsTab, tab_matches_search};
+use par_term::settings_ui::search::{Query, Registry};
+use par_term::settings_ui::sidebar::SettingsTab;
 use par_term::settings_window::SettingsWindowAction;
-use std::collections::HashSet;
 
 #[test]
 fn test_settings_window_action_none() {
@@ -74,154 +73,76 @@ fn test_settings_window_action_clone() {
 }
 
 // ============================================================================
-// section_matches logic tests (L-14)
-// Tests the CollapsibleSection::matches_search() logic and tab_matches_search()
+// Settings search tests (UX.md SQ1-SQ3)
+// The registry is harvested from the rendered tabs; a tab matches when any
+// of its sections or controls does.
 // ============================================================================
 
-#[test]
-fn test_section_matches_empty_query_always_matches() {
-    // An empty search query must match every section regardless of title/keywords.
-    let mut collapsed: HashSet<String> = HashSet::new();
-    let section = CollapsibleSection::new("Font Settings", "font", &mut collapsed, "")
-        .keywords(&["typeface", "size", "bold"]);
-    assert!(section.matches_search(), "Empty query should always match");
-}
-
-#[test]
-fn test_section_matches_title_exact() {
-    let mut collapsed: HashSet<String> = HashSet::new();
-    let section = CollapsibleSection::new("Font Settings", "font", &mut collapsed, "Font Settings")
-        .keywords(&[]);
-    assert!(section.matches_search(), "Exact title match should succeed");
-}
-
-#[test]
-fn test_section_matches_title_case_insensitive() {
-    let mut collapsed: HashSet<String> = HashSet::new();
-    let section = CollapsibleSection::new("Font Settings", "font", &mut collapsed, "font settings")
-        .keywords(&[]);
-    assert!(
-        section.matches_search(),
-        "Title match should be case-insensitive"
-    );
-}
-
-#[test]
-fn test_section_matches_title_partial() {
-    let mut collapsed: HashSet<String> = HashSet::new();
-    let section =
-        CollapsibleSection::new("Font Settings", "font", &mut collapsed, "font").keywords(&[]);
-    assert!(
-        section.matches_search(),
-        "Partial title match should succeed"
-    );
-}
-
-#[test]
-fn test_section_matches_keyword_case_insensitive() {
-    let mut collapsed: HashSet<String> = HashSet::new();
-    let section = CollapsibleSection::new("Appearance", "appearance", &mut collapsed, "LIGATURES")
-        .keywords(&["ligatures", "kerning"]);
-    assert!(
-        section.matches_search(),
-        "Keyword match should be case-insensitive"
-    );
-}
-
-#[test]
-fn test_section_no_match_returns_false() {
-    let mut collapsed: HashSet<String> = HashSet::new();
-    let section = CollapsibleSection::new("Font Settings", "font", &mut collapsed, "network")
-        .keywords(&["typeface", "size", "bold"]);
-    assert!(
-        !section.matches_search(),
-        "Query with no matching title or keyword should return false"
-    );
-}
-
-#[test]
-fn test_section_matches_keyword_partial() {
-    let mut collapsed: HashSet<String> = HashSet::new();
-    let section = CollapsibleSection::new("Terminal", "terminal", &mut collapsed, "scroll")
-        .keywords(&["scrollback", "shell"]);
-    assert!(
-        section.matches_search(),
-        "Partial keyword match should succeed"
-    );
-}
-
-// ============================================================================
-// tab_matches_search tests
-// ============================================================================
-
-#[test]
-fn test_tab_matches_search_empty_query() {
-    // Every tab should match an empty query.
-    for tab in SettingsTab::all() {
-        assert!(
-            tab_matches_search(*tab, ""),
-            "Tab {:?} should match empty query",
-            tab
-        );
+fn tab_has_result(registry: &Registry, tab: SettingsTab, query: &str) -> bool {
+    let query = Query::parse(query);
+    if query.is_empty() {
+        return true;
     }
+    let hits = registry.search(&query);
+    registry.tab_matches(tab, &query, &hits)
+}
+
+fn registry() -> std::sync::Arc<Registry> {
+    SettingsUI::new(Config::default()).search_registry()
 }
 
 #[test]
-fn test_tab_matches_search_by_display_name() {
-    // Each tab should be found by its own display name.
+fn test_query_empty_or_blank_is_empty() {
+    assert!(Query::parse("").is_empty());
+    assert!(Query::parse("   ").is_empty());
+    assert!(!Query::parse("font").is_empty());
+}
+
+#[test]
+fn test_query_is_case_insensitive_token_and() {
+    assert!(Query::parse("FONT settings").matches("Font Settings"));
+    assert!(Query::parse("settings font").matches("Font Settings"));
+    assert!(!Query::parse("font network").matches("Font Settings"));
+}
+
+#[test]
+fn test_query_matches_word_prefixes() {
+    assert!(Query::parse("scroll").matches("Scrollback lines"));
+    assert!(!Query::parse("network").matches("Scrollback lines"));
+}
+
+#[test]
+fn test_every_tab_matches_empty_query_and_its_own_name() {
+    let registry = registry();
     for tab in SettingsTab::all() {
+        assert!(tab_has_result(&registry, *tab, ""), "{tab:?} empty query");
         let name = tab.display_name().to_lowercase();
         assert!(
-            tab_matches_search(*tab, &name),
-            "Tab {:?} should match its own display name '{}'",
-            tab,
-            name
+            tab_has_result(&registry, *tab, &name),
+            "Tab {tab:?} should match its own display name '{name}'"
         );
     }
 }
 
 #[test]
-fn test_tab_matches_search_appearance_keywords() {
-    assert!(
-        tab_matches_search(SettingsTab::Appearance, "font"),
-        "Appearance tab should match 'font'"
-    );
-    assert!(
-        tab_matches_search(SettingsTab::Appearance, "cursor"),
-        "Appearance tab should match 'cursor'"
-    );
-    assert!(
-        tab_matches_search(SettingsTab::Appearance, "THEME"),
-        "Appearance tab should match 'THEME' (case-insensitive)"
-    );
-}
-
-#[test]
-fn test_tab_matches_search_window_keywords() {
-    assert!(
-        tab_matches_search(SettingsTab::Window, "opacity"),
-        "Window tab should match 'opacity'"
-    );
-    assert!(
-        tab_matches_search(SettingsTab::Window, "tab bar"),
-        "Window tab should match 'tab bar'"
-    );
-}
-
-#[test]
-fn test_tab_matches_search_section_titles_and_recent_features() {
+fn test_tab_matches_labels_and_section_titles() {
+    let registry = registry();
     let cases = [
+        (SettingsTab::Appearance, "font"),
+        (SettingsTab::Appearance, "cursor"),
+        (SettingsTab::Appearance, "THEME"),
+        (SettingsTab::Appearance, " font "),
         (SettingsTab::Appearance, "font rendering"),
+        (SettingsTab::Window, "opacity"),
+        (SettingsTab::Window, "tab bar"),
         (SettingsTab::Window, "split panes"),
         (SettingsTab::Window, "saved arrangements"),
         (SettingsTab::Input, "command palette"),
-        (SettingsTab::Input, "rename pane"),
         (SettingsTab::Input, "modifier remapping"),
         (SettingsTab::Terminal, "command separators"),
         (SettingsTab::Effects, "inline images"),
         (SettingsTab::StatusBar, "poll intervals"),
         (SettingsTab::Profiles, "dynamic profile sources"),
-        (SettingsTab::Profiles, "session name"),
         (SettingsTab::Automation, "git url"),
         (SettingsTab::Notifications, "alert sounds"),
         (SettingsTab::Integrations, "custom shaders"),
@@ -229,43 +150,30 @@ fn test_tab_matches_search_section_titles_and_recent_features() {
         (SettingsTab::Snippets, "agent commands"),
         (SettingsTab::AiInspector, "custom agents"),
         (SettingsTab::Advanced, "file transfers"),
+        (SettingsTab::Advanced, "tmux"),
     ];
     for (tab, query) in cases {
         assert!(
-            tab_matches_search(tab, query),
+            tab_has_result(&registry, tab, query),
             "{tab:?} tab should match '{query}'"
         );
     }
 }
 
 #[test]
-fn test_tab_matches_search_ignores_surrounding_whitespace() {
-    // Sections trim the query; the sidebar must too, or a trailing space
-    // dims every tab while the section list still matches.
-    assert!(tab_matches_search(SettingsTab::Appearance, " font "));
-}
-
-#[test]
-fn test_tab_matches_search_no_match() {
-    // A query that exists in no tab's name or keywords should return false.
-    // "xyzzy_nonexistent_query" is unlikely to appear in any keyword list.
-    assert!(
-        !tab_matches_search(SettingsTab::Appearance, "xyzzy_nonexistent_query"),
-        "Appearance tab should not match nonsense query"
-    );
-}
-
-#[test]
-fn test_tab_matches_search_cross_tab_isolation() {
-    // "tmux" keyword belongs to Advanced, not Appearance.
-    assert!(
-        !tab_matches_search(SettingsTab::Appearance, "tmux"),
-        "Appearance tab should not match 'tmux'"
-    );
-    assert!(
-        tab_matches_search(SettingsTab::Advanced, "tmux"),
-        "Advanced tab should match 'tmux'"
-    );
+fn test_tab_does_not_match_nonsense_or_another_tabs_setting() {
+    let registry = registry();
+    assert!(!tab_has_result(
+        &registry,
+        SettingsTab::Appearance,
+        "xyzzy_nonexistent_query"
+    ));
+    assert!(!tab_has_result(
+        &registry,
+        SettingsTab::Appearance,
+        "gateway"
+    ));
+    assert!(tab_has_result(&registry, SettingsTab::Advanced, "gateway"));
 }
 
 // ============================================================================

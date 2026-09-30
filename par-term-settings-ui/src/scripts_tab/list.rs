@@ -1,6 +1,6 @@
 //! Script list section: displays all configured scripts with status and controls.
 
-use crate::section::{collapsing_section, collapsing_section_with_state};
+use crate::section::{collapsing_section, keyword_section_with_state};
 use crate::settings_ui::SettingsUI;
 use par_term_config::automation::RestartPolicy;
 use std::collections::HashSet;
@@ -13,10 +13,25 @@ pub(super) fn show_scripts_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section_with_state(
+    keyword_section_with_state(
         ui,
         "Observer Scripts",
         "scripts_list",
+        &[
+            "scripting",
+            "python",
+            "subprocess",
+            "event",
+            "script path",
+            "subscriptions",
+            "arguments",
+            "auto-launch",
+            "permission",
+            "write text",
+            "change config",
+            "confirm before write text",
+            "inject text",
+        ],
         true,
         collapsed,
         |ui, collapsed_inner| {

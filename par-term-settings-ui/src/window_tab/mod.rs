@@ -12,7 +12,6 @@
 //! - Window arrangements (save and restore layouts)
 
 use crate::SettingsUI;
-use crate::section::section_matches;
 use std::collections::HashSet;
 
 mod behavior;
@@ -32,375 +31,33 @@ pub fn show(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    let query = settings.search_query.trim().to_lowercase();
-
     // Display section
-    if section_matches(
-        &query,
-        "Display",
-        &[
-            "title",
-            "columns",
-            "rows",
-            "padding",
-            "size",
-            "window title",
-            "allow title change",
-        ],
-    ) {
-        display::show_display_section(ui, settings, changes_this_frame, collapsed);
-    }
+    display::show_display_section(ui, settings, changes_this_frame, collapsed);
 
     // Transparency section
-    if section_matches(
-        &query,
-        "Transparency",
-        &[
-            "opacity",
-            "blur",
-            "transparent",
-            "background",
-            "default background",
-            "text opaque",
-        ],
-    ) {
-        transparency::show_transparency_section(ui, settings, changes_this_frame, collapsed);
-    }
+    transparency::show_transparency_section(ui, settings, changes_this_frame, collapsed);
 
     // Performance section (collapsed by default)
-    if section_matches(
-        &query,
-        "Performance",
-        &[
-            "fps",
-            "vsync",
-            "refresh",
-            "power",
-            "unfocused",
-            "gpu",
-            "flicker",
-            "reduce",
-            "throughput",
-            "render interval",
-            "batch",
-            "mailbox",
-            "fifo",
-            "gpu preference",
-            "power saving",
-        ],
-    ) {
-        performance::show_performance_section(ui, settings, changes_this_frame, collapsed);
-    }
+    performance::show_performance_section(ui, settings, changes_this_frame, collapsed);
 
     // Window Behavior section (collapsed by default)
-    if section_matches(
-        &query,
-        "Window Behavior",
-        &[
-            "decorations",
-            "always on top",
-            "window type",
-            "monitor",
-            "lock",
-            "edge-anchored",
-            "primary monitor",
-            "window number",
-        ],
-    ) {
-        behavior::show_behavior_section(ui, settings, changes_this_frame, collapsed);
-    }
+    behavior::show_behavior_section(ui, settings, changes_this_frame, collapsed);
 
     // Tab Bar section
-    if section_matches(
-        &query,
-        "Tab Bar",
-        &[
-            "tab",
-            "tabs",
-            "bar",
-            "index",
-            "close button",
-            "profile drawer",
-            "stretch",
-            "html titles",
-            "inherit directory",
-            "max tabs",
-            "remote tab title",
-            "ssh title",
-            "remote host",
-            "user at host",
-            "remote format",
-            "osc priority",
-        ],
-    ) {
-        tab_bar::show_tab_bar_section(ui, settings, changes_this_frame, collapsed);
-    }
+    tab_bar::show_tab_bar_section(ui, settings, changes_this_frame, collapsed);
 
     // Tab Bar Appearance section (collapsed by default)
-    if section_matches(
-        &query,
-        "Tab Bar Appearance",
-        &[
-            "tab color",
-            "tab border",
-            "inactive tab",
-            "dimming",
-            "tab style",
-            "minimum tab width",
-            "active indicator",
-            "activity indicator",
-            "bell indicator",
-        ],
-    ) {
-        tab_bar::show_tab_bar_appearance_section(ui, settings, changes_this_frame, collapsed);
-    }
+    tab_bar::show_tab_bar_appearance_section(ui, settings, changes_this_frame, collapsed);
 
     // Split Panes section
-    if section_matches(
-        &query,
-        "Split Panes",
-        &[
-            "pane",
-            "split",
-            "divider",
-            "focus indicator",
-            "hit width",
-            "drag area",
-            "max panes",
-            "min pane size",
-            "pane padding",
-        ],
-    ) {
-        panes::show_panes_section(ui, settings, changes_this_frame, collapsed);
-    }
+    panes::show_panes_section(ui, settings, changes_this_frame, collapsed);
 
     // Pane Appearance section (collapsed by default)
-    if section_matches(
-        &query,
-        "Pane Appearance",
-        &[
-            "pane color",
-            "pane title",
-            "inactive pane",
-            "pane opacity",
-            "hover color",
-            "dim inactive",
-            "title height",
-            "title position",
-            "pane background",
-        ],
-    ) {
-        panes::show_pane_appearance_section(ui, settings, changes_this_frame, collapsed);
-    }
+    panes::show_pane_appearance_section(ui, settings, changes_this_frame, collapsed);
 
     // Scrollbar section
-    if section_matches(
-        &query,
-        "Scrollbar",
-        &[
-            "scrollbar",
-            "thumb",
-            "track",
-            "autohide",
-            "marker",
-            "command markers",
-            "shell integration",
-            "tooltips",
-            "scrollbar width",
-        ],
-    ) {
-        scrollbar::show_scrollbar_section(ui, settings, changes_this_frame, collapsed);
-    }
+    scrollbar::show_scrollbar_section(ui, settings, changes_this_frame, collapsed);
 
     // Arrangements section (absorbed from arrangements_tab)
     crate::arrangements_tab::show(ui, settings, changes_this_frame, collapsed);
-}
-
-/// Search keywords for the Window settings tab.
-pub fn keywords() -> &'static [&'static str] {
-    &[
-        // Display
-        "window",
-        "title",
-        "size",
-        "columns",
-        "rows",
-        "padding",
-        "hide padding on split",
-        "snap",
-        "snap to grid",
-        "grid snap",
-        "resize snap",
-        "allow title change",
-        // Transparency
-        "opacity",
-        "transparency",
-        "transparent",
-        "blur",
-        "blur radius",
-        "keep text opaque",
-        // Performance
-        "fps",
-        "max fps",
-        "vsync",
-        "refresh",
-        "power",
-        "gpu",
-        "unfocused",
-        "inactive tab",
-        "inactive tab fps",
-        "pause shaders",
-        "reduce flicker",
-        "flicker",
-        "maximize throughput",
-        "throughput",
-        "render interval",
-        // Window behavior
-        "decorations",
-        "always on top",
-        "lock window size",
-        "window number",
-        "window type",
-        "monitor",
-        "target monitor",
-        "space",
-        "spaces",
-        "mission control",
-        "virtual desktop",
-        "macos space",
-        "target space",
-        // Tab bar
-        "tab bar",
-        "tabs",
-        "tab bar mode",
-        "tab title mode",
-        "tab title",
-        "osc only",
-        "cwd title",
-        "rename tab",
-        "tab height",
-        "tab index",
-        "close button",
-        "stretch",
-        "html titles",
-        "inherit cwd",
-        "inherit directory",
-        "profile drawer",
-        "new tab shortcut",
-        "profile picker",
-        "new tab profile",
-        "max tabs",
-        "remote tab title",
-        "ssh title",
-        "remote host",
-        "user at host",
-        "remote format",
-        "osc priority",
-        // Tab bar appearance
-        "tab min width",
-        "tab border",
-        "tab color",
-        "inactive tab",
-        "outline only",
-        "outline tab",
-        "dimming",
-        "dim inactive",
-        "tab background",
-        "tab text",
-        "tab indicator",
-        "activity indicator",
-        "bell indicator",
-        "close button color",
-        "tab style",
-        "auto tab style",
-        "automatic tab",
-        "system tab style",
-        // Tab bar layout
-        "tab bar position",
-        "tab bar width",
-        "new tab position",
-        "after active",
-        "tab order",
-        "insert tab",
-        // Split panes
-        "panes",
-        "split",
-        "divider",
-        "divider width",
-        "hit width",
-        "pane padding",
-        "divider style",
-        "focus indicator",
-        "focus indicator color",
-        "focus indicator width",
-        "pane focus",
-        "max panes",
-        "min pane size",
-        // Pane appearance
-        "divider color",
-        "hover color",
-        "dim inactive panes",
-        "inactive pane",
-        "pane opacity",
-        "pane title",
-        "pane title height",
-        "pane title position",
-        "pane title color",
-        "pane background",
-        // Performance extras
-        "latency",
-        // Scrollbar
-        "scrollbar",
-        "thumb",
-        "track",
-        "autohide",
-        "command marks",
-        "marker",
-        "mark",
-        "tooltips",
-        "scrollbar width",
-        "scroll",
-        // Arrangements (absorbed from arrangements_tab)
-        "arrangement",
-        "arrangements",
-        "layout",
-        "workspace",
-        "save",
-        "restore",
-        "window layout",
-        "auto-restore",
-        "rename",
-        "delete",
-        "reorder",
-        "move up",
-        "move down",
-        "overwrite",
-        "startup",
-        // Section titles and section keywords
-        "display",
-        "window title",
-        "default background",
-        "performance",
-        "batch",
-        "mailbox",
-        "fifo",
-        "gpu preference",
-        "power saving",
-        "window behavior",
-        "edge-anchored",
-        "primary monitor",
-        "tab bar appearance",
-        "minimum tab width",
-        "active indicator",
-        "split panes",
-        "drag area",
-        "pane appearance",
-        "pane color",
-        "command markers",
-        "shell integration",
-        "save current layout",
-        "snapshot",
-        "saved arrangements",
-        "launch",
-    ]
 }

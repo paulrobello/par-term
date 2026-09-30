@@ -906,7 +906,7 @@ Each coprocess has a collapsible output viewer that displays the coprocess's std
 - Click **"Clear"** to discard buffered output
 - Output accumulates in memory (capped at 200 lines) until cleared or the tab is closed
 
-> **📝 Note:** The quick search bar in Settings supports the following keywords for the **Automation** tab (which now also includes Scripts): `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`, `script`, `observer`, `event`, `panel`, `subscriptions`.
+> **📝 Note:** Settings search matches control labels and tooltips as well as keywords. For the **Automation** tab (which also includes Scripts) these find results: `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`, `script`, `observer`, `event`, `panel`, `subscriptions`.
 
 ## Complete Configuration Examples
 

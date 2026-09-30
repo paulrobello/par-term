@@ -1,7 +1,8 @@
 //! Notification behavior settings — suppression, buffer, and test notification.
 
 use crate::SettingsUI;
-use crate::section::{SLIDER_WIDTH, collapsing_section};
+use crate::search::SearchTag;
+use crate::section::{SLIDER_WIDTH, keyword_section};
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -12,10 +13,11 @@ pub(super) fn show_behavior_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Behavior",
         "notifications_behavior",
+        &["notification queue", "notification limit"],
         false,
         collapsed,
         |ui| {
@@ -27,6 +29,7 @@ pub(super) fn show_behavior_section(
                         .suppress_notifications_when_focused,
                     "Suppress notifications when focused",
                 )
+                .search_tag(&["suppress_notifications_when_focused"])
                 .on_hover_text("Skip desktop notifications when the terminal window is focused")
                 .changed()
             {
@@ -45,6 +48,7 @@ pub(super) fn show_behavior_section(
                         )
                         .suffix(" entries"),
                     )
+                    .search_tag(&["notification_max_buffer"])
                     .changed()
                 {
                     settings.has_changes = true;

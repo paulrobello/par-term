@@ -341,15 +341,15 @@ make config-example    # Writes config.yaml.example to the project root
 
 ### Adding a Configuration Option
 
-1. Add the field to the `Config` struct in `par-term-config/src/config/config_struct/mod.rs` with a serde default attribute:
+1. Add the field to the sub-config for its area, `par-term-config/src/config/config_struct/<area>_config.rs`, not to the root `Config` in `config_struct/mod.rs`, with a serde default attribute:
    ```rust
    #[serde(default = "default_my_option")]
    pub my_option: MyType,
    ```
-2. Implement the `default_my_option` function and update the `Default` impl.
+2. Implement the `default_my_option` function and use the same expression in that sub-config's `Default` impl.
 3. Use the config value in the relevant component.
-4. **Required:** Add UI controls in the appropriate settings tab (`par-term-settings-ui/src/*_tab.rs`). Set `settings.has_changes = true` and `*changes_this_frame = true` when the value changes.
-5. **Required:** Update the search keywords in `par-term-settings-ui/src/sidebar.rs` inside `tab_search_keywords()`.
+4. **Required:** Add UI controls in the appropriate settings tab (`par-term-settings-ui/src/<name>_tab/`). Set `settings.has_changes = true` and `*changes_this_frame = true` when the value changes.
+5. Settings search finds the new control by its label and tooltip automatically, as long as it is drawn inside a `collapsing_section`/`keyword_section`. Add `.search_tag(&["my_option"])` to its response so the YAML key is searchable too.
 
 ### Adding a Keyboard Shortcut
 

@@ -273,6 +273,7 @@ impl SettingsUI {
             disk_config_pending: None,
             global_save_requested: false,
             pending_list_delete: None,
+            search: Default::default(),
         }
     }
 
@@ -462,6 +463,7 @@ impl SettingsUI {
         self.visible = !self.visible;
         if self.visible {
             self.focus_search = true;
+            self.search_query.clear();
         }
     }
 

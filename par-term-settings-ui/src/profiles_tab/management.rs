@@ -1,7 +1,7 @@
 //! Profile management section (inline profile list/editor).
 
 use crate::profile_modal_ui::ProfileModalAction;
-use crate::section::collapsing_section_with_state;
+use crate::section::{keyword_section, keyword_section_with_state};
 use crate::settings_ui::SettingsUI;
 use std::collections::HashSet;
 
@@ -11,10 +11,39 @@ pub(super) fn show_management_section(
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section_with_state(
+    keyword_section_with_state(
         ui,
         "Profile Management",
         "profiles_management",
+        &[
+            "duplicate",
+            "default profile",
+            "par-mux",
+            "mux",
+            "tmux",
+            "ssh",
+            "shell",
+            "tags",
+            "login shell",
+            "bash",
+            "zsh",
+            "fish",
+            "powershell",
+            "inheritance",
+            "auto switch",
+            "profile shader",
+            "shader override",
+            "hostname",
+            "ssh host",
+            "ssh user",
+            "ssh port",
+            "identity file",
+            "tmux session",
+            "auto-connect",
+            "mux session",
+            "session name",
+            "set default",
+        ],
         true,
         collapsed,
         |ui, collapsed| {
@@ -45,12 +74,11 @@ pub(super) fn show_display_options_section(
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
 ) {
-    use crate::section::collapsing_section;
-
-    collapsing_section(
+    keyword_section(
         ui,
         "Display Options",
         "profiles_display",
+        &["profile indicator"],
         true,
         collapsed,
         |ui| {

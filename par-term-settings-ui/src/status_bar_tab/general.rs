@@ -1,6 +1,7 @@
 //! Status bar general settings section (enable, position, height).
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::{SLIDER_WIDTH, collapsing_section};
 use par_term_config::StatusBarPosition;
 use std::collections::HashSet;
@@ -19,6 +20,7 @@ pub fn show_general_section(
                 &mut settings.config.status_bar.status_bar_enabled,
                 "Enable status bar",
             )
+            .search_tag(&["status_bar_enabled"])
             .on_hover_text("Show a configurable status bar with widgets")
             .changed()
         {
@@ -80,6 +82,7 @@ pub fn show_general_section(
                             .suffix(" px")
                             .show_value(true),
                         )
+                        .search_tag(&["status_bar_height"])
                         .on_hover_text("Height of the status bar in logical pixels")
                         .changed()
                     {

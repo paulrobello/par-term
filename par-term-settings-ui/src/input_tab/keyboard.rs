@@ -1,7 +1,8 @@
 //! Keyboard and modifier remapping settings sections.
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::search::SearchTag;
+use crate::section::{collapsing_section, keyword_section};
 use par_term_config::{ModifierTarget, OptionKeyMode};
 use std::collections::HashSet;
 
@@ -106,6 +107,7 @@ pub(super) fn show_keyboard_section(
                 &mut settings.config.input.use_physical_keys,
                 "Use physical key positions for keybindings",
             )
+            .search_tag(&["use_physical_keys"])
             .on_hover_text(
                 "Match keybindings by key position (scan code) instead of character produced.\n\
                  This makes shortcuts like Ctrl+Z work consistently across keyboard layouts\n\
@@ -137,10 +139,11 @@ pub(super) fn show_modifier_remapping_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Modifier Remapping",
         "input_modifier_remapping",
+        &["swap"],
         false,
         collapsed,
         |ui| {

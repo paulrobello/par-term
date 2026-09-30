@@ -693,6 +693,8 @@ Around 470 controls sit on 13 tabs. The largest single section, Effects › "Bac
 
 ### 14.1 What happens today `[verified]`
 
+> **Status (2026-09-30, SP1):** this section describes search before SP1. SP1 replaced it with the registry in `par-term-settings-ui/src/search/` (section titles plus harvested control labels, tooltips, and combo options; token-AND matching); the per-tab `keywords()` lists, `section_matches`, and `CollapsibleSection` are gone. The 15 queries are reconstructed in `search/registry_tests.rs`, since the original list was not recorded; "leader" lands on Input › Keybindings until the leader key (K7) has a control, and "par-mux" on Profiles › Profile Management because its controls live inside the profile editor.
+
 - The sidebar lights a tab if the query is a substring of the tab name or one of its `keywords()` (`sidebar.rs:176-187`, dispatched by `search_keywords.rs:13-28`). Each section is filtered separately by `section_matches(query, title, &[inline keywords])` (`section.rs:131-139`). The two lists are maintained by hand and have drifted:
 
   | Tab | Tab keywords that show no section |

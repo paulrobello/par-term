@@ -1,6 +1,7 @@
 //! Performance section of the window settings tab.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::{SLIDER_WIDTH, collapsing_section};
 use par_term_config::{PowerPreference, VsyncMode};
 use std::collections::HashSet;
@@ -28,6 +29,7 @@ pub(super) fn show_performance_section(
                         egui::Slider::new(&mut settings.config.rendering.max_fps, 1..=240)
                             .suffix(" fps"),
                     )
+                    .search_tag(&["max_fps"])
                     .changed()
                 {
                     settings.has_changes = true;
@@ -143,6 +145,7 @@ pub(super) fn show_performance_section(
                     &mut settings.config.power.pause_shaders_on_blur,
                     "Pause shader animations when unfocused",
                 )
+                .search_tag(&["pause_shaders_on_blur"])
                 .on_hover_text(
                     "Reduces GPU usage by pausing animated shaders when the window is not in focus",
                 )
@@ -156,7 +159,7 @@ pub(super) fn show_performance_section(
                 .checkbox(
                     &mut settings.config.power.pause_refresh_on_blur,
                     "Reduce refresh rate when unfocused",
-                )
+                ).search_tag(&["pause_refresh_on_blur"])
                 .on_hover_text(
                     "Reduces CPU/GPU usage by lowering the frame rate when the window is not in focus",
                 )
@@ -174,6 +177,7 @@ pub(super) fn show_performance_section(
                         egui::Slider::new(&mut settings.config.power.unfocused_fps, 1..=30)
                             .suffix(" fps"),
                     )
+                    .search_tag(&["unfocused_fps"])
                     .on_hover_text(
                         "Target frame rate when window is unfocused (lower = more power savings)",
                     )
@@ -195,6 +199,7 @@ pub(super) fn show_performance_section(
                         egui::Slider::new(&mut settings.config.power.inactive_tab_fps, 1..=30)
                             .suffix(" fps"),
                     )
+                    .search_tag(&["inactive_tab_fps"])
                     .on_hover_text(
                         "Refresh rate for non-visible tabs. Lower values reduce CPU usage\n\
                          from mutex polling when many tabs are open.\n\
@@ -218,6 +223,7 @@ pub(super) fn show_performance_section(
                     &mut settings.config.rendering.reduce_flicker,
                     "Reduce flicker during fast updates",
                 )
+                .search_tag(&["reduce_flicker"])
                 .on_hover_text(
                     "Delays screen redraws while the cursor is hidden (DECTCEM off).\n\
                  Many terminal programs hide the cursor during bulk updates.\n\
@@ -240,6 +246,7 @@ pub(super) fn show_performance_section(
                         )
                         .suffix(" ms"),
                     )
+                    .search_tag(&["reduce_flicker_delay_ms"])
                     .on_hover_text(
                         "Maximum time to wait for cursor to become visible.\n\
                      Lower = more responsive, Higher = smoother for slow programs.\n\
@@ -268,6 +275,7 @@ pub(super) fn show_performance_section(
                     &mut settings.config.rendering.maximize_throughput,
                     throughput_label,
                 )
+                .search_tag(&["maximize_throughput"])
                 .on_hover_text(
                     "Batches screen updates during bulk terminal output.\n\
                  Reduces CPU overhead when processing large outputs.\n\
@@ -290,6 +298,7 @@ pub(super) fn show_performance_section(
                         )
                         .suffix(" ms"),
                     )
+                    .search_tag(&["throughput_render_interval_ms"])
                     .on_hover_text(
                         "How often to update the display in throughput mode.\n\
                      Lower = more responsive, Higher = better throughput.\n\

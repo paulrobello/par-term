@@ -13,10 +13,26 @@ pub fn show_actions_section(
     changes_this_frame: &mut bool,
     collapsed: &mut std::collections::HashSet<String>,
 ) {
-    crate::section::collapsing_section(
+    crate::section::keyword_section(
         ui,
         "Custom Actions",
         "actions_list",
+        &[
+            "macro",
+            "shell command",
+            "insert text",
+            "key sequence",
+            "prefix char",
+            "split pane",
+            "new tab",
+            "workflow",
+            "condition",
+            "repeat",
+            "capture output",
+            "exit code",
+            "horizontal",
+            "vertical",
+        ],
         true,
         collapsed,
         |ui| {

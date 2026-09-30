@@ -1,6 +1,7 @@
 //! Status bar poll intervals section (system monitor, git branch refresh rates).
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::{SLIDER_WIDTH, collapsing_section};
 use std::collections::HashSet;
 
@@ -36,6 +37,7 @@ pub fn show_poll_intervals_section(
                                 .suffix(" s")
                                 .show_value(true),
                             )
+                            .search_tag(&["status_bar_system_poll_interval"])
                             .on_hover_text("How often to poll CPU, memory, and network usage")
                             .changed()
                         {
@@ -59,6 +61,7 @@ pub fn show_poll_intervals_section(
                                 .suffix(" s")
                                 .show_value(true),
                             )
+                            .search_tag(&["status_bar_git_poll_interval"])
                             .on_hover_text("How often to poll the current git branch name")
                             .changed()
                         {
@@ -82,6 +85,7 @@ pub fn show_poll_intervals_section(
                                 .suffix(" s")
                                 .show_value(true),
                             )
+                            .search_tag(&["status_bar_disk_poll_interval"])
                             .on_hover_text("How often to poll free disk space (default 60 sec)")
                             .changed()
                         {
@@ -99,6 +103,7 @@ pub fn show_poll_intervals_section(
                                 &mut settings.config.status_bar.status_bar_disk_follow_cwd,
                                 "Follow active tab's directory",
                             )
+                            .search_tag(&["status_bar_disk_follow_cwd"])
                             .on_hover_text(
                                 "Off (default): show the disk par-term launched from. \
                          On: show the disk containing the active tab/pane's working directory.",

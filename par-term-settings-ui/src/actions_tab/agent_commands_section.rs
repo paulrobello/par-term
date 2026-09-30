@@ -21,10 +21,11 @@ pub fn show_agent_commands_section(
     settings: &mut SettingsUI,
     collapsed: &mut std::collections::HashSet<String>,
 ) {
-    crate::section::collapsing_section(
+    crate::section::keyword_section(
         ui,
         "Agent Commands",
         "agent_commands_list",
+        &["macro", "mcp", "delete command"],
         true,
         collapsed,
         |ui| show_commands_body(ui, &mut settings.actions_tab, &commands_dir()),

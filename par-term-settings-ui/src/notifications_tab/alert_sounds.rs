@@ -1,7 +1,7 @@
 //! Alert sounds settings — per-event sound configuration.
 
 use crate::SettingsUI;
-use crate::section::{SLIDER_WIDTH, collapsing_section};
+use crate::section::{SLIDER_WIDTH, keyword_section};
 use par_term_config::{AlertEvent, AlertSoundConfig};
 use std::collections::HashSet;
 
@@ -13,10 +13,11 @@ pub(super) fn show_alert_sounds_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Alert Sounds",
         "notifications_alert_sounds",
+        &["wav", "ogg", "custom sound", "flac"],
         false,
         collapsed,
         |ui| {

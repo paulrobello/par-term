@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use par_term_config::{Config, ShellType};
 
 use super::SettingsUI;
-use super::section::{collapsing_section, section_matches};
+use super::section::keyword_section;
 
 /// Actions for shell integration (consumed by app handler)
 #[derive(Debug, Clone, Copy)]
@@ -39,69 +39,14 @@ impl SettingsUI {
         _changes_this_frame: &mut bool,
         collapsed: &mut HashSet<String>,
     ) {
-        let query = self.search_query.trim().to_lowercase();
-
         // Shell Integration section
-        if section_matches(
-            &query,
-            "Shell Integration",
-            &[
-                "shell",
-                "bash",
-                "zsh",
-                "fish",
-                "prompt",
-                "integration",
-                "install",
-                "auto-install",
-            ],
-        ) {
-            self.show_shell_integration_section(ui, _changes_this_frame, collapsed);
-        }
+        self.show_shell_integration_section(ui, _changes_this_frame, collapsed);
 
         // Custom Shaders section
-        if section_matches(
-            &query,
-            "Custom Shaders",
-            &[
-                "shader",
-                "glsl",
-                "effect",
-                "background",
-                "cursor",
-                "custom shader",
-                "animation",
-                "post-processing",
-            ],
-        ) {
-            self.show_shaders_section(ui, _changes_this_frame, collapsed);
-        }
+        self.show_shaders_section(ui, _changes_this_frame, collapsed);
 
         // SSH section (absorbed from ssh_tab)
-        if section_matches(
-            &query,
-            "SSH",
-            &[
-                "ssh",
-                "remote",
-                "host",
-                "connect",
-                "quick connect",
-                "mdns",
-                "bonjour",
-                "discovery",
-                "auto-switch",
-                "auto switch",
-                "profile switch",
-                "hostname",
-                "known hosts",
-                "revert profile",
-                "disconnect",
-                "scan timeout",
-            ],
-        ) {
-            self.show_ssh_tab_as_section(ui, _changes_this_frame, collapsed);
-        }
+        self.show_ssh_tab_as_section(ui, _changes_this_frame, collapsed);
     }
 
     fn show_shell_integration_section(
@@ -110,10 +55,11 @@ impl SettingsUI {
         _changes_this_frame: &mut bool,
         collapsed: &mut HashSet<String>,
     ) {
-        collapsing_section(
+        keyword_section(
             ui,
             "Shell Integration",
             "integrations_shell",
+            &["auto-install", "reinstall", "curl", "shell prompt"],
             true,
             collapsed,
             |ui| {
@@ -242,10 +188,17 @@ impl SettingsUI {
         // Update async install status
         self.poll_shader_install_status();
 
-        collapsing_section(
+        keyword_section(
             ui,
             "Custom Shaders",
             "integrations_shaders",
+            &[
+                "glsl",
+                "post-processing",
+                "reinstall",
+                "overwrite",
+                "modified",
+            ],
             true,
             collapsed,
             |ui| {
@@ -484,56 +437,4 @@ fn shell_type_display(shell: ShellType) -> &'static str {
         ShellType::Fish => "Fish",
         ShellType::Unknown => "Unknown",
     }
-}
-
-/// Search keywords for the Integrations settings tab.
-pub fn keywords() -> &'static [&'static str] {
-    &[
-        "shell integration",
-        "bash",
-        "zsh",
-        "fish",
-        "shaders",
-        "shader bundle",
-        "install",
-        "uninstall",
-        "reinstall",
-        "bundle",
-        "curl",
-        "manual",
-        "open folder",
-        "shaders folder",
-        "overwrite",
-        // Status and info
-        "detected",
-        "version",
-        "status",
-        "location",
-        "copy",
-        "modified",
-        // SSH (absorbed from ssh_tab)
-        "ssh",
-        "remote",
-        "host",
-        "connect",
-        "quick connect",
-        "mdns",
-        "bonjour",
-        "discovery",
-        "auto-switch",
-        "auto switch",
-        "profile switch",
-        "known hosts",
-        "revert profile",
-        "disconnect",
-        "scan timeout",
-        // Section titles and section keywords
-        "custom shaders",
-        "custom shader",
-        "glsl",
-        "post-processing",
-        "auto-install",
-        "shell prompt",
-        "remote hostname",
-    ]
 }

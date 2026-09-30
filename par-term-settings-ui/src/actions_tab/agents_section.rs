@@ -17,19 +17,27 @@ pub fn show_agents_section(
     changes_this_frame: &mut bool,
     collapsed: &mut std::collections::HashSet<String>,
 ) {
-    crate::section::collapsing_section(ui, "Agents", "agents_list", true, collapsed, |ui| {
-        let mut changed = false;
-        show_agents_body(
-            ui,
-            &mut settings.actions_tab,
-            &mut settings.config.agents,
-            &mut changed,
-        );
-        if changed {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-    });
+    crate::section::keyword_section(
+        ui,
+        "Agents",
+        "agents_list",
+        &["launcher", "default agent"],
+        true,
+        collapsed,
+        |ui| {
+            let mut changed = false;
+            show_agents_body(
+                ui,
+                &mut settings.actions_tab,
+                &mut settings.config.agents,
+                &mut changed,
+            );
+            if changed {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        },
+    );
 }
 
 /// The section body, against an explicit agents list (tests pass a plain

@@ -6,9 +6,19 @@
 //! The `AVAILABLE_ACTIONS` lookup table lives in [`super::actions_table`].
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::search::SearchTag;
+use crate::section::keyword_section;
 use par_term_config::KeyBinding;
 use std::collections::HashSet;
+
+/// Words people search for an action by that are not in its name.
+fn action_synonyms(action: &str) -> &'static [&'static str] {
+    match action {
+        "move_tab_to_new_window" => &["detach", "popout", "tear off"],
+        "select_pane_hint" => &["pane hint"],
+        _ => &[],
+    }
+}
 
 use super::actions_table::AVAILABLE_ACTIONS;
 
@@ -32,10 +42,11 @@ pub(super) fn show_keybindings_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Keybindings",
         "input_keybindings",
+        &["hotkey", "leader", "shortcut"],
         true,
         collapsed,
         |ui| {
@@ -152,7 +163,9 @@ pub(super) fn show_keybindings_section(
                                     ("(not set)".to_string(), false)
                                 };
 
-                            ui.label(*display_name);
+                            ui.label(*display_name)
+                                .search_tag(&[action_name])
+                                .search_tag(action_synonyms(action_name));
 
                             let is_recording = settings.keybinding_recording_index == Some(*idx);
                             if is_recording {

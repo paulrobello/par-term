@@ -1,4 +1,5 @@
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::collapsing_section_with_state;
 use arboard::Clipboard;
 use egui::Color32;
@@ -152,6 +153,7 @@ pub fn show_cursor_shader(
                             &mut settings.config.shader.cursor_shader_enabled,
                             "Enable cursor shader",
                         )
+                        .search_tag(&["cursor_shader_enabled"])
                         .changed()
                     {
                         settings.has_changes = true;
@@ -163,6 +165,7 @@ pub fn show_cursor_shader(
                             &mut settings.config.shader.cursor_shader_animation,
                             "Enable cursor shader animation",
                         )
+                        .search_tag(&["cursor_shader_animation"])
                         .changed()
                     {
                         settings.has_changes = true;
@@ -179,6 +182,7 @@ pub fn show_cursor_shader(
                                 )
                                 .suffix("×"),
                             )
+                            .search_tag(&["cursor_shader_animation_speed"])
                             .changed()
                         {
                             settings.has_changes = true;
@@ -193,7 +197,7 @@ pub fn show_cursor_shader(
             .checkbox(
                 &mut settings.config.shader.cursor_shader_hides_cursor,
                 "Hide default cursor (let shader handle it)",
-            )
+            ).search_tag(&["cursor_shader_hides_cursor"])
             .on_hover_text("When enabled, the normal cursor is not drawn, allowing the cursor shader to fully replace cursor rendering")
             .changed()
         {
@@ -205,7 +209,7 @@ pub fn show_cursor_shader(
             .checkbox(
                 &mut settings.config.shader.cursor_shader_disable_in_alt_screen,
                 "Disable cursor shader in alt screen (vim/less/htop)",
-            )
+            ).search_tag(&["cursor_shader_disable_in_alt_screen"])
             .on_hover_text("When enabled, cursor shader effects pause while an application is using the alt screen")
             .changed()
         {

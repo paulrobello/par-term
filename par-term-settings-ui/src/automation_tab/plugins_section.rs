@@ -8,7 +8,7 @@
 //! config; the host's per-frame reconcile picks the change up after save.
 
 use crate::SettingsUI;
-use crate::section::{collapsing_section, section_matches};
+use crate::section::keyword_section;
 use par_term_config::PluginStateConfig;
 use par_term_config::status_bar::{StatusBarSection, StatusBarWidgetConfig, WidgetId};
 use par_term_scripting::manifest::{
@@ -21,166 +21,144 @@ use std::collections::HashSet;
 
 use super::plugin_git_ui::{show_plugin_git_actions, show_plugin_git_bar};
 
-/// Show the Plugins section, filtered by the settings search query.
+/// Show the Plugins section.
 pub(super) fn show_plugins_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    keyword_section(
+        ui,
         "Plugins",
-        &[
-            "plugin",
-            "plugins",
-            "status bar widget",
-            "manifest",
-            "widget",
-            "extensions",
-            "plugin action",
-            "palette actions",
-            "git",
-            "add plugin",
-            "remove plugin",
-            "forget plugin",
-            "update plugin",
-            "install plugin",
-        ],
-    ) {
-        show_plugins_collapsing(ui, settings, changes_this_frame, collapsed);
-    }
-}
-
-fn show_plugins_collapsing(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-    collapsed: &mut HashSet<String>,
-) {
-    collapsing_section(ui, "Plugins", "automation_plugins", true, collapsed, |ui| {
-        ui.label(
+        "automation_plugins",
+        &["manifest", "extensions", "forget plugin"],
+        true,
+        collapsed,
+        |ui| {
+            ui.label(
             "Local plugins run as subprocesses and publish status-bar widgets, contribute command-palette actions, or push panel content.",
         );
-        ui.label("Plugins are disabled until enabled here. Install from a git URL below, or copy a plugin directory into the plugins folder by hand.");
-        crate::saved_immediately::saved_immediately(
-            ui,
-            "Installing, updating, and removing plugins are",
-            &par_term_config::Config::config_dir().join("plugins"),
-        );
-        ui.add_space(4.0);
-
-        // Poll any in-flight git operation (add / fetch / apply / remove);
-        // a completed op rescans below so the change shows immediately. The
-        // poll runs only while the section is open — the same trade the
-        // integrations tab's install poll makes.
-        if settings.poll_plugin_git_op() {
-            settings.automation_tab.plugin_scan = None;
-        }
-        show_plugin_git_bar(ui, settings);
-
-        // The scan runs once (and on Rescan): a per-frame directory walk
-        // would be wasted work for a list that only changes on disk.
-        if ui.small_button("Rescan").clicked() {
-            settings.automation_tab.plugin_scan = None;
-        }
-        if settings.automation_tab.plugin_scan.is_none() {
-            let root = par_term_config::Config::config_dir().join("plugins");
-            let scan = discover_plugins(&root);
-            // The .git + origin probe spawns a git process per plugin, so it
-            // runs on rescan, never per frame.
-            let git_ids: HashSet<String> = scan
-                .0
-                .iter()
-                .map(|plugin| plugin.manifest.id.clone())
-                .filter(|id| plugin_git::is_git_installed(&root.join(id)))
-                .collect();
-            if let Some(pending) = settings.automation_tab.plugin_remove_pending.clone()
-                && !git_ids.contains(&pending)
-            {
-                settings.automation_tab.plugin_remove_pending = None;
-            }
-            settings.automation_tab.plugin_git_ids = Some(git_ids);
-            settings.automation_tab.plugin_scan = Some(scan);
-        }
-        // Clone out of the tab state so the loop below can freely mutate
-        // `settings.config` (discovery order is deterministic by id).
-        let (discovered, warnings) = settings
-            .automation_tab
-            .plugin_scan
-            .clone()
-            .unwrap_or_default();
-        let mut discovered = discovered;
-        discovered.sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
-
-        for warning in &warnings {
-            ui.label(
-                egui::RichText::new(format!("skipped '{}': {}", warning.dir, warning.reason))
-                    .small()
-                    .color(egui::Color32::GRAY),
+            ui.label("Plugins are disabled until enabled here. Install from a git URL below, or copy a plugin directory into the plugins folder by hand.");
+            crate::saved_immediately::saved_immediately(
+                ui,
+                "Installing, updating, and removing plugins are",
+                &par_term_config::Config::config_dir().join("plugins"),
             );
-        }
+            ui.add_space(4.0);
 
-        let mut first = true;
-        for plugin in &discovered {
-            if !first {
-                ui.add_space(6.0);
+            // Poll any in-flight git operation (add / fetch / apply / remove);
+            // a completed op rescans below so the change shows immediately. The
+            // poll runs only while the section is open — the same trade the
+            // integrations tab's install poll makes.
+            if settings.poll_plugin_git_op() {
+                settings.automation_tab.plugin_scan = None;
             }
-            first = false;
-            show_plugin_row(ui, settings, changes_this_frame, plugin);
-        }
-        if discovered.is_empty() && warnings.is_empty() {
-            ui.label(egui::RichText::new("No plugins found.").color(egui::Color32::GRAY));
-        }
+            show_plugin_git_bar(ui, settings);
 
-        // Config entries whose plugin directory is gone keep their state:
-        // the id may come back, and removing it silently would lose the
-        // user's settings.
-        let missing = missing_state_ids(&settings.config, &discovered);
-        if !missing.is_empty() {
-            ui.add_space(6.0);
-            ui.label(egui::RichText::new("Missing plugins").strong());
-            for id in missing {
-                let enabled = settings
-                    .config
-                    .automation
-                    .plugins
+            // The scan runs once (and on Rescan): a per-frame directory walk
+            // would be wasted work for a list that only changes on disk.
+            if ui.small_button("Rescan").clicked() {
+                settings.automation_tab.plugin_scan = None;
+            }
+            if settings.automation_tab.plugin_scan.is_none() {
+                let root = par_term_config::Config::config_dir().join("plugins");
+                let scan = discover_plugins(&root);
+                // The .git + origin probe spawns a git process per plugin, so it
+                // runs on rescan, never per frame.
+                let git_ids: HashSet<String> = scan
+                    .0
                     .iter()
-                    .any(|state| state.id == id && state.enabled);
-                let suffix = if enabled { " (enabled)" } else { "" };
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new(format!("{id} — not found — state kept{suffix}"))
-                            .small()
-                            .color(egui::Color32::GRAY),
-                    );
-                    // Destructive: arm on the first click, act on the second.
-                    let armed =
-                        settings.automation_tab.plugin_forget_pending.as_deref() == Some(&id);
-                    let label = if armed { "Really forget?" } else { "Forget…" };
-                    if ui
-                        .small_button(label)
-                        .on_hover_text(
-                            "Clear this plugin's saved settings and status-bar placement",
-                        )
-                        .clicked()
-                    {
-                        if armed {
-                            settings.automation_tab.plugin_forget_pending = None;
-                            forget_plugin_state(&mut settings.config, &id);
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        } else {
-                            settings.automation_tab.plugin_forget_pending = Some(id.clone());
-                        }
-                    }
-                    if armed && ui.small_button("Keep").clicked() {
-                        settings.automation_tab.plugin_forget_pending = None;
-                    }
-                });
+                    .map(|plugin| plugin.manifest.id.clone())
+                    .filter(|id| plugin_git::is_git_installed(&root.join(id)))
+                    .collect();
+                if let Some(pending) = settings.automation_tab.plugin_remove_pending.clone()
+                    && !git_ids.contains(&pending)
+                {
+                    settings.automation_tab.plugin_remove_pending = None;
+                }
+                settings.automation_tab.plugin_git_ids = Some(git_ids);
+                settings.automation_tab.plugin_scan = Some(scan);
             }
-        }
-    });
+            // Clone out of the tab state so the loop below can freely mutate
+            // `settings.config` (discovery order is deterministic by id).
+            let (discovered, warnings) = settings
+                .automation_tab
+                .plugin_scan
+                .clone()
+                .unwrap_or_default();
+            let mut discovered = discovered;
+            discovered.sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
+
+            for warning in &warnings {
+                ui.label(
+                    egui::RichText::new(format!("skipped '{}': {}", warning.dir, warning.reason))
+                        .small()
+                        .color(egui::Color32::GRAY),
+                );
+            }
+
+            let mut first = true;
+            for plugin in &discovered {
+                if !first {
+                    ui.add_space(6.0);
+                }
+                first = false;
+                show_plugin_row(ui, settings, changes_this_frame, plugin);
+            }
+            if discovered.is_empty() && warnings.is_empty() {
+                ui.label(egui::RichText::new("No plugins found.").color(egui::Color32::GRAY));
+            }
+
+            // Config entries whose plugin directory is gone keep their state:
+            // the id may come back, and removing it silently would lose the
+            // user's settings.
+            let missing = missing_state_ids(&settings.config, &discovered);
+            if !missing.is_empty() {
+                ui.add_space(6.0);
+                ui.label(egui::RichText::new("Missing plugins").strong());
+                for id in missing {
+                    let enabled = settings
+                        .config
+                        .automation
+                        .plugins
+                        .iter()
+                        .any(|state| state.id == id && state.enabled);
+                    let suffix = if enabled { " (enabled)" } else { "" };
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(format!("{id} — not found — state kept{suffix}"))
+                                .small()
+                                .color(egui::Color32::GRAY),
+                        );
+                        // Destructive: arm on the first click, act on the second.
+                        let armed =
+                            settings.automation_tab.plugin_forget_pending.as_deref() == Some(&id);
+                        let label = if armed { "Really forget?" } else { "Forget…" };
+                        if ui
+                            .small_button(label)
+                            .on_hover_text(
+                                "Clear this plugin's saved settings and status-bar placement",
+                            )
+                            .clicked()
+                        {
+                            if armed {
+                                settings.automation_tab.plugin_forget_pending = None;
+                                forget_plugin_state(&mut settings.config, &id);
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            } else {
+                                settings.automation_tab.plugin_forget_pending = Some(id.clone());
+                            }
+                        }
+                        if armed && ui.small_button("Keep").clicked() {
+                            settings.automation_tab.plugin_forget_pending = None;
+                        }
+                    });
+                }
+            }
+        },
+    );
 }
 
 /// One discovered plugin: trust surface, enable toggle, schema-driven
@@ -1180,8 +1158,8 @@ mod tests {
 
     #[test]
     fn automation_tab_matches_plugin_search() {
-        // The criterion-3 path: settings search must find the section via
-        // the tab keywords, through the sidebar's real matching function.
+        // The criterion-3 path: settings search must find the section,
+        // through the registry the sidebar reads.
         for query in [
             "plugin",
             "plugins",
@@ -1192,7 +1170,7 @@ mod tests {
             "palette actions",
         ] {
             assert!(
-                crate::sidebar::tab_matches_search(crate::sidebar::SettingsTab::Automation, query),
+                crate::search::tab_has_result(crate::sidebar::SettingsTab::Automation, query),
                 "search '{query}' should match the Automation tab"
             );
         }

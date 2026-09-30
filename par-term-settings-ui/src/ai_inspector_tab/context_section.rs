@@ -4,7 +4,8 @@
 //! and Agent section (default agent, auto-launch, auto-context, max context lines).
 
 use crate::SettingsUI;
-use crate::section::{collapsing_section, section_matches};
+use crate::search::SearchTag;
+use crate::section::keyword_section;
 use par_term_config::AssistantInputHistoryMode;
 use std::collections::HashSet;
 
@@ -35,35 +36,20 @@ pub(super) fn show_panel_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    keyword_section(
+        ui,
         "Panel",
-        &[
-            "enabled",
-            "width",
-            "scope",
-            "view",
-            "live",
-            "update",
-            "zones",
-            "cards",
-            "timeline",
-            "tree",
-            "font",
-            "font size",
-            "chat font",
-            "input history",
-            "prompt history",
-            "assistant history",
-            "persist history",
-        ],
-    ) {
-        collapsing_section(ui, "Panel", "ai_inspector_panel", true, collapsed, |ui| {
+        "ai_inspector_panel",
+        &["prompt history", "inspector"],
+        true,
+        collapsed,
+        |ui| {
             if ui
                 .checkbox(
                     &mut settings.config.ai_inspector.ai_inspector_enabled,
                     "Enable Assistant Panel",
                 )
+                .search_tag(&["ai_inspector_enabled"])
                 .on_hover_text(crate::live_binding::with_binding(
                     &settings.config,
                     "Allow the Assistant panel to be opened",
@@ -80,6 +66,7 @@ pub(super) fn show_panel_section(
                     &mut settings.config.ai_inspector.ai_inspector_open_on_startup,
                     "Open on startup",
                 )
+                .search_tag(&["ai_inspector_open_on_startup"])
                 .on_hover_text("Automatically open the Assistant panel when a new window opens")
                 .changed()
             {
@@ -99,6 +86,7 @@ pub(super) fn show_panel_section(
                         )
                         .suffix(" px"),
                     )
+                    .search_tag(&["ai_inspector_width"])
                     .changed()
                 {
                     settings.has_changes = true;
@@ -122,6 +110,7 @@ pub(super) fn show_panel_section(
                         .suffix(" pt")
                         .step_by(1.0),
                     )
+                    .search_tag(&["ai_inspector_chat_font_size"])
                     .on_hover_text("Font size for chat message text in the Assistant panel")
                     .changed()
                 {
@@ -226,6 +215,7 @@ pub(super) fn show_panel_section(
                     &mut settings.config.ai_inspector.ai_inspector_live_update,
                     "Live update",
                 )
+                .search_tag(&["ai_inspector_live_update"])
                 .on_hover_text("Automatically refresh panel content when terminal changes")
                 .changed()
             {
@@ -238,6 +228,7 @@ pub(super) fn show_panel_section(
                     &mut settings.config.ai_inspector.ai_inspector_show_zones,
                     "Show zone content",
                 )
+                .search_tag(&["ai_inspector_show_zones"])
                 .on_hover_text(
                     "Display command zones in the panel (disable for compact agent-only mode)",
                 )
@@ -246,8 +237,8 @@ pub(super) fn show_panel_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
-    }
+        },
+    );
 }
 
 pub(super) fn show_agent_section(
@@ -256,19 +247,14 @@ pub(super) fn show_agent_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    keyword_section(
+        ui,
         "Agent",
-        &[
-            "agent",
-            "launch",
-            "auto-launch",
-            "context",
-            "auto-context",
-            "max lines",
-        ],
-    ) {
-        collapsing_section(ui, "Agent", "ai_inspector_agent", true, collapsed, |ui| {
+        "ai_inspector_agent",
+        &["llm", "anthropic", "ollama"],
+        true,
+        collapsed,
+        |ui| {
             let all_agents = combined_available_agents(settings);
 
             ui.horizontal(|ui| {
@@ -305,6 +291,7 @@ pub(super) fn show_agent_section(
                     &mut settings.config.ai_inspector.ai_inspector_auto_launch,
                     "Auto-launch agent",
                 )
+                .search_tag(&["ai_inspector_auto_launch"])
                 .on_hover_text("Automatically connect to the configured agent when the panel opens")
                 .changed()
             {
@@ -317,6 +304,7 @@ pub(super) fn show_agent_section(
                     &mut settings.config.ai_inspector.ai_inspector_auto_context,
                     "Auto-send context",
                 )
+                .search_tag(&["ai_inspector_auto_context"])
                 .on_hover_text(
                     "Automatically send command results to the agent when commands complete",
                 )
@@ -338,6 +326,7 @@ pub(super) fn show_agent_section(
                         )
                         .suffix(" lines"),
                     )
+                    .search_tag(&["ai_inspector_context_max_lines"])
                     .changed()
                 {
                     settings.has_changes = true;
@@ -412,8 +401,8 @@ pub(super) fn show_agent_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
-    }
+        },
+    );
 }
 
 /// Assistant context scopes: `(YAML value, label)`. UX.md SC5: combos show

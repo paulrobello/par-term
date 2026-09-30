@@ -10,7 +10,7 @@ mod state;
 pub use state::ArrangementsTabState;
 
 use super::SettingsUI;
-use super::section::{collapsing_section, section_matches};
+use super::section::keyword_section;
 use crate::SettingsWindowAction;
 use crate::arrangements::ArrangementManager;
 use std::collections::HashSet;
@@ -22,38 +22,11 @@ pub fn show(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    let query = settings.search_query.trim().to_lowercase();
+    show_save_section(ui, settings, collapsed);
 
-    if section_matches(
-        &query,
-        "Save Current Layout",
-        &["save", "capture", "current", "window", "layout", "snapshot"],
-    ) {
-        show_save_section(ui, settings, collapsed);
-    }
+    show_arrangements_list(ui, settings, collapsed);
 
-    if section_matches(
-        &query,
-        "Saved Arrangements",
-        &[
-            "arrangement",
-            "restore",
-            "rename",
-            "delete",
-            "layout",
-            "workspace",
-        ],
-    ) {
-        show_arrangements_list(ui, settings, collapsed);
-    }
-
-    if section_matches(
-        &query,
-        "Auto-Restore",
-        &["auto", "startup", "restore", "default", "launch", "open"],
-    ) {
-        show_auto_restore_section(ui, settings, changes_this_frame, collapsed);
-    }
+    show_auto_restore_section(ui, settings, changes_this_frame, collapsed);
 }
 
 // ============================================================================
@@ -65,10 +38,11 @@ fn show_save_section(
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Save Current Layout",
         "arrangements_save",
+        &["snapshot"],
         true,
         collapsed,
         |ui| {
@@ -118,10 +92,21 @@ fn show_arrangements_list(
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Saved Arrangements",
         "arrangements_list",
+        &[
+            "restore",
+            "rename",
+            "delete",
+            "layout",
+            "workspace",
+            "reorder",
+            "move up",
+            "move down",
+            "overwrite",
+        ],
         true,
         collapsed,
         |ui| {
@@ -398,10 +383,11 @@ fn show_auto_restore_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Auto-Restore on Startup",
         "arrangements_auto_restore",
+        &["startup", "launch"],
         true,
         collapsed,
         |ui| {

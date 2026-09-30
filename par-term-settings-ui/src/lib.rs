@@ -69,7 +69,7 @@ pub mod quick_settings;
 pub mod reset;
 pub mod saved_immediately;
 pub mod scripts_tab;
-pub mod search_keywords;
+pub mod search;
 pub mod section;
 pub mod sidebar;
 pub mod snippets_tab;

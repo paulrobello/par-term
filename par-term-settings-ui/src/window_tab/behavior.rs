@@ -1,7 +1,8 @@
 //! Window behavior section of the window settings tab.
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::search::SearchTag;
+use crate::section::keyword_section;
 use par_term_config::WindowType;
 use std::collections::HashSet;
 
@@ -11,10 +12,11 @@ pub(super) fn show_behavior_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Window Behavior",
         "window_behavior",
+        &["edge-anchored", "primary monitor"],
         false,
         collapsed,
         |ui| {
@@ -23,6 +25,7 @@ pub(super) fn show_behavior_section(
                     &mut settings.config.window.window_decorations,
                     "Window decorations",
                 )
+                .search_tag(&["window_decorations"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -34,6 +37,7 @@ pub(super) fn show_behavior_section(
                     &mut settings.config.window.window_always_on_top,
                     "Always on top",
                 )
+                .search_tag(&["window_always_on_top"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -45,6 +49,7 @@ pub(super) fn show_behavior_section(
                     &mut settings.config.placement.lock_window_size,
                     "Lock window size",
                 )
+                .search_tag(&["lock_window_size"])
                 .on_hover_text("Prevent window from being resized by the user")
                 .changed()
             {
@@ -57,6 +62,7 @@ pub(super) fn show_behavior_section(
                     &mut settings.config.placement.show_window_number,
                     "Show window number in title",
                 )
+                .search_tag(&["show_window_number"])
                 .on_hover_text(
                     "Display window index number in the title bar (useful for multiple windows)",
                 )
@@ -130,7 +136,11 @@ pub(super) fn show_behavior_section(
             if cfg!(target_os = "macos") {
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    ui.label("Target Space:");
+                    ui.label("Target Space:").search_tag(&[
+                        "mission control",
+                        "macos space",
+                        "target_space",
+                    ]);
                     let mut space_number =
                         settings.config.placement.target_space.unwrap_or(1) as i32;
                     let mut use_default = settings.config.placement.target_space.is_none();

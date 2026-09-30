@@ -1,19 +1,9 @@
 //! Assistant prompt-library settings section.
 
 use crate::SettingsUI;
-use crate::section::{collapsing_section, section_matches};
+use crate::section::keyword_section;
 use par_term_config::{AssistantPrompt, AssistantPromptDraft};
 use std::collections::HashSet;
-
-const PROMPT_LIBRARY_KEYWORDS: &[&str] = &[
-    "prompt",
-    "library",
-    "saved prompt",
-    "auto submit",
-    "auto-submit",
-    "markdown",
-    "frontmatter",
-];
 
 /// Show the Assistant Prompt Library settings section.
 pub(super) fn show_prompt_library_section(
@@ -21,18 +11,11 @@ pub(super) fn show_prompt_library_section(
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
 ) {
-    if !section_matches(
-        &settings.search_query.trim().to_lowercase(),
-        "Prompt Library",
-        PROMPT_LIBRARY_KEYWORDS,
-    ) {
-        return;
-    }
-
-    collapsing_section(
+    keyword_section(
         ui,
         "Prompt Library",
         "ai_inspector_prompt_library",
+        &["auto submit"],
         true,
         collapsed,
         |ui| {

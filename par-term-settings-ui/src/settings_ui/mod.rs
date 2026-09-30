@@ -356,6 +356,8 @@ pub struct SettingsUI {
     /// List row armed for delete by its first click, as `(list, item key)`.
     /// The second click on the same row deletes it.
     pub pending_list_delete: crate::delete_confirm::PendingDelete,
+    /// Settings search: registry, current results, and view (UX.md SQ).
+    pub(crate) search: search_state::SearchState,
 }
 
 mod async_ops;
@@ -366,6 +368,9 @@ mod deferred;
 pub use baseline::{ClosePromptChoice, collapsed_sections_to_persist, configs_equal};
 pub use deferred::{Deferred, deferred_badge};
 mod display;
+mod search_state;
+#[cfg(test)]
+pub(crate) use search_state::search_field_id;
 mod sections;
-pub(crate) use sections::chord_matches_tmux_prefix;
+pub(crate) use sections::{chord_matches_tmux_prefix, show_tab_body};
 mod state;

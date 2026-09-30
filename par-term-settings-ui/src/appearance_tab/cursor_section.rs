@@ -3,7 +3,8 @@
 //! Covers: Cursor, Cursor Locks, and Cursor Effects sections.
 
 use crate::SettingsUI;
-use crate::section::{collapsing_section, section_matches, subsection_label};
+use crate::search::SearchTag;
+use crate::section::{collapsing_section, subsection_label};
 use par_term_config::{CursorStyle, UnfocusedCursorStyle};
 use std::collections::HashSet;
 
@@ -13,162 +14,147 @@ pub(super) fn show_cursor_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
-        "Cursor",
-        &[
-            "style",
-            "block",
-            "beam",
-            "underline",
-            "blink",
-            "color",
-            "text color",
-            "cursor text color",
-            "unfocused cursor",
-            "hollow",
-        ],
-    ) {
-        collapsing_section(ui, "Cursor", "appearance_cursor", true, collapsed, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Style:");
-                let current = match settings.config.cursor.cursor_style {
-                    CursorStyle::Block => 0,
-                    CursorStyle::Beam => 1,
-                    CursorStyle::Underline => 2,
+    collapsing_section(ui, "Cursor", "appearance_cursor", true, collapsed, |ui| {
+        ui.horizontal(|ui| {
+            ui.label("Style:");
+            let current = match settings.config.cursor.cursor_style {
+                CursorStyle::Block => 0,
+                CursorStyle::Beam => 1,
+                CursorStyle::Underline => 2,
+            };
+            let mut selected = current;
+            egui::ComboBox::from_id_salt("appearance_cursor_style")
+                .selected_text(match current {
+                    0 => "Block",
+                    1 => "Beam",
+                    2 => "Underline",
+                    _ => "Unknown",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut selected, 0, "Block");
+                    ui.selectable_value(&mut selected, 1, "Beam");
+                    ui.selectable_value(&mut selected, 2, "Underline");
+                });
+            if selected != current {
+                settings.config.cursor.cursor_style = match selected {
+                    0 => CursorStyle::Block,
+                    1 => CursorStyle::Beam,
+                    2 => CursorStyle::Underline,
+                    _ => CursorStyle::Block,
                 };
-                let mut selected = current;
-                egui::ComboBox::from_id_salt("appearance_cursor_style")
-                    .selected_text(match current {
-                        0 => "Block",
-                        1 => "Beam",
-                        2 => "Underline",
-                        _ => "Unknown",
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut selected, 0, "Block");
-                        ui.selectable_value(&mut selected, 1, "Beam");
-                        ui.selectable_value(&mut selected, 2, "Underline");
-                    });
-                if selected != current {
-                    settings.config.cursor.cursor_style = match selected {
-                        0 => CursorStyle::Block,
-                        1 => CursorStyle::Beam,
-                        2 => CursorStyle::Underline,
-                        _ => CursorStyle::Block,
-                    };
-                    settings.has_changes = true;
-                }
-            });
+                settings.has_changes = true;
+            }
+        });
 
+        if ui
+            .checkbox(&mut settings.config.cursor.cursor_blink, "Cursor blink")
+            .search_tag(&["cursor_blink"])
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        crate::dependent::dependent(
+            ui,
+            settings.config.cursor.cursor_blink,
+            "Cursor blink",
+            |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Blink interval:");
+                    if ui
+                        .add(
+                            egui::Slider::new(
+                                &mut settings.config.cursor.cursor_blink_interval,
+                                100..=2000,
+                            )
+                            .suffix(" ms"),
+                        )
+                        .search_tag(&["cursor_blink_interval"])
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                    crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                        &mut c.cursor.cursor_blink_interval
+                    });
+                });
+            },
+        );
+        ui.horizontal(|ui| {
+            ui.label("Color:");
+            let mut color = settings.config.cursor.cursor_color;
+            if ui.color_edit_button_srgb(&mut color).changed() {
+                settings.config.cursor.cursor_color = color;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Text color (block cursor):");
+            let mut use_custom_color = settings.config.cursor.cursor_text_color.is_some();
             if ui
-                .checkbox(&mut settings.config.cursor.cursor_blink, "Cursor blink")
+                .checkbox(&mut use_custom_color, "")
+                .on_hover_text("Enable custom text color under block cursor")
                 .changed()
             {
+                if use_custom_color {
+                    settings.config.cursor.cursor_text_color = Some([255, 0, 0]);
+                } else {
+                    settings.config.cursor.cursor_text_color = None;
+                }
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
 
-            crate::dependent::dependent(
-                ui,
-                settings.config.cursor.cursor_blink,
-                "Cursor blink",
-                |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("Blink interval:");
-                        if ui
-                            .add(
-                                egui::Slider::new(
-                                    &mut settings.config.cursor.cursor_blink_interval,
-                                    100..=2000,
-                                )
-                                .suffix(" ms"),
-                            )
-                            .changed()
-                        {
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                            &mut c.cursor.cursor_blink_interval
-                        });
-                    });
-                },
-            );
-            ui.horizontal(|ui| {
-                ui.label("Color:");
-                let mut color = settings.config.cursor.cursor_color;
+            if let Some(ref mut text_color) = settings.config.cursor.cursor_text_color {
+                let mut color = *text_color;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.cursor.cursor_color = color;
+                    *text_color = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Text color (block cursor):");
-                let mut use_custom_color = settings.config.cursor.cursor_text_color.is_some();
-                if ui
-                    .checkbox(&mut use_custom_color, "")
-                    .on_hover_text("Enable custom text color under block cursor")
-                    .changed()
-                {
-                    if use_custom_color {
-                        settings.config.cursor.cursor_text_color = Some([255, 0, 0]);
-                    } else {
-                        settings.config.cursor.cursor_text_color = None;
-                    }
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-
-                if let Some(ref mut text_color) = settings.config.cursor.cursor_text_color {
-                    let mut color = *text_color;
-                    if ui.color_edit_button_srgb(&mut color).changed() {
-                        *text_color = color;
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                } else {
-                    ui.label("(auto)");
-                }
-            });
-
-            subsection_label(ui, "When Unfocused");
-
-            ui.horizontal(|ui| {
-                ui.label("Style:");
-                let current = match settings.config.cursor.unfocused_cursor_style {
-                    UnfocusedCursorStyle::Hollow => 0,
-                    UnfocusedCursorStyle::Same => 1,
-                    UnfocusedCursorStyle::Hidden => 2,
-                };
-                let mut selected = current;
-                egui::ComboBox::from_id_salt("appearance_unfocused_cursor_style")
-                    .selected_text(match current {
-                        0 => "Hollow (outline)",
-                        1 => "Same",
-                        2 => "Hidden",
-                        _ => "Unknown",
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut selected, 0, "Hollow (outline)");
-                        ui.selectable_value(&mut selected, 1, "Same");
-                        ui.selectable_value(&mut selected, 2, "Hidden");
-                    });
-                if selected != current {
-                    settings.config.cursor.unfocused_cursor_style = match selected {
-                        0 => UnfocusedCursorStyle::Hollow,
-                        1 => UnfocusedCursorStyle::Same,
-                        2 => UnfocusedCursorStyle::Hidden,
-                        _ => UnfocusedCursorStyle::Hollow,
-                    };
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+            } else {
+                ui.label("(auto)");
+            }
         });
-    }
+
+        subsection_label(ui, "When Unfocused");
+
+        ui.horizontal(|ui| {
+            ui.label("Style:");
+            let current = match settings.config.cursor.unfocused_cursor_style {
+                UnfocusedCursorStyle::Hollow => 0,
+                UnfocusedCursorStyle::Same => 1,
+                UnfocusedCursorStyle::Hidden => 2,
+            };
+            let mut selected = current;
+            egui::ComboBox::from_id_salt("appearance_unfocused_cursor_style")
+                .selected_text(match current {
+                    0 => "Hollow (outline)",
+                    1 => "Same",
+                    2 => "Hidden",
+                    _ => "Unknown",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut selected, 0, "Hollow (outline)");
+                    ui.selectable_value(&mut selected, 1, "Same");
+                    ui.selectable_value(&mut selected, 2, "Hidden");
+                });
+            if selected != current {
+                settings.config.cursor.unfocused_cursor_style = match selected {
+                    0 => UnfocusedCursorStyle::Hollow,
+                    1 => UnfocusedCursorStyle::Same,
+                    2 => UnfocusedCursorStyle::Hidden,
+                    _ => UnfocusedCursorStyle::Hollow,
+                };
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+    });
 }
 
 pub(super) fn show_cursor_locks_section(
@@ -177,71 +163,62 @@ pub(super) fn show_cursor_locks_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    collapsing_section(
+        ui,
         "Cursor Locks",
-        &[
-            "lock",
-            "visibility",
-            "style",
-            "blink",
-            "prevent applications",
-        ],
-    ) {
-        collapsing_section(
-            ui,
-            "Cursor Locks",
-            "appearance_cursor_locks",
-            false,
-            collapsed,
-            |ui| {
-                ui.label("Prevent applications from changing cursor settings:");
-                ui.add_space(4.0);
+        "appearance_cursor_locks",
+        false,
+        collapsed,
+        |ui| {
+            ui.label("Prevent applications from changing cursor settings:");
+            ui.add_space(4.0);
 
+            if ui
+                .checkbox(
+                    &mut settings.config.cursor.lock_cursor_visibility,
+                    "Lock cursor visibility",
+                )
+                .search_tag(&["lock_cursor_visibility"])
+                .on_hover_text("Prevent applications from hiding the cursor")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if ui
+                .checkbox(
+                    &mut settings.config.cursor.lock_cursor_style,
+                    "Lock cursor style",
+                )
+                .search_tag(&["lock_cursor_style"])
+                .on_hover_text("Prevent applications from changing cursor style")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.add_enabled_ui(!settings.config.cursor.lock_cursor_style, |ui| {
                 if ui
                     .checkbox(
-                        &mut settings.config.cursor.lock_cursor_visibility,
-                        "Lock cursor visibility",
+                        &mut settings.config.cursor.lock_cursor_blink,
+                        "Lock cursor blink",
                     )
-                    .on_hover_text("Prevent applications from hiding the cursor")
+                    .search_tag(&["lock_cursor_blink"])
+                    .on_hover_text(if settings.config.cursor.lock_cursor_style {
+                        "Disabled: Lock cursor style already controls blink"
+                    } else {
+                        "Prevent applications from enabling cursor blink"
+                    })
                     .changed()
                 {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
-
-                if ui
-                    .checkbox(
-                        &mut settings.config.cursor.lock_cursor_style,
-                        "Lock cursor style",
-                    )
-                    .on_hover_text("Prevent applications from changing cursor style")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-
-                ui.add_enabled_ui(!settings.config.cursor.lock_cursor_style, |ui| {
-                    if ui
-                        .checkbox(
-                            &mut settings.config.cursor.lock_cursor_blink,
-                            "Lock cursor blink",
-                        )
-                        .on_hover_text(if settings.config.cursor.lock_cursor_style {
-                            "Disabled: Lock cursor style already controls blink"
-                        } else {
-                            "Prevent applications from enabling cursor blink"
-                        })
-                        .changed()
-                    {
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
-            },
-        );
-    }
+            });
+        },
+    );
 }
 
 pub(super) fn show_cursor_effects_section(
@@ -250,193 +227,184 @@ pub(super) fn show_cursor_effects_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    collapsing_section(
+        ui,
         "Cursor Effects",
-        &[
-            "guide",
-            "shadow",
-            "boost",
-            "glow",
-            "horizontal line",
-            "drop shadow",
-            "shadow blur",
-            "cursor row",
-        ],
-    ) {
-        collapsing_section(
-            ui,
-            "Cursor Effects",
-            "appearance_cursor_effects",
-            false,
-            collapsed,
-            |ui| {
-                // Cursor Guide
-                if ui
-                    .checkbox(
-                        &mut settings.config.cursor.cursor_guide_enabled,
-                        "Cursor guide (horizontal line)",
-                    )
-                    .on_hover_text("Show a subtle horizontal line at the cursor row")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-
-                crate::dependent::dependent(
-                    ui,
-                    settings.config.cursor.cursor_guide_enabled,
+        "appearance_cursor_effects",
+        false,
+        collapsed,
+        |ui| {
+            // Cursor Guide
+            if ui
+                .checkbox(
+                    &mut settings.config.cursor.cursor_guide_enabled,
                     "Cursor guide (horizontal line)",
-                    |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label("Guide color:");
-                            if crate::color_helpers::rgba_color_button(
-                                ui,
-                                &mut settings.config.cursor.cursor_guide_color,
+                )
+                .search_tag(&["cursor_guide_enabled"])
+                .on_hover_text("Show a subtle horizontal line at the cursor row")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            crate::dependent::dependent(
+                ui,
+                settings.config.cursor.cursor_guide_enabled,
+                "Cursor guide (horizontal line)",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Guide color:");
+                        if crate::color_helpers::rgba_color_button(
+                            ui,
+                            &mut settings.config.cursor.cursor_guide_color,
+                        )
+                        .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
+                },
+            );
+
+            ui.add_space(4.0);
+
+            // Cursor Shadow
+            if ui
+                .checkbox(
+                    &mut settings.config.cursor.cursor_shadow_enabled,
+                    "Cursor shadow",
+                )
+                .search_tag(&["cursor_shadow_enabled"])
+                .on_hover_text("Add a drop shadow behind the cursor")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            crate::dependent::dependent(
+                ui,
+                settings.config.cursor.cursor_shadow_enabled,
+                "Cursor shadow",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Shadow color:");
+                        if crate::color_helpers::rgba_color_button(
+                            ui,
+                            &mut settings.config.cursor.cursor_shadow_color,
+                        )
+                        .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Shadow offset X:");
+                        if ui
+                            .add(
+                                egui::Slider::new(
+                                    &mut settings.config.cursor.cursor_shadow_offset[0],
+                                    0.0..=10.0,
+                                )
+                                .suffix(" px"),
                             )
+                            .search_tag(&["cursor_shadow_offset"])
                             .changed()
-                            {
-                                settings.has_changes = true;
-                                *changes_this_frame = true;
-                            }
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.cursor.cursor_shadow_offset[0]
                         });
-                    },
-                );
+                    });
 
-                ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.label("Shadow offset Y:");
+                        if ui
+                            .add(
+                                egui::Slider::new(
+                                    &mut settings.config.cursor.cursor_shadow_offset[1],
+                                    0.0..=10.0,
+                                )
+                                .suffix(" px"),
+                            )
+                            .search_tag(&["cursor_shadow_offset"])
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.cursor.cursor_shadow_offset[1]
+                        });
+                    });
 
-                // Cursor Shadow
+                    ui.horizontal(|ui| {
+                        ui.label("Shadow blur:");
+                        if ui
+                            .add(
+                                egui::Slider::new(
+                                    &mut settings.config.cursor.cursor_shadow_blur,
+                                    0.0..=20.0,
+                                )
+                                .suffix(" px"),
+                            )
+                            .search_tag(&["cursor_shadow_blur"])
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                            &mut c.cursor.cursor_shadow_blur
+                        });
+                    });
+                },
+            );
+
+            ui.add_space(4.0);
+
+            // Cursor Boost (Glow)
+            ui.horizontal(|ui| {
+                ui.label("Cursor boost (glow):");
                 if ui
-                    .checkbox(
-                        &mut settings.config.cursor.cursor_shadow_enabled,
-                        "Cursor shadow",
-                    )
-                    .on_hover_text("Add a drop shadow behind the cursor")
+                    .add(crate::units::percent(egui::Slider::new(
+                        &mut settings.config.cursor.cursor_boost,
+                        0.0..=1.0,
+                    )))
+                    .search_tag(&["cursor_boost"])
+                    .on_hover_text("Add a glow effect around the cursor for visibility")
                     .changed()
                 {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
-
-                crate::dependent::dependent(
-                    ui,
-                    settings.config.cursor.cursor_shadow_enabled,
-                    "Cursor shadow",
-                    |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label("Shadow color:");
-                            if crate::color_helpers::rgba_color_button(
-                                ui,
-                                &mut settings.config.cursor.cursor_shadow_color,
-                            )
-                            .changed()
-                            {
-                                settings.has_changes = true;
-                                *changes_this_frame = true;
-                            }
-                        });
-
-                        ui.horizontal(|ui| {
-                            ui.label("Shadow offset X:");
-                            if ui
-                                .add(
-                                    egui::Slider::new(
-                                        &mut settings.config.cursor.cursor_shadow_offset[0],
-                                        0.0..=10.0,
-                                    )
-                                    .suffix(" px"),
-                                )
-                                .changed()
-                            {
-                                settings.has_changes = true;
-                                *changes_this_frame = true;
-                            }
-                            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                                &mut c.cursor.cursor_shadow_offset[0]
-                            });
-                        });
-
-                        ui.horizontal(|ui| {
-                            ui.label("Shadow offset Y:");
-                            if ui
-                                .add(
-                                    egui::Slider::new(
-                                        &mut settings.config.cursor.cursor_shadow_offset[1],
-                                        0.0..=10.0,
-                                    )
-                                    .suffix(" px"),
-                                )
-                                .changed()
-                            {
-                                settings.has_changes = true;
-                                *changes_this_frame = true;
-                            }
-                            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                                &mut c.cursor.cursor_shadow_offset[1]
-                            });
-                        });
-
-                        ui.horizontal(|ui| {
-                            ui.label("Shadow blur:");
-                            if ui
-                                .add(
-                                    egui::Slider::new(
-                                        &mut settings.config.cursor.cursor_shadow_blur,
-                                        0.0..=20.0,
-                                    )
-                                    .suffix(" px"),
-                                )
-                                .changed()
-                            {
-                                settings.has_changes = true;
-                                *changes_this_frame = true;
-                            }
-                            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                                &mut c.cursor.cursor_shadow_blur
-                            });
-                        });
-                    },
-                );
-
-                ui.add_space(4.0);
-
-                // Cursor Boost (Glow)
-                ui.horizontal(|ui| {
-                    ui.label("Cursor boost (glow):");
-                    if ui
-                        .add(crate::units::percent(egui::Slider::new(
-                            &mut settings.config.cursor.cursor_boost,
-                            0.0..=1.0,
-                        )))
-                        .on_hover_text("Add a glow effect around the cursor for visibility")
-                        .changed()
-                    {
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                    crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                        &mut c.cursor.cursor_boost
-                    });
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.cursor.cursor_boost
                 });
+            });
 
-                crate::dependent::dependent(
-                    ui,
-                    settings.config.cursor.cursor_boost > 0.0,
-                    "Cursor boost (glow)",
-                    |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label("Boost color:");
-                            let mut color = settings.config.cursor.cursor_boost_color;
-                            if ui.color_edit_button_srgb(&mut color).changed() {
-                                settings.config.cursor.cursor_boost_color = color;
-                                settings.has_changes = true;
-                                *changes_this_frame = true;
-                            }
-                        });
-                    },
-                );
-            },
-        );
-    }
+            crate::dependent::dependent(
+                ui,
+                settings.config.cursor.cursor_boost > 0.0,
+                "Cursor boost (glow)",
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Boost color:");
+                        let mut color = settings.config.cursor.cursor_boost_color;
+                        if ui.color_edit_button_srgb(&mut color).changed() {
+                            settings.config.cursor.cursor_boost_color = color;
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
+                },
+            );
+        },
+    );
 }

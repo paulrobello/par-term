@@ -1,7 +1,8 @@
 //! Anti-idle keep-alive settings — prevents SSH/connection timeouts.
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::search::SearchTag;
+use crate::section::keyword_section;
 use std::collections::HashSet;
 
 pub(super) fn show_anti_idle_section(
@@ -10,10 +11,11 @@ pub(super) fn show_anti_idle_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Anti-Idle Keep-Alive",
         "notifications_anti_idle",
+        &["keep-alive", "ssh", "keepalive", "ascii"],
         false,
         collapsed,
         |ui| {
@@ -27,6 +29,7 @@ pub(super) fn show_anti_idle_section(
                     &mut settings.config.notifications.anti_idle_enabled,
                     "Send code when idle",
                 )
+                .search_tag(&["anti_idle_enabled"])
                 .on_hover_text("Periodically send a character to keep connections alive")
                 .changed()
             {
@@ -50,6 +53,7 @@ pub(super) fn show_anti_idle_section(
                                 .speed(1.0)
                                 .suffix(" s"),
                             )
+                            .search_tag(&["anti_idle_seconds"])
                             .on_hover_text("Idle time before the keep-alive is sent (10-3600 s)")
                             .changed()
                         {

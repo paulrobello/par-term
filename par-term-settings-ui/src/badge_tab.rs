@@ -7,7 +7,8 @@
 //! - Badge positioning (margins, max size)
 
 use super::SettingsUI;
-use super::section::{SLIDER_WIDTH, collapsing_section, section_matches};
+use super::section::{SLIDER_WIDTH, keyword_section};
+use crate::search::SearchTag;
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -19,52 +20,17 @@ pub fn show(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    let query = settings.search_query.trim().to_lowercase();
-
     // General section
-    if section_matches(
-        &query,
-        "General",
-        &["enable", "badge", "format", "overlay", "text"],
-    ) {
-        show_general_section(ui, settings, changes_this_frame, collapsed);
-    }
+    show_general_section(ui, settings, changes_this_frame, collapsed);
 
     // Appearance section
-    if section_matches(
-        &query,
-        "Appearance",
-        &["color", "opacity", "font", "bold", "badge"],
-    ) {
-        show_appearance_section(ui, settings, changes_this_frame, collapsed);
-    }
+    show_appearance_section(ui, settings, changes_this_frame, collapsed);
 
     // Position section
-    if section_matches(
-        &query,
-        "Position",
-        &["margin", "size", "width", "height", "badge", "placement"],
-    ) {
-        show_position_section(ui, settings, changes_this_frame, collapsed);
-    }
+    show_position_section(ui, settings, changes_this_frame, collapsed);
 
     // Variables section (help/reference)
-    if section_matches(
-        &query,
-        "Variables",
-        &[
-            "variable",
-            "session",
-            "hostname",
-            "username",
-            "path",
-            "badge",
-            "exit code",
-            "command",
-        ],
-    ) {
-        show_variables_section(ui, settings, changes_this_frame, collapsed);
-    }
+    show_variables_section(ui, settings, changes_this_frame, collapsed);
 }
 
 // ============================================================================
@@ -77,50 +43,59 @@ fn show_general_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "General", "badge_general", true, collapsed, |ui| {
-        if ui
-            .checkbox(&mut settings.config.badge.badge_enabled, "Enable badge")
-            .on_hover_text("Display a semi-transparent text overlay in the terminal corner")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+    keyword_section(
+        ui,
+        "General",
+        "badge_general",
+        &["badge"],
+        true,
+        collapsed,
+        |ui| {
+            if ui
+                .checkbox(&mut settings.config.badge.badge_enabled, "Enable badge")
+                .search_tag(&["badge_enabled"])
+                .on_hover_text("Display a semi-transparent text overlay in the terminal corner")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-        ui.add_space(8.0);
-        crate::dependent::dependent(
-            ui,
-            settings.config.badge.badge_enabled,
-            "Enable badge",
-            |ui| {
-                ui.label("Badge format:");
-                ui.add_space(2.0);
+            ui.add_space(8.0);
+            crate::dependent::dependent(
+                ui,
+                settings.config.badge.badge_enabled,
+                "Enable badge",
+                |ui| {
+                    ui.label("Badge format:");
+                    ui.add_space(2.0);
 
-                // Multi-line text editor for format string
-                if ui
-                    .add(
-                        egui::TextEdit::singleline(&mut settings.config.badge.badge_format)
-                            .hint_text("\\(session.username)@\\(session.hostname)")
-                            .desired_width(ui.available_width() - 20.0),
-                    )
-                    .on_hover_text(
-                        "Format string with variable placeholders like \\(session.hostname)",
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
+                    // Multi-line text editor for format string
+                    if ui
+                        .add(
+                            egui::TextEdit::singleline(&mut settings.config.badge.badge_format)
+                                .hint_text("\\(session.username)@\\(session.hostname)")
+                                .desired_width(ui.available_width() - 20.0),
+                        )
+                        .on_hover_text(
+                            "Format string with variable placeholders like \\(session.hostname)",
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
 
-                ui.add_space(4.0);
-                ui.label(
-                    egui::RichText::new("Use \\(session.variable) syntax for dynamic values")
-                        .small()
-                        .color(egui::Color32::GRAY),
-                );
-            },
-        );
-    });
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new("Use \\(session.variable) syntax for dynamic values")
+                            .small()
+                            .color(egui::Color32::GRAY),
+                    );
+                },
+            );
+        },
+    );
 }
 
 // ============================================================================
@@ -133,10 +108,11 @@ fn show_appearance_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Appearance",
         "badge_appearance",
+        &["badge"],
         true,
         collapsed,
         |ui| {
@@ -171,6 +147,7 @@ fn show_appearance_section(
                                 ))
                                 .show_value(true),
                             )
+                            .search_tag(&["badge_color_alpha"])
                             .changed()
                         {
                             settings.has_changes = true;
@@ -205,6 +182,7 @@ fn show_appearance_section(
                     // Bold checkbox
                     if ui
                         .checkbox(&mut settings.config.badge.badge_font_bold, "Bold")
+                        .search_tag(&["badge_font_bold"])
                         .changed()
                     {
                         settings.has_changes = true;
@@ -226,10 +204,11 @@ fn show_position_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Position & Size",
         "badge_position",
+        &["badge", "margin", "placement"],
         false,
         collapsed,
         |ui| {
@@ -251,6 +230,7 @@ fn show_position_section(
                                 )
                                 .suffix(" px"),
                             )
+                            .search_tag(&["badge_top_margin"])
                             .changed()
                         {
                             settings.has_changes = true;
@@ -272,6 +252,7 @@ fn show_position_section(
                                 )
                                 .suffix(" px"),
                             )
+                            .search_tag(&["badge_right_margin"])
                             .changed()
                         {
                             settings.has_changes = true;
@@ -296,6 +277,7 @@ fn show_position_section(
                                 ))
                                 .show_value(true),
                             )
+                            .search_tag(&["badge_max_width"])
                             .on_hover_text("Maximum badge width as fraction of terminal width")
                             .changed()
                         {
@@ -318,6 +300,7 @@ fn show_position_section(
                                 ))
                                 .show_value(true),
                             )
+                            .search_tag(&["badge_max_height"])
                             .on_hover_text("Maximum badge height as fraction of terminal height")
                             .changed()
                         {
@@ -344,10 +327,18 @@ fn show_variables_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Available Variables",
         "badge_variables",
+        &[
+            "badge",
+            "variable",
+            "hostname",
+            "username",
+            "path",
+            "exit code",
+        ],
         false,
         collapsed,
         |ui| {

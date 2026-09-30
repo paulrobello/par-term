@@ -171,43 +171,51 @@ def production_lines(text: str) -> list[tuple[int, str]]:
 
 
 # Calls whose string arguments are never shown as UI text: logging macros,
-# and the settings search registry (`section_matches(query, title, keywords)`
-# matches what the user types, and old wording there deliberately still
-# finds a section). The registry's `fn keywords()` bodies are skipped too.
+# and search-only terms. A settings section's search keywords (the `&[..]`
+# argument of `keyword_section(ui, title, id, &[..], ..)`) and a control's
+# `.search_tag(&[..])` match what the user types, so old wording there
+# deliberately still finds the setting; the section title in the same call
+# is shown and stays checked.
 SKIP_CALL_RE = re.compile(
     r"\b(?:log|tracing)::\w+!\s*\(|\b(?:crate::)?debug_(?:error|info|log|trace)!\s*\("
-    r"|\bsection_matches\s*\("
+    r"|\.search_tag\s*\("
 )
-KEYWORDS_FN_RE = re.compile(r"\bfn keywords\s*\(")
+SEARCH_SECTION_RE = re.compile(r"\bkeyword_section(?:_with_state)?\s*\(")
 
 
 def without_log_calls(lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
     """Drop every line of a skipped call (possibly multi-line) and of every
-    `fn keywords()` item."""
+    search-keyword slice."""
     out: list[tuple[int, str]] = []
     paren = 0
-    in_keywords = False
-    brace = 0
-    opened = False
+    in_section_call = False
+    bracket = 0
     for lineno, line in lines:
-        if in_keywords:
-            brace += line.count("{") - line.count("}")
-            opened = opened or "{" in line
-            if opened and brace <= 0:
-                in_keywords = False
-            continue
         if paren > 0:
             paren += line.count("(") - line.count(")")
             continue
-        if KEYWORDS_FN_RE.search(line):
-            brace = line.count("{") - line.count("}")
-            opened = "{" in line
-            in_keywords = not (opened and brace <= 0)
+        if bracket > 0:
+            bracket += line.count("[") - line.count("]")
+            continue
+        if SEARCH_SECTION_RE.search(line):
+            in_section_call = True
+        if in_section_call and "&[" in line:
+            # The keyword slice: drop it (possibly multi-line), keep the
+            # rest of the call, and stop looking for this call's slice.
+            in_section_call = False
+            head = line[: line.index("&[")]
+            tail = line[line.index("&["):]
+            bracket = max(tail.count("[") - tail.count("]"), 0)
+            if STRING_RE.search(head):
+                out.append((lineno, head))
             continue
         m = SKIP_CALL_RE.search(line)
         if m:
             tail = line[m.start():]
             paren = max(tail.count("(") - tail.count(")"), 0)
+            head = line[: m.start()]
+            if STRING_RE.search(head):
+                out.append((lineno, head))
             continue
         out.append((lineno, line))
     return out

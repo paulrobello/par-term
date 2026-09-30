@@ -1,7 +1,7 @@
 //! Coprocesses section of the automation settings tab.
 
 use crate::SettingsUI;
-use crate::section::{collapsing_section, section_matches};
+use crate::section::keyword_section;
 use par_term_config::automation::{CoprocessDefConfig, RestartPolicy};
 use std::collections::HashSet;
 
@@ -11,24 +11,7 @@ pub(super) fn show_coprocesses_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
-        "Coprocesses",
-        &[
-            "coprocess",
-            "pipe",
-            "subprocess",
-            "auto start",
-            "auto-start",
-            "restart",
-            "restart policy",
-            "restart delay",
-            "output",
-            "filter",
-        ],
-    ) {
-        show_coprocesses_collapsing(ui, settings, changes_this_frame, collapsed);
-    }
+    show_coprocesses_collapsing(ui, settings, changes_this_frame, collapsed);
 }
 
 fn show_coprocesses_collapsing(
@@ -37,10 +20,20 @@ fn show_coprocesses_collapsing(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Coprocesses",
         "automation_coprocesses",
+        &[
+            "pipe",
+            "subprocess",
+            "auto-start",
+            "restart policy",
+            "restart delay",
+            "output filter",
+            "arguments",
+            "copy terminal output",
+        ],
         true,
         collapsed,
         |ui| {

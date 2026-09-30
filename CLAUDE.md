@@ -222,7 +222,7 @@ The core's spawn resolution looks next to `current_exe()` first (walking out of 
 3. Use config value in relevant component
 4. **REQUIRED**: Add UI controls in the appropriate `par-term-settings-ui/src/<name>_tab/` module (most tabs are directories, not single files — scripts settings, for example, live in `scripts_tab/editor.rs`, rendered from `automation_tab/mod.rs`)
    - Set `settings.has_changes = true` and `*changes_this_frame = true` on change
-5. **REQUIRED**: Add search keywords to that tab module's own `keywords()` function. `tab_search_keywords()` lives in `par-term-settings-ui/src/search_keywords.rs` and only dispatches to them; `sidebar.rs` just calls it.
+5. **Search registers itself.** Draw the control inside a `collapsing_section`/`keyword_section` (`par-term-settings-ui/src/section.rs`): Settings search harvests every control's visible caption, tooltip, and combo options from the rendered tabs (`par-term-settings-ui/src/search/`), so there is no keyword list to update. Add `.search_tag(&["yaml_key"])` to the control's response to make its YAML key searchable. Put terms that appear in no label or tooltip (synonyms, old names) in the section's `keyword_section(ui, title, id, &[..], …)` slice. A control drawn outside any section, or only inside an editor that opens on a click, is not found. `search/registry_tests.rs` fails if a label stops resolving on its own tab.
 6. If the field is on a struct with exhaustive literal construction sites (`ScriptConfig` has one — `par-term-settings-ui/src/scripts_tab/editor.rs` — and it does not use `..Default::default()`), every one is a compile error until updated — `#[serde(default)]` covers deserialization only.
 
 ### Adding a New Keyboard Shortcut

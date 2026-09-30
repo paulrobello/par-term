@@ -7,7 +7,8 @@
 //! nothing. They stay YAML-configurable.
 
 use crate::SettingsUI;
-use crate::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, section_matches};
+use crate::search::SearchTag;
+use crate::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, keyword_section};
 use par_term_config::Theme;
 use par_term_config::ThinStrokesMode;
 use std::collections::HashSet;
@@ -18,12 +19,14 @@ pub(super) fn show_theme_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    keyword_section(
+        ui,
         "Theme",
-        &["color", "scheme", "dark", "light", "color scheme", "preset"],
-    ) {
-        collapsing_section(ui, "Theme", "appearance_theme", true, collapsed, |ui| {
+        "appearance_theme",
+        &["color scheme", "preset"],
+        true,
+        collapsed,
+        |ui| {
             let available = Theme::available_themes();
             let mut selected = settings.config.theme_colors.theme.clone();
 
@@ -44,8 +47,8 @@ pub(super) fn show_theme_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
-    }
+        },
+    );
 }
 
 pub(super) fn show_auto_dark_mode_section(
@@ -54,31 +57,18 @@ pub(super) fn show_auto_dark_mode_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    collapsing_section(
+        ui,
         "Auto Dark Mode",
-        &[
-            "auto",
-            "dark mode",
-            "light mode",
-            "system",
-            "appearance",
-            "automatic",
-            "system theme",
-        ],
-    ) {
-        collapsing_section(
-            ui,
-            "Auto Dark Mode",
-            "appearance_auto_dark_mode",
-            false,
-            collapsed,
-            |ui| {
-                if ui
+        "appearance_auto_dark_mode",
+        false,
+        collapsed,
+        |ui| {
+            if ui
                     .checkbox(
                         &mut settings.config.theme_colors.auto_dark_mode,
                         "Auto-switch theme with system appearance",
-                    )
+                    ).search_tag(&["auto_dark_mode"])
                     .on_hover_text(
                         "Automatically switch between light and dark themes when the OS appearance changes",
                     )
@@ -88,48 +78,47 @@ pub(super) fn show_auto_dark_mode_section(
                     *changes_this_frame = true;
                 }
 
-                ui.add_enabled_ui(settings.config.theme_colors.auto_dark_mode, |ui| {
-                    let available = Theme::available_themes();
+            ui.add_enabled_ui(settings.config.theme_colors.auto_dark_mode, |ui| {
+                let available = Theme::available_themes();
 
-                    ui.horizontal(|ui| {
-                        ui.label("Light theme:");
-                        let mut selected = settings.config.theme_colors.light_theme.clone();
-                        egui::ComboBox::from_id_salt("appearance_light_theme_select")
-                            .width(INPUT_WIDTH)
-                            .selected_text(selected.clone())
-                            .show_ui(ui, |ui| {
-                                for theme in &available {
-                                    ui.selectable_value(&mut selected, theme.to_string(), *theme);
-                                }
-                            });
-                        if selected != settings.config.theme_colors.light_theme {
-                            settings.config.theme_colors.light_theme = selected;
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.label("Dark theme:");
-                        let mut selected = settings.config.theme_colors.dark_theme.clone();
-                        egui::ComboBox::from_id_salt("appearance_dark_theme_select")
-                            .width(INPUT_WIDTH)
-                            .selected_text(selected.clone())
-                            .show_ui(ui, |ui| {
-                                for theme in &available {
-                                    ui.selectable_value(&mut selected, theme.to_string(), *theme);
-                                }
-                            });
-                        if selected != settings.config.theme_colors.dark_theme {
-                            settings.config.theme_colors.dark_theme = selected;
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                    });
+                ui.horizontal(|ui| {
+                    ui.label("Light theme:");
+                    let mut selected = settings.config.theme_colors.light_theme.clone();
+                    egui::ComboBox::from_id_salt("appearance_light_theme_select")
+                        .width(INPUT_WIDTH)
+                        .selected_text(selected.clone())
+                        .show_ui(ui, |ui| {
+                            for theme in &available {
+                                ui.selectable_value(&mut selected, theme.to_string(), *theme);
+                            }
+                        });
+                    if selected != settings.config.theme_colors.light_theme {
+                        settings.config.theme_colors.light_theme = selected;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
                 });
-            },
-        );
-    }
+
+                ui.horizontal(|ui| {
+                    ui.label("Dark theme:");
+                    let mut selected = settings.config.theme_colors.dark_theme.clone();
+                    egui::ComboBox::from_id_salt("appearance_dark_theme_select")
+                        .width(INPUT_WIDTH)
+                        .selected_text(selected.clone())
+                        .show_ui(ui, |ui| {
+                            for theme in &available {
+                                ui.selectable_value(&mut selected, theme.to_string(), *theme);
+                            }
+                        });
+                    if selected != settings.config.theme_colors.dark_theme {
+                        settings.config.theme_colors.dark_theme = selected;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+            });
+        },
+    );
 }
 
 pub(super) fn show_fonts_section(
@@ -138,20 +127,14 @@ pub(super) fn show_fonts_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    keyword_section(
+        ui,
         "Fonts",
-        &[
-            "font",
-            "family",
-            "size",
-            "bold",
-            "italic",
-            "line spacing",
-            "char spacing",
-        ],
-    ) {
-        collapsing_section(ui, "Fonts", "appearance_fonts", true, collapsed, |ui| {
+        "appearance_fonts",
+        &["bold", "italic"],
+        true,
+        collapsed,
+        |ui| {
             ui.horizontal(|ui| {
                 ui.label("Family (regular):");
                 if ui
@@ -205,8 +188,8 @@ pub(super) fn show_fonts_section(
             });
 
             staged_font_apply_row(ui, settings, changes_this_frame);
-        });
-    }
+        },
+    );
 }
 
 /// Font fields are staged (UX.md SS9): typing a family name would otherwise
@@ -250,61 +233,56 @@ pub(super) fn show_font_variants_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    keyword_section(
+        ui,
         "Font Variants",
-        &["bold", "italic", "bold-italic", "font fallback", "variant"],
-    ) {
-        collapsing_section(
-            ui,
-            "Font Variants",
-            "appearance_font_variants",
-            false,
-            collapsed,
-            |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Bold font (optional):");
-                    if ui
-                        .add(
-                            egui::TextEdit::singleline(&mut settings.temp_font_bold)
-                                .desired_width(INPUT_WIDTH),
-                        )
-                        .changed()
-                    {
-                        settings.font_pending_changes = true;
-                    }
-                });
+        "appearance_font_variants",
+        &["font fallback"],
+        false,
+        collapsed,
+        |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Bold font (optional):");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.temp_font_bold)
+                            .desired_width(INPUT_WIDTH),
+                    )
+                    .changed()
+                {
+                    settings.font_pending_changes = true;
+                }
+            });
 
-                ui.horizontal(|ui| {
-                    ui.label("Italic font (optional):");
-                    if ui
-                        .add(
-                            egui::TextEdit::singleline(&mut settings.temp_font_italic)
-                                .desired_width(INPUT_WIDTH),
-                        )
-                        .changed()
-                    {
-                        settings.font_pending_changes = true;
-                    }
-                });
+            ui.horizontal(|ui| {
+                ui.label("Italic font (optional):");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.temp_font_italic)
+                            .desired_width(INPUT_WIDTH),
+                    )
+                    .changed()
+                {
+                    settings.font_pending_changes = true;
+                }
+            });
 
-                ui.horizontal(|ui| {
-                    ui.label("Bold-Italic font (optional):");
-                    if ui
-                        .add(
-                            egui::TextEdit::singleline(&mut settings.temp_font_bold_italic)
-                                .desired_width(INPUT_WIDTH),
-                        )
-                        .changed()
-                    {
-                        settings.font_pending_changes = true;
-                    }
-                });
+            ui.horizontal(|ui| {
+                ui.label("Bold-Italic font (optional):");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.temp_font_bold_italic)
+                            .desired_width(INPUT_WIDTH),
+                    )
+                    .changed()
+                {
+                    settings.font_pending_changes = true;
+                }
+            });
 
-                staged_font_apply_row(ui, settings, changes_this_frame);
-            },
-        );
-    }
+            staged_font_apply_row(ui, settings, changes_this_frame);
+        },
+    );
 }
 
 pub(super) fn show_font_rendering_section(
@@ -313,125 +291,109 @@ pub(super) fn show_font_rendering_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    keyword_section(
+        ui,
         "Font Rendering",
-        &[
-            "antialias",
-            "hinting",
-            "thin strokes",
-            "smoothing",
-            "minimum contrast",
-            "readability",
-            "brightness",
-            "hidpi",
-            "retina",
-        ],
-    ) {
-        collapsing_section(
-            ui,
-            "Font Rendering",
-            "appearance_font_rendering",
-            false,
-            collapsed,
-            |ui| {
-                if ui
-                    .checkbox(
-                        &mut settings.config.font_rendering.font_antialias,
-                        "Anti-aliasing",
-                    )
-                    .on_hover_text("Enable smooth font edges. Disable for crisp, pixelated text.")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
+        "appearance_font_rendering",
+        &["antialias", "harfbuzz", "complex scripts", "opentype"],
+        false,
+        collapsed,
+        |ui| {
+            if ui
+                .checkbox(
+                    &mut settings.config.font_rendering.font_antialias,
+                    "Anti-aliasing",
+                )
+                .search_tag(&["font_antialias"])
+                .on_hover_text("Enable smooth font edges. Disable for crisp, pixelated text.")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-                if ui
-                    .checkbox(&mut settings.config.font_rendering.font_hinting, "Hinting")
-                    .on_hover_text(
-                        "Align glyphs to pixel boundaries for sharper text at small sizes.",
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
+            if ui
+                .checkbox(&mut settings.config.font_rendering.font_hinting, "Hinting")
+                .search_tag(&["font_hinting"])
+                .on_hover_text("Align glyphs to pixel boundaries for sharper text at small sizes.")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-                ui.horizontal(|ui| {
-                    ui.label("Thin strokes:");
-                    let current_mode = settings.config.font_rendering.font_thin_strokes;
-                    let mode_label = match current_mode {
-                        ThinStrokesMode::Never => "Never",
-                        ThinStrokesMode::RetinaOnly => "Retina Only",
-                        ThinStrokesMode::DarkBackgroundsOnly => "Dark Backgrounds Only",
-                        ThinStrokesMode::RetinaDarkBackgroundsOnly => "Retina + Dark BG",
-                        ThinStrokesMode::Always => "Always",
-                    };
-
-                    egui::ComboBox::from_id_salt("appearance_thin_strokes_mode")
-                        .selected_text(mode_label)
-                        .show_ui(ui, |ui| {
-                            for (mode, label) in [
-                                (ThinStrokesMode::Never, "Never"),
-                                (ThinStrokesMode::RetinaOnly, "Retina Only"),
-                                (
-                                    ThinStrokesMode::DarkBackgroundsOnly,
-                                    "Dark Backgrounds Only",
-                                ),
-                                (
-                                    ThinStrokesMode::RetinaDarkBackgroundsOnly,
-                                    "Retina + Dark BG",
-                                ),
-                                (ThinStrokesMode::Always, "Always"),
-                            ] {
-                                if ui.selectable_label(current_mode == mode, label).clicked() {
-                                    settings.config.font_rendering.font_thin_strokes = mode;
-                                    settings.has_changes = true;
-                                    *changes_this_frame = true;
-                                }
-                            }
-                        });
-                });
-                ui.label("  Lighter font strokes for improved readability on HiDPI displays.")
-                    .on_hover_text(
-                        "Similar to macOS font smoothing. Works best on Retina/HiDPI \
-                         displays with dark backgrounds.",
-                    );
-
-                // Minimum contrast setting
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    ui.label("Minimum contrast:");
-                    let mut contrast = settings.config.font_rendering.minimum_contrast;
-                    let slider =
-                        crate::units::percent(egui::Slider::new(&mut contrast, 0.0..=0.99))
-                            .text("")
-                            .clamping(egui::SliderClamping::Always);
-                    if ui.add(slider).changed() {
-                        settings.config.font_rendering.minimum_contrast = contrast;
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
-                let contrast_label = if settings.config.font_rendering.minimum_contrast <= 0.0 {
-                    "Disabled"
-                } else if settings.config.font_rendering.minimum_contrast < 0.5 {
-                    "Low"
-                } else if settings.config.font_rendering.minimum_contrast < 0.97 {
-                    "High"
-                } else {
-                    "Maximum (near B&W)"
+            ui.horizontal(|ui| {
+                ui.label("Thin strokes:");
+                let current_mode = settings.config.font_rendering.font_thin_strokes;
+                let mode_label = match current_mode {
+                    ThinStrokesMode::Never => "Never",
+                    ThinStrokesMode::RetinaOnly => "Retina Only",
+                    ThinStrokesMode::DarkBackgroundsOnly => "Dark Backgrounds Only",
+                    ThinStrokesMode::RetinaDarkBackgroundsOnly => "Retina + Dark BG",
+                    ThinStrokesMode::Always => "Always",
                 };
-                ui.label(format!(
-                    "  {contrast_label} - Boosts text contrast when color is close to background."
-                ))
+
+                egui::ComboBox::from_id_salt("appearance_thin_strokes_mode")
+                    .selected_text(mode_label)
+                    .show_ui(ui, |ui| {
+                        for (mode, label) in [
+                            (ThinStrokesMode::Never, "Never"),
+                            (ThinStrokesMode::RetinaOnly, "Retina Only"),
+                            (
+                                ThinStrokesMode::DarkBackgroundsOnly,
+                                "Dark Backgrounds Only",
+                            ),
+                            (
+                                ThinStrokesMode::RetinaDarkBackgroundsOnly,
+                                "Retina + Dark BG",
+                            ),
+                            (ThinStrokesMode::Always, "Always"),
+                        ] {
+                            if ui.selectable_label(current_mode == mode, label).clicked() {
+                                settings.config.font_rendering.font_thin_strokes = mode;
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+            ui.label("  Lighter font strokes for improved readability on HiDPI displays.")
                 .on_hover_text(
-                    "Set to 0 to disable. Higher values push text color further from background.",
+                    "Similar to macOS font smoothing. Works best on Retina/HiDPI \
+                         displays with dark backgrounds.",
                 );
-            },
-        );
-    }
+
+            // Minimum contrast setting
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label("Minimum contrast:");
+                let mut contrast = settings.config.font_rendering.minimum_contrast;
+                let slider = crate::units::percent(egui::Slider::new(&mut contrast, 0.0..=0.99))
+                    .text("")
+                    .clamping(egui::SliderClamping::Always);
+                if ui.add(slider).changed() {
+                    settings.config.font_rendering.minimum_contrast = contrast;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+            let contrast_label = if settings.config.font_rendering.minimum_contrast <= 0.0 {
+                "Disabled"
+            } else if settings.config.font_rendering.minimum_contrast < 0.5 {
+                "Low"
+            } else if settings.config.font_rendering.minimum_contrast < 0.97 {
+                "High"
+            } else {
+                "Maximum (near B&W)"
+            };
+            ui.label(format!(
+                "  {contrast_label} - Boosts text contrast when color is close to background."
+            ))
+            .on_hover_text(
+                "Set to 0 to disable. Higher values push text color further from background.",
+            );
+        },
+    );
 }
 
 #[cfg(test)]

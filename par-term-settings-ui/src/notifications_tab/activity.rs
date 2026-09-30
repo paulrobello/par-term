@@ -1,7 +1,8 @@
 //! Activity, silence, and session notification settings.
 
 use crate::SettingsUI;
-use crate::section::{SLIDER_WIDTH, collapsing_section};
+use crate::search::SearchTag;
+use crate::section::{SLIDER_WIDTH, keyword_section};
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -12,10 +13,11 @@ pub(super) fn show_activity_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Activity",
         "notifications_activity",
+        &["idle", "shell exited"],
         true,
         collapsed,
         |ui| {
@@ -25,6 +27,7 @@ pub(super) fn show_activity_section(
                     &mut settings.config.notifications.notification_activity_enabled,
                     "Notify on activity after inactivity",
                 )
+                .search_tag(&["notification_activity_enabled"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -50,6 +53,7 @@ pub(super) fn show_activity_section(
                                 )
                                 .suffix(" s"),
                             )
+                            .search_tag(&["notification_activity_threshold"])
                             .changed()
                         {
                             settings.has_changes = true;
@@ -68,6 +72,7 @@ pub(super) fn show_activity_section(
                     &mut settings.config.notifications.notification_silence_enabled,
                     "Notify after prolonged silence",
                 )
+                .search_tag(&["notification_silence_enabled"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -93,6 +98,7 @@ pub(super) fn show_activity_section(
                                 )
                                 .suffix(" s"),
                             )
+                            .search_tag(&["notification_silence_threshold"])
                             .changed()
                         {
                             settings.has_changes = true;
@@ -111,6 +117,7 @@ pub(super) fn show_activity_section(
                     &mut settings.config.notifications.notification_session_ended,
                     "Notify when a shell exits",
                 )
+                .search_tag(&["notification_session_ended"])
                 .on_hover_text("Send a desktop notification when the shell process exits")
                 .changed()
             {

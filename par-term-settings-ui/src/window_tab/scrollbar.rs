@@ -1,6 +1,7 @@
 //! Scrollbar section for the window settings tab.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::{SLIDER_WIDTH, collapsing_section};
 use std::collections::HashSet;
 
@@ -18,6 +19,7 @@ pub(super) fn show_scrollbar_section(
                 &mut settings.config.scrollbar.scrollbar_command_marks,
                 "Show command markers (requires shell integration)",
             )
+            .search_tag(&["scrollbar_command_marks"])
             .changed()
         {
             settings.has_changes = true;
@@ -33,6 +35,7 @@ pub(super) fn show_scrollbar_section(
                         &mut settings.config.scrollbar.scrollbar_mark_tooltips,
                         "Show tooltips on hover",
                     )
+                    .search_tag(&["scrollbar_mark_tooltips"])
                     .changed()
                 {
                     settings.has_changes = true;
@@ -49,6 +52,7 @@ pub(super) fn show_scrollbar_section(
                     egui::Slider::new(&mut settings.config.scrollbar.scrollbar_width, 4.0..=50.0)
                         .suffix(" px"),
                 )
+                .search_tag(&["scrollbar_width"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -70,6 +74,7 @@ pub(super) fn show_scrollbar_section(
                     )
                     .suffix(" ms"),
                 )
+                .search_tag(&["scrollbar_autohide_delay"])
                 .changed()
             {
                 settings.has_changes = true;

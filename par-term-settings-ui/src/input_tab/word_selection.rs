@@ -1,7 +1,8 @@
 //! Word selection and copy mode settings sections.
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::search::SearchTag;
+use crate::section::{collapsing_section, keyword_section};
 use std::collections::HashSet;
 
 // ============================================================================
@@ -46,6 +47,7 @@ pub(super) fn show_word_selection_section(
                     &mut settings.config.word_selection.smart_selection_enabled,
                     "Enable smart selection",
                 )
+                .search_tag(&["smart_selection_enabled"])
                 .on_hover_text("Double-click will try to match patterns like URLs, emails, paths")
                 .changed()
             {
@@ -113,73 +115,84 @@ pub(super) fn show_copy_mode_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Copy Mode", "input_copy_mode", true, collapsed, |ui| {
-        ui.label(
-            egui::RichText::new(
-                "Vi-style keyboard-driven text selection and navigation. \
+    keyword_section(
+        ui,
+        "Copy Mode",
+        "input_copy_mode",
+        &["vim"],
+        true,
+        collapsed,
+        |ui| {
+            ui.label(
+                egui::RichText::new(
+                    "Vi-style keyboard-driven text selection and navigation. \
                  Activate via the toggle_copy_mode keybinding action.",
-            )
-            .weak()
-            .size(11.0),
-        );
-        ui.add_space(4.0);
+                )
+                .weak()
+                .size(11.0),
+            );
+            ui.add_space(4.0);
 
-        if ui
-            .checkbox(
-                &mut settings.config.copy_mode.copy_mode_enabled,
-                "Enable copy mode",
-            )
-            .on_hover_text(
-                "Allow entering copy mode via the toggle_copy_mode keybinding action. \
+            if ui
+                .checkbox(
+                    &mut settings.config.copy_mode.copy_mode_enabled,
+                    "Enable copy mode",
+                )
+                .search_tag(&["copy_mode_enabled"])
+                .on_hover_text(
+                    "Allow entering copy mode via the toggle_copy_mode keybinding action. \
                  When disabled, the keybinding action is ignored.",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-        if ui
-            .checkbox(
-                &mut settings.config.copy_mode.copy_mode_auto_exit_on_yank,
-                "Auto-exit on yank",
-            )
-            .on_hover_text(
-                "Automatically exit copy mode after yanking (copying) selected text. \
+            if ui
+                .checkbox(
+                    &mut settings.config.copy_mode.copy_mode_auto_exit_on_yank,
+                    "Auto-exit on yank",
+                )
+                .search_tag(&["copy_mode_auto_exit_on_yank"])
+                .on_hover_text(
+                    "Automatically exit copy mode after yanking (copying) selected text. \
                  When disabled, copy mode stays active after pressing y so you can \
                  continue selecting.",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-        if ui
-            .checkbox(
-                &mut settings.config.copy_mode.copy_mode_show_status,
-                "Show status bar",
-            )
-            .on_hover_text(
-                "Display a status bar at the bottom of the terminal when copy mode is active. \
+            if ui
+                .checkbox(
+                    &mut settings.config.copy_mode.copy_mode_show_status,
+                    "Show status bar",
+                )
+                .search_tag(&["copy_mode_show_status"])
+                .on_hover_text(
+                    "Display a status bar at the bottom of the terminal when copy mode is active. \
                  Shows the current mode (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH) and cursor position.",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-        ui.add_space(4.0);
-        ui.label(
-            egui::RichText::new(
-                "Tip: Add a keybinding with action \"toggle_copy_mode\" to activate. \
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(
+                    "Tip: Add a keybinding with action \"toggle_copy_mode\" to activate. \
                  In copy mode: hjkl to move, v/V/Ctrl+V for visual select, y to yank, \
                  /? to search, Esc/q to exit.",
-            )
-            .weak()
-            .italics()
-            .size(10.5),
-        );
-    });
+                )
+                .weak()
+                .italics()
+                .size(10.5),
+            );
+        },
+    );
 }

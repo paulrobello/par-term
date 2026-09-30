@@ -16,7 +16,7 @@ mod variables_reference;
 pub use state::SnippetsTabState;
 
 use super::SettingsUI;
-use super::section::{collapsing_section_with_state, section_matches};
+use super::section::keyword_section_with_state;
 use std::collections::HashSet;
 
 /// Show the snippets tab content.
@@ -26,44 +26,11 @@ pub fn show(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    let query = settings.search_query.trim().to_lowercase();
-
     // Snippets section
-    if section_matches(
-        &query,
-        "Snippets",
-        &[
-            "snippet",
-            "text",
-            "insert",
-            "template",
-            "variable",
-            "keybinding",
-            "folder",
-            "shortcut",
-            "quick insert",
-            "auto-execute",
-        ],
-    ) {
-        show_snippets_section(ui, settings, changes_this_frame, collapsed);
-    }
+    show_snippets_section(ui, settings, changes_this_frame, collapsed);
 
     // Variables reference section (collapsed by default)
-    if section_matches(
-        &query,
-        "Variables Reference",
-        &[
-            "variable",
-            "builtin",
-            "built-in",
-            "reference",
-            "date",
-            "time",
-            "hostname",
-        ],
-    ) {
-        variables_reference::show_variables_reference_section(ui, settings, collapsed);
-    }
+    variables_reference::show_variables_reference_section(ui, settings, collapsed);
 
     // Actions section (absorbed from actions_tab)
     crate::actions_tab::show(ui, settings, changes_this_frame, collapsed);
@@ -79,10 +46,19 @@ fn show_snippets_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section_with_state(
+    keyword_section_with_state(
         ui,
         "Snippets",
         "snippets_list",
+        &[
+            "template",
+            "folder",
+            "auto-execute",
+            "title",
+            "content",
+            "category",
+            "shortcut",
+        ],
         true,
         collapsed,
         |ui, collapsed| {
@@ -101,86 +77,4 @@ fn show_snippets_section(
             }
         },
     );
-}
-
-/// Search keywords for the Snippets & Actions settings tab.
-pub fn keywords() -> &'static [&'static str] {
-    &[
-        "snippet",
-        "snippets",
-        "text",
-        "insert",
-        "template",
-        "variable",
-        "keybinding",
-        "folder",
-        "substitution",
-        "date",
-        "time",
-        "hostname",
-        "path",
-        // Snippet management
-        "title",
-        "name",
-        "content",
-        "body",
-        "description",
-        "category",
-        "auto-execute",
-        "auto execute",
-        "record",
-        // Import/export
-        "export",
-        "import",
-        "yaml",
-        // Actions (absorbed from actions_tab)
-        "action",
-        "actions",
-        "custom action",
-        "shell command",
-        "new tab",
-        "text insert",
-        "key sequence",
-        "macro",
-        "automation",
-        "shortcut",
-        "binding",
-        "arguments",
-        "split",
-        "split pane",
-        "pane",
-        "horizontal",
-        "vertical",
-        "workflow",
-        "sequence",
-        "condition",
-        "repeat",
-        "capture output",
-        "capture_output",
-        "exit code",
-        "step",
-        // Agent commands (absorbed from actions_tab)
-        "agent command",
-        "agent-cmd",
-        "command file",
-        "delete command",
-        // Agent launcher (absorbed from actions_tab)
-        "agents",
-        "agent launcher",
-        "launch agent",
-        "launch default agent",
-        "autonomy",
-        "autonomous",
-        "default agent",
-        "cli agent",
-        // Section titles and section keywords
-        "quick insert",
-        "variables reference",
-        "built-in",
-        "builtin",
-        "agent commands",
-        "mcp",
-        "palette",
-        "prefix",
-    ]
 }

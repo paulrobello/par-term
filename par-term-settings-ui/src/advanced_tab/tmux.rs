@@ -4,6 +4,7 @@
 //! status bar (left/right format, refresh interval), prefix key.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::{INPUT_WIDTH, collapsing_section};
 use std::collections::HashSet;
 
@@ -33,6 +34,7 @@ pub(super) fn show_tmux_section(
                     &mut settings.config.tmux.tmux_enabled,
                     "Enable tmux integration",
                 )
+                .search_tag(&["tmux_enabled"])
                 .on_hover_text("Use tmux control mode for session management and split panes")
                 .changed()
             {
@@ -106,6 +108,7 @@ pub(super) fn show_tmux_section(
                             &mut settings.config.tmux.tmux_auto_attach,
                             "Auto-attach on startup",
                         )
+                        .search_tag(&["tmux_auto_attach"])
                         .on_hover_text(
                             "Automatically attach to a tmux session when par-term starts",
                         )
@@ -160,6 +163,7 @@ pub(super) fn show_tmux_section(
                             &mut settings.config.tmux.tmux_clipboard_sync,
                             "Sync clipboard with tmux",
                         )
+                        .search_tag(&["tmux_clipboard_sync"])
                         .on_hover_text(
                             "When copying, also update tmux's paste buffer via set-buffer",
                         )
@@ -177,7 +181,7 @@ pub(super) fn show_tmux_section(
                 .checkbox(
                     &mut settings.config.tmux.tmux_hide_gateway_tab,
                     "Hide control-mode tab",
-                )
+                ).search_tag(&["tmux_hide_gateway_tab"])
                 .on_hover_text(
                     "Hide the tmux -CC gateway tab from the tab bar while tmux windows are active. \
                      The tab is restored when the session ends.",
@@ -197,6 +201,7 @@ pub(super) fn show_tmux_section(
                             &mut settings.config.tmux.tmux_show_status_bar,
                             "Show tmux status bar",
                         )
+                        .search_tag(&["tmux_show_status_bar"])
                         .on_hover_text("Display tmux status bar at bottom when connected")
                         .changed()
                     {

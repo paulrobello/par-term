@@ -14,6 +14,7 @@ impl SettingsUI {
         ui: &mut egui::Ui,
         changes_this_frame: &mut bool,
     ) {
+        self.publish_search_view(ui.ctx());
         crate::quick_settings::show(ui, self, changes_this_frame);
         ui.separator();
 
@@ -38,11 +39,7 @@ impl SettingsUI {
                             .id_salt("settings_sidebar")
                             .max_height(available_height)
                             .show(ui, |ui| {
-                                crate::sidebar::show(
-                                    ui,
-                                    &mut self.selected_tab,
-                                    &self.search_query,
-                                );
+                                crate::sidebar::show(ui, self);
                             });
                     },
                 );
@@ -70,49 +67,8 @@ impl SettingsUI {
     /// Show the content for the currently selected tab.
     pub(super) fn show_tab_content(&mut self, ui: &mut egui::Ui, changes_this_frame: &mut bool) {
         let mut collapsed = std::mem::take(&mut self.collapsed_sections);
-
-        match self.selected_tab {
-            SettingsTab::Appearance => {
-                crate::appearance_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Window => {
-                crate::window_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Input => {
-                crate::input_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Terminal => {
-                crate::terminal_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Effects => {
-                crate::effects_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::StatusBar => {
-                crate::status_bar_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Profiles => {
-                crate::profiles_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Notifications => {
-                crate::notifications_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Integrations => {
-                self.show_integrations_tab(ui, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Automation => {
-                crate::automation_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Snippets => {
-                crate::snippets_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::AiInspector => {
-                crate::ai_inspector_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Advanced => {
-                crate::advanced_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-        }
-
+        let tab = self.selected_tab;
+        show_tab_body(ui, self, tab, changes_this_frame, &mut collapsed);
         self.collapsed_sections = collapsed;
     }
 
@@ -213,6 +169,36 @@ impl SettingsUI {
         }
 
         None
+    }
+}
+
+/// Draw one tab's sections. Shared by the content area and the search
+/// harvest, which renders every tab through the same code.
+pub(crate) fn show_tab_body(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    tab: SettingsTab,
+    changes: &mut bool,
+    collapsed: &mut std::collections::HashSet<String>,
+) {
+    match tab {
+        SettingsTab::Appearance => crate::appearance_tab::show(ui, settings, changes, collapsed),
+        SettingsTab::Window => crate::window_tab::show(ui, settings, changes, collapsed),
+        SettingsTab::Input => crate::input_tab::show(ui, settings, changes, collapsed),
+        SettingsTab::Terminal => crate::terminal_tab::show(ui, settings, changes, collapsed),
+        SettingsTab::Effects => crate::effects_tab::show(ui, settings, changes, collapsed),
+        SettingsTab::StatusBar => crate::status_bar_tab::show(ui, settings, changes, collapsed),
+        SettingsTab::Profiles => crate::profiles_tab::show(ui, settings, changes, collapsed),
+        SettingsTab::Notifications => {
+            crate::notifications_tab::show(ui, settings, changes, collapsed);
+        }
+        SettingsTab::Integrations => settings.show_integrations_tab(ui, changes, collapsed),
+        SettingsTab::Automation => crate::automation_tab::show(ui, settings, changes, collapsed),
+        SettingsTab::Snippets => crate::snippets_tab::show(ui, settings, changes, collapsed),
+        SettingsTab::AiInspector => {
+            crate::ai_inspector_tab::show(ui, settings, changes, collapsed);
+        }
+        SettingsTab::Advanced => crate::advanced_tab::show(ui, settings, changes, collapsed),
     }
 }
 

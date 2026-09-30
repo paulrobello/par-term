@@ -7,7 +7,8 @@
 //! - State-specific color settings
 
 use super::SettingsUI;
-use super::section::{SLIDER_WIDTH, collapsing_section, section_matches};
+use super::section::{SLIDER_WIDTH, keyword_section};
+use crate::search::SearchTag;
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -19,32 +20,9 @@ pub fn show(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    let query = settings.search_query.trim().to_lowercase();
+    show_general_section(ui, settings, changes_this_frame, collapsed);
 
-    if section_matches(
-        &query,
-        "General",
-        &[
-            "enable", "progress", "bar", "style", "position", "osc", "934", "osc 934", "osc 9;4",
-        ],
-    ) {
-        show_general_section(ui, settings, changes_this_frame, collapsed);
-    }
-
-    if section_matches(
-        &query,
-        "Colors",
-        &[
-            "color",
-            "normal",
-            "warning",
-            "error",
-            "indeterminate",
-            "progress",
-        ],
-    ) {
-        show_colors_section(ui, settings, changes_this_frame, collapsed);
-    }
+    show_colors_section(ui, settings, changes_this_frame, collapsed);
 }
 
 // ============================================================================
@@ -57,10 +35,11 @@ fn show_general_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "General",
         "progress_bar_general",
+        &["progress bar"],
         true,
         collapsed,
         |ui| {
@@ -69,6 +48,7 @@ fn show_general_section(
                     &mut settings.config.progress_bar.progress_bar_enabled,
                     "Enable progress bar",
                 )
+                .search_tag(&["progress_bar_enabled"])
                 .on_hover_text(
                     "Display progress bars from OSC 9;4 and OSC 934 escape sequences.\n\
                  Programs can report progress which is shown as a thin bar overlay.",
@@ -152,6 +132,7 @@ fn show_general_section(
                         .suffix(" px")
                         .show_value(true),
                     )
+                    .search_tag(&["progress_bar_height"])
                     .on_hover_text("Height of the progress bar in pixels")
                     .changed()
                 {
@@ -175,6 +156,7 @@ fn show_general_section(
                         ))
                         .show_value(true),
                     )
+                    .search_tag(&["progress_bar_opacity"])
                     .on_hover_text("Opacity of the progress bar overlay")
                     .changed()
                 {
@@ -199,10 +181,17 @@ fn show_colors_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "State Colors",
         "progress_bar_colors",
+        &[
+            "progress bar",
+            "normal",
+            "warning",
+            "error",
+            "indeterminate",
+        ],
         true,
         collapsed,
         |ui| {

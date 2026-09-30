@@ -212,6 +212,46 @@ fn every_config_numeric_control_has_a_reset() {
     );
 }
 
+/// UX.md SQ2: every checkbox, slider, and drag value bound straight to a
+/// `settings.config` field is searchable by its YAML key, so a unit suffix
+/// is never the only way to find a numeric control. The key is the field's
+/// last path segment (every sub-config is `#[serde(flatten)]`).
+#[test]
+fn every_config_bound_control_is_tagged_with_its_yaml_key() {
+    let mut missing = Vec::new();
+    for path in source_files() {
+        let file = rel(&path);
+        if file == "quick_settings.rs" {
+            continue;
+        }
+        let text = production_source(&path);
+        let squashed: String = text.split_whitespace().collect();
+        for pattern in [".checkbox(", "Slider::new(", "DragValue::new("] {
+            for (at, _) in text.match_indices(pattern) {
+                let open = at + pattern.len() - 1;
+                let close = matching_close(text.as_bytes(), open);
+                let args: String = text[open + 1..close - 1].split_whitespace().collect();
+                let Some(field) = args.strip_prefix("&mutsettings.config.") else {
+                    continue;
+                };
+                let field = field.split([',', ')']).next().unwrap_or(field);
+                let key = field.rsplit('.').next().unwrap_or(field);
+                // `cursor_shadow_offset[0]` is one element of a YAML list.
+                let key = key.split('[').next().unwrap_or(key);
+                if !squashed.contains(&format!(".search_tag(&[\"{key}\"])")) {
+                    let line = text[..at].matches('\n').count() + 1;
+                    missing.push(format!("{file}:{line} {key}"));
+                }
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "config-bound controls without .search_tag(YAML key) (SQ2):\n{}",
+        missing.join("\n")
+    );
+}
+
 #[test]
 fn every_numeric_control_shows_a_unit() {
     let mut missing = Vec::new();

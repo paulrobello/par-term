@@ -1,7 +1,7 @@
 //! Custom Agents section: identity, run commands, env vars, Ollama context.
 
 use crate::SettingsUI;
-use crate::section::{collapsing_section, section_matches};
+use crate::section::keyword_section;
 use par_term_config::CustomAcpAgentConfig;
 use std::collections::{HashMap, HashSet};
 
@@ -36,128 +36,119 @@ pub(super) fn show_custom_agents_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
+    keyword_section(
+        ui,
         "Custom Agents",
+        "ai_inspector_custom_agents",
         &[
-            "custom",
-            "acp",
-            "agent",
-            "identity",
             "run command",
             "env",
             "environment",
             "install command",
             "connector",
+            "short name",
         ],
-    ) {
-        collapsing_section(
-            ui,
-            "Custom Agents",
-            "ai_inspector_custom_agents",
-            false,
-            collapsed,
-            |ui| {
-                ui.label(
-                    "Define additional agents directly in config. ACP (Agent Client \
+        false,
+        collapsed,
+        |ui| {
+            ui.label(
+                "Define additional agents directly in config. ACP (Agent Client \
                      Protocol) is how the Assistant panel talks to a coding agent. Entries \
                      override bundled/discovered agents with the same identity.",
-                );
-                ui.add_space(6.0);
+            );
+            ui.add_space(6.0);
 
-                let mut remove_index: Option<usize> = None;
-                for i in 0..settings
-                    .config
-                    .ai_inspector
-                    .ai_inspector_custom_agents
-                    .len()
-                {
-                    let mut changed = false;
-                    let mut request_remove = false;
+            let mut remove_index: Option<usize> = None;
+            for i in 0..settings
+                .config
+                .ai_inspector
+                .ai_inspector_custom_agents
+                .len()
+            {
+                let mut changed = false;
+                let mut request_remove = false;
 
-                    ui.group(|ui| {
-                        ui.push_id(format!("custom_agent_{i}"), |ui| {
-                            let agent =
-                                &mut settings.config.ai_inspector.ai_inspector_custom_agents[i];
+                ui.group(|ui| {
+                    ui.push_id(format!("custom_agent_{i}"), |ui| {
+                        let agent = &mut settings.config.ai_inspector.ai_inspector_custom_agents[i];
 
-                            show_agent_header(
-                                ui,
-                                agent,
-                                i,
-                                &mut settings.pending_list_delete,
-                                &mut request_remove,
-                            );
-                            changed |= show_agent_identity_fields(ui, agent);
-                            changed |= show_agent_run_commands(ui, agent);
-                            changed |= show_agent_env_vars(ui, agent);
-                        });
+                        show_agent_header(
+                            ui,
+                            agent,
+                            i,
+                            &mut settings.pending_list_delete,
+                            &mut request_remove,
+                        );
+                        changed |= show_agent_identity_fields(ui, agent);
+                        changed |= show_agent_run_commands(ui, agent);
+                        changed |= show_agent_env_vars(ui, agent);
                     });
+                });
 
-                    if changed {
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                    if request_remove {
-                        remove_index = Some(i);
-                    }
-
-                    ui.add_space(6.0);
-                }
-
-                if let Some(idx) = remove_index {
-                    settings
-                        .config
-                        .ai_inspector
-                        .ai_inspector_custom_agents
-                        .remove(idx);
+                if changed {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+                if request_remove {
+                    remove_index = Some(i);
+                }
 
-                if settings
+                ui.add_space(6.0);
+            }
+
+            if let Some(idx) = remove_index {
+                settings
                     .config
                     .ai_inspector
                     .ai_inspector_custom_agents
-                    .is_empty()
-                {
-                    ui.label("No custom agents defined.");
-                }
+                    .remove(idx);
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-                if ui.button("Add Custom Agent").clicked() {
-                    settings
-                        .config
-                        .ai_inspector
-                        .ai_inspector_custom_agents
-                        .push(CustomAcpAgentConfig {
-                            identity: format!(
-                                "custom.agent.{}",
-                                settings
-                                    .config
-                                    .ai_inspector
-                                    .ai_inspector_custom_agents
-                                    .len()
-                                    + 1
-                            ),
-                            name: "Custom ACP Agent".to_string(),
-                            short_name: "custom".to_string(),
-                            protocol: "acp".to_string(),
-                            r#type: "coding".to_string(),
-                            active: Some(true),
-                            run_command: std::collections::HashMap::from([(
-                                "*".to_string(),
-                                "your-agent-acp".to_string(),
-                            )]),
-                            env: std::collections::HashMap::new(),
-                            ollama_context_length: None,
-                            install_command: None,
-                            actions: std::collections::HashMap::new(),
-                        });
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            },
-        );
-    }
+            if settings
+                .config
+                .ai_inspector
+                .ai_inspector_custom_agents
+                .is_empty()
+            {
+                ui.label("No custom agents defined.");
+            }
+
+            if ui.button("Add Custom Agent").clicked() {
+                settings
+                    .config
+                    .ai_inspector
+                    .ai_inspector_custom_agents
+                    .push(CustomAcpAgentConfig {
+                        identity: format!(
+                            "custom.agent.{}",
+                            settings
+                                .config
+                                .ai_inspector
+                                .ai_inspector_custom_agents
+                                .len()
+                                + 1
+                        ),
+                        name: "Custom ACP Agent".to_string(),
+                        short_name: "custom".to_string(),
+                        protocol: "acp".to_string(),
+                        r#type: "coding".to_string(),
+                        active: Some(true),
+                        run_command: std::collections::HashMap::from([(
+                            "*".to_string(),
+                            "your-agent-acp".to_string(),
+                        )]),
+                        env: std::collections::HashMap::new(),
+                        ollama_context_length: None,
+                        install_command: None,
+                        actions: std::collections::HashMap::new(),
+                    });
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        },
+    );
 }
 
 /// Show the agent group header (title + remove button).

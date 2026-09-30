@@ -1,7 +1,8 @@
 //! Status bar auto-hide settings section (fullscreen, mouse inactivity timeout).
 
 use crate::SettingsUI;
-use crate::section::{SLIDER_WIDTH, collapsing_section};
+use crate::search::SearchTag;
+use crate::section::{SLIDER_WIDTH, keyword_section};
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -12,10 +13,11 @@ pub fn show_auto_hide_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Auto-Hide",
         "status_bar_auto_hide",
+        &["inactivity timeout"],
         false,
         collapsed,
         |ui| {
@@ -29,6 +31,7 @@ pub fn show_auto_hide_section(
                             &mut settings.config.status_bar.status_bar_auto_hide_fullscreen,
                             "Hide in fullscreen",
                         )
+                        .search_tag(&["status_bar_auto_hide_fullscreen"])
                         .on_hover_text(
                             "Automatically hide the status bar when the window is fullscreen",
                         )
@@ -46,6 +49,7 @@ pub fn show_auto_hide_section(
                                 .status_bar_auto_hide_mouse_inactive,
                             "Hide on mouse inactivity",
                         )
+                        .search_tag(&["status_bar_auto_hide_mouse_inactive"])
                         .on_hover_text(
                             "Automatically hide the status bar when the mouse has been inactive",
                         )
@@ -74,7 +78,7 @@ pub fn show_auto_hide_section(
                             )
                             .suffix(" s")
                             .show_value(true),
-                        )
+                        ).search_tag(&["status_bar_mouse_inactive_timeout"])
                         .on_hover_text(
                             "Seconds of mouse inactivity before the status bar is hidden",
                         )

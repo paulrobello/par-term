@@ -3,7 +3,8 @@
 //! Covers: restore windows on launch, reopen closed tab, initial text, delay, newline.
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::search::SearchTag;
+use crate::section::keyword_section;
 use std::collections::HashSet;
 
 pub(super) fn show_startup_section(
@@ -12,127 +13,141 @@ pub(super) fn show_startup_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Startup", "terminal_startup", false, collapsed, |ui| {
-        if ui
-            .checkbox(
-                &mut settings.config.session_restore.restore_session,
-                "Restore windows on launch",
-            )
-            .on_hover_text(
-                "When enabled, par-term will save your open tabs, pane layouts, and working\n\
-                 directories when closing and restore them on next launch.",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.add_space(8.0);
-
-        ui.horizontal(|ui| {
-            ui.label("Reopen closed tab for:");
+    keyword_section(
+        ui,
+        "Startup",
+        "terminal_startup",
+        &["preserve shell", "undo timeout"],
+        false,
+        collapsed,
+        |ui| {
             if ui
-                .add(
-                    egui::DragValue::new(
-                        &mut settings.config.session_restore.session_undo_timeout_secs,
-                    )
-                    .range(0..=60)
-                    .suffix(" s"),
+                .checkbox(
+                    &mut settings.config.session_restore.restore_session,
+                    "Restore windows on launch",
                 )
+                .search_tag(&["restore_session"])
                 .on_hover_text(
-                    "How long closed tab metadata is kept for undo (reopen).\n\
-                     Set to 0 to disable the feature entirely.",
+                    "When enabled, par-term will save your open tabs, pane layouts, and working\n\
+                 directories when closing and restore them on next launch.",
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                &mut c.session_restore.session_undo_timeout_secs
-            });
 
-            ui.label("Max entries:");
-            if ui
-                .add(
-                    egui::DragValue::new(
-                        &mut settings.config.session_restore.session_undo_max_entries,
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Reopen closed tab for:");
+                if ui
+                    .add(
+                        egui::DragValue::new(
+                            &mut settings.config.session_restore.session_undo_timeout_secs,
+                        )
+                        .range(0..=60)
+                        .suffix(" s"),
                     )
-                    .suffix(" tabs")
-                    .range(1..=50),
-                )
-                .on_hover_text("Maximum number of closed tabs to remember for undo.")
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                &mut c.session_restore.session_undo_max_entries
-            });
-        });
+                    .search_tag(&["session_undo_timeout_secs"])
+                    .on_hover_text(
+                        "How long closed tab metadata is kept for undo (reopen).\n\
+                     Set to 0 to disable the feature entirely.",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.session_restore.session_undo_timeout_secs
+                });
 
-        if ui
-            .checkbox(
-                &mut settings.config.session_restore.session_undo_preserve_shell,
-                "Keep the shell running while a closed tab can be reopened",
-            )
-            .on_hover_text(
-                "When enabled, closing a tab hides the shell instead of killing it.\n\
-                 Reopening restores the tab with its scrollback and running processes.\n\
-                 Uses more memory while hidden tabs are kept alive.",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.add_space(8.0);
-        ui.label("Initial text to send when a new shell starts:");
-        if ui
-            .text_edit_multiline(&mut settings.temp_initial_text)
-            .changed()
-        {
-            settings.config.shell.initial_text = settings.temp_initial_text.clone();
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.horizontal(|ui| {
-            ui.label("Delay:");
-            if ui
-                .add(
-                    egui::DragValue::new(&mut settings.config.shell.initial_text_delay_ms)
-                        .suffix(" ms")
-                        .range(0..=5000),
-                )
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-            crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                &mut c.shell.initial_text_delay_ms
+                ui.label("Max entries:");
+                if ui
+                    .add(
+                        egui::DragValue::new(
+                            &mut settings.config.session_restore.session_undo_max_entries,
+                        )
+                        .suffix(" tabs")
+                        .range(1..=50),
+                    )
+                    .search_tag(&["session_undo_max_entries"])
+                    .on_hover_text("Maximum number of closed tabs to remember for undo.")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.session_restore.session_undo_max_entries
+                });
             });
 
             if ui
                 .checkbox(
-                    &mut settings.config.shell.initial_text_send_newline,
-                    "Append newline after text",
+                    &mut settings.config.session_restore.session_undo_preserve_shell,
+                    "Keep the shell running while a closed tab can be reopened",
+                )
+                .search_tag(&["session_undo_preserve_shell"])
+                .on_hover_text(
+                    "When enabled, closing a tab hides the shell instead of killing it.\n\
+                 Reopening restores the tab with its scrollback and running processes.\n\
+                 Uses more memory while hidden tabs are kept alive.",
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        ui.label(
-            egui::RichText::new("Supports \\n, \\r, \\t, \\xHH, \\e escape sequences.")
-                .small()
-                .weak(),
-        );
-    });
+            ui.add_space(8.0);
+            ui.label("Initial text to send when a new shell starts:");
+            if ui
+                .text_edit_multiline(&mut settings.temp_initial_text)
+                .changed()
+            {
+                settings.config.shell.initial_text = settings.temp_initial_text.clone();
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.horizontal(|ui| {
+                ui.label("Delay:");
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut settings.config.shell.initial_text_delay_ms)
+                            .suffix(" ms")
+                            .range(0..=5000),
+                    )
+                    .search_tag(&["initial_text_delay_ms"])
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+                    &mut c.shell.initial_text_delay_ms
+                });
+
+                if ui
+                    .checkbox(
+                        &mut settings.config.shell.initial_text_send_newline,
+                        "Append newline after text",
+                    )
+                    .search_tag(&["initial_text_send_newline"])
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.label(
+                egui::RichText::new("Supports \\n, \\r, \\t, \\xHH, \\e escape sequences.")
+                    .small()
+                    .weak(),
+            );
+        },
+    );
 }

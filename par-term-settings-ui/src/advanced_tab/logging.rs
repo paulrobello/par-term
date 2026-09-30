@@ -3,7 +3,7 @@
 //! Covers: auto-log enable, log format, log directory, redact passwords.
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::section::keyword_section;
 use par_term_config::SessionLogFormat;
 use std::collections::HashSet;
 
@@ -13,10 +13,21 @@ pub(super) fn show_logging_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Output Recording",
         "advanced_logging",
+        &[
+            "session logging",
+            "asciicast",
+            "asciinema",
+            "plain text",
+            "html",
+            "auto-log",
+            "log directory",
+            "sensitive",
+            "credentials",
+        ],
         true,
         collapsed,
         |ui| {

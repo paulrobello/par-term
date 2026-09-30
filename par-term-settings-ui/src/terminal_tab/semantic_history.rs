@@ -4,7 +4,8 @@
 //! editor mode, custom editor command.
 
 use crate::SettingsUI;
-use crate::section::{INPUT_WIDTH, collapsing_section};
+use crate::search::SearchTag;
+use crate::section::{INPUT_WIDTH, keyword_section};
 use std::collections::HashSet;
 
 pub(super) fn show_semantic_history_section(
@@ -13,10 +14,19 @@ pub(super) fn show_semantic_history_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Semantic History",
         "terminal_semantic_history",
+        &[
+            "vs code",
+            "sublime",
+            "vim",
+            "editor command",
+            "url color",
+            "file url",
+            "file scheme",
+        ],
         true,
         collapsed,
         |ui| {
@@ -79,6 +89,7 @@ pub(super) fn show_semantic_history_section(
                     &mut settings.config.semantic_history.allow_file_scheme_urls,
                     "Allow opening file:// links",
                 )
+                .search_tag(&["allow_file_scheme_urls"])
                 .on_hover_text(format!(
                     "Let {}-click open `file://` hyperlinks via the OS \
                      default handler (e.g. browser for .html, the file manager for folders).\n\n\
@@ -103,6 +114,7 @@ pub(super) fn show_semantic_history_section(
                     &mut settings.config.semantic_history.semantic_history_enabled,
                     "Enable file path detection",
                 )
+                .search_tag(&["semantic_history_enabled"])
                 .on_hover_text(format!(
                     "Detect file paths in terminal output. {}-click a path to open it.",
                     crate::live_binding::primary_modifier_name()
@@ -135,7 +147,7 @@ pub(super) fn show_semantic_history_section(
                 .checkbox(
                     &mut settings.config.semantic_history.link_highlight_color_enabled,
                     "Change text color on hover",
-                )
+                ).search_tag(&["link_highlight_color_enabled"])
                 .on_hover_text("Apply the highlight color to link text. Disable to underline only without changing the text color.")
                 .changed()
             {
@@ -148,6 +160,7 @@ pub(super) fn show_semantic_history_section(
                     &mut settings.config.semantic_history.link_highlight_underline,
                     "Underline highlighted links",
                 )
+                .search_tag(&["link_highlight_underline"])
                 .changed()
             {
                 settings.has_changes = true;

@@ -1,6 +1,7 @@
 //! Display section of the window settings tab.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::{SLIDER_WIDTH, collapsing_section};
 use std::collections::HashSet;
 
@@ -28,7 +29,7 @@ pub(super) fn show_display_section(
             .checkbox(
                 &mut settings.config.allow_title_change,
                 "Allow apps to change window title",
-            )
+            ).search_tag(&["allow_title_change"])
             .on_hover_text(
                 "When enabled, terminal applications can change the window title via OSC escape sequences",
             )
@@ -47,6 +48,7 @@ pub(super) fn show_display_section(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
                     egui::Slider::new(&mut settings.config.cols, 40..=300).suffix(" columns"),
                 )
+                .search_tag(&["cols"])
                 .on_hover_text("Number of columns in the terminal grid (determines window width)")
                 .changed()
             {
@@ -63,6 +65,7 @@ pub(super) fn show_display_section(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
                     egui::Slider::new(&mut settings.config.rows, 10..=100).suffix(" rows"),
                 )
+                .search_tag(&["rows"])
                 .on_hover_text("Number of rows in the terminal grid (determines window height)")
                 .changed()
             {
@@ -109,6 +112,7 @@ pub(super) fn show_display_section(
                     egui::Slider::new(&mut settings.config.window.window_padding, 0.0..=50.0)
                         .suffix(" px"),
                 )
+                .search_tag(&["window_padding"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -123,7 +127,7 @@ pub(super) fn show_display_section(
             .checkbox(
                 &mut settings.config.window.hide_window_padding_on_split,
                 "Hide padding on split",
-            )
+            ).search_tag(&["hide_window_padding_on_split"])
             .on_hover_text(
                 "Automatically remove window padding when panes are split (panes have their own padding)",
             )
@@ -137,7 +141,7 @@ pub(super) fn show_display_section(
             .checkbox(
                 &mut settings.config.window.snap_window_to_grid,
                 "Snap window to grid",
-            )
+            ).search_tag(&["snap_window_to_grid"])
             .on_hover_text(
                 "Resize window to exact cell boundaries, eliminating background gaps (single pane only)",
             )

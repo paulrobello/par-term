@@ -31,7 +31,6 @@ mod tmux;
 pub use state::AdvancedTabState;
 
 use crate::SettingsUI;
-use crate::section::section_matches;
 use std::collections::HashSet;
 
 // Re-export merge_config — it is part of the public API of advanced_tab.
@@ -44,255 +43,27 @@ pub fn show(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    let query = settings.search_query.trim().to_lowercase();
-
     // Import/Export Preferences section
-    if section_matches(
-        &query,
-        "Import/Export Preferences",
-        &[
-            "import",
-            "export",
-            "preferences",
-            "backup",
-            "restore",
-            "config",
-            "yaml",
-            "url import",
-            "merge",
-        ],
-    ) {
-        import_export::show_import_export_section(ui, settings, changes_this_frame, collapsed);
-    }
+    import_export::show_import_export_section(ui, settings, changes_this_frame, collapsed);
 
     // tmux Integration section
-    if section_matches(
-        &query,
-        "tmux Integration",
-        &[
-            "tmux",
-            "control mode",
-            "session",
-            "attach",
-            "prefix key",
-            "status bar",
-            "clipboard sync",
-            "auto-attach",
-        ],
-    ) {
-        tmux::show_tmux_section(ui, settings, changes_this_frame, collapsed);
-    }
+    tmux::show_tmux_section(ui, settings, changes_this_frame, collapsed);
 
     // Session Logging section
-    if section_matches(
-        &query,
-        "Session Logging",
-        &[
-            "logging",
-            "recording",
-            "asciicast",
-            "asciinema",
-            "plain text",
-            "html",
-            "auto-log",
-            "log directory",
-        ],
-    ) {
-        logging::show_logging_section(ui, settings, changes_this_frame, collapsed);
-    }
+    logging::show_logging_section(ui, settings, changes_this_frame, collapsed);
 
     // Screenshots section (collapsed by default)
-    if section_matches(
-        &query,
-        "Screenshots",
-        &["screenshot", "format", "png", "jpeg", "svg", "capture"],
-    ) {
-        system::show_screenshot_section(ui, settings, changes_this_frame, collapsed);
-    }
+    system::show_screenshot_section(ui, settings, changes_this_frame, collapsed);
 
     // Updates section
-    if section_matches(
-        &query,
-        "Updates",
-        &[
-            "update",
-            "version",
-            "check",
-            "release",
-            "frequency",
-            "homebrew",
-            "cargo",
-            "self-update",
-            "daily",
-            "weekly",
-            "monthly",
-        ],
-    ) {
-        system::show_updates_section(ui, settings, changes_this_frame, collapsed);
-    }
+    system::show_updates_section(ui, settings, changes_this_frame, collapsed);
 
     // File Transfers section
-    if section_matches(
-        &query,
-        "File Transfers",
-        &[
-            "download",
-            "upload",
-            "transfer",
-            "file transfer",
-            "save location",
-            "save directory",
-        ],
-    ) {
-        system::show_file_transfers_section(ui, settings, changes_this_frame, collapsed);
-    }
+    system::show_file_transfers_section(ui, settings, changes_this_frame, collapsed);
 
     // Debug Logging section
-    if section_matches(
-        &query,
-        "Debug Logging",
-        &[
-            "debug",
-            "log",
-            "log level",
-            "log file",
-            "trace",
-            "verbose",
-            "diagnostics",
-        ],
-    ) {
-        system::show_debug_logging_section(ui, settings, changes_this_frame, collapsed);
-    }
+    system::show_debug_logging_section(ui, settings, changes_this_frame, collapsed);
 
     // Security section
-    if section_matches(
-        &query,
-        "Security",
-        &[
-            "security",
-            "environment",
-            "env var",
-            "allowlist",
-            "allow all env",
-            "variable substitution",
-            "osc",
-            "osc data",
-            "osc data length",
-            "escape sequence limit",
-            "memory exhaustion",
-        ],
-    ) {
-        system::show_security_section(ui, settings, changes_this_frame, collapsed);
-    }
-}
-
-/// Search keywords for the Advanced settings tab.
-pub fn keywords() -> &'static [&'static str] {
-    &[
-        // tmux
-        "tmux",
-        "tmux integration",
-        "tmux path",
-        "control mode",
-        "session",
-        "default session",
-        "auto-attach",
-        "attach",
-        "clipboard sync",
-        "tmux clipboard",
-        "status bar",
-        "tmux status",
-        "refresh interval",
-        "prefix key",
-        "prefix",
-        // Session logging
-        "logging",
-        "session logging",
-        "auto log",
-        "auto-log",
-        "recording",
-        "asciicast",
-        "asciinema",
-        "log format",
-        "log directory",
-        "redact",
-        "redact passwords",
-        "password",
-        "sensitive",
-        "credentials",
-        // Screenshots
-        "screenshot",
-        "screenshot format",
-        "png",
-        "jpeg",
-        "svg",
-        "html",
-        // Updates
-        "update",
-        "version",
-        "check",
-        "release",
-        "update check",
-        "hourly",
-        "skipped version",
-        // File Transfers
-        "download",
-        "upload",
-        "transfer",
-        "file transfer",
-        "save location",
-        "save directory",
-        // Debug Logging
-        "debug",
-        "debug logging",
-        "log level",
-        "log file",
-        "trace",
-        "verbose",
-        "diagnostics",
-        // Import/export preferences
-        "import",
-        "export",
-        "preferences",
-        "merge",
-        "url",
-        // Logging format extras
-        "plain",
-        "plain text",
-        // tmux status format
-        "left format",
-        "right format",
-        // Updates extras
-        "check now",
-        "daily",
-        "weekly",
-        "monthly",
-        "homebrew",
-        "brew",
-        "cargo",
-        "self-update",
-        // Import/export extras
-        "backup",
-        "config",
-        "url import",
-        // Security
-        "security",
-        "environment",
-        "env var",
-        "allowlist",
-        "allow all env",
-        "variable substitution",
-        "osc",
-        "osc data",
-        "osc data length",
-        "escape sequence limit",
-        "memory exhaustion",
-        // Section titles and section keywords
-        "import/export preferences",
-        "yaml",
-        "screenshots",
-        "updates",
-        "update frequency",
-        "file transfers",
-    ]
+    system::show_security_section(ui, settings, changes_this_frame, collapsed);
 }

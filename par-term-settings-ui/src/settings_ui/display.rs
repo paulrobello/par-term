@@ -173,17 +173,7 @@ impl SettingsUI {
                 .show(ctx, |ui| {
                     // Fixed header area (never scrolls)
                     ui.heading("Terminal Settings");
-                    ui.horizontal(|ui| {
-                        ui.label("Quick search:");
-                        let response = ui.add(
-                            egui::TextEdit::singleline(&mut self.search_query)
-                                .hint_text("Type to filter settings"),
-                        );
-                        if self.focus_search {
-                            self.focus_search = false;
-                            response.request_focus();
-                        }
-                    });
+                    self.show_search_field(ui);
                     self.render_banner(ui);
                     ui.separator();
 
@@ -304,17 +294,7 @@ impl SettingsUI {
             .show(ctx, |ui| {
                 // Fixed header area (never scrolls)
                 ui.heading("Terminal Settings");
-                ui.horizontal(|ui| {
-                    ui.label("Quick search:");
-                    let response = ui.add(
-                        egui::TextEdit::singleline(&mut self.search_query)
-                            .hint_text("Type to filter settings"),
-                    );
-                    if self.focus_search {
-                        self.focus_search = false;
-                        response.request_focus();
-                    }
-                });
+                self.show_search_field(ui);
                 self.render_banner(ui);
                 ui.separator();
 

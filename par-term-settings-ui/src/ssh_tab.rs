@@ -128,27 +128,3 @@ impl SettingsUI {
         });
     }
 }
-
-/// Search keywords for the SSH settings tab.
-pub fn keywords() -> &'static [&'static str] {
-    &[
-        "ssh",
-        "remote",
-        "host",
-        "connect",
-        "quick connect",
-        "mdns",
-        "bonjour",
-        "discovery",
-        "auto-switch",
-        "auto switch",
-        "profile switch",
-        "hostname",
-        "known hosts",
-        // Auto-switch extras
-        "revert profile",
-        "disconnect",
-        // mDNS extras
-        "scan timeout",
-    ]
-}

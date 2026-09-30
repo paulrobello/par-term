@@ -9,7 +9,7 @@
 //! | `action_fields.rs` | Inline field rendering for each `TriggerActionConfig` variant |
 
 use crate::SettingsUI;
-use crate::section::{collapsing_section, section_matches};
+use crate::section::keyword_section;
 use par_term_config::automation::{TriggerActionConfig, TriggerSplitDirection, TriggerSplitTarget};
 use std::collections::HashSet;
 
@@ -81,24 +81,7 @@ pub(super) fn show_triggers_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    if section_matches(
-        &settings.search_query.trim().to_lowercase(),
-        "Triggers",
-        &[
-            "trigger",
-            "regex",
-            "pattern",
-            "match",
-            "action",
-            "highlight",
-            "notify",
-            "badge",
-            "set variable",
-            "automatic",
-        ],
-    ) {
-        show_triggers_collapsing(ui, settings, changes_this_frame, collapsed);
-    }
+    show_triggers_collapsing(ui, settings, changes_this_frame, collapsed);
 }
 
 fn show_triggers_collapsing(
@@ -107,10 +90,28 @@ fn show_triggers_collapsing(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Triggers",
         "automation_triggers",
+        &[
+            "highlight",
+            "notify",
+            "badge",
+            "set variable",
+            "regex",
+            "play sound",
+            "send text",
+            "mark line",
+            "run command",
+            "split pane",
+            "foreground color",
+            "prompt before run",
+            "confirm",
+            "denylist",
+            "rate limit",
+            "dangerous",
+        ],
         true,
         collapsed,
         |ui| {

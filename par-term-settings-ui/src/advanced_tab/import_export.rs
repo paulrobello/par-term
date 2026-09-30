@@ -4,7 +4,7 @@
 //! Also provides the public `merge_config` function used externally.
 
 use crate::SettingsUI;
-use crate::section::{INPUT_WIDTH, collapsing_section};
+use crate::section::{INPUT_WIDTH, keyword_section};
 use par_term_config::Config;
 use std::collections::HashSet;
 
@@ -18,10 +18,11 @@ pub(super) fn show_import_export_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Import/Export Preferences",
         "advanced_import_export",
+        &["backup"],
         true,
         collapsed,
         |ui| {

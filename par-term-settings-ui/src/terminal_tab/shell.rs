@@ -3,6 +3,7 @@
 //! Covers: custom shell, shell args, login shell, startup directory mode.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::{INPUT_WIDTH, collapsing_section};
 use std::collections::HashSet;
 
@@ -67,7 +68,7 @@ pub(super) fn show_shell_section(
         });
 
         if ui
-            .checkbox(&mut settings.config.shell.login_shell, "Login shell (-l)")
+            .checkbox(&mut settings.config.shell.login_shell, "Login shell (-l)").search_tag(&["login_shell"])
             .on_hover_text(
                 "Spawn shell as login shell. This ensures PATH is properly initialized from /etc/paths, ~/.zprofile, etc. Recommended on macOS.",
             )

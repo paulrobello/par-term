@@ -1,6 +1,7 @@
 //! Global (non-per-shader) iChannel0-3 texture inputs and cubemap controls.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 
 use super::shader_settings::{find_cubemap_prefix, make_path_relative_to_shaders};
 
@@ -85,7 +86,7 @@ pub(super) fn show_background_channel0_controls(
         .checkbox(
             &mut settings.config.shader.custom_shader_use_background_as_channel0,
             "Use background as iChannel0",
-        )
+        ).search_tag(&["custom_shader_use_background_as_channel0"])
         .on_hover_text(
             "When enabled, the app's background (image or solid color) is bound as iChannel0 instead of a separate texture file.\n\
             This allows shaders to incorporate the background without requiring a separate texture.",
@@ -224,6 +225,7 @@ pub(super) fn show_cubemap_controls(
             &mut settings.config.shader.custom_shader_cubemap_enabled,
             "Enable cubemap",
         )
+        .search_tag(&["custom_shader_cubemap_enabled"])
         .on_hover_text("Enable iCubemap uniform for environment mapping in shaders")
         .changed()
     {

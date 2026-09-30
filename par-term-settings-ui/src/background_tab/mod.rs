@@ -1,5 +1,6 @@
 use crate::SettingsUI;
-use crate::section::collapsing_section_with_state;
+use crate::search::SearchTag;
+use crate::section::keyword_section_with_state;
 use arboard::Clipboard;
 use egui::Color32;
 use par_term_config::{BackgroundImageMode, BackgroundMode};
@@ -30,10 +31,20 @@ pub fn show_background(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section_with_state(
+    keyword_section_with_state(
         ui,
         "Background & Effects",
         "background_effects",
+        &[
+            "wallpaper",
+            "stretch",
+            "tile",
+            "adaptive brightness",
+            "safety badges",
+            "uniform groups",
+            "per-shader",
+            "shader override",
+        ],
         true,
         collapsed,
         |ui, collapsed| {
@@ -133,6 +144,7 @@ pub fn show_background(
                             &mut settings.config.background.background_image_enabled,
                             "Enable background image",
                         )
+                        .search_tag(&["background_image_enabled"])
                         .changed()
                     {
                         settings.has_changes = true;
@@ -185,6 +197,7 @@ pub fn show_background(
                                 &mut settings.config.background.background_image_opacity,
                                 0.0..=1.0,
                             )))
+                            .search_tag(&["background_image_opacity"])
                             .changed()
                         {
                             settings.has_changes = true;
@@ -344,6 +357,7 @@ fn show_background_shader_controls(
                     &mut settings.config.shader.custom_shader_enabled,
                     "Enable custom shader",
                 )
+                .search_tag(&["custom_shader_enabled"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -355,6 +369,7 @@ fn show_background_shader_controls(
                     &mut settings.config.shader.custom_shader_animation,
                     "Enable shader animation",
                 )
+                .search_tag(&["custom_shader_animation"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -371,6 +386,7 @@ fn show_background_shader_controls(
                         )
                         .suffix("×"),
                     )
+                    .search_tag(&["custom_shader_animation_speed"])
                     .changed()
                 {
                     settings.has_changes = true;
@@ -386,6 +402,7 @@ fn show_background_shader_controls(
                     &mut settings.config.shader_watch.shader_hot_reload,
                     "Enable shader hot reload",
                 )
+                .search_tag(&["shader_hot_reload"])
                 .on_hover_text("Automatically reload shaders when files change on disk")
                 .changed()
             {
@@ -428,6 +445,7 @@ fn show_background_shader_controls(
                         )
                         .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
                     )
+                    .search_tag(&["custom_shader_brightness"])
                     .on_hover_text("Dim the shader background to improve text readability")
                     .changed()
                 {
@@ -446,6 +464,7 @@ fn show_background_shader_controls(
                         &mut settings.config.shader.custom_shader_text_opacity,
                         0.0..=1.0,
                     )))
+                    .search_tag(&["custom_shader_text_opacity"])
                     .changed()
                 {
                     settings.has_changes = true;
@@ -460,7 +479,7 @@ fn show_background_shader_controls(
         .checkbox(
             &mut settings.config.shader.custom_shader_auto_dim_under_text,
             "Auto-dim under text",
-        )
+        ).search_tag(&["custom_shader_auto_dim_under_text"])
         .on_hover_text(
             "Sample terminal content and reduce shader intensity only beneath text/content pixels.",
         )
@@ -482,6 +501,7 @@ fn show_background_shader_controls(
                                 &mut settings.config.shader.custom_shader_auto_dim_strength,
                                 0.0..=1.0,
                             )))
+                            .search_tag(&["custom_shader_auto_dim_strength"])
                             .changed()
                         {
                             settings.has_changes = true;
@@ -532,6 +552,7 @@ fn show_background_shader_controls(
                         &mut settings.config.shader.custom_shader_readability_mode,
                         "Readability/low-power mode",
                     )
+                    .search_tag(&["custom_shader_readability_mode"])
                     .on_hover_text("Action: toggle_shader_readability_mode")
                     .changed()
                 {
@@ -552,6 +573,7 @@ fn show_background_shader_controls(
                                 &mut settings.config.shader.custom_shader_readability_brightness,
                                 0.05..=1.0,
                             )))
+                            .search_tag(&["custom_shader_readability_brightness"])
                             .changed()
                         {
                             settings.has_changes = true;
@@ -568,7 +590,7 @@ fn show_background_shader_controls(
     .checkbox(
         &mut settings.config.shader.custom_shader_full_content,
         "Full content mode",
-    )
+    ).search_tag(&["custom_shader_full_content"])
     .on_hover_text("When enabled, shader receives and can manipulate the full terminal content (text + background). When disabled, shader only provides background and text is composited cleanly on top.")
     .changed()
     {

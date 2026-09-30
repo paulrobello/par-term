@@ -16,133 +16,18 @@ pub const SLIDER_HEIGHT: f32 = 18.0;
 /// Standard width for combo boxes
 pub const COMBO_WIDTH: f32 = 200.0;
 
-/// A helper for managing collapsible sections with consistent styling.
-pub struct CollapsibleSection<'a> {
-    title: &'a str,
-    id: &'a str,
-    default_open: bool,
-    collapsed_sections: &'a mut HashSet<String>,
-    search_query: &'a str,
-    keywords: &'a [&'a str],
-}
-
-impl<'a> CollapsibleSection<'a> {
-    /// Create a new collapsible section.
-    pub fn new(
-        title: &'a str,
-        id: &'a str,
-        collapsed_sections: &'a mut HashSet<String>,
-        search_query: &'a str,
-    ) -> Self {
-        Self {
-            title,
-            id,
-            default_open: true,
-            collapsed_sections,
-            search_query,
-            keywords: &[],
-        }
-    }
-
-    /// Set whether the section is open by default.
-    pub fn default_open(mut self, open: bool) -> Self {
-        self.default_open = open;
-        self
-    }
-
-    /// Set keywords for search matching.
-    pub fn keywords(mut self, keywords: &'a [&'a str]) -> Self {
-        self.keywords = keywords;
-        self
-    }
-
-    /// Check if this section matches the search query.
-    pub fn matches_search(&self) -> bool {
-        if self.search_query.is_empty() {
-            return true;
-        }
-
-        let query = self.search_query.to_lowercase();
-
-        // Check title
-        if self.title.to_lowercase().contains(&query) {
-            return true;
-        }
-
-        // Check keywords
-        self.keywords
-            .iter()
-            .any(|k| k.to_lowercase().contains(&query))
-    }
-
-    /// Show the collapsible section.
-    ///
-    /// Returns `Some(CollapsingResponse)` if the section should be shown, `None` otherwise.
-    pub fn show<R>(
-        self,
-        ui: &mut egui::Ui,
-        add_contents: impl FnOnce(&mut egui::Ui) -> R,
-    ) -> Option<egui::CollapsingResponse<R>> {
-        // Skip if search doesn't match
-        if !self.matches_search() {
-            return None;
-        }
-
-        // Determine if section is collapsed
-        let is_collapsed = self.collapsed_sections.contains(self.id);
-        let should_be_open = if self.search_query.is_empty() {
-            !is_collapsed && self.default_open || is_collapsed && !self.default_open
-        } else {
-            // When searching, always expand matching sections
-            true
-        };
-
-        // Create the collapsing header
-        let header = egui::CollapsingHeader::new(self.title)
-            .id_salt(self.id)
-            .default_open(should_be_open);
-
-        let response = header.show(ui, add_contents);
-
-        // Track collapsed state
-        let section_id = self.id.to_string();
-        if response.header_response.clicked() {
-            if self.collapsed_sections.contains(&section_id) {
-                self.collapsed_sections.remove(&section_id);
-            } else {
-                self.collapsed_sections.insert(section_id);
-            }
-        }
-
-        Some(response)
-    }
-}
-
-/// Check whether a settings section matches the current search query.
-///
-/// The `query` parameter **must already be lowercased** by the caller (the typical
-/// pattern is `settings.search_query.trim().to_lowercase()`). This avoids
-/// re-lowercasing the query on every call (L-13 fix).
-///
-/// Returns `true` when:
-/// - the query is empty (show all sections), or
-/// - the section `title` contains the query (case-insensitive via `to_lowercase`), or
-/// - any of the `keywords` contains the query (case-insensitive via `to_lowercase`).
-pub fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
-
 /// Helper to show a collapsible section with persistent state tracking.
 ///
 /// The `collapsed_sections` set stores section IDs that have been toggled from
 /// their default state. This allows the collapse state to be persisted across
 /// settings window open/close cycles and app restarts.
+///
+/// This is also the section's one search declaration (UX.md SQ1): its title
+/// and id register it with Settings search, and its controls' captions and
+/// tooltips are harvested from what it draws. While a search is active the
+/// section is hidden when it has no match and opened when it has one.
+/// Returns `None` when search hides it. Use [`keyword_section`] to add terms
+/// that appear in no label or tooltip.
 pub fn collapsing_section<R>(
     ui: &mut egui::Ui,
     title: &str,
@@ -150,28 +35,16 @@ pub fn collapsing_section<R>(
     default_open: bool,
     collapsed_sections: &mut HashSet<String>,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
-) -> egui::CollapsingResponse<R> {
-    // The set stores IDs that have been toggled from their default.
-    // XOR logic: toggled + default_open => closed, toggled + !default_open => open
-    let is_toggled = collapsed_sections.contains(id);
-    let should_be_open = is_toggled != default_open;
-
-    let response = egui::CollapsingHeader::new(title)
-        .id_salt(id)
-        .default_open(should_be_open)
-        .show(ui, add_contents);
-
-    // Track click toggles
-    if response.header_response.clicked() {
-        let section_id = id.to_string();
-        if collapsed_sections.contains(&section_id) {
-            collapsed_sections.remove(&section_id);
-        } else {
-            collapsed_sections.insert(section_id);
-        }
-    }
-
-    response
+) -> Option<egui::CollapsingResponse<R>> {
+    section(
+        ui,
+        title,
+        id,
+        &[],
+        default_open,
+        collapsed_sections,
+        |ui, _| add_contents(ui),
+    )
 }
 
 /// Like [`collapsing_section`] but passes `collapsed_sections` into the content
@@ -183,25 +56,123 @@ pub fn collapsing_section_with_state<R>(
     default_open: bool,
     collapsed_sections: &mut HashSet<String>,
     add_contents: impl FnOnce(&mut egui::Ui, &mut HashSet<String>) -> R,
-) -> egui::CollapsingResponse<R> {
-    let is_toggled = collapsed_sections.contains(id);
-    let should_be_open = is_toggled != default_open;
-    let id_owned = id.to_string();
+) -> Option<egui::CollapsingResponse<R>> {
+    section(
+        ui,
+        title,
+        id,
+        &[],
+        default_open,
+        collapsed_sections,
+        add_contents,
+    )
+}
 
-    let response = egui::CollapsingHeader::new(title)
-        .id_salt(id)
-        .default_open(should_be_open)
-        .show(ui, |ui| add_contents(ui, collapsed_sections));
+/// Like [`collapsing_section`], with search keywords: terms that appear in no
+/// label or tooltip of the section (synonyms, jargon, old names).
+pub fn keyword_section<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    id: &str,
+    keywords: &[&str],
+    default_open: bool,
+    collapsed_sections: &mut HashSet<String>,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> Option<egui::CollapsingResponse<R>> {
+    section(
+        ui,
+        title,
+        id,
+        keywords,
+        default_open,
+        collapsed_sections,
+        |ui, _| add_contents(ui),
+    )
+}
 
-    if response.header_response.clicked() {
-        if collapsed_sections.contains(&id_owned) {
-            collapsed_sections.remove(&id_owned);
-        } else {
-            collapsed_sections.insert(id_owned);
+/// [`keyword_section`] with the collapse set passed into the body.
+pub fn keyword_section_with_state<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    id: &str,
+    keywords: &[&str],
+    default_open: bool,
+    collapsed_sections: &mut HashSet<String>,
+    add_contents: impl FnOnce(&mut egui::Ui, &mut HashSet<String>) -> R,
+) -> Option<egui::CollapsingResponse<R>> {
+    section(
+        ui,
+        title,
+        id,
+        keywords,
+        default_open,
+        collapsed_sections,
+        add_contents,
+    )
+}
+
+fn section<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    id: &str,
+    keywords: &[&str],
+    default_open: bool,
+    collapsed_sections: &mut HashSet<String>,
+    add_contents: impl FnOnce(&mut egui::Ui, &mut HashSet<String>) -> R,
+) -> Option<egui::CollapsingResponse<R>> {
+    let view = crate::search::live_view(ui.ctx());
+    if view.as_ref().is_some_and(|v| v.hides(id)) {
+        return None;
+    }
+    let searching = view.as_ref().is_some_and(|v| v.active());
+    let force_open = crate::search::forces_open(ui.ctx(), view.as_deref(), id);
+
+    // While searching, the header keeps a separate open state (matches
+    // start open, SQ4) so the user's saved collapse state is untouched.
+    let header = if searching {
+        egui::CollapsingHeader::new(title)
+            .id_salt((id, "search"))
+            .default_open(true)
+    } else {
+        // The set stores IDs that have been toggled from their default.
+        // XOR logic: toggled + default_open => closed, toggled + !default_open => open
+        let should_be_open = collapsed_sections.contains(id) != default_open;
+        egui::CollapsingHeader::new(title)
+            .id_salt(id)
+            .default_open(should_be_open)
+    }
+    .open(force_open.then_some(true));
+
+    let mut body = None;
+    let response = header.show(ui, |ui| {
+        let r = add_contents(ui, collapsed_sections);
+        body = Some((ui.unique_id(), ui.min_rect()));
+        r
+    });
+
+    if !searching {
+        // Toggle on click. A jump opens the section; it stays open after
+        // the jump, as if the user had opened it.
+        let was_open = collapsed_sections.contains(id) != default_open;
+        let toggled = response.header_response.clicked() || (force_open && !was_open);
+        if toggled && !collapsed_sections.remove(id) {
+            collapsed_sections.insert(id.to_string());
         }
     }
 
-    response
+    crate::search::note_section(
+        ui,
+        crate::search::DrawnSection {
+            id,
+            title,
+            keywords,
+            header: response.header_response.clone(),
+            body,
+            fully_open: response.fully_open(),
+        },
+    );
+
+    Some(response)
 }
 
 /// Helper to show a section heading with consistent styling.

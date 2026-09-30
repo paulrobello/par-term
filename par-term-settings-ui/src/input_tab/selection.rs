@@ -1,7 +1,8 @@
 //! Selection, clipboard, and dropped-files settings sections.
 
 use crate::SettingsUI;
-use crate::section::{SLIDER_WIDTH, collapsing_section};
+use crate::search::SearchTag;
+use crate::section::{SLIDER_WIDTH, collapsing_section, keyword_section};
 use par_term_config::DroppedFileQuoteStyle;
 use std::collections::HashSet;
 
@@ -17,10 +18,11 @@ pub(super) fn show_selection_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Selection & Clipboard",
         "input_selection",
+        &["osc52"],
         true,
         collapsed,
         |ui| {
@@ -29,6 +31,7 @@ pub(super) fn show_selection_section(
                     &mut settings.config.selection.auto_copy_selection,
                     "Auto-copy selection",
                 )
+                .search_tag(&["auto_copy_selection"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -40,6 +43,7 @@ pub(super) fn show_selection_section(
                     &mut settings.config.selection.copy_trailing_newline,
                     "Include trailing newline when copying",
                 )
+                .search_tag(&["copy_trailing_newline"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -51,6 +55,7 @@ pub(super) fn show_selection_section(
                     &mut settings.config.selection.middle_click_paste,
                     "Middle-click paste",
                 )
+                .search_tag(&["middle_click_paste"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -62,6 +67,7 @@ pub(super) fn show_selection_section(
                     &mut settings.config.clipboard.osc52_clipboard,
                     "OSC 52 clipboard sync (programs set clipboard over SSH)",
                 )
+                .search_tag(&["osc52_clipboard"])
                 .on_hover_text(
                     "Apply OSC 52 clipboard-set sequences from programs to the system \
                      clipboard. This is how remote apps (tmux, herdr, etc.) copy to your \
@@ -82,6 +88,7 @@ pub(super) fn show_selection_section(
                         egui::Slider::new(&mut settings.config.selection.paste_delay_ms, 0..=500)
                             .suffix(" ms"),
                     )
+                    .search_tag(&["paste_delay_ms"])
                     .on_hover_text(
                         "Delay between pasted lines in milliseconds (0 = no delay). \
                      Useful for slow terminals or remote connections.",
@@ -159,6 +166,7 @@ pub(super) fn show_clipboard_limits_section(
                         )
                         .suffix(" events"),
                     )
+                    .search_tag(&["clipboard_max_sync_events"])
                     .changed()
                 {
                     settings.has_changes = true;
@@ -180,6 +188,7 @@ pub(super) fn show_clipboard_limits_section(
                         )
                         .suffix(" bytes"),
                     )
+                    .search_tag(&["clipboard_max_event_bytes"])
                     .changed()
                 {
                     settings.has_changes = true;

@@ -1,7 +1,8 @@
 //! Tab Bar Appearance section: colors, borders, dimming, indicator colors.
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::search::SearchTag;
+use crate::section::keyword_section;
 use std::collections::HashSet;
 
 pub(super) fn show_tab_bar_appearance_section(
@@ -10,10 +11,11 @@ pub(super) fn show_tab_bar_appearance_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Tab Bar Appearance",
         "window_tab_bar_appearance",
+        &["tab style", "system tab style"],
         false,
         collapsed,
         |ui| {
@@ -28,6 +30,7 @@ pub(super) fn show_tab_bar_appearance_section(
                         .step_by(1.0)
                         .suffix(" px"),
                     )
+                    .search_tag(&["tab_min_width"])
                     .on_hover_text("Minimum width for tabs before horizontal scrolling is enabled")
                     .changed()
                 {
@@ -53,6 +56,7 @@ pub(super) fn show_tab_bar_appearance_section(
                         .step_by(0.5)
                         .suffix(" px"),
                     )
+                    .search_tag(&["tab_border_width"])
                     .on_hover_text("Width of the border around each tab (0 = no border)")
                     .changed()
                 {
@@ -79,6 +83,7 @@ pub(super) fn show_tab_bar_appearance_section(
                     &mut settings.config.tab_colors.tab_inactive_outline_only,
                     "Inactive tabs outline only",
                 )
+                .search_tag(&["tab_inactive_outline_only"])
                 .on_hover_text("Render inactive tabs with just an outline border and no fill")
                 .changed()
             {
@@ -94,6 +99,7 @@ pub(super) fn show_tab_bar_appearance_section(
                     &mut settings.config.tab_colors.dim_inactive_tabs,
                     "Dim inactive tabs",
                 )
+                .search_tag(&["dim_inactive_tabs"])
                 .changed()
             {
                 settings.has_changes = true;
@@ -115,6 +121,7 @@ pub(super) fn show_tab_bar_appearance_section(
                                 ))
                                 .step_by(0.05),
                             )
+                            .search_tag(&["inactive_tab_opacity"])
                             .changed()
                         {
                             settings.has_changes = true;

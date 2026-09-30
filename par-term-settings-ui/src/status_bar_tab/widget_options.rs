@@ -1,7 +1,8 @@
 //! Status bar widget options section (time format, git status display).
 
 use crate::SettingsUI;
-use crate::section::collapsing_section;
+use crate::search::SearchTag;
+use crate::section::keyword_section;
 use std::collections::HashSet;
 
 pub fn show_widget_options_section(
@@ -10,10 +11,11 @@ pub fn show_widget_options_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Widget Options",
         "status_bar_widget_options",
+        &["clock", "strftime", "username"],
         true,
         collapsed,
         |ui| {
@@ -83,7 +85,7 @@ pub fn show_widget_options_section(
                 .checkbox(
                     &mut settings.config.status_bar.status_bar_git_show_status,
                     "Show git ahead/behind and dirty status",
-                )
+                ).search_tag(&["status_bar_git_show_status"])
                 .on_hover_text(
                     "Display commit counts ahead/behind upstream and a dirty indicator on the Git Branch widget",
                 )
