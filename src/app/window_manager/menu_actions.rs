@@ -389,6 +389,13 @@ impl WindowManager {
                     window.set_maximized(!window.is_maximized());
                 }
             }
+            MenuAction::ToggleAlwaysOnTop => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.toggle_always_on_top();
+                }
+            }
             MenuAction::ShowHelp => {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)

@@ -95,7 +95,7 @@ par-term honours **`XDG_CONFIG_HOME` only**. It does not implement the full [XDG
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XDG_CONFIG_HOME` | `~/.config` | Base directory for par-term's configuration **and all other per-user data**. Config is at `$XDG_CONFIG_HOME/par-term/config.yaml`; profiles, arrangements, command history, session state, sounds and discovered ACP agents sit beside it. |
+| `XDG_CONFIG_HOME` | `~/.config` | Base directory for par-term's configuration **and all other per-user data**. Config is at `$XDG_CONFIG_HOME/par-term/config.yaml`; profiles, arrangements, command history, saved windows, sounds and discovered ACP agents sit beside it. |
 | `PAR_TERM_NO_MIGRATE` | unset | Set to any non-empty value (e.g. `1`) to skip the startup legacy-config migration entirely. The migration cannot tell a deliberate relocation from a run whose `XDG_CONFIG_HOME` merely points elsewhere — a test harness or wrapper that redirects only `XDG_CONFIG_HOME` would otherwise **move the real `~/.config/par-term` into the redirected location**. Set this (or isolate `HOME`) for scratch-dir runs. |
 
 The value must be an **absolute** path. As the specification requires, a relative or empty `XDG_CONFIG_HOME` is treated as invalid and ignored, falling back to `~/.config`.
@@ -160,7 +160,7 @@ These optional environment variables can be set by external scripts or shell int
 |----------|---------|-------------|
 | `GIT_BRANCH` | (computed) | Current git branch name. If unset, par-term runs `git rev-parse --abbrev-ref HEAD` as a fallback. Used in snippet variable substitution (`${git_branch}`). |
 | `GIT_COMMIT` | (computed) | Current git commit hash (short form). If unset, par-term runs `git rev-parse --short HEAD` as a fallback. Used in snippet variable substitution (`${git_commit}`). |
-| `TTY` | — | TTY device path for the terminal session. Read by the badge system for display in the status line. |
+| `TTY` | — | TTY device path for the shell. Read by the badge system for display in the status line. |
 
 ---
 

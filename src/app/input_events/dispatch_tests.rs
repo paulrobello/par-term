@@ -114,6 +114,8 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "toggle_shader_readability_mode",
     "toggle_throughput_mode",
     "toggle_tmux_session_picker",
+    // Added deliberately (UX.md A20), not part of the frozen capture.
+    "toggle_always_on_top",
 ];
 
 /// Precedence order of the uniform shortcut layers in `handle_key_event`.
@@ -421,4 +423,22 @@ fn focus_never_lands_without_a_live_interactive_overlay_and_escape_resolves() {
     state.resolve_focused_overlay_key(false);
     state.resolve_focused_overlay_key(true);
     assert_eq!(state.status_bar_ui.plugin_host().focused_overlay(), None);
+}
+
+// --- documentation coverage (UX.md DOC8) ---
+
+/// KEYBOARD_SHORTCUTS.md's Available Actions names every dispatchable
+/// action id, so a new action cannot ship undocumented.
+#[test]
+fn keyboard_shortcuts_doc_lists_every_dispatchable_action() {
+    let doc = include_str!("../../../docs/guides/KEYBOARD_SHORTCUTS.md");
+    let missing: Vec<&str> = action_keys()
+        .into_iter()
+        .chain(display_keys())
+        .filter(|id| !doc.contains(&format!("`{id}`")))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "document these in KEYBOARD_SHORTCUTS.md › Available Actions: {missing:?}"
+    );
 }

@@ -1,6 +1,6 @@
 # Badges
 
-par-term provides an iTerm2-style badge system for displaying dynamic session information as semi-transparent text overlays in the terminal corner.
+par-term provides an iTerm2-style badge system for displaying dynamic shell information as semi-transparent text overlays in the terminal corner.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -17,7 +17,7 @@ par-term provides an iTerm2-style badge system for displaying dynamic session in
 
 ## Overview
 
-Badges display contextual information about your terminal session without interfering with terminal content:
+Badges display contextual information about your terminal without interfering with terminal content:
 
 ```mermaid
 graph TD
@@ -34,7 +34,7 @@ graph TD
     Badge --> OSC
 
     Format --> Variables
-    Variables --> Session[Session Info]
+    Variables --> Session[Shell Info]
     Variables --> Command[Command Info]
     Variables --> Terminal[Terminal Info]
 
@@ -201,7 +201,7 @@ printf "\033]1337;SetBadgeFormat=%s\007" "$(echo -n "My Badge" | base64)"
 
 ### RemoteHost
 
-par-term supports the OSC 1337 RemoteHost sequence for syncing remote session information:
+par-term supports the OSC 1337 RemoteHost sequence for syncing remote host information:
 
 ```bash
 # Set remote host information (typically done by shell integration scripts)

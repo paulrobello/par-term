@@ -240,6 +240,7 @@ impl Tab {
             working_directory: params.working_directory,
             custom_color: None,
             has_default_title: params.has_default_title,
+            default_number: params.default_number,
             user_named: params.user_named,
             activity: TabActivityMonitor::default(),
             session_logger,
@@ -312,6 +313,7 @@ impl Tab {
                 id,
                 title,
                 has_default_title: true,
+                default_number: tab_number,
                 user_named: false,
                 working_directory: working_directory
                     .or_else(|| config.shell.working_directory.clone()),
@@ -431,6 +433,7 @@ impl Tab {
                 id,
                 title,
                 has_default_title: false, // Profile-created tabs have explicit names
+                default_number: 0,
                 user_named: profile.tab_name.is_some(),
                 working_directory,
                 runtime: None, // Profile tabs don't send initial_text
@@ -472,6 +475,7 @@ impl Tab {
             working_directory: None,
             custom_color: None,
             has_default_title: true,
+            default_number: tab_number,
             user_named: false,
             activity: TabActivityMonitor::default(),
             session_logger,
@@ -518,6 +522,7 @@ impl Tab {
             working_directory: None,
             custom_color: None,
             has_default_title: true,
+            default_number: tab_number,
             user_named: false,
             activity: TabActivityMonitor::default(),
             session_logger: create_shared_logger(),
@@ -601,6 +606,7 @@ mod auto_start_tests {
                 id: 1,
                 title: "Tab 1".to_string(),
                 has_default_title: true,
+                default_number: 1,
                 user_named: false,
                 working_directory: None,
                 runtime: None,

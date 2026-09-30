@@ -98,6 +98,10 @@ pub struct Tab {
     pub(crate) custom_color: Option<[u8; 3]>,
     /// Whether the tab has its default "Tab N" title (not set by OSC, CWD, or user)
     pub(crate) has_default_title: bool,
+    /// The N in this tab's default "Tab N" title. Assigned once (lowest free
+    /// number in the window) and kept when other tabs close or move (UX.md
+    /// TW10); 0 means not yet assigned.
+    pub(crate) default_number: usize,
     /// Whether the user has manually named this tab (makes title static)
     pub(crate) user_named: bool,
     /// Activity monitoring: tab bar indicator, anti-idle, silence, and exit tracking (R-11)
@@ -189,6 +193,8 @@ pub(super) struct TabInitParams {
     pub(super) title: String,
     /// True for auto-generated "Tab N" titles (not set by OSC, CWD, or user)
     pub(super) has_default_title: bool,
+    /// The N of the default title, or 0 when the manager assigns it
+    pub(super) default_number: usize,
     /// True when the user (or profile `tab_name`) has explicitly named the tab
     pub(super) user_named: bool,
     /// Working directory to expose via `Tab::get_cwd`

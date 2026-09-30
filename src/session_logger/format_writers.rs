@@ -73,7 +73,7 @@ impl SessionLogger {
 <body>
 <pre>
 "#,
-            html_escape(self.title.as_deref().unwrap_or("Terminal Session"))
+            html_escape(self.title.as_deref().unwrap_or("Terminal Output"))
         );
 
         if let Some(ref mut writer) = self.writer {

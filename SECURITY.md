@@ -13,7 +13,7 @@ Security policy and vulnerability reporting guidelines for par-term, a cross-pla
   - [Dynamic Profile Security](#dynamic-profile-security)
   - [Zip Extraction Protection](#zip-extraction-protection)
 - [Known Security Considerations](#known-security-considerations)
-  - [Session Logging](#session-logging)
+  - [Output Recording](#output-recording)
   - [Trigger RunCommand](#trigger-runcommand)
   - [Config Variable Substitution](#config-variable-substitution)
   - [MCP IPC File Permissions](#mcp-ipc-file-permissions)
@@ -87,15 +87,15 @@ The self-update mechanism extracts zip archives. par-term uses `enclosed_name()`
 
 These are behaviors users should be aware of when using par-term. They represent design decisions consistent with standard terminal emulator behavior or configurable features that carry inherent security implications.
 
-### Session Logging
+### Output Recording
 
-Session logging captures raw PTY I/O, which includes all text displayed in the terminal. This means:
+Output recording captures raw PTY I/O, which includes all text displayed in the terminal. This means:
 
 - Passwords typed at prompts (even when hidden by the shell) pass through the PTY and are captured
 - API keys, tokens, and other secrets displayed in terminal output are recorded
-- Session logs in Asciicast format include timing data
+- Recordings in Asciicast format include timing data
 
-> **Recommendation**: Store session logs in a location with appropriate file permissions. Delete logs containing sensitive data when no longer needed.
+> **Recommendation**: Store recordings in a location with appropriate file permissions. Delete logs containing sensitive data when no longer needed.
 
 ### Trigger RunCommand
 
@@ -156,7 +156,7 @@ Once granted:
 1. **Keep par-term updated** -- Use the built-in self-update mechanism or check for new releases regularly
 2. **Review imported configurations** -- Inspect `config.yaml` files before importing, especially from untrusted sources
 3. **Narrow trigger patterns** -- Use specific regex patterns for triggers with `RunCommand` actions rather than broad matches
-4. **Protect session logs** -- Store logs in restricted directories and clean up logs containing sensitive data
+4. **Protect recordings** -- Store logs in restricted directories and clean up logs containing sensitive data
 5. **Use HTTPS for dynamic profiles** -- Always use `https://` URLs for dynamic profile sources; par-term blocks auth headers over plain HTTP but the profile content itself would still be transmitted in the clear
 6. **Review ACP agent permissions** -- Understand what file system access an ACP agent has before granting it
 7. **Restrict shaders to trusted sources** -- Only install custom shaders from sources you trust
@@ -169,7 +169,7 @@ Once granted:
 - [Automation](docs/features/AUTOMATION.md) - Trigger system, coprocesses, and scripting
 - [Custom Shaders](docs/features/CUSTOM_SHADERS.md) - Shader loading and configuration
 - [Profiles](docs/features/PROFILES.md) - Dynamic profile fetching and security
-- [Session Logging](docs/features/SESSION_LOGGING.md) - Recording formats and configuration
+- [Output Recording](docs/features/SESSION_LOGGING.md) - Recording formats and configuration
 - [SSH](docs/features/SSH.md) - SSH host management
 - [Self Update](docs/features/SELF_UPDATE.md) - Update mechanism and zip extraction
 - [Paste Special](docs/features/PASTE_SPECIAL.md) - Clipboard inspection before pasting

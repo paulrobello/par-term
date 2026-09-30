@@ -110,6 +110,32 @@ impl WindowState {
         }
     }
 
+    /// Toggle this window's always-on-top level (UX.md A20). Writes the
+    /// window's config copy, never the file (Settings edits the manager's
+    /// global config), and any Settings apply re-applies the configured
+    /// value. Most Linux window managers, and Wayland
+    /// compositors, ignore the window-level request.
+    pub(crate) fn toggle_always_on_top(&mut self) {
+        self.config.rcu(|old| {
+            let mut new = (**old).clone();
+            new.window.window_always_on_top = !old.window.window_always_on_top;
+            std::sync::Arc::new(new)
+        });
+        let on = self.config.load().window.window_always_on_top;
+        if let Some(window) = &self.window {
+            window.set_window_level(if on {
+                winit::window::WindowLevel::AlwaysOnTop
+            } else {
+                winit::window::WindowLevel::Normal
+            });
+        }
+        self.show_toast(if on {
+            "Always on Top: ON"
+        } else {
+            "Always on Top: OFF"
+        });
+    }
+
     /// Toggle the background/custom shader on/off.
     pub(crate) fn toggle_background_shader(&mut self) {
         self.config.rcu(|old| {

@@ -59,11 +59,11 @@ pub(super) fn show_behavior_section(
         if ui
             .checkbox(
                 &mut settings.config.shell.prompt_on_quit,
-                "Confirm before quitting with open sessions",
+                "Confirm before quitting with open tabs",
             )
             .on_hover_text(
                 "When enabled, closing the window shows a confirmation dialog\n\
-                 if there are any open terminal sessions. Only applies when the\n\
+                 if there are any open tabs. Only applies when the\n\
                  multi-tab guard below is off — with it on, only a multi-tab\n\
                  window close asks.",
             )

@@ -6,6 +6,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 - [Unreleased — Default Shortcuts Aligned with iTerm2](#unreleased--default-shortcuts-aligned-with-iterm2)
 - [Unreleased — Close-Safety Defaults Aligned with iTerm2](#unreleased--close-safety-defaults-aligned-with-iterm2)
+- [Unreleased — Renamed Labels, Stable Tab Numbers, and Tab Behavior](#unreleased--renamed-labels-stable-tab-numbers-and-tab-behavior)
 - [v0.45.0 — Core 0.48 and Kitty Placement Geometry (Library Consumers)](#v0450--core-048-and-kitty-placement-geometry-library-consumers)
 - [v0.43.0 — MSRV 1.98 and wgpu 30 for Library Consumers](#v0430--msrv-198-and-wgpu-30-for-library-consumers)
 - [v0.39.0 — MSRV 1.97 and the `mermaid` Feature Removed](#v0390--msrv-197-and-the-mermaid-feature-removed)
@@ -86,6 +87,29 @@ session_undo_preserve_shell: false
 ```
 
 `confirm_close_running_jobs` (still `false`) and attached par-mux tab close dialogs are unchanged.
+
+---
+
+## Unreleased — Renamed Labels, Stable Tab Numbers, and Tab Behavior
+
+"Session" now means only a par-mux or tmux session in every label and doc. No config key or action id changed; only the words did:
+
+| Old label | New label |
+|-----------|-----------|
+| Restore previous session on startup | Restore windows on launch |
+| Confirm before quitting with open sessions | Confirm before quitting with open tabs |
+| Undo close tab timeout | Reopen closed tab for |
+| Preserve shell session on close | Keep the shell running while a closed tab can be reopened |
+| Session Logging (Settings section), Toggle Session Logging (action) | Output Recording, Toggle Output Recording |
+| Session Ended: (desktop notification title) | Shell Exited: |
+| There are N active sessions / All sessions will be terminated (quit dialog) | There are N open tabs / Their shells and running programs will be closed |
+
+Tab behavior changes:
+
+- Default **Tab N** titles keep their number. Closing or moving another tab no longer renumbers them, and a new tab takes the lowest free number.
+- Keyboard **move tab left/right** stops at the ends instead of wrapping around.
+- The `close_tab` action closes the window when it runs on the last tab, the same as the menu's Close Tab.
+- New window numbers (`show_window_number`) take the lowest free number, so two windows never show the same number after one closes.
 
 ---
 

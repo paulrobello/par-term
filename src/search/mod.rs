@@ -10,6 +10,14 @@ pub mod types;
 pub use engine::SearchEngine;
 pub use types::{SearchAction, SearchConfig, SearchMatch};
 
+/// The keys the search bar answers, for the F1 help panel. Keep in step
+/// with the key handling in [`SearchUI`].
+pub(crate) const SEARCH_BAR_KEYS: &[(&str, &str)] = &[
+    ("Enter", "Find next match"),
+    ("Shift+Enter", "Find previous match"),
+    ("Escape", "Close search"),
+];
+
 use egui::{Color32, Context, Frame, Key, RichText, Window, epaint::Shadow};
 use par_term_config::text::truncate_chars;
 use std::time::Instant;

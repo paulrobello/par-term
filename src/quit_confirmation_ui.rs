@@ -162,28 +162,19 @@ impl crate::traits::OverlayComponent for QuitConfirmationUI {
 /// attached par-mux session survives the quit (the detach drops the
 /// client, the daemon keeps running) — "All sessions will be
 /// terminated" was false whenever one was attached.
-fn summary_lines(session_count: usize, mux_session: Option<&str>) -> (String, String) {
-    match mux_session {
-        Some(name) => {
-            let first = if session_count == 1 {
-                "There is 1 open tab.".to_string()
-            } else {
-                format!("There are {session_count} open tabs.")
-            };
-            (
-                first,
-                format!("par-mux session '{name}' will keep running (it detaches)."),
-            )
-        }
-        None => {
-            let first = if session_count == 1 {
-                "There is 1 active session.".to_string()
-            } else {
-                format!("There are {session_count} active sessions.")
-            };
-            (first, "All sessions will be terminated.".to_string())
-        }
-    }
+fn summary_lines(tab_count: usize, mux_session: Option<&str>) -> (String, String) {
+    // UX.md T4: "session" means only a par-mux/tmux session, so the count
+    // is of tabs, and local shells are said to close.
+    let first = if tab_count == 1 {
+        "There is 1 open tab.".to_string()
+    } else {
+        format!("There are {tab_count} open tabs.")
+    };
+    let second = match mux_session {
+        Some(name) => format!("par-mux session '{name}' will keep running (it detaches)."),
+        None => "Their shells and running programs will be closed.".to_string(),
+    };
+    (first, second)
 }
 
 #[cfg(test)]
@@ -235,13 +226,17 @@ mod tests {
         );
     }
 
-    /// The local-only quit keeps its original, truthful wording.
+    /// The local-only quit says its tabs' shells close, in T4 vocabulary:
+    /// it counts tabs and never calls them "sessions".
     #[test]
     fn local_only_summary_still_claims_termination() {
         let (count_line, closing_line) = summary_lines(1, None);
-        assert_eq!(count_line, "There is 1 active session.");
-        assert_eq!(closing_line, "All sessions will be terminated.");
+        assert_eq!(count_line, "There is 1 open tab.");
+        assert_eq!(
+            closing_line,
+            "Their shells and running programs will be closed."
+        );
         let (count_line, _) = summary_lines(4, None);
-        assert_eq!(count_line, "There are 4 active sessions.");
+        assert_eq!(count_line, "There are 4 open tabs.");
     }
 }

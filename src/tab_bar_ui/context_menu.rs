@@ -353,11 +353,8 @@ impl TabBarUI {
             // separate egui layer so clicks inside it appear "outside" this area
             && !self.picking_icon
         {
-            // If renaming, submit the current buffer on click-away
-            if self.renaming_tab {
-                let name = self.rename_buffer.trim().to_string();
-                action = TabBarAction::RenameTab(tab_id, name);
-            }
+            // UX.md B31 / OV4: clicking away from an inline rename cancels it,
+            // the same as pane rename; only Enter submits.
             close_menu = true;
         }
 
@@ -369,5 +366,58 @@ impl TabBarUI {
         }
 
         action
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TabBarAction, TabBarUI};
+
+    /// Run one frame of the context menu with `events` as input.
+    fn frame(ctx: &egui::Context, bar: &mut TabBarUI, events: Vec<egui::Event>) -> TabBarAction {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 800.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let mut action = TabBarAction::None;
+        let mut output = ctx.run_ui(input, |ui| action = bar.render_context_menu(ui.ctx(), 7));
+        // An undrained texture delta trips epaint's debug assertion on drop.
+        output.textures_delta.clear();
+        action
+    }
+
+    fn button(pos: egui::Pos2, pressed: bool) -> egui::Event {
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        }
+    }
+
+    /// UX.md TW6 + B31: a double-click rename opens in rename mode, and a
+    /// click away cancels it instead of saving the buffer.
+    #[test]
+    fn click_away_cancels_an_inline_rename() {
+        let ctx = egui::Context::default();
+        let mut bar = TabBarUI::new();
+        frame(&ctx, &mut bar, vec![]);
+        bar.begin_rename(7, "Tab 1", egui::pos2(100.0, 40.0), 0);
+        assert!(bar.is_renaming());
+        bar.rename_buffer = "typed but not submitted".to_string();
+
+        let away = egui::pos2(1000.0, 700.0);
+        frame(&ctx, &mut bar, vec![egui::Event::PointerMoved(away)]);
+        let pressed = frame(&ctx, &mut bar, vec![button(away, true)]);
+        let released = frame(&ctx, &mut bar, vec![button(away, false)]);
+
+        for action in [pressed, released] {
+            assert_eq!(action, TabBarAction::None, "click-away must not rename");
+        }
+        assert!(!bar.is_renaming());
     }
 }

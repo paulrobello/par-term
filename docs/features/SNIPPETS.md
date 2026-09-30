@@ -77,9 +77,9 @@ Snippets support dynamic variable substitution using the `\(variable)` syntax. W
 | `\(uuid)` | Random UUID | `550e8400-e29b-41d4-a716-446655440000` |
 | `\(random)` | Random number (0-999999) | `482910` |
 
-#### Session Variables (Live Terminal State)
+#### Shell Variables (Live Terminal State)
 
-Snippets can also access live session variables from the badge/automation system using the `\(session.*)` syntax. These variables reflect the current terminal state:
+Snippets can also access live shell variables from the badge/automation system using the `\(session.*)` syntax. These variables reflect the current state of the focused pane:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -100,10 +100,10 @@ Snippets can also access live session variables from the badge/automation system
 
 **Variable Priority:**
 1. Custom snippet variables (highest)
-2. Session variables (`session.*`)
+2. Shell variables (`session.*`)
 3. Built-in variables (lowest)
 
-This means you can override built-in or session variables by defining a custom variable with the same name.
+This means you can override built-in or shell variables by defining a custom variable with the same name.
 
 #### Example Snippets
 
@@ -128,7 +128,7 @@ Content: echo "Working on \(user)@\(hostname) in \(path)"
 ```
 Inserts: `echo "Working on alice@my-computer in /home/alice/projects"`
 
-**Session State Snippet:**
+**Shell Context Snippet:**
 ```yaml
 Title: Save Context
 Content: echo "Working on \(session.job) in \(session.path) on \(session.hostname)"
@@ -629,7 +629,7 @@ Snippets can be exported to and imported from YAML files for backup or sharing.
 
 ## Custom Variables
 
-Each snippet can define custom variables that override built-in and session variables.
+Each snippet can define custom variables that override built-in and shell variables.
 
 ### Using the Variables Editor
 
@@ -642,7 +642,7 @@ Each snippet can define custom variables that override built-in and session vari
 ### Variable Priority
 
 1. Custom snippet variables (highest)
-2. Session variables (`session.*`)
+2. Shell variables (`session.*`)
 3. Built-in variables (lowest)
 
 ## Workflow Actions
@@ -858,7 +858,7 @@ actions:
 - [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md) - Keybinding configuration and management
 - [Automation](AUTOMATION.md) - Triggers, coprocesses, and shell integration
 - [Configuration Reference](../CONFIG_REFERENCE.md) - Complete configuration options
-- [Status Bar](STATUS_BAR.md) - Session variables and badge system
+- [Status Bar](STATUS_BAR.md) - Shell variables and badge system
 
 ## Future Enhancements
 

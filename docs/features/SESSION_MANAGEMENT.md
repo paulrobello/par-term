@@ -1,27 +1,27 @@
-# Session Management
+# Restoring Windows and Reopening Tabs
 
-par-term provides session persistence features including the ability to reopen accidentally closed tabs and restore complete session state on startup.
+par-term can reopen accidentally closed tabs and restore every window, tab, and pane layout when it launches.
 
 ## Table of Contents
 - [Overview](#overview)
-- [Session Undo — Reopen Closed Tabs](#session-undo--reopen-closed-tabs)
+- [Reopen Closed Tabs](#reopen-closed-tabs)
   - [Usage](#usage)
-  - [Shell Session Preservation](#shell-session-preservation)
+  - [Keeping the Shell Running](#keeping-the-shell-running)
   - [Configuration](#configuration)
-- [Session Restore on Startup](#session-restore-on-startup)
+- [Restore Windows on Launch](#restore-windows-on-launch)
   - [What Gets Saved](#what-gets-saved)
   - [Restore Behavior](#restore-behavior)
   - [Configuration](#configuration-1)
-- [Session Restore vs Window Arrangements](#session-restore-vs-window-arrangements)
+- [Restore Windows on Launch vs Window Arrangements](#restore-windows-on-launch-vs-window-arrangements)
 - [Related Documentation](#related-documentation)
 
 ## Overview
 
 ```mermaid
 graph TD
-    Session[Session Management]
-    Undo[Session Undo]
-    Restore[Session Restore]
+    Session[Restore and Reopen]
+    Undo[Reopen Closed Tab]
+    Restore[Restore Windows on Launch]
 
     Session --> Undo
     Session --> Restore
@@ -45,7 +45,7 @@ graph TD
     classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
-## Session Undo — Reopen Closed Tabs
+## Reopen Closed Tabs
 
 Recover accidentally closed tabs by reopening them with their original metadata.
 
@@ -55,24 +55,25 @@ Recover accidentally closed tabs by reopening them with their original metadata.
 |--------|-------|---------------|
 | Reopen closed tab | `Cmd + Shift + T` (alias `Cmd + Z`) | `Ctrl + Shift + Z` |
 
-When a tab closes, par-term captures its metadata (working directory, title, position, pane layout, custom color) and adds it to an undo queue. A toast notification appears showing the undo keybinding hint and the expiry timeout in seconds.
+When a tab closes, par-term captures its metadata (working directory, title, whether you renamed it, custom icon, position, pane layout, custom color) and adds it to an undo queue. A toast notification appears showing the undo keybinding hint and the expiry timeout in seconds.
 
 **Restored tab state:**
 - Original tab position in the tab bar
 - Tab title and custom color
+- A name you gave the tab (it stays fixed; a later program title does not replace it) and its custom icon
 - Working directory
 - Split pane layout (if the tab had split panes)
 
-### Shell Session Preservation
+### Keeping the Shell Running
 
-When `session_undo_preserve_shell` is enabled, closing a tab hides the shell process instead of killing it. Undoing restores the full live session including:
+When `session_undo_preserve_shell` is enabled, closing a tab hides the shell process instead of killing it. Undoing restores the live tab including:
 
 - Scrollback buffer content
 - Running processes
 - Complete pane layout
 - User-set tab name and custom icon
 
-When disabled (default), undo creates a new shell session in the tab's original working directory.
+When disabled (default), undo starts a new shell in the tab's original working directory.
 
 Expired undo entries automatically kill hidden shell processes to prevent resource leaks.
 
@@ -85,26 +86,26 @@ session_undo_timeout_secs: 5
 # Maximum number of undo entries in the queue
 session_undo_max_entries: 10
 
-# Preserve the shell process on tab close for full session restore
+# Keep the shell process running on tab close so reopening restores it live
 session_undo_preserve_shell: false
 ```
 
 **Settings UI:** Settings > Terminal > Startup
 
-## Session Restore on Startup
+## Restore Windows on Launch
 
-Automatically save the current session state on clean exit and restore it when par-term launches.
+Automatically save your windows, tabs, and pane layouts on clean exit and restore them when par-term launches.
 
 ### Recovery After a Crash
 
 par-term also keeps a crash snapshot. While running, the event loop republishes a
-serialized copy of the session every five seconds, and a panic handler writes it to
+serialized copy of your windows every five seconds, and a panic handler writes it to
 `crash_session.yaml` in the config directory before the process dies. On the next
 launch that file is preferred over `last_session.yaml`, consumed, and a toast reports
-that the session was recovered.
+that the windows were recovered.
 
 **This requires `restore_session: true`, which is not the default.** Both halves are
-gated on it: with session restore off, nothing is ever published, so no crash file is
+gated on it: with Restore windows on launch turned off, nothing is ever published, so no crash file is
 written, and nothing would consume one if it were.
 
 Three further limits are worth knowing. The snapshot is at most five seconds old, so
@@ -131,7 +132,7 @@ than the live log — see [Logging](../LOGGING.md#log-file-location).
 
 Hidden tabs (such as the tmux gateway tab when `tmux_hide_gateway_tab` is enabled) are excluded from the saved tab list — they are transient connections, not user tabs.
 
-### tmux Session Restore
+### Reattaching a tmux Session
 
 When a window was connected to a tmux session in control mode at the time of save, the session name is persisted alongside the window. On restore:
 
@@ -143,7 +144,7 @@ This avoids duplicate tabs (ghost shells + real tmux windows) that would otherwi
 
 Requires `tmux_enabled: true`. Failures to reconnect are logged as warnings; the window opens normally with the gateway shell tab in that case.
 
-### par-mux Session Restore
+### Reattaching a par-mux Session
 
 A window attached to a par-mux session at save time persists `mux_session_name` and reattaches on restore:
 
@@ -155,11 +156,11 @@ If the attach fails, the placeholder stays and the window works as a normal loca
 
 ### Restore Behavior
 
-- Session state saves automatically when par-term exits cleanly
-- On next launch, the saved session restores automatically
+- Window state saves automatically when par-term exits cleanly
+- On next launch, the saved windows restore automatically
 - Working directories are validated on restore; missing directories fall back to `$HOME`
-- Corrupt or missing session files result in a default window being created
-- The session file clears after successful restore to prevent restoring stale state
+- Corrupt or missing saved-windows files result in a default window being created
+- The saved-windows file clears after successful restore to prevent restoring stale state
 
 ### Configuration
 
@@ -168,18 +169,18 @@ If the attach fails, the placeholder stays and the window works as a normal loca
 restore_session: false
 ```
 
-**Settings UI:** Settings > Terminal > Startup > "Restore previous session on startup"
+**Settings UI:** Settings > Terminal > Startup > "Restore windows on launch"
 
-## Session Restore vs Window Arrangements
+## Restore Windows on Launch vs Window Arrangements
 
 Both features restore window layouts, but they serve different purposes:
 
-| Feature | Session Restore | Window Arrangements |
+| Feature | Restore Windows on Launch | Window Arrangements |
 |---------|----------------|---------------------|
 | **Purpose** | Resume where you left off | Named, reusable layouts |
 | **Trigger** | Automatic on exit/launch | Manual save and restore |
 | **Persistence** | One-time (cleared after restore) | Permanent until deleted |
-| **Scope** | Entire session state | Named layout snapshots |
+| **Scope** | Every open window | Named layout snapshots |
 | **Priority** | Falls back when no arrangement | Takes precedence when both enabled |
 
 When both `restore_session` and `auto_restore_arrangement` are enabled, auto-restore arrangement takes precedence.

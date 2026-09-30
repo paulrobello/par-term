@@ -82,11 +82,11 @@ pub(super) fn show_activity_section(
             });
 
             ui.separator();
-            ui.label("Session Notifications:");
+            ui.label("Shell Exit Notifications:");
             if ui
                 .checkbox(
                     &mut settings.config.notifications.notification_session_ended,
-                    "Notify when session/shell exits",
+                    "Notify when a shell exits",
                 )
                 .on_hover_text("Send a desktop notification when the shell process exits")
                 .changed()

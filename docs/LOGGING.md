@@ -132,12 +132,12 @@ Because the config setting beats `RUST_LOG`, `make run-debug` and `make run-trac
 
 ## Log File Location
 
-| Platform | Current session | Previous session |
+| Platform | Current run | Previous run |
 |----------|-----------------|------------------|
 | macOS/Linux | `$TMPDIR/par_term_debug.log` (defaults to `/tmp/`) | `$TMPDIR/par_term_debug.log.1` |
 | Windows | `%TEMP%\par_term_debug.log` | `%TEMP%\par_term_debug.log.1` |
 
-Each session starts with a fresh log. The previous session's log is **not** discarded: it is rolled aside to `par_term_debug.log.1` before the live path is truncated, so a crash report survives the restart that follows it. Only one generation is kept — the launch after that overwrites `.1`.
+Each run starts with a fresh log. The previous run's log is **not** discarded: it is rolled aside to `par_term_debug.log.1` before the live path is truncated, so a crash report survives the restart that follows it. Only one generation is kept — the launch after that overwrites `.1`.
 
 The roll is skipped, leaving any existing `.1` intact, when the log is absent, empty, not a regular file, or owned by another user. The empty case matters in practice: `make run-debug` and `make run-trace` pipe through `tee`, which truncates the path before par-term opens it, so those runs do not produce a `.1`.
 
@@ -265,7 +265,7 @@ Custom debug macros use category tags for selective filtering. The following cat
 | `RESIZE` | Window and pane resize handling |
 | `SCRIPT` | Scripting engine lifecycle |
 | `SEMANTIC` | Semantic history and URL detection |
-| `SESSION_LOGGER` | Session logging operations |
+| `SESSION_LOGGER` | Output recording operations |
 | `SHADER` | Custom shader loading, compilation, and hot-reload |
 | `SHADER_INSTALL` | Custom shader installation and removal |
 | `SHIFTENTER` | Shift+Enter key handling |
@@ -291,7 +291,7 @@ tail -f "${TMPDIR:-/tmp}"/par_term_debug.log | grep --line-buffered "CONCURRENCY
 - Verify `log_level` is not set to `off` in config
 - Check if `--log-level off` was passed on the command line
 - Ensure the log file path is writable (check `$TMPDIR` permissions)
-- If you are looking for output from a session that has already ended, check `par_term_debug.log.1` — the live path holds only the current session
+- If you are looking for output from a run that has already ended, check `par_term_debug.log.1` — the live path holds only the current run
 
 **Too much output:**
 - Lower the log level (e.g., `info` instead of `trace`)

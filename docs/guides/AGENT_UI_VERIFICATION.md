@@ -170,7 +170,7 @@ keystroke-leak bug in its pre-fix run (`modal_guard=false` with the palette
 open; fixed the same day). Pre/post-fix reports for that run:
 `report-prefix4.json` vs `report-postfix.json` (10/3 fail → 13/0 pass).
 
-## Checked-in script: session-undo preserves the shell
+## Checked-in script: reopen closed tab keeps the shell running
 
 `tests/ui/d6_reopen_preserves_shell.json` proves the D6 close-safety default
 `session_undo_preserve_shell: true` end to end: open a second tab, capture its
@@ -245,7 +245,7 @@ HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
   --ui-test-report /tmp/pt-ui-test/tw2-restore-report.json
 ```
 
-`restore_session` sits at the TOP level (the session-restore sub-config is
+`restore_session` sits at the TOP level (the `SessionRestoreConfig` sub-config is
 `#[serde(flatten)]`ed) — nesting it under a `session_restore:` key silently
 defaults it off and run B restores nothing. Before the TW2 fix, run B reports
 `window_count` 1 ≠ 3 — the negative control.

@@ -137,7 +137,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Tab bar height | ✅ | ✅ `tab_bar_height` | ✅ | - | - | - |
 | Tab close button | ✅ `Tabs Have Close Button` | ✅ `tab_show_close_button` | ✅ | - | - | - |
 | Close pane → tab → window (Cmd+W) | ✅ | ✅ `Cmd+W` / `Ctrl+Shift+W` | ✅ | - | - | Closes the focused pane, cascading to the tab and then the window; Close Tab is `Cmd+Opt+W` / `Ctrl+Alt+W` |
-| Tab index numbers | ✅ `Hide Tab Number` | ✅ Hotkey indicators (⌘1-9) | ✅ | - | - | Shows shortcut on tab right side |
+| Tab index numbers | ✅ `Hide Tab Number` | 🔶 Hotkey indicators (⌘1-9) | 🔶 | - | - | Shows the tab's switch chord on its right side; the `tab_show_index` option is accepted but draws nothing yet |
 | New output indicator | ✅ `Show New Output Indicator` | ✅ Activity indicator | ✅ | - | - | - |
 | Bell indicator | ✅ | ✅ `tab_bell_indicator` | ✅ | - | - | - |
 | Activity indicator | ✅ `Hide Tab Activity Indicator` | ✅ `tab_activity_indicator` | ✅ | - | - | - |

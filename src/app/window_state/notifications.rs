@@ -536,7 +536,7 @@ impl WindowState {
 
             if has_exited {
                 tab.activity.exit_notified = true;
-                let title = format!("Session Ended: {}", tab.title);
+                let title = format!("Shell Exited: {}", tab.title);
                 let message = "The shell process has exited".to_string();
                 log::info!("Session exit notification: {} has exited", tab.title);
                 notifications_to_send.push((title, message));

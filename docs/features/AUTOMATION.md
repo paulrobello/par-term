@@ -1,6 +1,6 @@
 # Automation: Triggers, Actions, Coprocesses, and Scripts
 
-Par Terminal provides an automation system that lets you react to terminal output with regex-based triggers, execute actions when patterns match, run coprocesses that exchange data with the terminal session, and run observer scripts that receive structured JSON events and send commands back to the terminal.
+Par Terminal provides an automation system that lets you react to terminal output with regex-based triggers, execute actions when patterns match, run coprocesses that exchange data with the shell, and run observer scripts that receive structured JSON events and send commands back to the terminal.
 
 ## Table of Contents
 
@@ -546,7 +546,7 @@ coprocesses:
 When `auto_start` is set to `true`, the coprocess is started automatically each time a new tab is created. The startup sequence is:
 
 1. The tab's PTY session comes with a built-in core-side `CoprocessManager`
-2. For each coprocess definition with `auto_start: true`, the tab calls `start_coprocess()`, which delegates to the session's `CoprocessManager::start()`
+2. For each coprocess definition with `auto_start: true`, the tab calls `start_coprocess()`, which delegates to the terminal's `CoprocessManager::start()`
 3. The coprocess is spawned as a child process with its stdin connected for receiving terminal output
 4. A coprocess ID is assigned and tracked in the tab's `coprocess_ids` array
 5. If the coprocess fails to start, a warning is logged and the tab continues without it

@@ -199,7 +199,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     (
         "toggle_session_logging",
-        "Toggle Session Logging",
+        "Toggle Output Recording",
         Some("Cmd+Shift+R"),
     ),
     (
@@ -209,6 +209,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     // Palette only: Cmd+Shift+T reopens a closed tab (UX.md I17).
     ("toggle_throughput_mode", "Toggle Throughput Mode", None),
+    ("toggle_always_on_top", "Toggle Always on Top", None),
     (
         "toggle_tmux_session_picker",
         "Toggle tmux Session Picker",
@@ -389,7 +390,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     (
         "toggle_session_logging",
-        "Toggle Session Logging",
+        "Toggle Output Recording",
         Some("Ctrl+Shift+R"),
     ),
     (
@@ -402,6 +403,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Throughput Mode",
         Some("Ctrl+Shift+M"),
     ),
+    ("toggle_always_on_top", "Toggle Always on Top", None),
     (
         "toggle_tmux_session_picker",
         "Toggle tmux Session Picker",

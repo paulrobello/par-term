@@ -85,10 +85,7 @@ impl WindowState {
                 if should_confirm_window_close(&self.config.load().shell, tab_count)
                     && !self.overlay_ui.quit_confirmation_ui.is_visible()
                 {
-                    log::info!(
-                        "Showing quit confirmation dialog ({} active sessions)",
-                        tab_count
-                    );
+                    log::info!("Showing quit confirmation dialog ({} open tabs)", tab_count);
                     // UX.md M9: when a par-mux session is attached, the
                     // dialog must say it survives the quit (it detaches).
                     let mux_session = self

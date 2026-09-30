@@ -1,6 +1,6 @@
 # Status Bar
 
-par-term provides a configurable status bar with a widget system for displaying session information, system metrics, and custom text.
+par-term provides a configurable status bar with a widget system for displaying shell information, system metrics, and custom text.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -442,5 +442,5 @@ The Status Bar tab in Settings (`F12`) provides six sections:
 
 - [Agent Usage](AGENT_USAGE.md) - the records-directory usage panel the `agent_usage` widget summarizes
 - [Window Management](WINDOW_MANAGEMENT.md) - Status bar positioning in the window layout
-- [Profiles](PROFILES.md) - Session variables used by widgets
+- [Profiles](PROFILES.md) - Shell variables (`session.*`) used by widgets
 - [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md) - Complete shortcut reference

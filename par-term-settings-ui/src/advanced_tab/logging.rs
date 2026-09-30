@@ -15,19 +15,19 @@ pub(super) fn show_logging_section(
 ) {
     collapsing_section(
         ui,
-        "Session Logging",
+        "Output Recording",
         "advanced_logging",
         true,
         collapsed,
         |ui| {
             ui.label(
-                "Automatically record terminal sessions for later review, debugging, or sharing.",
+                "Automatically record terminal output for later review, debugging, or sharing.",
             );
             ui.add_space(8.0);
 
             let mut auto_log = settings.config.session_log.auto_log_sessions;
             if ui
-                .checkbox(&mut auto_log, "Enable automatic session logging")
+                .checkbox(&mut auto_log, "Record every tab's output automatically")
                 .on_hover_text("When enabled, all terminal output is logged to files")
                 .changed()
             {
@@ -105,7 +105,7 @@ pub(super) fn show_logging_section(
 
             let mut redact = settings.config.session_log.session_log_redact_passwords;
             if ui
-                .checkbox(&mut redact, "Redact passwords in session logs")
+                .checkbox(&mut redact, "Redact passwords in recordings")
                 .on_hover_text(
                     "Detects password prompts (sudo, ssh, etc.) and replaces \
                      keyboard input with a redaction marker. Prevents passwords \
@@ -121,7 +121,7 @@ pub(super) fn show_logging_section(
             if !settings.config.session_log.session_log_redact_passwords {
                 ui.label(
                     egui::RichText::new(
-                        "\u{26a0} Warning: Session logs may contain passwords and credentials",
+                        "\u{26a0} Warning: Recordings may contain passwords and credentials",
                     )
                     .color(egui::Color32::from_rgb(255, 193, 7))
                     .small(),

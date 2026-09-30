@@ -1,6 +1,6 @@
 # Tabs
 
-par-term provides a multi-tab interface for managing multiple terminal sessions within a single window.
+par-term provides a multi-tab interface for managing multiple shells within a single window.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -14,6 +14,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
   - [Keyboard Reordering](#keyboard-reordering)
 - [Duplicating Tabs](#duplicating-tabs)
 - [Moving tabs between windows](#moving-tabs-between-windows)
+- [Panes](#panes)
 - [Promoting and Demoting Panes](#promoting-and-demoting-panes)
 - [Selecting a Pane by Letter](#selecting-a-pane-by-letter)
 - [Tab Icons](#tab-icons)
@@ -28,7 +29,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
   - [Per-Pane Title Tracking](#per-pane-title-tracking)
   - [Remote Tab Title Format](#remote-tab-title-format)
   - [Renaming Tabs](#renaming-tabs)
-  - [Session Persistence for Tab Names and Colors](#session-persistence-for-tab-names-and-colors)
+  - [Restoring Tab Names and Colors](#restoring-tab-names-and-colors)
 - [Tab Appearance](#tab-appearance)
 - [Known Fixes](#known-fixes)
 - [Configuration](#configuration)
@@ -36,14 +37,14 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
 
 ## Overview
 
-The tab system manages multiple terminal sessions:
+The tab system manages multiple shells:
 
 ```mermaid
 graph TD
     TabManager[Tab Manager]
     TabBar[Tab Bar UI]
     Tabs[Terminal Tabs]
-    Sessions[Shell Sessions]
+    Sessions[Shells]
 
     TabManager --> TabBar
     TabManager --> Tabs
@@ -76,7 +77,11 @@ graph TD
 | Close (pane, then tab, then window) | `Cmd+W` | `Ctrl+Shift+W` |
 | Close tab | `Cmd+Opt+W` | `Ctrl+Alt+W` |
 
-`Close` follows iTerm2: it closes the focused split pane, falls through to closing the tab when that was the tab's only pane, and closes the window when that was the last tab. `Close tab` closes every pane in the current tab at once. The previous Linux/Windows pane-close chord `Ctrl+Shift+X` still works as an alias.
+`Close` follows iTerm2: it closes the focused split pane, falls through to closing the tab when that was the tab's only pane, and closes the window when that was the last tab. `Close tab` closes every pane in the current tab at once, and closing the last tab closes the window, whether it runs from the menu, a chord, or the palette. The previous Linux/Windows pane-close chord `Ctrl+Shift+X` still works as an alias.
+
+With the mouse, **middle-click** a tab to close it, and **double-click** empty space in the horizontal tab bar (right of the `+` button) to open a new tab.
+
+A new tab with no title of its own is named **Tab N**, where N is the lowest number no other tab in the window holds. The number stays with the tab: closing or moving other tabs never renumbers it.
 
 New tabs inherit the working directory from the current tab (if shell integration is installed) or start in the configured startup directory.
 
@@ -114,13 +119,13 @@ new_tab_position: end          # default — append to the end of the tab bar
 new_tab_position: after_active # insert immediately to the right of the active tab
 ```
 
-`after_active` applies to all user-initiated new-tab actions: `Cmd+T` / `+` button / profile picker / custom `NewTab` actions. Session undo and arrangement restore always restore tabs to their original positions regardless of this setting.
+`after_active` applies to all user-initiated new-tab actions: `Cmd+T` / `+` button / profile picker / custom `NewTab` actions. Reopen closed tab and arrangement restore always restore tabs to their original positions regardless of this setting.
 
 **Settings UI:** Settings > Window > Tab Bar > "New tab position"
 
 ## Reopening Closed Tabs
 
-Accidentally closed tabs can be recovered using session undo:
+Accidentally closed tabs can be recovered using reopen closed tab:
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
@@ -128,7 +133,7 @@ Accidentally closed tabs can be recovered using session undo:
 
 A toast notification appears after closing a tab, showing the undo keybinding and a countdown timer. Undo restores the tab at its original position with its title, custom color, and split pane layout.
 
-For full details on session undo configuration and shell session preservation, see [Session Management](SESSION_MANAGEMENT.md).
+For full details on reopen closed tab configuration and keeping the shell running, see [Restoring Windows and Reopening Tabs](SESSION_MANAGEMENT.md).
 
 ## Switching Tabs
 
@@ -140,7 +145,7 @@ For full details on session undo configuration and shell session preservation, s
 
 ## Reordering Tabs
 
-Tabs can be reordered using drag-and-drop or keyboard shortcuts. Tab numbers update automatically after reordering to reflect the new positions.
+Tabs can be reordered using drag-and-drop or keyboard shortcuts. A default **Tab N** title keeps its number when the tab moves.
 
 ### Drag-and-Drop Reordering
 
@@ -164,8 +169,10 @@ Click and drag any tab in the tab bar to move it to a new position:
 
 | Action | Shortcut |
 |--------|----------|
-| Move tab left | `Cmd+Shift+Left` (macOS) / `Ctrl+Shift+Left` |
-| Move tab right | `Cmd+Shift+Right` (macOS) / `Ctrl+Shift+Right` |
+| Move tab left | `Cmd+Opt+Shift+[` or `Cmd+Shift+Left` (macOS) / `Ctrl+Shift+Left` |
+| Move tab right | `Cmd+Opt+Shift+]` or `Cmd+Shift+Right` (macOS) / `Ctrl+Shift+Right` |
+
+A tab already at the left or right end stays put; the move does not wrap around to the other end.
 
 ## Duplicating Tabs
 
@@ -180,14 +187,14 @@ Bound to `Cmd+Shift+J` (`Ctrl+Shift+J` on Linux and Windows) by default, and reb
 - Any custom tab color set on the source tab carries over to the new tab
 - Any custom tab icon set on the source tab carries over to the new tab
 - Duplication works on any tab via context menu, not just the currently active tab
-- The new tab starts a fresh shell session in the inherited directory
+- The new tab starts a fresh shell in the inherited directory
 
-> **📝 Note:** The duplicated tab launches a new shell process. Running commands or session state from the original tab are not carried over.
+> **📝 Note:** The duplicated tab launches a new shell process. Running commands and shell state from the original tab are not carried over.
 
 ## Moving tabs between windows
 
-A tab (including its PTY, scrollback, running processes, split panes, session
-logger) can be moved to a different window without being
+A tab (including its PTY, scrollback, running processes, split panes, output
+recorder) can be moved to a different window without being
 restarted.
 
 **Context menu:**
@@ -216,6 +223,31 @@ keybindings cannot parameterize on a specific target window.
 - Per-window state (custom shader, assistant panel, window-level settings)
   does not travel with the tab. The moved tab adopts the destination window's
   settings.
+
+## Panes
+
+A tab holds one or more **panes**, split regions that each run their own shell. The default chords below are the shipped bindings; the **F1** help panel lists your current ones.
+
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| Split right (new pane to the right) | `Cmd+D` | `Ctrl+Shift+E` |
+| Split down (new pane below) | `Cmd+Shift+D` | `Ctrl+Shift+O` (alias `Ctrl+Shift+D`) |
+| Close pane (then tab, then window) | `Cmd+W` | `Ctrl+Shift+W` |
+| Focus pane in a direction | `Cmd+Opt+Arrow` | `Ctrl+Alt+Arrow` |
+| Resize pane | `Cmd+Ctrl+Arrow` | `Ctrl+Alt+Shift+Arrow` |
+| Swap with the neighbor in a direction | `Cmd+Opt+Shift+Arrow` | unbound |
+| Select pane by letter | `Cmd+Opt+P` | `Ctrl+Alt+P` |
+| Broadcast input to every pane | `Cmd+Opt+I` | `Ctrl+Alt+I` |
+| Rename pane | unbound (`rename_pane`) | unbound |
+
+**How each operation behaves today:**
+- **Split** names describe where the new pane goes. The new pane takes half of the focused pane's space, and a tab holds at most `max_panes` panes (default 16).
+- **Resize** moves the innermost divider around the focused pane by 5% of its split per keypress. Right and Down grow the focused pane and Left and Up shrink it, whatever the divider's axis. Dragging a divider with the mouse resizes it directly.
+- **Swap** exchanges the focused pane's place in the layout with its neighbor in that direction; each pane keeps its shell and scrollback.
+- **Broadcast input** sends every keystroke to all panes of the active tab until toggled off. The on/off switch belongs to the window, so it stays on when you switch tabs and then applies to the new active tab. A toast confirms each toggle.
+- **Close** follows the cascade described in [Creating and Closing Tabs](#creating-and-closing-tabs).
+
+Pane title bars, divider styles, and dimming of inactive panes are configured under **Settings ▸ Window ▸ Panes**; see [Window Management](WINDOW_MANAGEMENT.md#pane-title-bars).
 
 ## Promoting and Demoting Panes
 
@@ -307,7 +339,7 @@ graph LR
 A custom icon set via the context menu takes precedence over any profile-assigned icon. When the custom icon is cleared, the tab falls back to the profile icon or displays no icon.
 
 **Persistence:**
-- Custom icons persist across session save/restore
+- Custom icons are kept when windows are restored on launch
 - Custom icons are preserved in saved window arrangements (layouts)
 - Custom icons carry over when duplicating a tab
 
@@ -501,15 +533,15 @@ remote_tab_title_osc_priority: true
 
 ### Renaming Tabs
 
-Right-click any tab and select **Rename Tab** to set a custom name. Manually named tabs are static — they are never auto-updated regardless of the title mode setting.
+Double-click a tab, or right-click it and select **Rename Tab**, to set a custom name. Press **Enter** to save; **Escape** or a click anywhere else cancels. Manually named tabs are static — they are never auto-updated regardless of the title mode setting.
 
 To revert a renamed tab to automatic title updates, right-click and rename with a blank name.
 
-### Session Persistence for Tab Names and Colors
+### Restoring Tab Names and Colors
 
 User-set tab names and custom tab colors are preserved across:
 
-- **Session save/restore** -- closing and reopening par-term restores custom names and colors
+- **Restore windows on launch** -- closing and reopening par-term restores custom names and colors
 - **Window arrangements** -- saved layouts retain per-tab names and colors
 - **Tab duplication** -- duplicated tabs inherit the source tab's custom color and icon, but not its custom name
 
@@ -670,7 +702,7 @@ new_tab_position: end  # "end" or "after_active"
 ## Related Documentation
 
 - [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md) - Tab navigation shortcuts
-- [Session Management](SESSION_MANAGEMENT.md) - Reopen closed tabs and session restore
+- [Restoring Windows and Reopening Tabs](SESSION_MANAGEMENT.md) - Reopen closed tabs and restore windows on launch
 - [Profiles](PROFILES.md) - Open profiles in new tabs
 - [SSH Host Management](SSH.md) - SSH profile-based tab creation
 - [Window Management](WINDOW_MANAGEMENT.md) - Window and tab interaction

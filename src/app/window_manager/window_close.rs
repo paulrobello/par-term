@@ -52,6 +52,13 @@ impl WindowManager {
         }
     }
 
+    /// The lowest window number no open window holds (UX.md TW8): numbers
+    /// stay stable when another window closes, and a new window never
+    /// duplicates a surviving one's number.
+    pub(crate) fn next_window_number(&self) -> usize {
+        lowest_free_number(self.windows.values().map(|ws| ws.window_index))
+    }
+
     /// Produce `(WindowId, display_label)` pairs for every window *other than*
     /// `source_window_id`, suitable for the "Move Tab to Window ->" submenu.
     ///
@@ -61,9 +68,15 @@ impl WindowManager {
         &self,
         source_window_id: WindowId,
     ) -> Vec<(WindowId, String)> {
-        self.windows
+        // UX.md TW8: window-number order, not HashMap order.
+        let mut others: Vec<_> = self
+            .windows
             .iter()
             .filter(|(id, _)| **id != source_window_id)
+            .collect();
+        others.sort_by_key(|(_, ws)| ws.window_index);
+        others
+            .into_iter()
             .map(|(id, ws)| {
                 let active_title = ws
                     .tab_manager
@@ -253,5 +266,25 @@ impl WindowManager {
         if source_is_empty {
             self.close_window(source_window);
         }
+    }
+}
+
+/// The lowest number >= 1 not in `taken`.
+fn lowest_free_number(taken: impl Iterator<Item = usize> + Clone) -> usize {
+    (1..).find(|n| !taken.clone().any(|t| t == *n)).unwrap_or(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lowest_free_number;
+
+    /// UX.md TW8: closing window 2 of 3 frees 2 for the next window; the
+    /// survivors keep 1 and 3, so no number is ever shown twice.
+    #[test]
+    fn window_numbers_fill_the_lowest_gap() {
+        assert_eq!(lowest_free_number([].into_iter()), 1);
+        assert_eq!(lowest_free_number([1, 2, 3].into_iter()), 4);
+        assert_eq!(lowest_free_number([1, 3].into_iter()), 2);
+        assert_eq!(lowest_free_number([2, 3].into_iter()), 1);
     }
 }

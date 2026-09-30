@@ -151,13 +151,13 @@ pub(super) fn show_shell_section(
         {
             if let Some(ref last_dir) = settings.config.shell.last_working_directory {
                 ui.label(
-                    egui::RichText::new(format!("Last session: {}", last_dir))
+                    egui::RichText::new(format!("Last used: {}", last_dir))
                         .small()
                         .weak(),
                 );
             } else {
                 ui.label(
-                    egui::RichText::new("No previous session directory saved yet")
+                    egui::RichText::new("No previous directory saved yet")
                         .small()
                         .weak(),
                 );

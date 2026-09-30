@@ -3,7 +3,7 @@
 //! This module contains code that is only compiled on macOS and handles:
 //! - Global application menu bar initialization via NSApp
 //! - The macOS "app menu" (About, Settings, Services, Hide, Quit)
-//! - The macOS "Window" menu (Minimize, Zoom)
+//! - The macOS "Window" menu (Minimize, Zoom, Always on Top)
 
 use anyhow::Result;
 use muda::accelerator::{Accelerator, Code, Modifiers};
@@ -79,7 +79,7 @@ pub fn build_app_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuAction>)
     Ok(())
 }
 
-/// Build and append the macOS Window menu (Minimize, Zoom).
+/// Build and append the macOS Window menu (Minimize, Zoom, Always on Top).
 ///
 /// The Window menu is a macOS convention that is not present on other platforms.
 pub fn build_window_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuAction>) -> Result<()> {
@@ -97,6 +97,11 @@ pub fn build_window_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuActio
     let zoom = MenuItem::with_id("zoom", "Zoom", true, None);
     action_map.insert(zoom.id().clone(), MenuAction::Zoom);
     window_menu.append(&zoom)?;
+
+    window_menu.append(&PredefinedMenuItem::separator())?;
+    let always_on_top = MenuItem::with_id("always_on_top", "Always on Top", true, None);
+    action_map.insert(always_on_top.id().clone(), MenuAction::ToggleAlwaysOnTop);
+    window_menu.append(&always_on_top)?;
 
     menu.append(&window_menu)?;
     Ok(())

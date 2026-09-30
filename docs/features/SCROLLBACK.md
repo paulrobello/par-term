@@ -157,7 +157,7 @@ Jump between command prompts using keyboard shortcuts:
 | Previous command mark | `Cmd+Shift+Up` (macOS, alias `Cmd+Up`) / `Super+Up` |
 | Next command mark | `Cmd+Shift+Down` (macOS, alias `Cmd+Down`) / `Super+Down` |
 
-This is useful for quickly navigating through command history in a long terminal session.
+This is useful for quickly navigating through command history in a long-running shell.
 
 ### Split Pane Support
 

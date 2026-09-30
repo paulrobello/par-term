@@ -9,6 +9,25 @@ use crate::copy_mode::{SearchDirection, VisualMode};
 use winit::event::KeyEvent;
 use winit::keyboard::{Key, NamedKey};
 
+/// The keys `handle_copy_mode_key` below answers, as `(keys, what they do)`,
+/// for the F1 help panel. Keep in step with the match arms.
+pub(crate) const COPY_MODE_KEYS: &[(&str, &str)] = &[
+    ("q / Escape", "Exit copy mode"),
+    ("h j k l / arrows", "Left / Down / Up / Right"),
+    ("w / b / e", "Word forward / back / end"),
+    ("W / B / E", "WORD forward / back / end"),
+    ("0 / $ / ^", "Line start / end / first non-blank"),
+    ("gg / G", "Top of scrollback / bottom of buffer"),
+    ("Ctrl+U / Ctrl+D", "Half page up / down"),
+    ("Ctrl+B / Ctrl+F", "Full page up / down"),
+    ("v / V / Ctrl+V", "Character / line / block selection"),
+    ("y", "Yank (copy) selection"),
+    ("1-9", "Count prefix (5j = down 5 lines)"),
+    ("/ / ?", "Search forward / backward"),
+    ("n / N", "Next / previous match"),
+    ("m + letter / ' + letter", "Set / jump to mark"),
+];
+
 impl WindowState {
     /// Check if copy mode is currently active
     pub(crate) fn is_copy_mode_active(&self) -> bool {

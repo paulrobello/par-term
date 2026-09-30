@@ -113,9 +113,16 @@ impl WindowState {
     /// Update window title with tmux session info
     /// Format: "window_title - [tmux: session_name]"
     pub(crate) fn update_window_title_with_tmux(&self) {
+        // UX.md T8: the par-mux drain routes %session-renamed here too, and a
+        // par-mux window must never be titled "tmux".
+        let label = if self.tmux_state.is_mux_attached() {
+            "mux"
+        } else {
+            "tmux"
+        };
         let title = if let Some(session_name) = &self.tmux_state.tmux_session_name {
             format!(
-                "{} - [tmux: {}]",
+                "{} - [{label}: {}]",
                 self.config.load().window_title,
                 session_name
             )

@@ -25,7 +25,7 @@ pub fn save_session_to(state: &SessionState, path: PathBuf) -> Result<()> {
     // over the target. Session save runs at shutdown, when an abrupt kill is
     // most likely, and a truncated file reads back as "no saved session".
     crate::atomic_save::save_yaml_atomic(&path, state)
-        .with_context(|| format!("Failed to write session state to {:?}", path))?;
+        .with_context(|| format!("Failed to write saved windows to {:?}", path))?;
 
     log::info!(
         "Saved session state ({} windows) to {:?}",
@@ -50,7 +50,7 @@ pub fn load_session_from(path: PathBuf) -> Result<Option<SessionState>> {
     }
 
     let contents = std::fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read session state from {:?}", path))?;
+        .with_context(|| format!("Failed to read saved windows from {:?}", path))?;
 
     if contents.trim().is_empty() {
         return Ok(None);
@@ -69,7 +69,7 @@ pub fn load_session_from(path: PathBuf) -> Result<Option<SessionState>> {
     // Any field with an unexpected type or value outside the Rust type constraints will
     // return an Err, which is propagated as an anyhow error above.
     let state: SessionState = serde_yaml_ng::from_str(&contents)
-        .with_context(|| format!("Failed to parse session state from {:?}", path))?;
+        .with_context(|| format!("Failed to parse saved windows from {:?}", path))?;
 
     log::info!(
         "Loaded session state ({} windows) from {:?}",
@@ -84,7 +84,7 @@ pub fn clear_session() -> Result<()> {
     let path = session_path();
     if path.exists() {
         std::fs::remove_file(&path)
-            .with_context(|| format!("Failed to remove session state file {:?}", path))?;
+            .with_context(|| format!("Failed to remove saved-windows file {:?}", path))?;
     }
     Ok(())
 }

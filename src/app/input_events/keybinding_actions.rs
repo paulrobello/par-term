@@ -198,6 +198,8 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         // same contract the menu arm already has (MenuAction::CloseTab →
         // close_window). The old has_multiple_tabs() guard made the chord
         // a dead key on the last tab — Ctrl+Alt+W on Linux/Windows.
+        // (Also UX.md TW4: one close vocabulary — the same rule as the
+        // menu's Close Tab and `close_pane`.)
         s.is_shutting_down |= s.close_current_tab();
         log::info!("Tab closed via keybinding");
         true

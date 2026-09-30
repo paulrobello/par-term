@@ -113,7 +113,7 @@ command_history_max_entries: 1000
 
 **Settings UI:** Settings > Terminal > Command History
 
-**Persistence:** History is saved across sessions to `~/.config/par-term/command_history.yaml`.
+**Persistence:** History is saved across restarts to `~/.config/par-term/command_history.yaml`.
 
 ## Related Documentation
 

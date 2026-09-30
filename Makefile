@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-nomux coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-terminology check-nomux coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -85,6 +85,7 @@ help:
 	@echo "  make doc-open    - Generate and open rustdoc in the browser"
 	@echo "  make doc-check   - Validate Markdown links and anchors (requires lychee)"
 	@echo "  make check-line-counts - Enforce the 800-line production file limit"
+	@echo "  make check-terminology - Enforce the UX.md T1-T8 vocabulary in UI text and docs"
 	@echo "  make check-nomux       - Type-check the workspace without default features (no par-mux)"
 	@echo "  make coverage    - Generate test coverage report"
 	@echo "  make deploy      - Trigger Release and Deploy GitHub Action"
@@ -326,6 +327,16 @@ check-line-counts:
 	@echo "Checking production file line counts..."
 	python3 scripts/check_line_counts.py
 
+# UX.md T1-T8: "session" means only a par-mux/tmux session in user-facing
+# text, and par-mux paths never say "tmux".
+check-terminology:
+	@command -v python3 >/dev/null 2>&1 || { \
+		echo "python3 not found; it is required by scripts/check_terminology.py"; \
+		exit 1; \
+	}
+	@echo "Checking user-facing terminology..."
+	python3 scripts/check_terminology.py
+
 # Type-check the workspace with default features off (no `mux`). Every other
 # gate builds default features only, so a mux-gated symbol referenced from
 # ungated code compiles everywhere except here (cards 01a0dc0c29c7,
@@ -357,7 +368,7 @@ pre-commit: secret-scan fmt-check lint test
 	@echo "Pre-commit checks passed!"
 
 # CI checks (what CI would run)
-ci: fmt-check lint-all check-nomux test check-all check-line-counts
+ci: fmt-check lint-all check-nomux test check-all check-line-counts check-terminology
 	@echo "CI checks passed!"
 
 # Update dependencies

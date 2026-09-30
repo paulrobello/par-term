@@ -13,7 +13,8 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
 
-# Push/PR CI runs formatting, lint, and the no-mux type-check ONLY. The full `cargo test --workspace`
+# Push/PR CI runs formatting, the terminology gate, lint, the no-mux type-check,
+# and cargo-deny ONLY. The full `cargo test --workspace`
 # suite runs in the "Release and Deploy" workflow (release.yml) on all five
 # build legs — Linux x86_64/ARM64, macOS x86_64/ARM64, Windows x86_64 — so
 # re-running it here across three OSes is redundant compute. `make doc-check`
@@ -50,6 +51,10 @@ jobs:
 
     - name: Check formatting
       run: cargo fmt -- --check
+
+    - name: Check terminology
+      # UX.md T1-T8 vocabulary gate: python3 only, no build needed.
+      run: python3 scripts/check_terminology.py
 
     - name: Run clippy
       # Two passes: workspace tests/bins at default features (which include

@@ -631,9 +631,9 @@ non-empty widget text), `plugin_panel_set` (some panel plugin pushed a
 `SetOverlay`), `plugin_overlay_interactive` (some overlay is interactive),
 `plugin_overlay_focused` (an overlay currently holds focus),
 `plugin_overlay_event` (≥1 overlay event was delivered to a running
-overlay process this session), and `plugin_action_dispatched` (≥1 plugin
+overlay process since launch), and `plugin_action_dispatched` (≥1 plugin
 action invocation was successfully delivered to a running action process
-this session). The clock recipe runs the first two end-to-end from a clean
+since launch). The clock recipe runs the first two end-to-end from a clean
 XDG root — no user config is touched, and the final `file_empty` assert
 proves nothing leaked to the PTY:
 

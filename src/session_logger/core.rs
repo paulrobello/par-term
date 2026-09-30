@@ -307,9 +307,9 @@ impl SessionLogger {
             use std::os::unix::fs::OpenOptionsExt;
             opts.mode(0o600);
         }
-        let file = opts
-            .open(&output_path)
-            .with_context(|| format!("Failed to create session log file: {:?}", output_path))?;
+        let file = opts.open(&output_path).with_context(|| {
+            format!("Failed to create output recording file: {:?}", output_path)
+        })?;
         let writer = BufWriter::with_capacity(8192, file); // 8KB buffer
 
         // Initialize recording session for asciicast formats
@@ -365,7 +365,10 @@ impl SessionLogger {
         // handle, so restarting it would fail again on the next byte. Surface the
         // original error instead of pretending the restart worked.
         if let Some(ref e) = self.write_error {
-            return Err(anyhow::anyhow!("session log is not writable: {}", e));
+            return Err(anyhow::anyhow!(
+                "output recording file is not writable: {}",
+                e
+            ));
         }
 
         self.active = true;
@@ -414,9 +417,9 @@ impl SessionLogger {
 
         // Flush and close the writer
         if let Some(mut writer) = self.writer.take() {
-            writer
-                .flush()
-                .with_context(|| format!("Failed to flush session log: {:?}", self.output_path))?;
+            writer.flush().with_context(|| {
+                format!("Failed to flush output recording: {:?}", self.output_path)
+            })?;
         }
 
         log::info!("Session logging stopped: {:?}", self.output_path);
@@ -646,9 +649,9 @@ impl SessionLogger {
     /// Flush buffered data to disk.
     pub fn flush(&mut self) -> Result<()> {
         if let Some(ref mut writer) = self.writer {
-            writer
-                .flush()
-                .with_context(|| format!("Failed to flush session log: {:?}", self.output_path))?;
+            writer.flush().with_context(|| {
+                format!("Failed to flush output recording: {:?}", self.output_path)
+            })?;
         }
         Ok(())
     }

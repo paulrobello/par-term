@@ -37,7 +37,7 @@ Background shaders are full-screen post-processing effects applied to the termin
 | `blueprint_grid.glsl` | CAD-style grid that brightens around the cursor and active progress bars. |
 | `build_reactor.glsl` | Progress-aware reactor/core glow that charges with `iProgress.y` and vents on warnings/errors. |
 | `matrix_rain_2.glsl` | Less distracting full-content Matrix rain that avoids dense terminal text and reacts to typing bursts. |
-| `low_power_ambience.glsl` | Static-to-ultra-slow ambience intended for reduced frame cadence and battery-friendly sessions. |
+| `low_power_ambience.glsl` | Static-to-ultra-slow ambience intended for reduced frame cadence and battery-friendly use. |
 
 ### Animated Backgrounds
 

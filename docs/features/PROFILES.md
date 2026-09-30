@@ -1,6 +1,6 @@
 # Profiles
 
-par-term provides a profile system for saving and quickly launching terminal sessions with custom configurations, similar to iTerm2's profile system.
+par-term provides a profile system for saving and quickly launching shells with custom configurations, similar to iTerm2's profile system.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -50,7 +50,7 @@ graph TD
     Drawer[Profile Drawer]
     Modal[Profile Modal]
     Storage[profiles.yaml]
-    Session[Terminal Session]
+    Session[New Tab]
 
     Profiles --> Manager
     Manager --> Drawer
@@ -76,7 +76,7 @@ Each profile can customize the following:
 |---------|-------------|----------|
 | **Name** | Display name for the profile | Yes |
 | **Icon** | Nerd Font icon or custom text identifier | No |
-| **Working Directory** | Initial directory for the session | No |
+| **Working Directory** | Initial directory for the tab | No |
 | **Command** | Custom command (instead of default shell) | No |
 | **Command Arguments** | Arguments for the custom command | No |
 | **Tab Name** | Custom name for the terminal tab | No |
@@ -142,7 +142,7 @@ flowchart LR
     Toggle -->|Click| Drawer
     Drawer --> List
     Drawer --> Actions
-    Actions -->|Open| Launch[Launch Session]
+    Actions -->|Open| Launch[Launch Tab]
     Actions -->|Manage| Settings[Settings > Profiles]
 
     style Toggle fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
@@ -226,7 +226,7 @@ When opening a new terminal without a profile, par-term uses the configured star
 | Mode | Description |
 |------|-------------|
 | `home` | Start in home directory (default) |
-| `previous` | Start in last session's working directory |
+| `previous` | Start in the last used working directory |
 | `custom` | Start in a user-specified directory |
 
 ### Configuration
@@ -255,7 +255,7 @@ Directory selection follows this priority:
 3. **Startup directory mode** - Based on `startup_directory_mode` setting
 4. **Home directory** - Fallback if configured path doesn't exist
 
-> **📝 Note:** The `previous` mode requires shell integration to track directory changes during a session.
+> **📝 Note:** The `previous` mode requires shell integration to track directory changes while the shell runs.
 
 ## Auto-Switching
 

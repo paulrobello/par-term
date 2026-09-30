@@ -48,7 +48,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `MouseConfig` | Nested `Config` sub-struct for mouse behavior and bindings. |
 | `StatusBarConfig` | Nested `Config` sub-struct for status bar layout and widgets. |
 | `WindowConfig` | Nested `Config` sub-struct for window decoration and lifecycle settings. |
-| `TabSnapshot` | Shared snapshot type for session and arrangement persistence. |
+| `TabSnapshot` | Shared snapshot type for saved-windows and arrangement persistence. |
 | `ALLOWED_ENV_VARS` | Slice of environment variable names permitted in config `${VAR}` substitutions. |
 | `is_env_var_allowed(name)` | Returns `true` if `name` is on the substitution allowlist or has a permitted prefix. |
 | `substitute_variables(input)` | Expands `${VAR}` placeholders in a YAML string using the allowlist. |
@@ -91,14 +91,14 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `ModifierTarget` | Which physical modifier key a remapping targets. |
 | `OptionKeyMode` | How the Option/Alt key behaves: `Normal`, `Meta`, or `Esc`. |
 
-### Shell and Session
+### Shell and Restore
 
 | Type | Description |
 |------|-------------|
 | `ShellType` | Detected shell type (Bash, Zsh, Fish, PowerShell, etc.) with detection logic. |
 | `ShellExitAction` | What to do when the shell exits: `Close`, `Keep`, `RestartImmediately`, etc. |
 | `StartupDirectoryMode` | Where new tabs open: `Home`, `Previous`, or `Custom`. YAML: `home`, `previous`, `custom`. |
-| `SessionLogFormat` | Format for session recording: `Plain`, `Html`, or `Asciicast`. |
+| `SessionLogFormat` | Format for output recording: `Plain`, `Html`, or `Asciicast`. |
 
 ### Terminal Display
 
@@ -172,7 +172,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 
 | Type | Description |
 |------|-------------|
-| `Profile` | A named terminal session profile (shell, working directory, command, env vars). |
+| `Profile` | A named terminal profile (shell, working directory, command, env vars). |
 | `ProfileId` | UUID identifier for a profile. |
 | `ProfileManager` | Loads and saves the profile list from `profiles.yaml`. |
 | `ProfileSource` | Whether a profile is `Local` or `Dynamic` (fetched from a URL). |
@@ -341,7 +341,7 @@ Runtime-configurable keybinding registry.
 
 ## par-term-terminal
 
-Terminal session management, scrollback, and terminal state access.
+Terminal management, scrollback, and terminal state access.
 
 | Type | Description |
 |------|-------------|

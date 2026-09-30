@@ -75,7 +75,7 @@ impl WindowState {
                     for (_tab_id, tab_title, exit_notified) in &single_pane_exiting {
                         if !exit_notified {
                             log::info!("Shell in tab '{}' has exited", tab_title);
-                            let title = format!("Session Ended: {}", tab_title);
+                            let title = format!("Shell Exited: {}", tab_title);
                             let message = "The shell process has exited".to_string();
                             self.deliver_notification(&title, &message);
                         }

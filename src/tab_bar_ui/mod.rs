@@ -327,6 +327,20 @@ impl TabBarUI {
         None
     }
 
+    /// Open the inline rename field for `tab_id` at `pos` (UX.md TW6:
+    /// double-clicking a tab renames it). Reuses the context menu's rename
+    /// mode, so Enter submits and Escape or a click away cancels.
+    pub(crate) fn begin_rename(&mut self, tab_id: TabId, title: &str, pos: egui::Pos2, frame: u64) {
+        self.context_menu_tab = Some(tab_id);
+        self.context_menu_title = title.to_string();
+        self.context_menu_pos = pos;
+        self.context_menu_opened_frame = frame;
+        self.rename_activated_frame = frame;
+        self.renaming_tab = true;
+        self.picking_icon = false;
+        self.rename_buffer = title.to_string();
+    }
+
     /// Check if the tab rename text field is active
     pub fn is_renaming(&self) -> bool {
         self.renaming_tab && self.context_menu_tab.is_some()

@@ -50,7 +50,7 @@ impl WindowManager {
             window_size_from_config(&self.config.load(), 1.0).unwrap_or((800, 600));
 
         // Build window title, optionally including window number
-        let window_number = self.windows.len() + 1;
+        let window_number = self.next_window_number();
         let title = if self.config.load().placement.show_window_number {
             format!("{} [{}]", self.config.load().window_title, window_number)
         } else {
@@ -296,7 +296,7 @@ impl WindowManager {
             });
         }
 
-        let window_number = self.windows.len() + 1;
+        let window_number = self.next_window_number();
         let title = if self.config.load().placement.show_window_number {
             format!("{} [{}]", self.config.load().window_title, window_number)
         } else {

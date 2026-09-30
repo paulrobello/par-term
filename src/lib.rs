@@ -70,6 +70,7 @@ pub mod config_migration;
 pub mod copy_mode;
 pub mod crash_triage;
 pub mod font_metrics;
+pub(crate) mod help_content;
 pub mod help_ui;
 pub mod http;
 pub mod integrations_ui;

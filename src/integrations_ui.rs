@@ -393,7 +393,7 @@ impl IntegrationsUI {
                                         [INTEGRATIONS_BUTTON_WIDTH, INTEGRATIONS_BUTTON_HEIGHT],
                                         egui::Button::new("Skip"),
                                     )
-                                    .on_hover_text("Dismiss for this session")
+                                    .on_hover_text("Dismiss until par-term restarts")
                                     .clicked()
                                 {
                                     response.skipped = true;

@@ -1,6 +1,6 @@
 # Notifications
 
-par-term can raise desktop notifications in response to terminal events: the bell (`BEL`), activity/silence on a session, session exit, and application-driven notifications emitted via the OSC 9, OSC 777, and OSC 99 escape sequences. This document covers the application-driven paths; the bell and activity/silence options are listed in the [Configuration Reference](../CONFIG_REFERENCE.md#notifications).
+par-term can raise desktop notifications in response to terminal events: the bell (`BEL`), activity/silence in a tab, shell exit, and application-driven notifications emitted via the OSC 9, OSC 777, and OSC 99 escape sequences. This document covers the application-driven paths; the bell and activity/silence options are listed in the [Configuration Reference](../CONFIG_REFERENCE.md#notifications).
 
 ## Table of Contents
 

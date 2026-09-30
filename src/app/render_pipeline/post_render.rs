@@ -266,7 +266,7 @@ impl WindowState {
                     self.show_toast(format!("Failed to attach: {}", e));
                 } else {
                     crate::debug_info!("TMUX", "Gateway initiated for session '{}'", session_name);
-                    self.show_toast(format!("Connecting to session '{}'...", session_name));
+                    self.show_toast(format!("Connecting to tmux session '{}'...", session_name));
                 }
                 self.focus_state.needs_redraw = true;
             }
@@ -279,10 +279,10 @@ impl WindowState {
                 if let Err(e) = self.initiate_tmux_gateway(name.as_deref()) {
                     log::error!("Failed to create tmux session: {}", e);
                     crate::debug_error!("TMUX", "Failed to initiate gateway: {}", e);
-                    self.show_toast(format!("Failed to create session: {}", e));
+                    self.show_toast(format!("Failed to create tmux session: {}", e));
                 } else {
                     let msg = match name {
-                        Some(ref n) => format!("Creating session '{}'...", n),
+                        Some(ref n) => format!("Creating tmux session '{}'...", n),
                         None => "Creating new tmux session...".to_string(),
                     };
                     crate::debug_info!("TMUX", "Gateway initiated: {}", msg);

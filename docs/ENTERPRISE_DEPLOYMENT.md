@@ -30,7 +30,7 @@ This guide covers bulk installation, managed configuration, update policies, and
   - [Read-Only Shared Config](#read-only-shared-config)
 - [Security Considerations](#security-considerations)
   - [Automation and Trigger Safety](#automation-and-trigger-safety)
-  - [Session Logging](#session-logging)
+  - [Output Recording](#output-recording)
   - [AI Panel (ACP)](#ai-panel-acp)
 - [Troubleshooting Deployments](#troubleshooting-deployments)
 - [Related Documentation](#related-documentation)
@@ -373,13 +373,13 @@ par-term's [Automation](features/AUTOMATION.md) system can execute shell command
 
 To disable automation entirely in managed deployments, deploy a config with empty `triggers`, `coprocesses`, and `scripts` lists.
 
-### Session Logging
+### Output Recording
 
-[Session logging](features/SESSION_LOGGING.md) records raw terminal I/O to a local file. When enabled, it may capture passwords, API keys, and other sensitive data despite the built-in redaction heuristics.
+[Output recording](features/SESSION_LOGGING.md) records raw terminal I/O to a local file. When enabled, it may capture passwords, API keys, and other sensitive data despite the built-in redaction heuristics.
 
 For environments with data-handling requirements (PCI-DSS, HIPAA, SOC 2):
 
-- Disable session logging in the managed config: `auto_log_sessions: false`
+- Disable output recording in the managed config: `auto_log_sessions: false`
 - Or restrict the log directory permissions so only the owning user can read logs.
 - The `session_log_redact_passwords` option (default: `true`) applies heuristic redaction but is not a compliance-grade control.
 
@@ -411,6 +411,6 @@ The [AI panel](ASSISTANT_PANEL.md) launches AI coding agents (Claude Code, Codex
 - [Config Reference](CONFIG_REFERENCE.md) — All configuration options with defaults
 - [Environment Variables](guides/ENVIRONMENT_VARIABLES.md) — Variables recognized at startup
 - [Self-Update](features/SELF_UPDATE.md) — Built-in update behavior and how to disable it
-- [Session Logging](features/SESSION_LOGGING.md) — Log format, location, and redaction
+- [Output Recording](features/SESSION_LOGGING.md) — Recording format, location, and redaction
 - [Automation](features/AUTOMATION.md) — Trigger safety and command execution model
 - [Troubleshooting](guides/TROUBLESHOOTING.md) — Diagnosing common issues

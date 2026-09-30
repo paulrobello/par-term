@@ -170,35 +170,38 @@ pub(super) fn show_panes_section(
 
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Keyboard Shortcuts").weak().small());
-        #[cfg(target_os = "macos")]
-        {
-            ui.label(
-                egui::RichText::new("  Cmd+D: Horizontal split, Cmd+Shift+D: Vertical split")
-                    .weak()
-                    .small(),
-            );
-            ui.label(
-                egui::RichText::new("  Cmd+Option+Arrow: Navigate, Cmd+Option+Shift+Arrow: Resize")
-                    .weak()
-                    .small(),
-            );
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            ui.label(
-                egui::RichText::new(
-                    "  Ctrl+Shift+D: Horizontal split, Ctrl+Shift+E: Vertical split",
-                )
-                .weak()
-                .small(),
-            );
-            ui.label(
-                egui::RichText::new("  Ctrl+Alt+Arrow: Navigate, Ctrl+Alt+Shift+Arrow: Resize")
-                    .weak()
-                    .small(),
-            );
+        // DOC13: the live bindings, so a rebind shows here and an unbound
+        // action is left out rather than advertised.
+        for line in pane_shortcut_lines(&settings.config.keybindings) {
+            ui.label(egui::RichText::new(format!("  {line}")).weak().small());
         }
     });
+}
+
+/// Pane actions listed under the Panes section's shortcut hint, in order.
+const PANE_HINT_ACTIONS: &[(&str, &str)] = &[
+    ("split_right", "Split right"),
+    ("split_down", "Split down"),
+    ("close_pane", "Close pane"),
+    ("navigate_pane_left", "Focus left (arrows likewise)"),
+    ("resize_pane_left", "Resize left (arrows likewise)"),
+    ("swap_pane_left", "Swap left (arrows likewise)"),
+    ("select_pane_hint", "Select pane by letter"),
+    ("toggle_broadcast_input", "Broadcast input"),
+];
+
+/// `"<chord>: <label>"` for each pane action `keybindings` binds. An
+/// action's first binding is its primary chord.
+fn pane_shortcut_lines(keybindings: &[par_term_config::KeyBinding]) -> Vec<String> {
+    PANE_HINT_ACTIONS
+        .iter()
+        .filter_map(|(action, label)| {
+            keybindings
+                .iter()
+                .find(|kb| kb.action == *action)
+                .map(|kb| format!("{}: {label}", crate::input_tab::display_key_combo(&kb.key)))
+        })
+        .collect()
 }
 
 pub(super) fn show_pane_appearance_section(
@@ -373,4 +376,20 @@ pub(super) fn show_pane_appearance_section(
             });
         },
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pane_shortcut_lines;
+    use par_term_config::KeyBinding;
+
+    /// DOC13: the hint shows the live chord and omits unbound actions.
+    #[test]
+    fn pane_hint_reads_the_live_bindings() {
+        let lines = pane_shortcut_lines(&[KeyBinding {
+            key: "F9".to_string(),
+            action: "split_right".to_string(),
+        }]);
+        assert_eq!(lines, ["F9: Split right"]);
+    }
 }

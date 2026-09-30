@@ -21,18 +21,17 @@
 //!
 //! This test module covers fixes from the tab-stability branch:
 //!
-//! ## Tab Numbering by Position
+//! ## Stable Default Tab Numbers (UX.md TW10)
 //!
-//! Tabs now display "Tab 1", "Tab 2", etc. based on their position in the tab bar,
-//! not their unique internal ID. When tabs are closed or reordered, tabs with
-//! default titles (not set by OSC sequences or user) get renumbered automatically.
+//! Tabs display "Tab 1", "Tab 2", etc. A new tab takes the lowest number no
+//! other tab in the window holds, and keeps it: closing or reordering other
+//! tabs never renumbers it. Unit tests live in `src/tab/manager.rs`.
 //!
 //! ### Key behaviors:
-//! - New tabs get numbered based on current tab count, not unique ID
+//! - New tabs take the lowest free number, not the unique ID or position
 //! - `has_default_title` tracks whether title was set via OSC/CWD or is still "Tab N"
-//! - Closing a tab triggers renumbering of remaining default-titled tabs
-//! - Reordering tabs triggers renumbering of default-titled tabs
-//! - Tabs with custom titles (from OSC sequences) are NOT renumbered
+//! - Closing or reordering tabs leaves other tabs' numbers unchanged
+//! - A tab moved in from another window keeps its number unless it is taken
 //!
 //! ## Content Offset for Tab Bar
 //!
@@ -300,20 +299,14 @@ fn test_keyboard_focus_prevention_documented() {
     assert!(matches!(action, TabBarAction::SwitchTo(1)));
 }
 
-/// Verify that tab renumbering behavior is documented correctly.
+/// Verify that tab numbering behavior is documented correctly.
 #[test]
 fn test_tab_renumbering_documented() {
-    // This test documents the tab renumbering behavior
-    //
-    // When a tab with default title "Tab N" is closed or reordered:
-    //   1. All remaining tabs with has_default_title=true get renumbered
-    //   2. Renumbering is based on position (index + 1)
-    //   3. Tabs with custom titles (has_default_title=false) are unchanged
-    //
-    // This ensures users see "Tab 1, Tab 2, Tab 3" not "Tab 1, Tab 3, Tab 4"
-    // after closing Tab 2.
+    // UX.md TW10: when a tab is closed or reordered, the remaining tabs keep
+    // their "Tab N" numbers; the next new tab takes the lowest free number.
+    // The behavior is unit-tested in src/tab/manager.rs.
 
-    // Verify that Reorder action can be created (used for triggering renumbering)
+    // Verify that Reorder action can be created
     let action = TabBarAction::Reorder(1, 0);
     assert!(matches!(action, TabBarAction::Reorder(1, 0)));
 }
@@ -430,24 +423,24 @@ fn test_tab_numbering_on_creation() {
     // Even if internal IDs are 1, 2, 3 or any other sequence
 }
 
-/// Test that closing a middle tab renumbers subsequent tabs
+/// Test that closing a middle tab leaves the other numbers alone (UX.md TW10)
 #[test]
 #[ignore = "Requires PTY for tab creation"]
 fn test_tab_renumbering_on_close() {
     // This test would verify:
     // - Create tabs "Tab 1", "Tab 2", "Tab 3"
     // - Close "Tab 2" (middle)
-    // - Remaining tabs should be "Tab 1", "Tab 2" (renumbered from former Tab 3)
+    // - Remaining tabs stay "Tab 1", "Tab 3"; the next new tab is "Tab 2"
 }
 
-/// Test that reordering tabs renumbers default titles
+/// Test that reordering tabs keeps default titles (UX.md TW10)
 #[test]
 #[ignore = "Requires PTY for tab creation"]
 fn test_tab_renumbering_on_reorder() {
     // This test would verify:
     // - Create tabs "Tab 1", "Tab 2", "Tab 3"
     // - Move "Tab 3" to position 0
-    // - Tabs should be "Tab 1", "Tab 2", "Tab 3" (based on new positions)
+    // - Tabs read "Tab 3", "Tab 1", "Tab 2" (numbers travel with the tabs)
 }
 
 /// Test that OSC-titled tabs are not renumbered

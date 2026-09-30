@@ -178,6 +178,50 @@ graph TD
 - Use product, command, and package names exactly as they appear in the project
 - Avoid jokes, idioms, or culture-specific phrases in technical instructions
 
+#### par-term Vocabulary (UX.md T1-T8)
+
+Every user-visible string, doc, and action label uses one word per concept. Code identifiers and config keys keep their names (`restore_session`, `session_undo_*`, `session_log`, `toggle_session_logging`, `\(session.*)` badge variables); only labels and prose follow this table.
+
+| Word | Means | Never use it for |
+|------|-------|------------------|
+| **Window** | An OS window | A par-mux or tmux daemon window |
+| **Tab** | A tab in a window's tab bar. In an attached window a tab *is* a daemon window. | |
+| **Pane** | A split region inside a tab | |
+| **Session** | Only a par-mux or tmux session: a named, persistent set of tabs owned by a daemon or server | A tab, a shell, the saved set of windows, the closed-tab undo stack, or a recording |
+| **Attached / local** | A tab backed by a par-mux session (survives quit) / a tab that dies with par-term | |
+
+Retired phrases and their replacements:
+
+| Retired | Use instead |
+|---------|-------------|
+| session restore, restore previous session | restore windows on launch |
+| session undo | reopen closed tab |
+| preserve shell session | keep the shell running |
+| session logging, session log, session recording | output recording, recording |
+| terminal session, shell session, active sessions | shell, tab, terminal output, open tabs |
+| Session Ended: (notification) | Shell Exited: |
+
+The bridging table for par-mux and tmux, also in [par-mux](features/MUX.md):
+
+| par-term says | par-mux / tmux says |
+|---------------|---------------------|
+| Window (attached) | Client |
+| Tab | Window |
+| Pane | Pane |
+| Session | Session |
+
+**par-mux paths never say "tmux"** (T8). Sources that serve only par-mux are scanned for the word. Sources shared with the tmux gateway choose their wording at runtime with `is_mux_attached()`, which a file scan cannot see; each one is listed here and must keep its branch:
+
+| Shared site | par-mux wording | tmux gateway wording |
+|-------------|-----------------|----------------------|
+| `notifications/session.rs` `handle_tmux_session_ended` toast | par-mux: daemon connection lost | tmux: Session ended |
+| `notifications/session.rs` `update_window_title_with_tmux` | `[mux: name]` | `[tmux: name]` |
+| `notifications/flow_control.rs` error notification title | par-mux error | tmux Error |
+| `notifications/flow_control.rs` pause / resume toasts | Output paused / Output resumed | same |
+| `notifications/window.rs`, `layout_new_tab.rs` placeholder tab title | par-mux @N | tmux @N |
+
+`make check-terminology` (`scripts/check_terminology.py`, also run by `make ci` and push CI) enforces the retired-phrase list and the par-mux-only scan. Upgrade notes that must quote an old label belong in [MIGRATION.md](guides/MIGRATION.md), which the gate exempts.
+
 ### Procedural Writing
 
 For step-by-step instructions:
@@ -284,7 +328,7 @@ example-cli validate config.yaml
 example-cli deploy --dry-run
 ```
 
-Use prompts only for transcripts or interactive sessions.
+Use prompts only for transcripts or interactive runs.
 
 ```text
 $ example-cli status

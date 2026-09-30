@@ -80,6 +80,8 @@ pub enum MenuAction {
     Minimize,
     /// Zoom/maximize the window
     Zoom,
+    /// Toggle the focused window's always-on-top level (UX.md A20)
+    ToggleAlwaysOnTop,
 
     // Help menu
     /// Show keyboard shortcuts help
@@ -143,6 +145,7 @@ impl MenuAction {
             Self::ToggleBackgroundShader => "toggle_background_shader",
             Self::ToggleCursorShader => "toggle_cursor_shader",
             Self::ReloadConfig => "reload_config",
+            Self::ToggleAlwaysOnTop => "toggle_always_on_top",
             Self::SwitchToTab(n) => {
                 return Some(std::borrow::Cow::Owned(format!("switch_to_tab_{n}")));
             }

@@ -326,6 +326,23 @@ impl TabBarUI {
             action = TabBarAction::Close(id);
         }
 
+        // UX.md TW7: middle-click closes the tab, the browser convention.
+        if tab_response.clicked_by(egui::PointerButton::Middle) {
+            action = TabBarAction::Close(id);
+        }
+
+        // UX.md TW6: double-clicking a tab opens its inline rename.
+        if tab_response.double_clicked_by(egui::PointerButton::Primary) {
+            self.editing_color = custom_color.unwrap_or([100, 100, 100]);
+            self.context_menu_icon = custom_icon.map(|s| s.to_string());
+            self.icon_buffer = custom_icon.unwrap_or("").to_string();
+            let pos = ui
+                .ctx()
+                .input(|i| i.pointer.interact_pos())
+                .unwrap_or(tab_rect.left_bottom());
+            self.begin_rename(id, title, pos, ui.ctx().cumulative_frame_nr());
+        }
+
         if tab_response.secondary_clicked() {
             self.editing_color = custom_color.unwrap_or([100, 100, 100]);
             self.context_menu_tab = Some(id);

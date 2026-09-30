@@ -12,7 +12,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Keyboard Shortcuts](guides/KEYBOARD_SHORTCUTS.md) | Complete reference for all keyboard shortcuts, customizable keybindings, and available actions |
 | [Mouse Features](features/MOUSE_FEATURES.md) | Text selection, URL handling, cursor positioning, and semantic history via mouse |
 | [Integrations](features/INTEGRATIONS.md) | Shell integration setup, shader collection, and third-party tool support |
-| [Profiles](features/PROFILES.md) | Profile system for saving and launching terminal sessions with custom configurations |
+| [Profiles](features/PROFILES.md) | Profile system for saving and launching shells with custom configurations |
 | [Agent Skill](../skills/par-term/SKILL.md) | SKILL.md teaching coding agents to configure and extend par-term (install: `cp -r skills/par-term ~/.claude/skills/`) |
 
 ## User Guides
@@ -32,14 +32,14 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Semantic History](features/SEMANTIC_HISTORY.md) | Click file paths in terminal output to open them in your editor |
 | [Command Separators](features/COMMAND_SEPARATORS.md) | Visual separator lines between shell commands using shell integration |
 
-## Window & Session Management
+## Windows, Tabs, and Restore
 
 | Document | Description |
 |----------|-------------|
 | [Window Management](features/WINDOW_MANAGEMENT.md) | Edge-anchored windows, multi-monitor support, and window behavior |
 | [Window Arrangements](features/ARRANGEMENTS.md) | Save and restore complete window layouts including positions, sizes, and tabs |
-| [Session Management](features/SESSION_MANAGEMENT.md) | Reopen closed tabs and restore complete session state on startup |
-| [Session Logging](features/SESSION_LOGGING.md) | Record terminal output for review, sharing, or playback |
+| [Restoring Windows and Reopening Tabs](features/SESSION_MANAGEMENT.md) | Reopen closed tabs and restore every window on launch |
+| [Output Recording](features/SESSION_LOGGING.md) | Record terminal output for review, sharing, or playback |
 | [par-mux Sessions](features/MUX.md) | Daemon-owned sessions with detach/reattach, seeding, and an agent roster |
 
 ## Visual Customization
@@ -49,8 +49,8 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Custom Shaders Guide](features/CUSTOM_SHADERS.md) | Writing custom GLSL shaders for background effects and post-processing |
 | [Included Shaders](features/SHADERS.md) | Gallery of 73 ready-to-use GLSL shaders (61 background + 12 cursor) |
 | [Compositor](architecture/COMPOSITOR.md) | GPU compositor architecture, rendering layers, transparency, and shader integration |
-| [Badges](features/BADGES.md) | Dynamic session information overlays with variable substitution |
-| [Status Bar](features/STATUS_BAR.md) | Configurable status bar with widgets for session info and system metrics |
+| [Badges](features/BADGES.md) | Dynamic shell information overlays with variable substitution |
+| [Status Bar](features/STATUS_BAR.md) | Configurable status bar with widgets for shell info and system metrics |
 | [Progress Bars](features/PROGRESS_BARS.md) | Thin overlay progress bars driven by OSC escape sequences |
 
 ## Configuration & Preferences
@@ -67,7 +67,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 |----------|-------------|
 | [Automation](features/AUTOMATION.md) | Triggers, actions, coprocesses, and observer scripts for terminal automation |
 | [Assistant Panel](ASSISTANT_PANEL.md) | DevTools-style panel for terminal inspection and ACP agent chat (Claude, Ollama) |
-| [Notifications](features/NOTIFICATIONS.md) | Desktop notifications for the bell, session activity/silence, and OSC 9/777/99 escape sequences |
+| [Notifications](features/NOTIFICATIONS.md) | Desktop notifications for the bell, tab activity/silence, and OSC 9/777/99 escape sequences |
 | [Plugins](features/PLUGINS.md) | Status-bar widgets, custom actions, and Settings panels contributed by user scripts |
 | [Agent Usage](features/AGENT_USAGE.md) | Coding-agent token/cost usage panel driven by snapshot files in a watched directory |
 | [Crash Triage](features/CRASH_TRIAGE.md) | Captures crashed panes, plugin crash-caps, and the previous run's panic as palette rows that hand the context to an agent |

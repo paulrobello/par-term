@@ -82,8 +82,7 @@ impl TabManager {
         let id = self.next_tab_id;
         self.next_tab_id += 1;
 
-        // Tab number is based on current count, not unique ID
-        let tab_number = self.tabs.len() + 1;
+        let tab_number = self.next_default_number();
         let tab = Tab::new(id, tab_number, config, runtime, working_dir, grid_size)?;
         self.tabs.push(tab);
 
@@ -108,7 +107,7 @@ impl TabManager {
         let id = self.next_tab_id;
         self.next_tab_id += 1;
 
-        let tab_number = self.tabs.len() + 1;
+        let tab_number = self.next_default_number();
         let tab = Tab::new(id, tab_number, config, runtime, working_dir, grid_size)?;
         self.tabs.push(tab);
 
@@ -343,10 +342,29 @@ impl TabManager {
         id
     }
 
-    /// Renumber tabs that have default titles based on their current position
+    /// The lowest "Tab N" number no tab in this window holds.
+    pub(super) fn next_default_number(&self) -> usize {
+        (1..)
+            .find(|n| !self.tabs.iter().any(|t| t.default_number == *n))
+            .unwrap_or(1)
+    }
+
+    /// Refresh default "Tab N" titles from each tab's stored number (UX.md
+    /// TW10: closing or moving another tab never renumbers this one). A tab
+    /// with no number, or one whose number another tab already holds (a tab
+    /// moved in from another window), gets the lowest free number.
     pub(super) fn renumber_default_tabs(&mut self) {
-        for (idx, tab) in self.tabs.iter_mut().enumerate() {
-            tab.set_default_title(idx + 1);
+        for idx in 0..self.tabs.len() {
+            let number = self.tabs[idx].default_number;
+            let taken = self.tabs[..idx].iter().any(|t| t.default_number == number);
+            if number == 0 || taken {
+                self.tabs[idx].default_number = 0;
+                self.tabs[idx].default_number = self.next_default_number();
+            }
+        }
+        for tab in &mut self.tabs {
+            let number = tab.default_number;
+            tab.set_default_title(number);
         }
     }
 
@@ -483,8 +501,7 @@ impl TabManager {
         let id = self.next_tab_id;
         self.next_tab_id += 1;
 
-        // Tab number is based on current count, not unique ID
-        let tab_number = self.tabs.len() + 1;
+        let tab_number = self.next_default_number();
         let mut tab = Tab::new(id, tab_number, config, runtime, working_dir, grid_size)?;
 
         // Copy tab color from source
@@ -515,7 +532,7 @@ impl TabManager {
     ) -> TabId {
         let id = self.next_tab_id;
         self.next_tab_id += 1;
-        let tab_number = self.tabs.len() + 1;
+        let tab_number = self.next_default_number();
         let tab = crate::tab::Tab::new_from_pane(id, pane, config, runtime, tab_number);
 
         let insert_idx = insert_after
@@ -596,6 +613,46 @@ mod tests {
             mgr.active_tab_id = Some(*last);
         }
         mgr
+    }
+
+    fn titles(mgr: &TabManager) -> Vec<String> {
+        mgr.tabs.iter().map(|t| t.title.clone()).collect()
+    }
+
+    /// UX.md TW10: closing or moving a tab leaves the others' default
+    /// titles alone, and a new tab takes the lowest free number.
+    #[test]
+    fn default_titles_do_not_renumber() {
+        let mut mgr = manager_with_ids(&[1, 2, 3]);
+        mgr.close_tab(2);
+        assert_eq!(titles(&mgr), ["Tab 1", "Tab 3"]);
+        mgr.move_tab(3, -1);
+        assert_eq!(titles(&mgr), ["Tab 3", "Tab 1"]);
+        assert_eq!(mgr.next_default_number(), 2);
+    }
+
+    /// A tab arriving from another window keeps its number unless a tab
+    /// here already holds it.
+    #[test]
+    fn inserted_tab_with_a_taken_number_gets_the_lowest_free_one() {
+        let mut mgr = manager_with_ids(&[1, 2, 3]);
+        mgr.close_tab(1);
+        let incoming = Tab::new_stub(9, 3);
+        let _ = mgr.insert_tab_at(incoming, 2);
+        assert_eq!(titles(&mgr), ["Tab 2", "Tab 3", "Tab 1"]);
+    }
+
+    /// UX.md TW9: keyboard tab moves stop at the ends instead of wrapping.
+    #[test]
+    fn move_tab_stops_at_the_ends() {
+        let mut mgr = manager_with_ids(&[1, 2, 3]);
+        mgr.move_tab(1, -1);
+        mgr.move_tab(3, 1);
+        let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![1, 2, 3]);
+        mgr.move_tab(1, 1);
+        let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![2, 1, 3]);
     }
 
     #[test]

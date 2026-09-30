@@ -1,6 +1,6 @@
 //! Startup section for the terminal settings tab.
 //!
-//! Covers: restore session, undo close tab, initial text, delay, newline.
+//! Covers: restore windows on launch, reopen closed tab, initial text, delay, newline.
 
 use crate::SettingsUI;
 use crate::section::collapsing_section;
@@ -16,7 +16,7 @@ pub(super) fn show_startup_section(
         if ui
             .checkbox(
                 &mut settings.config.session_restore.restore_session,
-                "Restore previous session on startup",
+                "Restore windows on launch",
             )
             .on_hover_text(
                 "When enabled, par-term will save your open tabs, pane layouts, and working\n\
@@ -31,7 +31,7 @@ pub(super) fn show_startup_section(
         ui.add_space(8.0);
 
         ui.horizontal(|ui| {
-            ui.label("Undo close tab timeout:");
+            ui.label("Reopen closed tab for:");
             if ui
                 .add(
                     egui::DragValue::new(
@@ -69,11 +69,11 @@ pub(super) fn show_startup_section(
         if ui
             .checkbox(
                 &mut settings.config.session_restore.session_undo_preserve_shell,
-                "Preserve shell session on close",
+                "Keep the shell running while a closed tab can be reopened",
             )
             .on_hover_text(
                 "When enabled, closing a tab hides the shell instead of killing it.\n\
-                 Undo restores the full session with scrollback and running processes.\n\
+                 Reopening restores the tab with its scrollback and running processes.\n\
                  Uses more memory while hidden tabs are kept alive.",
             )
             .changed()
@@ -83,7 +83,7 @@ pub(super) fn show_startup_section(
         }
 
         ui.add_space(8.0);
-        ui.label("Initial text to send when a session starts:");
+        ui.label("Initial text to send when a new shell starts:");
         if ui
             .text_edit_multiline(&mut settings.temp_initial_text)
             .changed()

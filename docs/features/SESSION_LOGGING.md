@@ -1,6 +1,6 @@
-# Session Logging
+# Output Recording
 
-Record terminal sessions for later review, debugging, or sharing with support for multiple formats and built-in sensitive data redaction.
+Record terminal output for later review, debugging, or sharing with support for multiple formats and built-in sensitive data redaction.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -15,12 +15,12 @@ Record terminal sessions for later review, debugging, or sharing with support fo
 
 ## Overview
 
-Session logging captures terminal output in multiple formats:
+Output recording captures terminal output in multiple formats:
 
 ```mermaid
 graph TD
-    Session[Terminal Session]
-    Logger[Session Logger]
+    Session[Terminal]
+    Logger[Output Recorder]
     Plain[Plain Text .txt]
     HTML[HTML .html]
     Asciicast[Asciicast .cast]
@@ -92,7 +92,7 @@ Press `Cmd+Shift+R` (macOS) or `Ctrl+Shift+R` (Windows/Linux) to toggle recordin
 
 ### Method 2: CLI Flag
 
-Start par-term with session logging enabled:
+Start par-term with output recording enabled:
 
 ```bash
 par-term --log-session
@@ -100,7 +100,7 @@ par-term --log-session
 
 ### Method 3: Auto-Logging
 
-Enable automatic logging for all sessions in your configuration:
+Enable automatic recording for every tab in your configuration:
 
 ```yaml
 # ~/.config/par-term/config.yaml
@@ -111,14 +111,14 @@ auto_log_sessions: true
 
 1. Press `F12` to open Settings
 2. Navigate to **Advanced** tab
-3. Check **Enable automatic session logging**
+3. Check **Record every tab's output automatically**
 
 ## Configuration
 
 Add these options to `~/.config/par-term/config.yaml`:
 
 ```yaml
-# Enable/disable automatic logging for all sessions
+# Enable/disable automatic recording for every tab
 auto_log_sessions: false
 
 # Log format: plain, html, asciicast (default), or asciicast_v3
@@ -137,15 +137,15 @@ The Advanced tab in Settings provides:
 
 | Option | Description |
 |--------|-------------|
-| **Enable automatic session logging** | Auto-start logging for new tabs |
+| **Record every tab's output automatically** | Auto-start recording for new tabs |
 | **Log format** | Dropdown: Plain Text, HTML, Asciicast (asciinema) |
 | **Log directory** | Path to log storage directory |
-| **Archive session on tab close** | Ensure clean file write on close |
-| **Redact passwords in session logs** | Detect password prompts and replace input with redaction marker |
+| **Archive recording on tab close** | Ensure clean file write on close |
+| **Redact passwords in recordings** | Detect password prompts and replace input with redaction marker |
 
 ## Security: Sensitive Data Redaction
 
-Session logs capture raw terminal output, which may include passwords and other credentials. Keyboard input is never recorded. When `session_log_redact_passwords` is enabled (default), the logger applies two layers of heuristic protection:
+Recordings capture raw terminal output, which may include passwords and other credentials. Keyboard input is never recorded. When `session_log_redact_passwords` is enabled (default), the logger applies two layers of heuristic protection:
 
 ### Input Redaction (Password Prompts)
 
@@ -186,7 +186,7 @@ Detected output patterns include:
 >   screenshot) is captured verbatim. This gap applies to the
 >   `asciicast_v3` format only.
 
-**Recommendation:** If you regularly work with sensitive credentials, disable session logging for those sessions. Do not rely solely on redaction as a security control.
+**Recommendation:** If you regularly work with sensitive credentials, disable output recording for those tabs. Do not rely solely on redaction as a security control.
 
 ## File Locations
 

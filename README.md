@@ -62,7 +62,7 @@ par-mux sessions, a command palette, plugins, and agent tooling. par-term can no
 - **Command palette** — a fuzzy launcher over every bindable action (bind `toggle_command_palette`; no default chord).
 - **Plugin system** — git-installed plugins that add status-bar widgets, custom actions, Settings panels, and interactive overlays. See [PLUGINS.md](docs/features/PLUGINS.md).
 - **Agent usage panel** and **agent-authored commands** — usage/cost snapshots in the status bar, and commands agents create over MCP that appear in the palette.
-- **Asciicast v3 session logging**, a renderer fix for strobing after display changes, and a `warn` default log level.
+- **Asciicast v3 output recording**, a renderer fix for strobing after display changes, and a `warn` default log level.
 
 ### 0.45.2
 
@@ -156,7 +156,7 @@ The result of a full security, architecture, quality and documentation audit —
 **Added**
 
 - **Linux has a menu bar** -- New Window, Close Window, Quit and Select All were menu-only actions on a platform with no menu, so there was no way to reach them at all. All four are now bindable on every platform.
-- **The session survives a panic** -- the event loop publishes a pre-serialized capture every few seconds and the panic hook writes it, so a crash no longer costs every tab its working directory.
+- **Your windows survive a panic** -- the event loop publishes a pre-serialized capture every few seconds and the panic hook writes it, so a crash no longer costs every tab its working directory.
 - **Duplicate Tab has a default binding** (`Cmd/Ctrl+Shift+J`), and tab reordering appears in the menu.
 - **`XDG_CONFIG_HOME` is honoured on Linux and macOS**, and macOS user data moves under `~/.config/par-term/` with a one-time automatic migration.
 
@@ -173,10 +173,10 @@ The result of a full security, architecture, quality and documentation audit —
 
 ### Core Terminal Frontend
 - **Cross-platform Support**: Native performance on macOS (Metal), Linux (Vulkan/X11/Wayland), and Windows (DirectX 12).
-- **Multi-Window & Multi-Tab**: Multiple windows with independent tab sessions per window.
+- **Multi-Window & Multi-Tab**: Multiple windows with independent tabs per window.
 - **GPU-Accelerated Rendering**: Powered by `wgpu` with custom glyph atlas for blazing-fast text rasterization.
 - **Inline Graphics**: Full support for Sixel, iTerm2, and Kitty graphics protocols.
-- **Real PTY Integration**: Full pseudo-terminal support for interactive shell sessions.
+- **Real PTY Integration**: Full pseudo-terminal support for interactive shells.
 - **Advanced Sequence Support**: VT100/VT220/VT320/VT420/VT520 compatibility via `par-term-emu-core-rust`.
 - **Intelligent Reflow**: Full content reflow on window resize, preserving scrollback and visible state.
 
@@ -235,7 +235,7 @@ The result of a full security, architecture, quality and documentation audit —
 - **[Semantic History](docs/features/SEMANTIC_HISTORY.md)** - Click file paths to open in your editor.
 - **[Automation](docs/features/AUTOMATION.md)** - Regex triggers, actions, and coprocesses.
 - **[Profiles](docs/features/PROFILES.md)** - Profile system for saving terminal configurations.
-- **[Session Logging](docs/features/SESSION_LOGGING.md)** - Recording sessions in Plain/HTML/Asciicast formats.
+- **[Output Recording](docs/features/SESSION_LOGGING.md)** - Recording terminal output in Plain/HTML/Asciicast formats.
 - **[Search](docs/features/SEARCH.md)** - Terminal search with regex, case-sensitive, and whole-word modes.
 - **[Paste Special](docs/features/PASTE_SPECIAL.md)** - 29 clipboard transformations for pasting.
 - **[Copy Mode](docs/features/COPY_MODE.md)** - Vi-style keyboard-driven text selection and navigation.

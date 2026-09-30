@@ -35,19 +35,19 @@ field uses its documented default value.
 - [tmux Integration](#tmux-integration)
 - [Notifications](#notifications)
 - [SSH](#ssh)
-- [Session Logging](#session-logging)
+- [Output Recording](#output-recording)
 - [Search](#search)
 - [Status Bar](#status-bar)
 - [Agent Usage](#agent-usage)
 - [Agents (Launcher)](#agents-launcher)
 - [Progress Bar](#progress-bar)
-- [Badge (Session Label)](#badge-session-label)
+- [Badge](#badge)
 - [Automation & Scripting](#automation--scripting)
 - [AI Inspector](#ai-inspector)
 - [Update Checking](#update-checking)
 - [Security](#security)
 - [Settings UI](#settings-ui)
-- [Sessions & Arrangements](#sessions--arrangements)
+- [Restore & Arrangements](#restore--arrangements)
 - [Profiles](#profiles)
 - [Command Separator Lines](#command-separator-lines)
 - [Debug Logging](#debug-logging)
@@ -331,11 +331,11 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `shell_args` | `[string]?` | `null` | Arguments to pass to the shell |
 | `login_shell` | `bool` | `true` | Launch shell as login shell (`-l` flag) |
 | `shell_exit_action` | `enum` | `close` | On shell exit: `close`, `keep`, `restart_immediately`, `restart_with_prompt`, `restart_after_delay` |
-| `startup_directory_mode` | `enum` | `home` | Where new sessions start: `home`, `previous`, `custom` |
+| `startup_directory_mode` | `enum` | `home` | Where new shells start: `home`, `previous`, `custom` |
 | `startup_directory` | `string?` | `null` | Custom startup directory (when mode is `custom`) |
 | `working_directory` | `string?` | `null` | Legacy startup directory override |
 | `shell_env` | `{string:string}?` | `null` | Extra environment variables for the shell |
-| `initial_text` | `string` | `""` | Text sent to shell on session start |
+| `initial_text` | `string` | `""` | Text sent to shell when a new shell starts |
 | `initial_text_delay_ms` | `u64` | `100` | Delay before sending initial text (ms) |
 | `initial_text_send_newline` | `bool` | `true` | Append newline after initial text |
 | `answerback_string` | `string` | `""` | Response to ENQ (terminal identification, disabled by default) |
@@ -466,7 +466,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `notification_activity_threshold` | `u64` | `10` | Seconds of inactivity before activity alert fires |
 | `notification_silence_enabled` | `bool` | `false` | Notify after prolonged silence |
 | `notification_silence_threshold` | `u64` | `300` | Seconds of silence before alert fires (5 minutes) |
-| `notification_session_ended` | `bool` | `false` | Notify when session exits |
+| `notification_session_ended` | `bool` | `false` | Notify when a shell exits |
 | `suppress_notifications_when_focused` | `bool` | `true` | Suppress desktop notifications when window is focused |
 | `notification_max_buffer` | `usize` | `64` | Max OSC 9/777 notifications retained |
 | `alert_sounds` | `{event: config}` | `{}` | Per-event sound config: keys are `bell`, `command_complete`, `new_tab`, `tab_close` |
@@ -487,14 +487,14 @@ Override shader settings per-file. Keys are shader filenames (without path).
 
 ---
 
-## Session Logging
+## Output Recording
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `auto_log_sessions` | `bool` | `false` | Automatically record all terminal sessions |
+| `auto_log_sessions` | `bool` | `false` | Automatically record every tab's output |
 | `session_log_format` | `enum` | `asciicast` | Log format: `plain`, `html`, `asciicast`, `asciicast_v3` |
-| `session_log_directory` | `string` | `"~/.local/share/par-term/logs/"` | Directory for session log files |
-| `session_log_redact_passwords` | `bool` | `true` | Redact password prompt input in session logs |
+| `session_log_directory` | `string` | `"~/.local/share/par-term/logs/"` | Directory for recording files |
+| `session_log_redact_passwords` | `bool` | `true` | Redact password prompt input in recordings |
 
 ---
 
@@ -600,7 +600,7 @@ and types the command into the new daemon pane.
 
 ---
 
-## Badge (Session Label)
+## Badge
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -684,11 +684,11 @@ and types the command into the new daemon pane.
 
 ---
 
-## Sessions & Arrangements
+## Restore & Arrangements
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `restore_session` | `bool` | `false` | Restore previous session (tabs, panes, CWDs) on startup |
+| `restore_session` | `bool` | `false` | Restore windows (tabs, panes, CWDs) on launch |
 | `auto_restore_arrangement` | `string?` | `null` | Name of arrangement to auto-restore on startup |
 | `session_undo_timeout_secs` | `u32` | `5` | Seconds to keep closed tab metadata for undo (0=disabled) |
 | `session_undo_max_entries` | `usize` | `10` | Maximum closed tabs remembered for undo |
@@ -745,7 +745,7 @@ dynamic_profile_sources:
 - [Snippets & Actions](features/SNIPPETS.md) — Full field reference for snippets, actions, and keybindings
 - [Profiles](features/PROFILES.md) — Per-profile configuration and dynamic profile sources
 - [SSH Support](features/SSH.md) — SSH host discovery and profile switching
-- [Session Management](features/SESSION_MANAGEMENT.md) — Session save/restore and undo
+- [Restoring Windows and Reopening Tabs](features/SESSION_MANAGEMENT.md) — Restore windows on launch and reopen closed tabs
 - [Automation](features/AUTOMATION.md) — Triggers, coprocesses, and observer scripts
 - [Assistant Panel](ASSISTANT_PANEL.md) — AI Inspector and ACP agent configuration
 - [Logging](LOGGING.md) — Debug logging categories and DEBUG_LEVEL values

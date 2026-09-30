@@ -1,5 +1,7 @@
 # par-mux Integration
 
+> A **window** holds **tabs**; a tab holds **panes**. A window can be **attached** to one par-mux **session**, in which case its tabs live in the daemon and survive quitting par-term. **Detach** leaves them running; **End session** ends them.
+
 par-term can attach to [par-mux](https://github.com/paulrobello/par-mux) sessions: a par-term window becomes a client of a session owned by the par-mux daemon, with one tab per session window, so your windows, panes, and running programs keep running when you close the window, detach, or quit par-term itself. Reattach later — even after a crash — and every pane is reseeded with its live screen before new output arrives. Closing a **tab** closes its session window (the tmux semantic — the session itself survives while any window or the daemon lives); closing the **last attached tab** instead asks first — **Detach** (the default) leaves the session running in the daemon for reattach, **End session** kills every window and pane in it, and Cancel keeps the tab. Closing a tab's last **pane** instead closes just the tab and leaves the session window running for reattach.
 
 On top of sessions, par-mux carries an **agent roster**: what coding agents (Claude Code, Codex, Grok, pi, omp, …) are running inside the session's panes and whether each is working, blocked, or idle. par-term surfaces that roster in a status-bar widget and a command-palette picker.
@@ -39,6 +41,17 @@ par-mux has three levels, session → window → pane (tmux's model, with ids `$
 | session `$N` | one par-term **window** (the connection lives on the window) |
 | window `@N` | a **tab** in that window |
 | pane `%N` | a split pane in that tab |
+
+par-term's own labels always say **tab** for a daemon window, and use **session** only for a par-mux or tmux session. The same bridging table, seen from par-term's side:
+
+| par-term says | par-mux / tmux says |
+|---|---|
+| Window (attached) | Client |
+| Tab | Window |
+| Pane | Pane |
+| Session | Session |
+
+The full vocabulary, including which old labels were renamed, is in the [documentation style guide](../DOCUMENTATION_STYLE_GUIDE.md#par-term-vocabulary-uxmd-t1-t8).
 
 Opening a profile with `mux_session_name` in a window starts the attach; every window in the session then gets its own tab in that par-term window, and new session windows arrive as new tabs. While attached, tab operations map onto daemon windows: **Cmd+T / New Tab** asks the daemon for a `new-window` (the tab arrives as the daemon's `%window-add`), a tab's title carries the daemon window's name (renaming a tab sends `rename-window`, so names survive detach), and **Move Tab to Another Window** is blocked for mux tabs — the tab is a mirror with no transport of its own, so moving it would strand the mirror (detach first). Every tab in an attached window shows a link glyph between its icon and title (hover for a tooltip), so mux tabs are distinguishable from local ones at a glance; it appears and disappears on the frame after attach or detach.
 

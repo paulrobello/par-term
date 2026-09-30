@@ -324,6 +324,18 @@ impl TabBarUI {
 
                     // Restore original spacing
                     ui.spacing_mut().item_spacing.x = prev_spacing;
+
+                    // UX.md TW7: double-clicking empty tab-bar space opens a tab.
+                    let empty_width = ui.available_width();
+                    if empty_width > 0.0 {
+                        let (_, empty_resp) = ui.allocate_exact_size(
+                            egui::vec2(empty_width, btn_h),
+                            egui::Sense::click(),
+                        );
+                        if empty_resp.double_clicked() {
+                            action = TabBarAction::NewTab;
+                        }
+                    }
                 },
             );
 

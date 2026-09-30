@@ -11,13 +11,13 @@ on an explicit click. Nothing is sent anywhere until you activate the offer.
 |---------|--------|
 | A pane's process exits non-zero | `src/app/handler/window_state_impl/shell_exit.rs` (per-frame capture pass) |
 | A plugin entry crash-loops or fails to respawn past the restart cap (5 attempts in the 5 s grace window) | `PluginHost` supervision → `drain_crash_caps` → `egui_submit.rs` |
-| The previous run ended in a panic | the crash-session snapshot consumed at session restore (`src/session/crash_guard.rs`), plus the rotated debug log tail where the panic report lives |
+| The previous run ended in a panic | the crash snapshot consumed when windows are restored on launch (`src/session/crash_guard.rs`), plus the rotated debug log tail where the panic report lives |
 
 Clean exits (`exit 0`), plugin policy stops (a `never` restart policy doing
 what it says), and user-disabled plugins are **not** crashes and produce no
 offer.
 
-The previous-run panic offer rides session restore (`restore_session` in
+The previous-run panic offer rides Restore windows on launch (`restore_session` in
 `src/app/window_manager/window_session.rs`): that setting gates both
 publishing and consuming the crash snapshot, so the triage row appears in the
 first restored window.

@@ -233,7 +233,7 @@ Configure fonts in **Settings > Appearance > Fonts**. par-term supports:
 
 ## Split Panes
 
-Split panes let you run multiple terminal sessions side by side within a single tab.
+Split panes let you run multiple shells side by side within a single tab.
 
 ### Creating Splits
 
@@ -242,7 +242,7 @@ Split panes let you run multiple terminal sessions side by side within a single 
 | Split right (new pane beside) | `Cmd + D` | `Ctrl + Shift + E` |
 | Split down (new pane below) | `Cmd + Shift + D` | `Ctrl + Shift + O` |
 
-Each new pane starts a fresh shell session. You can split panes further to create any layout you need.
+Each new pane starts a fresh shell. You can split panes further to create any layout you need.
 
 ### Navigating Panes
 
@@ -270,7 +270,7 @@ You can also drag pane dividers with the mouse. On macOS, `Cmd + Opt + Shift + A
 |--------|-------|---------------|
 | Close focused pane | `Cmd + W` | `Ctrl + Shift + W` |
 
-When only one pane remains, the tab reverts to a single terminal session. Closing a tab's last pane closes the tab, and closing the last tab closes the window.
+When only one pane remains, the tab reverts to a single terminal. Closing a tab's last pane closes the tab, and closing the last tab closes the window.
 
 ## Next Steps
 
@@ -329,6 +329,6 @@ graph TD
 - [Window Arrangements](../features/ARRANGEMENTS.md) - Save and restore window layouts
 - [Search](../features/SEARCH.md) - Terminal search with regex, case-sensitive, and whole-word modes
 - [Paste Special](../features/PASTE_SPECIAL.md) - Clipboard transformations for pasting
-- [Session Management](../features/SESSION_MANAGEMENT.md) - Session undo, restore, and logging
+- [Restoring Windows and Reopening Tabs](../features/SESSION_MANAGEMENT.md) - Reopen closed tab and restore windows on launch
 - [Accessibility](../features/ACCESSIBILITY.md) - Minimum contrast enforcement and display options
 - [Self-Update](../features/SELF_UPDATE.md) - Updating par-term via CLI or Settings UI

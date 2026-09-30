@@ -39,7 +39,7 @@ graph TD
     QuickConnect[Quick Connect Dialog]
     Profiles[SSH Profiles]
     ProfileDrawer[Profile Drawer]
-    Terminal[Terminal Session]
+    Terminal[Terminal]
 
     Discovery --> Config
     Discovery --> Known

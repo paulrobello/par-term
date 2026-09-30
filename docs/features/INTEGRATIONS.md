@@ -228,7 +228,7 @@ See [SHADERS.md](SHADERS.md) for the complete shader gallery.
 
 On first launch, par-term offers to install optional integrations. Select **Custom Shaders**, **Shell Integration**, or both, then choose:
 - **Install Selected**: Downloads and installs the selected integrations immediately
-- **Skip**: Dismiss for this session
+- **Skip**: Dismiss until par-term restarts
 - **Never Ask**: Saves preference, never ask again
 
 **Method 2: Settings UI**

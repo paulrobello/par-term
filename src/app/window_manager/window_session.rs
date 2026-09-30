@@ -319,7 +319,7 @@ impl WindowManager {
         if restored_after_crash {
             for window_state in self.windows.values_mut() {
                 window_state
-                    .show_toast("Recovered session after a crash — scrollback not restored");
+                    .show_toast("Recovered your windows after a crash — scrollback not restored");
             }
         }
 
@@ -347,7 +347,7 @@ impl WindowManager {
         }
 
         // Build window title
-        let window_number = self.windows.len() + 1;
+        let window_number = self.next_window_number();
         let title = if self.config.load().placement.show_window_number {
             format!("{} [{}]", self.config.load().window_title, window_number)
         } else {

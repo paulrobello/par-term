@@ -135,6 +135,10 @@ pub(crate) static DISPLAY_ACTION_HANDLERS: &[(&str, DisplayActionHandler)] = &[
         );
         true
     }),
+    ("toggle_always_on_top", |s: &mut WindowState| {
+        s.toggle_always_on_top();
+        true
+    }),
     ("reopen_closed_tab", |s: &mut WindowState| {
         s.reopen_closed_tab();
         true

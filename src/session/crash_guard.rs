@@ -164,9 +164,9 @@ pub enum SaveOutcome {
 impl std::fmt::Display for SaveOutcome {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            Self::Saved => "session snapshot written",
+            Self::Saved => "window snapshot written",
             Self::NoSnapshot => "no snapshot to write",
-            Self::AlreadySaved => "session already preserved by an earlier panic",
+            Self::AlreadySaved => "windows already saved by an earlier panic",
             Self::WriteFailed => "snapshot write FAILED",
         })
     }
@@ -393,7 +393,7 @@ pub(crate) fn report_fields(r: PanicReport<'_>) {
                 crate::debug::DebugLevel::Error,
                 CATEGORY,
                 format_args!(
-                    "Panic boundary: {outcome} ({:?}). Restart par-term to recover the session.",
+                    "Panic boundary: {outcome} ({:?}). Restart par-term to recover your windows.",
                     crash_session_path()
                 ),
             );

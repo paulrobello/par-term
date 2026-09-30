@@ -2,7 +2,7 @@
 
 Complete reference for all par-term keyboard shortcuts.
 
-> **📝 Note:** On macOS, the defaults follow iTerm2 wherever par-term has the matching action, with `Cmd` as the primary modifier. On Linux and Windows, the same letters use the K1 family: `Ctrl+Shift` where macOS uses `Cmd` (window and tab), and `Ctrl+Alt` where macOS uses `Cmd+Opt` (panes). Plain `Ctrl+letter` stays with the shell (Ctrl+C for SIGINT, Ctrl+D for EOF, etc.). The **F1** help panel always shows your *current* bindings.
+> **📝 Note:** On macOS, the defaults follow iTerm2 wherever par-term has the matching action, with `Cmd` as the primary modifier. On Linux and Windows, the same letters use the K1 family: `Ctrl+Shift` where macOS uses `Cmd` (window and tab), and `Ctrl+Alt` where macOS uses `Cmd+Opt` (panes). Plain `Ctrl+letter` stays with the shell (Ctrl+C for SIGINT, Ctrl+D for EOF, etc.). The **F1** help panel always shows your *current* bindings: its Window, Tab, Pane, Session & Profiles, and other sections are generated from the live keybinding registry and the menu model, so a rebind shows there and an unbound action is left out.
 
 > **📝 Linux:** par-term cannot attach a *native* menu bar on Linux — `muda`
 > requires a `gtk::Window` that winit does not create — so Linux gets an in-app
@@ -33,6 +33,7 @@ Complete reference for all par-term keyboard shortcuts.
 - [Pane Management](#pane-management)
 - [Advanced Features](#advanced-features)
 - [Customizing Keybindings](#customizing-keybindings)
+- [Platform Shortcut Conflicts](#platform-shortcut-conflicts)
 - [Related Documentation](#related-documentation)
 
 ## Window & Tab Management
@@ -145,10 +146,10 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 |----------|--------|
 | `Ctrl + L` | Clear visible screen |
 | `Cmd/Ctrl + Shift + K` | Clear scrollback buffer |
-| `Cmd/Ctrl + Shift + R` | Toggle session logging |
+| `Cmd/Ctrl + Shift + R` | Toggle output recording |
 | Command palette (macOS) / `Ctrl + Shift + M` (Linux/Win) | Toggle maximize throughput mode |
 
-> **📝 Note:** Session logging uses the `toggle_session_logging` action (see [Session Logging](../features/SESSION_LOGGING.md)). Throughput mode uses `toggle_throughput_mode`; on macOS it has no default chord since `Cmd + Shift + T` became Reopen Closed Tab, so run it from the command palette or bind it. Screenshots are taken via the `--screenshot` CLI option or MCP server tool, not a keyboard shortcut.
+> **📝 Note:** Output recording uses the `toggle_session_logging` action (see [Output Recording](../features/SESSION_LOGGING.md)). Throughput mode uses `toggle_throughput_mode`; on macOS it has no default chord since `Cmd + Shift + T` became Reopen Closed Tab, so run it from the command palette or bind it. Screenshots are taken via the `--screenshot` CLI option or MCP server tool, not a keyboard shortcut.
 
 ## Font & Text Sizing
 
@@ -162,7 +163,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 
 | Shortcut | Action |
 |----------|--------|
-| `F1` | Toggle Help panel |
+| `F1` | Toggle Help panel (shortcut sections generated from your current bindings) |
 | `F3` | Toggle FPS overlay |
 | `F5` | Reload configuration |
 | `F11` (macOS also `Cmd + Ctrl + F`) | Toggle fullscreen |
@@ -294,7 +295,7 @@ without a binding there is no way to open the in-app menu.
 **Tab Management:**
 - `new_tab`, `close_tab`, `duplicate_tab`, `next_tab`, `prev_tab`
 - `move_tab_left`, `move_tab_right`
-- `switch_to_tab_1` through `switch_to_tab_9`
+- `switch_to_tab_1`, `switch_to_tab_2`, `switch_to_tab_3`, `switch_to_tab_4`, `switch_to_tab_5`, `switch_to_tab_6`, `switch_to_tab_7`, `switch_to_tab_8`, `switch_to_tab_9`
 - `reopen_closed_tab`
 - `move_tab_to_new_window` — transfer the active tab to a new window while preserving PTY, scrollback, and split panes
 
@@ -312,9 +313,11 @@ without a binding there is no way to open the in-app menu.
 - `resize_pane_up`, `resize_pane_down`
 - `swap_pane_left`, `swap_pane_right`, `swap_pane_up`, `swap_pane_down` — swap the focused pane with its neighbor in that direction
 - `promote_pane_to_tab`, `demote_tab_to_pane`
+- `rename_pane` - Open the inline rename field on the focused pane's title bar
 
 **Display:**
 - `toggle_fullscreen`, `maximize_vertically`
+- `toggle_always_on_top` - Keep the focused window above other windows (no default chord)
 - `toggle_fps_overlay`, `toggle_help`
 - `toggle_search`, `open_settings`
 
@@ -327,11 +330,56 @@ without a binding there is no way to open the in-app menu.
 - `toggle_tmux_session_picker`, `ssh_quick_connect`
 - `toggle_ai_inspector`, `toggle_command_history`
 - `reload_dynamic_profiles`
+- `toggle_agent_usage_panel` - Show or hide the agent usage panel ([Agent Usage](../features/AGENT_USAGE.md))
+
+**Scrolling:**
+- `scroll_up_page`, `scroll_down_page`, `scroll_to_top`, `scroll_to_bottom`
+- `scroll_to_previous_mark`, `scroll_to_next_mark` - Jump between shell-integration command marks
 
 **Terminal:**
-- `clear_scrollback`, `reload_config`
+- `clear_screen`, `clear_scrollback`, `reload_config`
 - `increase_font_size`, `decrease_font_size`, `reset_font_size`
 - `cycle_cursor_style`
+
+**Runtime actions** (ids built from your config and live state; the command palette lists them, and each can be bound like any other action):
+- `snippet:<id>`, `action:<id>` - Run a snippet or custom action ([Snippets](../features/SNIPPETS.md))
+- `restore_arrangement:<name>` - Restore a saved window arrangement
+- `launch-agent:<id>`, `launch-agent-autonomous:<id>`, `launch-default-agent` - Launch a configured coding agent
+- `agent-cmd:<id>` - Run an agent-authored command ([Agent Commands](../features/AGENT_COMMANDS.md))
+- `agent-roster-focus:<pane>` - Focus the pane of a par-mux roster agent ([par-mux](../features/MUX.md))
+- `mux-detach` - Detach this window from its par-mux session, leaving the session running
+- `mux-restart-pane` - Restart the focused par-mux pane's process
+- `plugin-action:<plugin_id>:<action_id>` - Run a plugin-contributed action ([Plugins](../features/PLUGINS.md))
+- `triage-crash:<id>` - Open a crash-triage offer ([Crash Triage](../features/CRASH_TRIAGE.md))
+
+## Platform Shortcut Conflicts
+
+A static audit (UX.md RT2 and RT3, 2026-09-29) of par-term's shipped default chords against the shortcuts each desktop reserves out of the box. An OS-level shortcut is taken by the desktop before par-term sees the key, so an entry marked **conflict** will not reach par-term on that platform unless the desktop shortcut is removed. Rebind the par-term action in **Settings ▸ Input ▸ Keybindings** if you keep the desktop shortcut. This is a table-level check; whether each key actually reaches par-term on a running system is tracked separately as a runtime check.
+
+| par-term default | Action | Platform | Desktop default | Result |
+|------------------|--------|----------|-----------------|--------|
+| `Ctrl+Alt+Left` / `Right` / `Up` / `Down` | Focus pane | Linux (GNOME) | Switch workspace ([GNOME schema][gnome-wm]) | **Conflict** |
+| `Ctrl+Alt+Shift+Left` / `Right` / `Up` / `Down` | Resize pane | Linux (GNOME) | Move window to workspace ([GNOME schema][gnome-wm]) | **Conflict** |
+| `Ctrl+Alt+T` | tmux session picker | Linux (Ubuntu, many KDE distributions) | Open a terminal (distribution default, not in upstream GNOME schemas) | **Conflict where configured**; use the alias `Ctrl+Alt+S` |
+| `Ctrl+Shift+U` | Toggle cursor shader | Linux with IBus | Unicode code-point entry ([IBus schema][ibus]) | **Conflict** when IBus is the input method |
+| `Ctrl+Alt+W`, `Ctrl+Alt+P`, `Ctrl+Alt+I`, `Ctrl+Alt+V`, `Ctrl+Alt+R`, `Ctrl+Alt+S` | Close tab, select pane, broadcast, paste special, command history, session picker | Linux (GNOME) | None found in the GNOME window-manager or media-key schemas ([wm][gnome-wm], [media keys][gnome-media]) | No conflict found |
+| `Ctrl+Shift+E`, `Ctrl+Shift+O` | Split right, split down | Linux with IBus | IBus reserves `Ctrl+Shift+U` only; emoji is `Super+.` ([IBus schema][ibus]) | No conflict found |
+| `Ctrl+Shift+<key>` chords | Window and tab actions | Windows | `Ctrl+Shift` alone switches keyboard layout when several are installed ([Microsoft][ms-keys]); chords that add a letter are not listed | No conflict found |
+| `Ctrl+Alt+<key>` chords | Pane actions | Windows | `Ctrl+Alt+Del`, `Ctrl+Alt+Tab` only ([Microsoft][ms-keys]) | No conflict found |
+| `Alt+Shift+Arrow` | (none shipped; the old Linux/Windows swap default was removed) | Windows, Linux with IBus | Windows lists `Win+Space` for input switching ([Microsoft][ms-keys]); IBus binds `Alt+Shift_L` to next engine ([IBus schema][ibus]) | Not applicable |
+| `F11` | Toggle fullscreen | macOS | Show desktop is `Fn+F11` or `Cmd+Mission Control` ([Apple][apple-keys]); on keyboards where F11 is a media key, press `Fn+F11` | Use `Cmd+Ctrl+F` (also shipped) |
+| `Cmd+Ctrl+F` | Toggle fullscreen | macOS | Full screen, the standard app shortcut ([Apple][apple-keys]) | Aligned |
+| `Cmd+Opt+<key>` pane chords | Focus, swap, select, broadcast, close tab | macOS | `Cmd+Opt+Esc`, `Cmd+Opt+H`, `Cmd+Opt+D` reserved ([Apple][apple-keys]); none of par-term's keys | No conflict found |
+| `Cmd+Ctrl+Arrow` | Resize pane | macOS | Not a system default; window-manager apps such as Rectangle may claim it | No conflict with the OS |
+| `Cmd+\`` | (none shipped) | macOS | Cycles the front app's windows ([Apple][apple-keys]) | Not applicable: par-term binds nothing to it. Whether winit delivers it to par-term (RT3) is a runtime check, unverified |
+
+The proposed chords the UX plan names for RT2 (`Cmd+Opt+A`, `Ctrl+Alt+A`, `Ctrl+Alt+=`) are not shipped defaults yet; none of them appears in the vendor lists above. KDE Plasma's upstream defaults were not checked against a primary source.
+
+[gnome-wm]: https://gitlab.gnome.org/GNOME/gsettings-desktop-schemas/-/blob/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in
+[gnome-media]: https://gitlab.gnome.org/GNOME/gnome-settings-daemon/-/blob/master/data/org.gnome.settings-daemon.plugins.media-keys.gschema.xml.in
+[ibus]: https://github.com/ibus/ibus/blob/main/data/dconf/org.freedesktop.ibus.gschema.xml
+[ms-keys]: https://support.microsoft.com/en-us/windows/keyboard-shortcuts-in-windows-dcc61a57-8ff0-cffe-9796-cb9706c75eec
+[apple-keys]: https://support.apple.com/en-us/102650
 
 ## Related Documentation
 
@@ -343,6 +391,6 @@ without a binding there is no way to open the in-app menu.
 - [Search](../features/SEARCH.md) - Search keyboard shortcuts
 - [Command History](../features/COMMAND_HISTORY.md) - Fuzzy command history search
 - [SSH Host Management](../features/SSH.md) - SSH Quick Connect shortcuts
-- [Session Management](../features/SESSION_MANAGEMENT.md) - Session undo and restore
+- [Restoring Windows and Reopening Tabs](../features/SESSION_MANAGEMENT.md) - Reopen closed tab and restore windows on launch
 - [Window Management](../features/WINDOW_MANAGEMENT.md) - Window arrangements and layout management
 - [Snippets](../features/SNIPPETS.md) - Custom snippet and action keybindings

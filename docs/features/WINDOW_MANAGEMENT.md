@@ -15,7 +15,7 @@ par-term provides extensive window management features including edge-anchored w
 - [Transparency](#transparency)
 - [Fullscreen](#fullscreen)
 - [Window Arrangements](#window-arrangements)
-- [Session Restore on Startup](#session-restore-on-startup)
+- [Restore Windows on Launch](#restore-windows-on-launch)
 - [Status Bar](#status-bar)
 - [Auto Dark Mode](#auto-dark-mode)
 - [Automatic Tab Style](#automatic-tab-style)
@@ -128,7 +128,7 @@ par-term uses the system's monitor list and falls back to the primary monitor if
 
 ### Mixed-DPI Multi-Monitor
 
-Window positions and sizes are stored in DPI-independent logical coordinates. When restoring windows across monitors with different scale factors (e.g., Retina + standard), positions are correctly converted using each monitor's DPI. This also applies to arrangement and session restore.
+Window positions and sizes are stored in DPI-independent logical coordinates. When restoring windows across monitors with different scale factors (e.g., Retina + standard), positions are correctly converted using each monitor's DPI. This also applies to arrangements and to windows restored on launch.
 
 ### Display Changes
 
@@ -142,6 +142,10 @@ Keep the window above other windows:
 ```yaml
 window_always_on_top: true
 ```
+
+The config key sets the level every new window starts with. To flip one window at runtime, run **Toggle Always on Top** from the command palette, bind the `toggle_always_on_top` action (it has no default chord), or on macOS use **Window ▸ Always on Top**. The toggle affects only the focused window and is never written to the config file. Any change applied from the Settings window re-applies the configured `window_always_on_top` value to every window, which undoes a runtime toggle.
+
+> **📝 Note:** macOS and Windows honor the request. Most Linux window managers honor it under X11, and Wayland compositors ignore it, so on Wayland the toggle shows its toast but the window level does not change.
 
 ### Window Decorations
 
@@ -166,6 +170,8 @@ show_window_number: true
 
 Example title: `par-term [2]`
 
+A new window takes the lowest number no open window holds. Closing window 2 of three leaves windows 1 and 3 numbered as they were, and the next new window becomes 2. The **Move Tab to Window** submenu lists windows in number order.
+
 ### Maximize Vertically
 
 Use the View menu or keybinding to maximize height while keeping current width and X position.
@@ -179,7 +185,7 @@ The window title updates dynamically based on terminal state. Components are app
 - **Working Directory**: When shell integration reports a CWD, the title includes `(abbreviated/path)`
 - **Running Command**: When shell integration (OSC 133;C) detects a running command, the title shows `[command_name]`
 - **Exit Code**: When the last command exited non-zero, the title includes `[Exit: N]`
-- **Recording**: While a session recording is in progress, the title includes `[RECORDING]`
+- **Recording**: While an output recording is in progress, the title includes `[RECORDING]`
 
 Example with several components active: `par-term [2] (~/src) [cargo build]`. The command name automatically reverts when the command finishes.
 
@@ -190,15 +196,15 @@ show_window_number: false   # Show [N] suffix with multiple windows
 
 ## Prompt on Quit
 
-A confirmation dialog can be shown before closing the window when active terminal sessions are running:
+A confirmation dialog can be shown before closing the window when tabs are open:
 
 ```yaml
 prompt_on_quit: true  # Show confirmation before closing (default: false)
 ```
 
-**Settings UI:** Settings > Terminal > Behavior > "Confirm before quitting with open sessions"
+**Settings UI:** Settings > Terminal > Behavior > "Confirm before quitting with open tabs"
 
-The dialog shows the number of active sessions and requires explicit confirmation.
+The dialog shows the number of open tabs and requires explicit confirmation.
 
 ## Pane Title Bars
 
@@ -354,26 +360,26 @@ Arrangements are stored in `~/.config/par-term/arrangements.yaml`.
 
 For full details, see [ARRANGEMENTS.md](ARRANGEMENTS.md).
 
-## Session Restore on Startup
+## Restore Windows on Launch
 
-par-term can automatically save the current session state on clean exit and restore it when the app launches. This provides continuity across restarts without requiring named arrangements.
+par-term can automatically save your open windows on clean exit and restore it when the app launches. This provides continuity across restarts without requiring named arrangements.
 
 ```yaml
-# Enable session restore (default: false)
+# Restore windows on launch (default: false)
 restore_session: false
 ```
 
-**Settings UI:** Settings > Terminal > Startup > "Restore previous session on startup"
+**Settings UI:** Settings > Terminal > Startup > "Restore windows on launch"
 
 **What gets saved:** Open windows with positions and sizes, all tabs with working directories, split pane trees with ratios, and active tab indices.
 
-**Behavior:** The session file saves on clean exit and clears after successful restore to prevent stale state. Missing directories fall back to `$HOME`. When both `restore_session` and `auto_restore_arrangement` are enabled, auto-restore arrangement takes precedence.
+**Behavior:** The saved-windows file is written on clean exit and clears after successful restore to prevent stale state. Missing directories fall back to `$HOME`. When both `restore_session` and `auto_restore_arrangement` are enabled, auto-restore arrangement takes precedence.
 
-For full details on session persistence including session undo, see [Session Management](SESSION_MANAGEMENT.md).
+For full details, including reopen closed tab, see [Restoring Windows and Reopening Tabs](SESSION_MANAGEMENT.md).
 
 ## Status Bar
 
-The status bar displays session and system information at the top or bottom of the window. It stacks with the tab bar when both are visible.
+The status bar displays shell and system information at the top or bottom of the window. It stacks with the tab bar when both are visible.
 
 For full details on status bar configuration, widgets, and customization, see [Status Bar](STATUS_BAR.md).
 
@@ -516,4 +522,4 @@ The Window tab in Settings provides sections for:
 - [KEYBOARD_SHORTCUTS.md](../guides/KEYBOARD_SHORTCUTS.md) - Window keyboard shortcuts
 - [ARRANGEMENTS.md](ARRANGEMENTS.md) - Full window arrangements documentation
 - [Status Bar](STATUS_BAR.md) - Status bar widgets and system monitoring
-- [Session Management](SESSION_MANAGEMENT.md) - Session restore and undo
+- [Restoring Windows and Reopening Tabs](SESSION_MANAGEMENT.md) - Restore windows on launch and reopen closed tab

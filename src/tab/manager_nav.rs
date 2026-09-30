@@ -77,19 +77,14 @@ impl TabManager {
     }
 
     /// Move a tab left or right
-    /// direction: -1 for left, 1 for right
+    /// direction: -1 for left, 1 for right. A tab at either end stays put
+    /// (UX.md TW9: moving never wraps to the other end).
     pub fn move_tab(&mut self, id: TabId, direction: i32) {
         if let Some(current_idx) = self.tabs.iter().position(|t| t.id == id) {
             let new_idx = if direction < 0 {
-                if current_idx == 0 {
-                    self.tabs.len() - 1
-                } else {
-                    current_idx - 1
-                }
-            } else if current_idx >= self.tabs.len() - 1 {
-                0
+                current_idx.saturating_sub(1)
             } else {
-                current_idx + 1
+                (current_idx + 1).min(self.tabs.len() - 1)
             };
 
             if new_idx != current_idx {

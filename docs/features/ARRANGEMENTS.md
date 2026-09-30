@@ -364,7 +364,7 @@ graph TD
 
 **Shared type in `par-term-config/src/snapshot_types.rs`:**
 
-- `TabSnapshot`: Stores a tab's working directory, title, and optional per-tab customizations (user-set name, custom color, custom icon). Shared between arrangements and session restore.
+- `TabSnapshot`: Stores a tab's working directory, title, and optional per-tab customizations (user-set name, custom color, custom icon). Shared between arrangements and the windows restored on launch.
 
 **Capture flow** (`src/arrangements/capture.rs`): Enumerates all monitors via the winit event loop, iterates over all open windows, determines each window's monitor, computes the position relative to the monitor origin, and collects tab CWDs, titles, and per-tab customizations (user-set names, custom colors, and custom icons).
 
