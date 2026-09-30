@@ -1,0 +1,9 @@
+{
+  "steps": [
+    { "assert_eq": ["window_count", "1"], "wait_ms": 1500 },
+    { "chord": "Ctrl+Alt+Shift+N", "wait_ms": 800 },
+    { "assert_eq": ["window_count", "2"] },
+    { "chord": "Ctrl+Alt+Shift+W", "wait_ms": 800 },
+    { "assert_eq": ["window_count", "1"] }
+  ]
+}

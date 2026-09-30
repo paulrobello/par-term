@@ -194,10 +194,12 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         true
     }),
     ("close_tab", |s: &mut WindowState| {
-        if s.has_multiple_tabs() {
-            s.close_current_tab();
-            log::info!("Tab closed via keybinding");
-        }
+        // I15 cascade tail: closing the LAST tab closes the window, the
+        // same contract the menu arm already has (MenuAction::CloseTab →
+        // close_window). The old has_multiple_tabs() guard made the chord
+        // a dead key on the last tab — Ctrl+Alt+W on Linux/Windows.
+        s.is_shutting_down |= s.close_current_tab();
+        log::info!("Tab closed via keybinding");
         true
     }),
     ("duplicate_tab", |s: &mut WindowState| {

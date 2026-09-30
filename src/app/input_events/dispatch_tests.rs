@@ -312,6 +312,21 @@ fn plugin_action_id_parses_into_plugin_and_action_halves() {
 }
 
 #[test]
+fn close_tab_on_the_last_tab_closes_the_window_not_nothing() {
+    // I15 cascade tail: the chord must not dead-end on the last tab
+    // (Ctrl+Alt+W on Linux/Windows binds close_tab). Pre-fix the arm
+    // guarded on has_multiple_tabs() and this assertion failed with
+    // is_shutting_down still false — a silently dead chord.
+    let mut state = test_window_state();
+    assert!(!state.is_shutting_down);
+    assert!(state.execute_keybinding_action("close_tab"));
+    assert!(
+        state.is_shutting_down,
+        "closing the last tab via the chord must close the window"
+    );
+}
+
+#[test]
 fn agent_roster_focus_id_parses_the_pane() {
     assert_eq!(
         parse_agent_roster_focus_id("agent-roster-focus:42"),
