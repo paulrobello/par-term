@@ -20,6 +20,11 @@ pub(super) fn show_tmux_section(
         true,
         collapsed,
         |ui| {
+            // par-mux is not tmux: this key works with tmux integration off,
+            // so it sits outside the tmux-dependent block below.
+            show_mux_auto_attach(ui, settings, changes_this_frame);
+            ui.add_space(12.0);
+
             ui.label("Configure tmux control mode integration");
             ui.add_space(8.0);
 
@@ -297,4 +302,36 @@ pub(super) fn show_tmux_section(
             );
         },
     );
+}
+
+/// The par-mux auto-attach field (UX.md M15): the session the first window
+/// attaches to on launch, created when missing. Empty turns it off.
+fn show_mux_auto_attach(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
+    ui.label(egui::RichText::new("par-mux Auto-Attach").strong());
+    ui.horizontal(|ui| {
+        ui.label("Session name:");
+        let mut name = settings
+            .config
+            .tmux
+            .mux_auto_attach
+            .clone()
+            .unwrap_or_default();
+        if ui
+            .add(egui::TextEdit::singleline(&mut name).desired_width(INPUT_WIDTH))
+            .on_hover_text(
+                "The first window attaches to this par-mux session on launch, creating it \
+                 when it does not exist. Leave empty to start with local tabs.",
+            )
+            .changed()
+        {
+            let name = name.trim().to_string();
+            settings.config.tmux.mux_auto_attach = (!name.is_empty()).then_some(name);
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+    });
 }

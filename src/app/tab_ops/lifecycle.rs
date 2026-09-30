@@ -84,7 +84,7 @@ impl WindowState {
                 }
                 Err(e) => {
                     log::error!("MUX: new-window failed: {e}");
-                    self.show_toast(format!("par-mux: new-window failed — {e}"));
+                    self.record_mux_error(format!("par-mux: new-window failed — {e}"));
                 }
             }
             self.request_redraw();
@@ -458,7 +458,7 @@ impl WindowState {
                 }
                 if let Some(Err(e)) = &killed {
                     log::error!("MUX: kill-window @{window_id} failed: {e}");
-                    self.show_toast(format!("par-mux: kill-window failed — {e}"));
+                    self.record_mux_error(format!("par-mux: kill-window failed — {e}"));
                     // Fall through to the local close: the daemon
                     // window is unreachable from this client either way.
                 }
@@ -693,6 +693,9 @@ impl WindowState {
     /// Move current tab left
     pub fn move_tab_left(&mut self) {
         self.tab_manager.move_active_tab_left();
+        if let Some(id) = self.tab_manager.active_tab_id() {
+            self.sync_mux_tab_order(id);
+        }
         self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
@@ -700,7 +703,35 @@ impl WindowState {
     /// Move current tab right
     pub fn move_tab_right(&mut self) {
         self.tab_manager.move_active_tab_right();
+        if let Some(id) = self.tab_manager.active_tab_id() {
+            self.sync_mux_tab_order(id);
+        }
         self.focus_state.needs_redraw = true;
         self.request_redraw();
+    }
+
+    /// UX.md U11: a reordered par-mux tab moves its daemon window to the
+    /// same position in the session's window list (`move-window`), so the
+    /// order survives reattach and other clients see it. The position is
+    /// the tab's index among this window's par-mux tabs, in tab order.
+    pub(crate) fn sync_mux_tab_order(&mut self, tab_id: TabId) {
+        let Some(window) = self.mux_window_for_tab(tab_id) else {
+            return;
+        };
+        let position = self
+            .tab_manager
+            .tabs()
+            .iter()
+            .filter(|t| self.mux_window_for_tab(t.id).is_some())
+            .position(|t| t.id == tab_id);
+        #[cfg(feature = "mux")]
+        if let Some(position) = position {
+            self.send_mux_pane_command(
+                &format!("move-window -s @{window} -t {position}"),
+                "tab reorder",
+            );
+        }
+        #[cfg(not(feature = "mux"))]
+        let _ = (window, position);
     }
 }

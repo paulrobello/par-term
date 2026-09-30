@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [Unreleased — Session Picker, Window Actions, and Detach](#unreleased--session-picker-window-actions-and-detach)
 - [Unreleased — Pane Dimming, Splits, and Restart](#unreleased--pane-dimming-splits-and-restart)
 - [Unreleased — Default Shortcuts Aligned with iTerm2](#unreleased--default-shortcuts-aligned-with-iterm2)
 - [Unreleased — Close-Safety Defaults Aligned with iTerm2](#unreleased--close-safety-defaults-aligned-with-iterm2)
@@ -26,6 +27,13 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## Unreleased — Session Picker, Window Actions, and Detach
+
+- **`close_window` closes the whole window.** A keybinding bound to `close_window` used to close the active tab when the window had several and the window only on its last tab. It now closes the window with all its tabs, asking first when the window holds more than one tab. The previous behavior is `close_tab_or_window`; rebind to that id to keep it.
+- **`detach` is the detach action.** `mux-detach` keeps working as an alias; configs that use it need no change.
 
 ---
 

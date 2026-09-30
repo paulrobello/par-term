@@ -76,33 +76,7 @@ impl WindowState {
         match event {
             WindowEvent::CloseRequested => {
                 log::info!("Close requested for window");
-
-                // Close safety (D6, iTerm2 alignment): ask before closing
-                // a window that holds more than one tab; a single-tab
-                // window closes silently because the session-undo window
-                // (5 s, shell preserved) can restore it.
-                let tab_count = self.tab_manager.visible_tab_count();
-                if should_confirm_window_close(&self.config.load().shell, tab_count)
-                    && !self.overlay_ui.quit_confirmation_ui.is_visible()
-                {
-                    log::info!("Showing quit confirmation dialog ({} open tabs)", tab_count);
-                    // UX.md M9: when a par-mux session is attached, the
-                    // dialog must say it survives the quit (it detaches).
-                    let mux_session = self
-                        .tmux_state
-                        .tmux_session_name
-                        .clone()
-                        .filter(|_| self.tmux_state.is_mux_attached());
-                    self.overlay_ui
-                        .quit_confirmation_ui
-                        .show_confirmation(tab_count, mux_session.as_deref());
-                    self.focus_state.needs_redraw = true;
-                    self.request_redraw();
-                    return false; // Don't close yet - wait for user confirmation
-                }
-
-                self.perform_shutdown();
-                return true; // Signal to close this window
+                return self.request_window_close();
             }
 
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
@@ -609,6 +583,40 @@ impl WindowState {
         }
 
         false // Don't close window
+    }
+}
+
+impl WindowState {
+    /// A request to close this whole window — the title-bar close and the
+    /// `close_window` action (UX.md A14) share it. Returns true when the
+    /// window may close now; false when a confirmation dialog is shown.
+    ///
+    /// Close safety (D6, iTerm2 alignment): ask before closing a window
+    /// that holds more than one tab; a single-tab window closes silently
+    /// because the session-undo window (5 s, shell preserved) can restore
+    /// it.
+    pub(crate) fn request_window_close(&mut self) -> bool {
+        let tab_count = self.tab_manager.visible_tab_count();
+        if should_confirm_window_close(&self.config.load().shell, tab_count)
+            && !self.overlay_ui.quit_confirmation_ui.is_visible()
+        {
+            log::info!("Showing quit confirmation dialog ({} open tabs)", tab_count);
+            // UX.md M9: when a par-mux session is attached, the dialog must
+            // say it survives the quit (it detaches).
+            let mux_session = self
+                .tmux_state
+                .tmux_session_name
+                .clone()
+                .filter(|_| self.tmux_state.is_mux_attached());
+            self.overlay_ui
+                .quit_confirmation_ui
+                .show_confirmation(tab_count, mux_session.as_deref());
+            self.focus_state.needs_redraw = true;
+            self.request_redraw();
+            return false;
+        }
+        self.perform_shutdown();
+        true
     }
 }
 

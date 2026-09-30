@@ -189,11 +189,11 @@ impl WindowState {
             Ok(body) => {
                 let text = body.join("\n");
                 log::error!("par-mux {cmd} rejected: {text}");
-                self.show_toast(format!("par-mux: {what} failed — {text}"));
+                self.record_mux_error(format!("par-mux: {what} failed — {text}"));
             }
             Err(e) => {
                 log::error!("par-mux {cmd} failed: {e}");
-                self.show_toast(format!("par-mux: {what} failed — {e}"));
+                self.record_mux_error(format!("par-mux: {what} failed — {e}"));
             }
         }
     }

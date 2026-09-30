@@ -90,6 +90,7 @@ impl WindowState {
             }
             TabBarAction::Reorder(id, target_index) => {
                 if self.tab_manager.move_tab_to_index(id, target_index) {
+                    self.sync_mux_tab_order(id);
                     self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }
@@ -117,7 +118,7 @@ impl WindowState {
                         });
                     if let Some(Err(e)) = &sent {
                         log::error!("MUX: rename-window @{window_id} failed: {e}");
-                        self.show_toast(format!("par-mux: rename-window failed — {e}"));
+                        self.record_mux_error(format!("par-mux: rename-window failed — {e}"));
                     }
                 }
                 if let Some(tab) = self.tab_manager.get_tab_mut(id) {
@@ -140,6 +141,29 @@ impl WindowState {
                             self.config.load().tabs.remote_tab_title_format,
                             self.config.load().tabs.remote_tab_title_osc_priority,
                         );
+                        // A pane with no program title (a par-mux mirror
+                        // often has none) derives nothing: fall back to
+                        // the tab's default "Tab N" rather than a blank tab.
+                        if tab.title.trim().is_empty() {
+                            let number = tab.default_number;
+                            tab.set_default_title(number);
+                        }
+                        // UX.md U12: the daemon rejects an empty name, so
+                        // clearing a par-mux tab's name sends the auto title
+                        // it just re-derived; otherwise the daemon (and the
+                        // next reattach) would keep the old user name.
+                        let auto_title = tab.title.trim().to_string();
+                        if let Some(window_id) = self.mux_window_for_tab(id)
+                            && !auto_title.is_empty()
+                            && let Some(Err(e)) = self.tmux_state.transport.as_ref().map(|t| {
+                                t.send_command(&format!(
+                                    "rename-window -t @{window_id} {auto_title}"
+                                ))
+                            })
+                        {
+                            log::error!("MUX: rename-window @{window_id} failed: {e}");
+                            self.record_mux_error(format!("par-mux: rename-window failed — {e}"));
+                        }
                     } else {
                         tab.set_title(&name);
                         tab.user_named = true;

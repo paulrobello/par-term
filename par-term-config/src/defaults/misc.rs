@@ -155,7 +155,17 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
         // New Tab Next to Current (I24).
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Ctrl+S".to_string(),
-            action: "toggle_tmux_session_picker".to_string(),
+            action: "toggle_session_picker".to_string(),
+        },
+        // Next agent needing attention (UX.md A17, K17).
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+A".to_string(),
+            action: "focus_next_attention_agent".to_string(),
+        },
+        // Tree picker: iTerm2's Open Quickly (UX.md A15, I27).
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+O".to_string(),
+            action: "toggle_tree_picker".to_string(),
         },
         // Copy mode (vi-style keyboard-driven selection) - matches iTerm2
         crate::types::KeyBinding {
@@ -312,11 +322,22 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
         // Ctrl+Alt+S is the alternative UX.md K18 names.
         crate::types::KeyBinding {
             key: "Ctrl+Alt+T".to_string(),
-            action: "toggle_tmux_session_picker".to_string(),
+            action: "toggle_session_picker".to_string(),
         },
         crate::types::KeyBinding {
             key: "Ctrl+Alt+S".to_string(),
-            action: "toggle_tmux_session_picker".to_string(),
+            action: "toggle_session_picker".to_string(),
+        },
+        // Next agent needing attention (UX.md A17, K17).
+        crate::types::KeyBinding {
+            key: "Ctrl+Alt+A".to_string(),
+            action: "focus_next_attention_agent".to_string(),
+        },
+        // Tree picker (UX.md A15). Ctrl+Shift+O is Split Down here (K12),
+        // so the K1 pane family's Ctrl+Alt takes it.
+        crate::types::KeyBinding {
+            key: "Ctrl+Alt+O".to_string(),
+            action: "toggle_tree_picker".to_string(),
         },
         // Copy mode (vi-style keyboard-driven selection)
         // Ctrl+Shift+C is standard copy on Linux, so use Ctrl+Shift+Space

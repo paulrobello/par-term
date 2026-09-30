@@ -173,6 +173,15 @@ Example title: `par-term [2]`
 
 A new window takes the lowest number no open window holds. Closing window 2 of three leaves windows 1 and 3 numbered as they were, and the next new window becomes 2. The **Move Tab to Window** submenu lists windows in number order.
 
+### Switching Windows
+
+- **Next / previous window** (`next_window`, `prev_window`) cycle windows in number order; `switch_to_window_1` … `switch_to_window_9` focus a window by its number. None has a default chord; the palette and the **Session** menu reach them.
+- **Open Quickly** (`toggle_tree_picker`, `Cmd + Shift + O` / `Ctrl + Alt + O`) lists every window, tab, and pane in one fuzzy list and jumps to the one you pick.
+- On macOS the **Window** menu lists open windows (the system window list) and offers Bring All to Front.
+- **Close Window** (`close_window`, Session menu) closes the whole window with all its tabs, asking first when it holds more than one; `close_tab_or_window` is the old smart close.
+
+The menu bar has **Pane** (split, zoom, equalize, pane focus, rename, restart, move to a new tab, broadcast) and **Session** (sessions, new par-mux session, detach, next agent needing attention, Open Quickly, tab rename and moves, window cycling) menus. Each item runs a bindable action and shows that action's current chord.
+
 ### Maximize Vertically
 
 Use the View menu or keybinding to maximize height while keeping current width and X position.

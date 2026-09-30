@@ -22,6 +22,10 @@ use std::collections::{BTreeSet, HashSet};
 pub const ACTION_RENAMES: &[(&str, &str)] = &[
     ("split_horizontal", "split_down"),
     ("split_vertical", "split_right"),
+    // UX.md A23: the public, documented detach id.
+    ("mux-detach", "detach"),
+    // UX.md A16: one picker lists par-mux and tmux sessions.
+    ("toggle_tmux_session_picker", "toggle_session_picker"),
 ];
 
 /// The current id for `action`, following [`ACTION_RENAMES`]; any other id is
@@ -629,7 +633,7 @@ keybindings:
             ("CmdOrCtrl+Z", "reopen_closed_tab"),
             ("CmdOrCtrl+R", "toggle_command_history"),
             ("CmdOrCtrl+Shift+P", "toggle_profile_drawer"),
-            ("CmdOrCtrl+Alt+T", "toggle_tmux_session_picker"),
+            ("CmdOrCtrl+Alt+T", "toggle_session_picker"),
         ] {
             let bound: Vec<&str> = config
                 .keybindings

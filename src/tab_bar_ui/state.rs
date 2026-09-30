@@ -32,6 +32,9 @@ pub struct TabBarUI {
     pub(super) context_menu_opened_frame: u64,
     /// Color being edited in the color picker (for the context menu)
     pub(super) editing_color: [u8; 3],
+    /// A session-chip click this frame (UX.md V1), taken by the window
+    /// after the egui pass.
+    pub(crate) chip_action: Option<crate::session_chip::SessionChipAction>,
     /// Whether the rename text field is active in the context menu
     pub(super) renaming_tab: bool,
     /// Frame when rename mode was activated (to ignore the activating click)
@@ -50,6 +53,10 @@ pub struct TabBarUI {
     pub(super) context_menu_icon: Option<String>,
     /// Horizontal scroll offset for tabs (in pixels)
     pub(super) scroll_offset: f32,
+    /// The active tab the last frame scrolled into view (UX.md V13): a
+    /// switch to a different tab brings it into view once, then the user's
+    /// own scrolling is left alone.
+    pub(super) scrolled_to_active: Option<TabId>,
     /// Whether the horizontal tab bar needs scroll (more tabs than fit).
     /// Set each frame by `render_horizontal`.
     pub(super) needs_horizontal_scroll: bool,
@@ -92,6 +99,7 @@ impl TabBarUI {
             context_menu_pos: egui::Pos2::ZERO,
             context_menu_opened_frame: 0,
             editing_color: [100, 100, 100],
+            chip_action: None,
             renaming_tab: false,
             rename_activated_frame: 0,
             rename_buffer: String::new(),
@@ -101,6 +109,7 @@ impl TabBarUI {
             icon_buffer: String::new(),
             context_menu_icon: None,
             scroll_offset: 0.0,
+            scrolled_to_active: None,
             needs_horizontal_scroll: false,
             show_new_tab_profile_menu: false,
             move_candidates: Vec::new(),

@@ -114,6 +114,8 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "toggle_shader_readability_mode",
     "toggle_throughput_mode",
     "toggle_tmux_session_picker",
+    // UX.md A16 renamed the one above; both stay (the old id is an alias).
+    "toggle_session_picker",
     // Added deliberately (UX.md A20), not part of the frozen capture.
     "toggle_always_on_top",
     // UX.md P3 pane power features (A1, A7, A8, A9), added deliberately.
@@ -129,6 +131,30 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "toggle_pane_broadcast",
     // UX P3b (A6), added deliberately.
     "enter_resize_mode",
+    // UX P4 (A10-A14, A21, A23), added deliberately. `close_window` above is
+    // now the real whole-window close; the smart close moved here.
+    "close_tab_or_window",
+    "next_window",
+    "prev_window",
+    "switch_to_window_1",
+    "switch_to_window_2",
+    "switch_to_window_3",
+    "switch_to_window_4",
+    "switch_to_window_5",
+    "switch_to_window_6",
+    "switch_to_window_7",
+    "switch_to_window_8",
+    "switch_to_window_9",
+    "last_tab",
+    "go_to_last_tab",
+    "rename_tab",
+    "close_other_tabs",
+    "close_tabs_to_right",
+    "detach",
+    "new_mux_session",
+    "focus_next_attention_agent",
+    "toggle_tree_picker",
+    "move_tab_to_window_picker",
 ];
 
 /// Precedence order of the uniform shortcut layers in `handle_key_event`.

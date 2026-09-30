@@ -142,7 +142,19 @@ impl WindowState {
             .and_then(|transport| transport.daemon_health_event());
         if let Some(message) = health_event {
             crate::debug_info!("MUX", "daemon health: {message}");
-            self.show_toast(message);
+            // The transport reports transitions only; the chip keeps the
+            // state between them (UX.md V1).
+            let recovered = message.contains("responding again");
+            self.tmux_state.mux_health = if recovered {
+                crate::session_chip::MuxHealth::Connected
+            } else {
+                crate::session_chip::MuxHealth::Unresponsive
+            };
+            if recovered {
+                self.show_toast(message);
+            } else {
+                self.record_mux_error(message);
+            }
         }
         let (core_notifications, disconnected) = match &self.tmux_state.transport {
             Some(transport) => transport.drain(),
@@ -217,9 +229,14 @@ impl WindowState {
                     par_term_emu_core_rust::tmux_control::TmuxNotification::SessionsChanged
                 )
             });
-        if !session_set_changes.is_empty() && self.attached_mux_session_is_gone() {
-            self.end_mux_view_for_gone_session();
-            return true;
+        if !session_set_changes.is_empty() {
+            if self.attached_mux_session_is_gone() {
+                self.end_mux_view_for_gone_session();
+                return true;
+            }
+            // Another client created or ended a session: the picker and
+            // palette lists go stale.
+            self.refresh_mux_directory();
         }
 
         let mut notifications = ParserBridge::convert_all(core_notifications);

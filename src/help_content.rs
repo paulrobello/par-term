@@ -72,11 +72,16 @@ pub(crate) fn section_for(action_id: &str) -> &'static str {
         "Pane"
     } else if has("tab") {
         "Tab"
-    } else if has("window") || matches!(id, "quit" | "toggle_always_on_top") {
+    } else if has("window") || matches!(id, "quit" | "toggle_always_on_top" | "toggle_tree_picker")
+    {
         "Window"
     } else if has("session_picker")
         || has("profile")
-        || matches!(id, "ssh_quick_connect" | "save_arrangement")
+        || has("mux_session")
+        || matches!(
+            id,
+            "ssh_quick_connect" | "save_arrangement" | "detach" | "focus_next_attention_agent"
+        )
     {
         "Sessions & Profiles"
     } else if has("search")

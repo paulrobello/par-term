@@ -123,6 +123,8 @@ pub(super) struct PostRenderActions {
     pub(super) command_palette: Option<String>,
     pub(super) paste_special: PasteSpecialAction,
     pub(super) session_picker: SessionPickerAction,
+    /// A pane context menu choice (UX.md V10): the pane and the action.
+    pub(super) pane_menu: Option<(crate::pane::PaneId, &'static str)>,
     pub(super) tab_action: TabBarAction,
     pub(super) shader_install: ShaderInstallResponse,
     pub(super) integrations: IntegrationsResponse,
@@ -148,6 +150,7 @@ impl Default for PostRenderActions {
             command_palette: None,
             paste_special: PasteSpecialAction::None,
             session_picker: SessionPickerAction::None,
+            pane_menu: None,
             tab_action: TabBarAction::None,
             shader_install: ShaderInstallResponse::None,
             integrations: IntegrationsResponse::default(),

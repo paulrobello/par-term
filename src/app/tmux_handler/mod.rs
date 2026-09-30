@@ -15,7 +15,7 @@ mod gateway_input;
 mod gateway_profile;
 #[cfg(all(test, feature = "mux"))]
 mod mux_close_confirm_tests;
-mod notifications;
+pub(crate) mod notifications;
 pub(crate) mod pane_write;
 pub(crate) mod tmux_state;
 

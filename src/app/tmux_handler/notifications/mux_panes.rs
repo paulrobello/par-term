@@ -69,13 +69,13 @@ impl WindowState {
                     // target; a local split would strand it) and surface it.
                     let body = reply.join("\n");
                     log::error!("par-mux split-window rejected: {body}");
-                    self.show_persistent_toast(format!("par-mux: split failed — {body}"));
+                    self.record_persistent_mux_error(format!("par-mux: split failed — {body}"));
                     true
                 }
             }
             Err(e) => {
                 log::error!("par-mux split-window failed: {e}");
-                self.show_persistent_toast(format!("par-mux: split failed — {e}"));
+                self.record_persistent_mux_error(format!("par-mux: split failed — {e}"));
                 // M6: a resolved daemon target means the split was
                 // consumed — false here falls through to a LOCAL split and
                 // strands an unmapped pane inside the mux tab.
@@ -120,7 +120,7 @@ impl WindowState {
             }),
             Err(e) => {
                 log::error!("par-mux split-window failed: {e}");
-                self.show_persistent_toast(format!("par-mux: split failed — {e}"));
+                self.record_persistent_mux_error(format!("par-mux: split failed — {e}"));
                 return true;
             }
         };
@@ -132,7 +132,7 @@ impl WindowState {
                 .map(|r| r.join("\n"))
                 .unwrap_or_default();
             log::error!("par-mux split-window rejected: {body}");
-            self.show_persistent_toast(format!("par-mux: split failed — {body}"));
+            self.record_persistent_mux_error(format!("par-mux: split failed — {body}"));
             return true;
         };
         self.tmux_state.mux_focused_pane = Some(pane);
@@ -147,7 +147,7 @@ impl WindowState {
             for cmd in keys {
                 if let Err(e) = transport.send_command(&cmd) {
                     log::error!("par-mux split send-keys failed: {e}");
-                    self.show_toast(format!("par-mux: split command failed — {e}"));
+                    self.record_mux_error(format!("par-mux: split command failed — {e}"));
                     break;
                 }
             }
@@ -195,13 +195,13 @@ impl WindowState {
             Ok(body) if !ok => {
                 let text = body.join("\n");
                 log::error!("par-mux kill-pane rejected: {text}");
-                self.show_toast(format!("par-mux: close failed — {text}"));
+                self.record_mux_error(format!("par-mux: close failed — {text}"));
                 true
             }
             Ok(_) => true,
             Err(e) => {
                 log::error!("par-mux kill-pane failed: {e}");
-                self.show_toast(format!("par-mux: close failed — {e}"));
+                self.record_mux_error(format!("par-mux: close failed — {e}"));
                 true
             }
         }
@@ -248,12 +248,12 @@ impl WindowState {
             Ok(body) if !ok => {
                 let text = body.join("\n");
                 log::error!("par-mux swap-pane rejected: {text}");
-                self.show_toast(format!("par-mux: swap failed — {text}"));
+                self.record_mux_error(format!("par-mux: swap failed — {text}"));
             }
             Ok(_) => log::info!("MUX: swapped panes %{f_mux} and %{n_mux}"),
             Err(e) => {
                 log::error!("par-mux swap-pane failed: {e}");
-                self.show_toast(format!("par-mux: swap failed — {e}"));
+                self.record_mux_error(format!("par-mux: swap failed — {e}"));
             }
         }
         true
@@ -280,7 +280,7 @@ impl WindowState {
             Ok(reply) => reply,
             Err(e) => {
                 log::error!("par-mux agent-launch split failed: {e}");
-                self.show_toast(format!("par-mux: launch failed — {e}"));
+                self.record_mux_error(format!("par-mux: launch failed — {e}"));
                 return MuxLaunchOutcome::Failed;
             }
         };
@@ -294,7 +294,7 @@ impl WindowState {
             // resolved, so this is consumed-failed, never fall-through.
             let body = reply.join("\n");
             log::error!("par-mux agent-launch split rejected: {body}");
-            self.show_toast(format!("par-mux: launch failed — {body}"));
+            self.record_mux_error(format!("par-mux: launch failed — {body}"));
             return MuxLaunchOutcome::Failed;
         };
         let keys = [
@@ -307,7 +307,7 @@ impl WindowState {
         for cmd in keys {
             if let Err(e) = transport.send_command(&cmd) {
                 log::error!("par-mux agent-launch {cmd:?} failed: {e}");
-                self.show_toast(format!("par-mux: launch failed — {e}"));
+                self.record_mux_error(format!("par-mux: launch failed — {e}"));
                 return MuxLaunchOutcome::Failed;
             }
         }

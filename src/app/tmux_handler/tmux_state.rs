@@ -134,6 +134,33 @@ pub(crate) struct TmuxState {
     /// layout reconciliation then cross between daemon windows. The owning
     /// tab travels with the pane id.
     pub(crate) tmux_pane_owners: std::collections::HashMap<TmuxPaneId, (TabId, PaneId)>,
+    /// The daemon (socket stem) serving the attached par-mux session.
+    /// Restore reattaches by name through `par-mux-<name>.sock`, so a
+    /// session whose daemon has another name is not persisted (it would
+    /// come back as an empty namesake in a new daemon).
+    pub(crate) mux_daemon: Option<String>,
+    /// Daemon health for the session chip (UX.md V1), updated from each
+    /// `daemon_health_event` transition and the attach's version check.
+    pub(crate) mux_health: crate::session_chip::MuxHealth,
+    /// The last par-mux error, shown on the session chip until the user
+    /// dismisses it (UX.md M12). Session teardown deliberately leaves it:
+    /// "connection lost" must still be readable after the view ends.
+    pub(crate) mux_last_error: Option<String>,
+    /// The by-name attach worker reports which daemon it chose here
+    /// (`attach_mux_session_by_name`); `poll_mux_attach` reads it.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_daemon_rx: Option<std::sync::mpsc::Receiver<String>>,
+    /// The last finished par-mux session directory scan (UX.md A16/A22):
+    /// what the session picker and the palette's attach rows list.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_directory: Option<super::notifications::mux_directory::MuxDirectory>,
+    /// A directory scan in flight.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_directory_scan: Option<super::notifications::mux_directory::PendingScan>,
+    /// Test seam: scan and attach sockets here instead of the per-user
+    /// default directory, so tests never touch the user's live daemons.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_socket_dir_override: Option<std::path::PathBuf>,
 }
 
 impl TmuxState {
@@ -159,6 +186,17 @@ impl TmuxState {
             #[cfg(feature = "mux")]
             pending_mux_paste: std::cell::RefCell::new(None),
             tmux_pane_owners: std::collections::HashMap::new(),
+            mux_daemon: None,
+            mux_health: crate::session_chip::MuxHealth::Connected,
+            mux_last_error: None,
+            #[cfg(feature = "mux")]
+            mux_daemon_rx: None,
+            #[cfg(feature = "mux")]
+            mux_directory: None,
+            #[cfg(feature = "mux")]
+            mux_directory_scan: None,
+            #[cfg(feature = "mux")]
+            mux_socket_dir_override: None,
         }
     }
 
@@ -180,6 +218,12 @@ impl TmuxState {
     /// session of the same name instead of reattaching to the daemon.
     pub(crate) fn persisted_session_names(&self) -> (Option<String>, Option<String>) {
         match (&self.tmux_session_name, self.transport.is_some()) {
+            // A session served by a daemon named otherwise cannot be found
+            // again by name: restoring it would spawn a new daemon holding
+            // an empty session of the same name.
+            (Some(name), true) if self.mux_daemon.as_ref().is_some_and(|d| d != name) => {
+                (None, None)
+            }
             (Some(name), true) => {
                 // An emptied session must not come back on restore: an
                 // empty sync table at save time means every window was

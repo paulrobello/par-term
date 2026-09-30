@@ -225,13 +225,13 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | `Cmd/Ctrl + Shift + B` | Toggle background shader |
 | `Cmd/Ctrl + Shift + U` | Toggle cursor shader |
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
-| `Cmd + Ctrl + S` (macOS) / `Ctrl + Alt + T` or `Ctrl + Alt + S` (Linux/Win) | Toggle tmux session picker |
+| `Cmd + Ctrl + S` (macOS) / `Ctrl + Alt + T` or `Ctrl + Alt + S` (Linux/Win) | Toggle session picker (par-mux and tmux) |
 | `Cmd + ,` (macOS) / `F12` | Open the Settings window |
 | `Ctrl + ,` (all platforms) | Cycle cursor style (Block → Beam → Underline) |
 
 > **📝 Note:** The command palette owns `Cmd/Ctrl + Shift + P` (the VS Code convention). The profile drawer moved to iTerm2's **Open Profiles** chord, `Cmd + O`, on macOS. On Linux and Windows it ships unbound, because the matching `Ctrl + Shift + O` is Split Down there; open it from the Profiles menu or the palette. Reach **Manage Profiles...** from the Profiles menu, or from **Settings ▸ Profiles**.
 
-> **📝 Note:** The tmux session picker moved off `Cmd + Opt + T` on macOS, which iTerm2 uses for New Tab Next to Current. On Linux, Ubuntu opens a terminal on `Ctrl + Alt + T`, so `Ctrl + Alt + S` is offered as well.
+> **📝 Note:** The session picker moved off `Cmd + Opt + T` on macOS, which iTerm2 uses for New Tab Next to Current. On Linux, Ubuntu opens a terminal on `Ctrl + Alt + T`, so `Ctrl + Alt + S` is offered as well.
 
 > **📝 Note:** Cursor style cycles on `Ctrl + ,` on **every** platform, macOS included — the cycler accepts either Ctrl or Cmd, and nothing higher in the dispatch chain claims `Ctrl + ,`. On macOS it is specifically **not** `Cmd + ,`: that is the `Settings...` key equivalent on the application menu and opens the Settings window instead.
 
@@ -296,7 +296,11 @@ reference.
 
 **Application & Windows:**
 - `new_window`, `quit`
-- `close_window` - Smart close: the active tab when the window has several, otherwise the window. No default chord since `Cmd + W` became the pane-cascading `close_pane`.
+- `close_window` - Close the whole window with all its tabs, asking first when it holds more than one tab (the same confirmation as the title-bar close)
+- `close_tab_or_window` - Smart close: the active tab when the window has several, otherwise the window. This was `close_window` before; neither has a default chord since `Cmd + W` became the pane-cascading `close_pane`.
+- `next_window`, `prev_window` - Focus the next or previous window in window-number order, wrapping
+- `toggle_tree_picker` - Open Quickly: every window, tab, and pane in one fuzzy list (hidden par-mux tabs included; a query also matches a tab's session and a pane's directory); Enter jumps there, re-showing a hidden tab (`Cmd + Shift + O` / `Ctrl + Alt + O`)
+- `switch_to_window_1`, `switch_to_window_2`, `switch_to_window_3`, `switch_to_window_4`, `switch_to_window_5`, `switch_to_window_6`, `switch_to_window_7`, `switch_to_window_8`, `switch_to_window_9` - Focus the window holding that number (shown in the title with `show_window_number`). No default chord (iTerm2 uses `Cmd + Opt + digit`); bind one yourself
 - `select_all` - Select the whole terminal buffer (scrollback plus visible screen), or the focused text field when Settings or an overlay has focus
 - `toggle_menu` - Open the in-app application menu
 
@@ -314,7 +318,12 @@ without a binding there is no way to open the in-app menu.
 - `move_tab_left`, `move_tab_right`
 - `switch_to_tab_1`, `switch_to_tab_2`, `switch_to_tab_3`, `switch_to_tab_4`, `switch_to_tab_5`, `switch_to_tab_6`, `switch_to_tab_7`, `switch_to_tab_8`, `switch_to_tab_9`
 - `reopen_closed_tab`
+- `last_tab` - Toggle to the previously active tab (tmux `last-window`)
+- `go_to_last_tab` - Switch to the rightmost tab
+- `rename_tab` - Open the inline rename field on the active tab (the same field a double-click opens)
+- `close_other_tabs`, `close_tabs_to_right` - Close every other tab, or every tab right of the active one; each tab keeps its own running-job confirmation, and a par-mux tab closes its daemon window
 - `move_tab_to_new_window` — transfer the active tab to a new window while preserving PTY, scrollback, and split panes
+- `move_tab_to_window_picker` — open the command palette on **Move Tab to Window N** rows, one per other window; `move_tab_to_window:<n>` moves the active tab to window N directly. A par-mux tab cannot move (detach first)
 
 **Window Arrangements:**
 - `save_arrangement` - Save current window layout as a named arrangement
@@ -351,7 +360,8 @@ without a binding there is no way to open the in-app menu.
 - `toggle_background_shader`, `toggle_cursor_shader`
 - `cycle_background_shader`, `toggle_shader_animation`, `toggle_shader_readability_mode`
 - `toggle_broadcast_input`, `toggle_profile_drawer`
-- `toggle_tmux_session_picker`, `ssh_quick_connect`
+- `toggle_session_picker` - The session picker: par-mux sessions (attach, switch, create, rename, end, detach) and, with tmux integration on, tmux sessions. The old id `toggle_tmux_session_picker` still works
+- `ssh_quick_connect`
 - `toggle_ai_inspector`, `toggle_command_history`
 - `reload_dynamic_profiles`
 - `toggle_agent_usage_panel` - Show or hide the agent usage panel ([Agent Usage](../features/AGENT_USAGE.md))
@@ -371,7 +381,10 @@ without a binding there is no way to open the in-app menu.
 - `launch-agent:<id>`, `launch-agent-autonomous:<id>`, `launch-default-agent` - Launch a configured coding agent
 - `agent-cmd:<id>` - Run an agent-authored command ([Agent Commands](../features/AGENT_COMMANDS.md))
 - `agent-roster-focus:<pane>` - Focus the pane of a par-mux roster agent ([par-mux](../features/MUX.md))
-- `mux-detach` - Detach this window from its par-mux session, leaving the session running
+- `detach` - Detach this window from its par-mux session, leaving the session running (`mux-detach` still works as an alias)
+- `focus_next_attention_agent` - Jump to the next par-mux agent that is blocked, then to agents that finished and were not looked at, cycling across tabs (`Cmd + Opt + A` / `Ctrl + Alt + A`)
+- `new_mux_session` - Create a par-mux session (named `session-N`) and attach this window to it, no profile needed; an attached window switches to it
+- `attach_mux_session:<daemon>/<name>` - Attach this window to a running par-mux session (`attach_mux_session:<name>` finds it by name among the running daemons); the palette lists one row per running session. A name no daemon lists is reported and nothing is created
 - `mux-restart-pane` - Restart the focused par-mux pane's process
 - `plugin-action:<plugin_id>:<action_id>` - Run a plugin-contributed action ([Plugins](../features/PLUGINS.md))
 - `triage-crash:<id>` - Open a crash-triage offer ([Crash Triage](../features/CRASH_TRIAGE.md))
@@ -384,7 +397,7 @@ A static audit (UX.md RT2 and RT3, 2026-09-29) of par-term's shipped default cho
 |------------------|--------|----------|-----------------|--------|
 | `Ctrl+Alt+Left` / `Right` / `Up` / `Down` | Focus pane | Linux (GNOME) | Switch workspace ([GNOME schema][gnome-wm]) | **Conflict** |
 | `Ctrl+Alt+Shift+Left` / `Right` / `Up` / `Down` | Resize pane | Linux (GNOME) | Move window to workspace ([GNOME schema][gnome-wm]) | **Conflict** |
-| `Ctrl+Alt+T` | tmux session picker | Linux (Ubuntu, many KDE distributions) | Open a terminal (distribution default, not in upstream GNOME schemas) | **Conflict where configured**; use the alias `Ctrl+Alt+S` |
+| `Ctrl+Alt+T` | Session picker | Linux (Ubuntu, many KDE distributions) | Open a terminal (distribution default, not in upstream GNOME schemas) | **Conflict where configured**; use the alias `Ctrl+Alt+S` |
 | `Ctrl+Shift+U` | Toggle cursor shader | Linux with IBus | Unicode code-point entry ([IBus schema][ibus]) | **Conflict** when IBus is the input method |
 | `Ctrl+Alt+W`, `Ctrl+Alt+P`, `Ctrl+Alt+I`, `Ctrl+Alt+V`, `Ctrl+Alt+R`, `Ctrl+Alt+S` | Close tab, select pane, broadcast, paste special, command history, session picker | Linux (GNOME) | None found in the GNOME window-manager or media-key schemas ([wm][gnome-wm], [media keys][gnome-media]) | No conflict found |
 | `Ctrl+Shift+E`, `Ctrl+Shift+O` | Split right, split down | Linux with IBus | IBus reserves `Ctrl+Shift+U` only; emoji is `Super+.` ([IBus schema][ibus]) | No conflict found |
@@ -397,7 +410,7 @@ A static audit (UX.md RT2 and RT3, 2026-09-29) of par-term's shipped default cho
 | `Cmd+Ctrl+Arrow` | Resize pane | macOS | Not a system default; window-manager apps such as Rectangle may claim it | No conflict with the OS |
 | `Cmd+\`` | (none shipped) | macOS | Cycles the front app's windows ([Apple][apple-keys]) | Not applicable: par-term binds nothing to it. Whether winit delivers it to par-term (RT3) is a runtime check, unverified |
 
-The proposed chords the UX plan names for RT2 (`Cmd+Opt+A`, `Ctrl+Alt+A`, `Ctrl+Alt+=`) are not shipped defaults yet; none of them appears in the vendor lists above. KDE Plasma's upstream defaults were not checked against a primary source.
+`Cmd+Opt+A` / `Ctrl+Alt+A` (next agent needing attention) and `Ctrl+Alt+=` (equalize panes) ship as defaults; none of them appears in the vendor lists above. KDE Plasma's upstream defaults were not checked against a primary source.
 
 [gnome-wm]: https://gitlab.gnome.org/GNOME/gsettings-desktop-schemas/-/blob/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in
 [gnome-media]: https://gitlab.gnome.org/GNOME/gnome-settings-daemon/-/blob/master/data/org.gnome.settings-daemon.plugins.media-keys.gschema.xml.in

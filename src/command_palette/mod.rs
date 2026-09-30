@@ -95,6 +95,13 @@ impl CommandPalette {
         self.request_focus = true;
     }
 
+    /// Pre-fill the filter (A18 opens the palette on its Move Tab rows).
+    pub(crate) fn set_query(&mut self, query: &str) {
+        self.query = query.to_string();
+        self.selected = 0;
+        self.scroll_offset = 0;
+    }
+
     /// Hide the palette.
     pub(crate) fn close(&mut self) {
         self.visible = false;

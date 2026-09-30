@@ -50,8 +50,13 @@ impl WindowState {
             // main-thread finish) — must run even while no transport is
             // attached, or an in-flight attach would never be observed.
             self.poll_mux_attach();
+            // A landed session-directory scan redraws the picker/chip.
+            let directory_landed = self.poll_mux_directory();
             if self.tmux_state.transport.is_some() {
-                return self.check_mux_notifications();
+                return self.check_mux_notifications() | directory_landed;
+            }
+            if directory_landed && !self.config.load().tmux.tmux_enabled {
+                return true;
             }
         }
 

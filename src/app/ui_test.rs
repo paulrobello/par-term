@@ -193,6 +193,8 @@ fn visible_modal_names(ws: &WindowState) -> Vec<String> {
     push(o.command_palette.visible, "command_palette");
     push(o.agent_usage_panel.visible, "agent_usage_panel");
     push(o.tmux_session_picker_ui.visible, "tmux_session_picker_ui");
+    push(o.tree_picker_ui.visible, "tree_picker_ui");
+    push(o.pane_context_menu.is_open(), "pane_context_menu");
     push(o.shader_install_ui.visible, "shader_install_ui");
     push(o.integrations_ui.visible, "integrations_ui");
     push(o.ssh_connect_ui.is_visible(), "ssh_connect_ui");

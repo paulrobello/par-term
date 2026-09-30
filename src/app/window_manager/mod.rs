@@ -26,10 +26,14 @@ mod menu_actions;
 mod scripting;
 mod settings_actions;
 mod settings_persistence;
+mod tree_picker;
+#[cfg(all(test, feature = "mux", unix))]
+mod tree_picker_tests;
 mod update_checker;
 mod window_close;
 mod window_lifecycle;
 mod window_session;
+mod window_switch;
 
 use crate::app::window_state::WindowState;
 use crate::arrangements::ArrangementManager;
@@ -81,6 +85,8 @@ pub(crate) struct WindowManager {
     /// last-window save, which would otherwise overwrite the file with
     /// only the final survivor of the teardown.
     pub(crate) session_saved_for_quit: bool,
+    /// The launch-time par-mux auto-attach (UX.md M15) has run.
+    pub(crate) mux_auto_attach_done: bool,
     /// Counter for generating unique window IDs during creation
     pending_window_count: usize,
     /// Separate settings window (if open)
@@ -154,6 +160,7 @@ impl WindowManager {
             runtime,
             should_exit: false,
             session_saved_for_quit: false,
+            mux_auto_attach_done: false,
             pending_window_count: 0,
             settings_window: None,
             last_written_config_yaml: None,

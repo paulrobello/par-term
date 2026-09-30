@@ -76,6 +76,20 @@ impl TabManager {
         }
     }
 
+    /// The previously active tab when it still exists and is visible
+    /// (UX.md A10). `None` otherwise, so "last tab" never lands on a closed
+    /// or hidden one.
+    pub fn previous_tab_id(&self) -> Option<TabId> {
+        let prev = self.previous_active_tab_id?;
+        (Some(prev) != self.active_tab_id && self.tabs.iter().any(|t| t.id == prev && !t.is_hidden))
+            .then_some(prev)
+    }
+
+    /// The rightmost visible tab (UX.md A11).
+    pub fn last_visible_tab_id(&self) -> Option<TabId> {
+        self.tabs.iter().rev().find(|t| !t.is_hidden).map(|t| t.id)
+    }
+
     /// Move a tab left or right
     /// direction: -1 for left, 1 for right. A tab at either end stays put
     /// (UX.md TW9: moving never wraps to the other end).

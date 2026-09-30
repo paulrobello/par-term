@@ -34,6 +34,23 @@ impl WindowState {
         self.request_redraw();
     }
 
+    /// A par-mux failure: toast it and hold it on the session chip until
+    /// the user dismisses it (UX.md M12, V1) — a two-second toast alone is
+    /// easy to miss and is overwritten by the next one.
+    pub(crate) fn record_mux_error(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        self.tmux_state.mux_last_error = Some(message.clone());
+        self.show_toast(message);
+    }
+
+    /// [`Self::record_mux_error`] with a toast that stays until replaced
+    /// (the V11 error surface for a failed split).
+    pub(crate) fn record_persistent_mux_error(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        self.tmux_state.mux_last_error = Some(message.clone());
+        self.show_persistent_toast(message);
+    }
+
     /// Show a toast with no auto-hide timer — it stays until replaced or
     /// cleared, the V11 error-surface shape for failures the user must
     /// see and act on rather than watch fade.

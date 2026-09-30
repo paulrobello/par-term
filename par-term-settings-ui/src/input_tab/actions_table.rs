@@ -28,9 +28,26 @@
 pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
     ("new_window", "New Window", Some("Cmd+N")),
-    // Smart close (tab, else window) keeps its id but no chord: Cmd+W is
-    // iTerm2's pane-cascading Close (`close_pane`, UX.md I15).
+    // UX.md A14: `close_window` closes the whole window (all tabs); the
+    // smart close (tab, else window) lives on as `close_tab_or_window`.
+    // Neither has a chord: Cmd+W is iTerm2's pane-cascading Close
+    // (`close_pane`, UX.md I15).
     ("close_window", "Close Window", None),
+    ("close_tab_or_window", "Close Tab or Window", None),
+    // UX.md A13: window cycling and window by number, palette and bindable.
+    // No defaults: iTerm2's Cmd+Opt+digit has not been checked against the
+    // registry's Option-key matching, so it ships unbound.
+    ("next_window", "Next Window", None),
+    ("prev_window", "Previous Window", None),
+    ("switch_to_window_1", "Switch to Window 1", None),
+    ("switch_to_window_2", "Switch to Window 2", None),
+    ("switch_to_window_3", "Switch to Window 3", None),
+    ("switch_to_window_4", "Switch to Window 4", None),
+    ("switch_to_window_5", "Switch to Window 5", None),
+    ("switch_to_window_6", "Switch to Window 6", None),
+    ("switch_to_window_7", "Switch to Window 7", None),
+    ("switch_to_window_8", "Switch to Window 8", None),
+    ("switch_to_window_9", "Switch to Window 9", None),
     ("save_arrangement", "Save Window Arrangement", None),
     ("quit", "Quit par-term", Some("Cmd+Q")),
     ("select_all", "Select All", Some("Cmd+A")),
@@ -98,6 +115,14 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Cmd+Shift+T"),
     ),
     ("move_tab_to_new_window", "Move Tab to New Window", None),
+    // UX.md A10-A12, A21: palette and bindable, no default chord.
+    ("last_tab", "Last-Used Tab", None),
+    ("go_to_last_tab", "Go to Last Tab", None),
+    ("rename_tab", "Rename Tab", None),
+    ("close_other_tabs", "Close Other Tabs", None),
+    ("close_tabs_to_right", "Close Tabs to the Right", None),
+    // UX.md A18: the keyboard version of the tab context submenu.
+    ("move_tab_to_window_picker", "Move Tab to Window...", None),
     ("next_tab", "Next Tab", Some("Cmd+Shift+]")),
     ("prev_tab", "Previous Tab", Some("Cmd+Shift+[")),
     ("move_tab_left", "Move Tab Left", Some("Cmd+Alt+Shift+[")),
@@ -230,8 +255,8 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_throughput_mode", "Toggle Throughput Mode", None),
     ("toggle_always_on_top", "Toggle Always on Top", None),
     (
-        "toggle_tmux_session_picker",
-        "Toggle tmux Session Picker",
+        "toggle_session_picker",
+        "Toggle Session Picker",
         Some("Cmd+Ctrl+S"),
     ),
     (
@@ -247,6 +272,20 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Cmd+Shift+P"),
     ),
     ("toggle_agent_usage_panel", "Toggle Agent Usage Panel", None),
+    // UX.md A23: public detach id (`mux-detach` is an alias).
+    ("detach", "Detach from par-mux Session", None),
+    // UX.md A22: a new par-mux session without a profile.
+    ("new_mux_session", "New par-mux Session", None),
+    (
+        "focus_next_attention_agent",
+        "Next Agent Needing Attention",
+        Some("Cmd+Alt+A"),
+    ),
+    (
+        "toggle_tree_picker",
+        "Open Quickly (Windows, Tabs, Panes)",
+        Some("Cmd+Shift+O"),
+    ),
 ];
 
 #[cfg(not(target_os = "macos"))]
@@ -254,6 +293,18 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
     ("new_window", "New Window", Some("Ctrl+Shift+N")),
     ("close_window", "Close Window", None),
+    ("close_tab_or_window", "Close Tab or Window", None),
+    ("next_window", "Next Window", None),
+    ("prev_window", "Previous Window", None),
+    ("switch_to_window_1", "Switch to Window 1", None),
+    ("switch_to_window_2", "Switch to Window 2", None),
+    ("switch_to_window_3", "Switch to Window 3", None),
+    ("switch_to_window_4", "Switch to Window 4", None),
+    ("switch_to_window_5", "Switch to Window 5", None),
+    ("switch_to_window_6", "Switch to Window 6", None),
+    ("switch_to_window_7", "Switch to Window 7", None),
+    ("switch_to_window_8", "Switch to Window 8", None),
+    ("switch_to_window_9", "Switch to Window 9", None),
     ("save_arrangement", "Save Window Arrangement", None),
     ("quit", "Quit par-term", Some("Ctrl+Shift+Q")),
     ("select_all", "Select All", Some("Ctrl+Shift+A")),
@@ -318,6 +369,14 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Ctrl+Shift+Z"),
     ),
     ("move_tab_to_new_window", "Move Tab to New Window", None),
+    // UX.md A10-A12, A21: palette and bindable, no default chord.
+    ("last_tab", "Last-Used Tab", None),
+    ("go_to_last_tab", "Go to Last Tab", None),
+    ("rename_tab", "Rename Tab", None),
+    ("close_other_tabs", "Close Other Tabs", None),
+    ("close_tabs_to_right", "Close Tabs to the Right", None),
+    // UX.md A18: the keyboard version of the tab context submenu.
+    ("move_tab_to_window_picker", "Move Tab to Window...", None),
     ("next_tab", "Next Tab", Some("Ctrl+Shift+]")),
     ("prev_tab", "Previous Tab", Some("Ctrl+Shift+[")),
     ("move_tab_left", "Move Tab Left", Some("Ctrl+Shift+Left")),
@@ -443,8 +502,8 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("toggle_always_on_top", "Toggle Always on Top", None),
     (
-        "toggle_tmux_session_picker",
-        "Toggle tmux Session Picker",
+        "toggle_session_picker",
+        "Toggle Session Picker",
         Some("Ctrl+Alt+T"),
     ),
     (
@@ -464,4 +523,18 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Ctrl+Shift+P"),
     ),
     ("toggle_agent_usage_panel", "Toggle Agent Usage Panel", None),
+    // UX.md A23: public detach id (`mux-detach` is an alias).
+    ("detach", "Detach from par-mux Session", None),
+    // UX.md A22: a new par-mux session without a profile.
+    ("new_mux_session", "New par-mux Session", None),
+    (
+        "focus_next_attention_agent",
+        "Next Agent Needing Attention",
+        Some("Ctrl+Alt+A"),
+    ),
+    (
+        "toggle_tree_picker",
+        "Open Quickly (Windows, Tabs, Panes)",
+        Some("Ctrl+Alt+O"),
+    ),
 ];

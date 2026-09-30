@@ -139,10 +139,10 @@ pub(crate) fn route_literal_bytes(
 }
 
 impl TmuxState {
-    /// Runtime palette rows for the attached par-mux session — the explicit
-    /// detach affordance, present only while a transport is installed so
-    /// the palette never offers a dead action (the roster-picker pattern:
-    /// runtime rows joined at open time, not dispatch-table built-ins).
+    /// Runtime palette rows for the attached par-mux session, present only
+    /// while a transport is installed so the palette never offers a dead
+    /// action (the roster-picker pattern: runtime rows joined at open time,
+    /// not dispatch-table built-ins).
     ///
     /// Lives on `TmuxState` (like the roster's `palette_rows`) rather than
     /// `WindowState` so the egui open path's closure captures only this
@@ -152,17 +152,9 @@ impl TmuxState {
         if self.transport.is_none() {
             return Vec::new();
         }
-        let label = match &self.tmux_session_name {
-            Some(name) => format!("Detach par-mux Session '{name}' (keeps running)"),
-            None => "Detach par-mux Session (keeps running)".to_string(),
-        };
+        // Detach is the built-in `detach` action (UX.md A23), a catalog row
+        // of its own; only the mux-specific restart stays a runtime row.
         vec![
-            crate::command_palette::catalog::PaletteEntry {
-                action_id: "mux-detach".to_string(),
-                label,
-                chord: None,
-                priority: 0,
-            },
             // Restart the focused daemon pane's process in place
             // (`respawn-pane`; `-k` when it is still running).
             crate::command_palette::catalog::PaletteEntry {
@@ -216,10 +208,13 @@ impl WindowState {
             mux_attach_refusal(&par_term_emu_core_rust::mux::ipc::default_socket_path(name))
         {
             log::error!("par-mux attach to '{name}' refused: {reason}");
-            self.show_toast(format!("par-mux: attach to '{name}' refused — {reason}"));
+            self.record_mux_error(format!("par-mux: attach to '{name}' refused — {reason}"));
             self.mux_restore_placeholder_retire();
             return;
         }
+        // The profile path follows par-term's one-daemon-per-session naming.
+        self.tmux_state.mux_daemon = Some(name.to_string());
+        self.tmux_state.mux_daemon_rx = None;
         let (tx, rx) = std::sync::mpsc::channel();
         let worker_name = name.to_string();
         match std::thread::Builder::new()
@@ -236,7 +231,7 @@ impl WindowState {
             }
             Err(e) => {
                 log::error!("mux attach worker could not start: {e}");
-                self.show_toast("par-mux: attach failed (worker thread unavailable)");
+                self.record_mux_error("par-mux: attach failed (worker thread unavailable)");
                 self.mux_restore_placeholder_retire();
             }
         }
@@ -258,28 +253,43 @@ impl WindowState {
         let Some(pending) = self.tmux_state.mux_attach_pending.take() else {
             return;
         };
-        match pending.rx.try_recv() {
+        let outcome = match pending.rx.try_recv() {
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.tmux_state.mux_attach_pending = Some(pending);
+                return;
             }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => None,
+            Ok(result) => Some(result),
+        };
+        // The attempt settled: its by-name daemon report (if any) is read
+        // now or dropped, never left for the next attach to pick up.
+        let reported_daemon = self
+            .tmux_state
+            .mux_daemon_rx
+            .take()
+            .and_then(|rx| rx.try_recv().ok());
+        match outcome {
+            None => {
                 log::error!("mux attach worker died without reporting a result");
-                self.show_toast("par-mux: attach failed (worker died)");
+                self.record_mux_error("par-mux: attach failed (worker died)");
                 self.mux_restore_placeholder_retire();
             }
-            Ok(Err(e)) => {
+            Some(Err(e)) => {
                 log::error!("par-mux attach to '{}' failed: {e}", pending.name);
-                self.show_toast(format!(
+                self.record_mux_error(format!(
                     "par-mux: attach to '{}' failed — {e}",
                     pending.name
                 ));
                 self.mux_restore_placeholder_retire();
             }
-            Ok(Ok(client)) => {
+            Some(Ok(client)) => {
+                if let Some(daemon) = reported_daemon {
+                    self.tmux_state.mux_daemon = Some(daemon);
+                }
                 let transport = MuxTransport::new(MuxSessionClient::from_core(client));
                 if let Err(e) = self.install_mux_transport(&pending.name, transport) {
                     log::error!("par-mux attach to '{}' failed: {e}", pending.name);
-                    self.show_toast(format!(
+                    self.record_mux_error(format!(
                         "par-mux: attach to '{}' failed — {e}",
                         pending.name
                     ));
@@ -322,14 +332,17 @@ impl WindowState {
                 // cannot answer `version` is itself the mismatch.
                 let client_stamp = par_term_emu_core_rust::mux::build_stamp();
                 match check_daemon_version(daemon_version.as_deref().unwrap_or(""), client_stamp) {
-                    VersionCheck::Match | VersionCheck::Unknown => {}
+                    VersionCheck::Match | VersionCheck::Unknown => {
+                        self.tmux_state.mux_health = crate::session_chip::MuxHealth::Connected;
+                    }
                     VersionCheck::Mismatch { daemon, client } => {
                         log::warn!(
                             "par-mux daemon older than the client — daemon {daemon}, \
                              client {client}; daemon-side fixes are missing until the \
                              daemon is restarted (par-mux --restart)"
                         );
-                        self.show_toast(format!(
+                        self.tmux_state.mux_health = crate::session_chip::MuxHealth::Stale;
+                        self.record_mux_error(format!(
                             "par-mux: daemon older than this client ({daemon} vs {client}) \
                              — run `par-mux --restart` in a terminal to pick up fixes \
                              (your session is restored)"
@@ -392,6 +405,7 @@ impl WindowState {
                     "par-mux: {verb} session '{name}' (sessions survive detach)"
                 ));
                 self.update_window_title_for_mux();
+                self.refresh_mux_directory();
                 Ok(outcome)
             }
             Err(e) => Err(e),
@@ -405,7 +419,8 @@ impl WindowState {
     /// tear down exactly as they do when the daemon dies. Returns `false`
     /// when no transport is attached.
     ///
-    /// The palette's runtime `mux-detach` row dispatches here; closing the
+    /// The `detach` action (UX.md A23; `mux-detach` is its alias) dispatches
+    /// here, as does the palette's runtime row; closing the
     /// window remains the implicit detach path.
     pub(crate) fn detach_mux_session(&mut self) -> bool {
         if self.tmux_state.transport.take().is_none() {
@@ -418,9 +433,12 @@ impl WindowState {
         self.tmux_state.mux_exited_panes.clear();
         self.tmux_state.agent_roster.clear();
         self.handle_tmux_session_ended();
-        // Overwrite the shared cleanup's "tmux: Session ended" toast: the
-        // session did not end, it survives in the daemon.
+        // Overwrite the shared cleanup's "connection lost" toast and chip
+        // error: the session did not end, it survives in the daemon.
+        self.tmux_state.mux_last_error = None;
         self.show_toast("par-mux: detached (session keeps running in the daemon)");
+        self.tmux_state.mux_daemon = None;
+        self.refresh_mux_directory();
         self.focus_state.needs_redraw = true;
         self.request_redraw();
         true
@@ -466,7 +484,7 @@ impl WindowState {
             }
             Err(e) => {
                 log::error!("MUX: end session — kill-session ${session_id} failed: {e}");
-                self.show_toast(format!("par-mux: kill-session failed — {e}"));
+                self.record_mux_error(format!("par-mux: kill-session failed — {e}"));
             }
         }
     }
@@ -501,6 +519,10 @@ impl WindowState {
         self.tmux_state.mux_exited_panes.clear();
         self.tmux_state.agent_roster.clear();
         self.handle_tmux_session_ended();
+        self.tmux_state.mux_daemon = None;
+        // Not a lost connection: the session was ended (here or elsewhere).
+        self.tmux_state.mux_last_error = None;
+        self.refresh_mux_directory();
         self.show_toast("par-mux: session ended on the daemon");
         self.focus_state.needs_redraw = true;
         self.request_redraw();
@@ -2136,13 +2158,14 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_session_name = Some("rows".to_string());
 
         let rows = ws.tmux_state.mux_palette_rows();
-        assert_eq!(rows.len(), 2, "the detach and restart rows while attached");
-        assert_eq!(rows[0].action_id, "mux-detach");
-        assert_eq!(rows[1].action_id, "mux-restart-pane");
+        assert_eq!(rows.len(), 1, "the restart row while attached");
+        assert_eq!(rows[0].action_id, "mux-restart-pane");
+        // Detach is a built-in catalog row now (UX.md A23), not a runtime
+        // one — the palette must not list it twice.
         assert!(
-            rows[0].label.contains("rows"),
-            "the label names the attached session: {}",
-            rows[0].label
+            crate::command_palette::catalog::build_catalog()
+                .iter()
+                .any(|e| e.action_id == "detach")
         );
 
         let _ = std::fs::remove_file(&path);

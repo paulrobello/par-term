@@ -312,9 +312,11 @@ pub fn default_widgets() -> Vec<StatusBarWidgetConfig> {
             order: 7,
             format: None,
         },
+        // On by default (UX.md V3): the widget renders nothing until a
+        // par-mux session with rostered agents is attached.
         StatusBarWidgetConfig {
             id: WidgetId::AgentRoster,
-            enabled: false,
+            enabled: true,
             section: StatusBarSection::Right,
             order: 8,
             format: None,

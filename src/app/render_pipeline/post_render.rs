@@ -26,6 +26,7 @@ impl WindowState {
             command_palette,
             paste_special,
             session_picker,
+            pane_menu,
             tab_action,
             shader_install,
             integrations,
@@ -293,7 +294,39 @@ impl WindowState {
                 }
                 self.focus_state.needs_redraw = true;
             }
+            SessionPickerAction::Mux(request) => {
+                #[cfg(feature = "mux")]
+                self.handle_mux_session_request(request);
+                #[cfg(not(feature = "mux"))]
+                let _ = request;
+                self.focus_state.needs_redraw = true;
+            }
             SessionPickerAction::None => {}
+        }
+
+        // Pane context menu choice (UX.md V10): the action runs on the
+        // pane the menu was opened on.
+        if let Some((pane_id, action)) = pane_menu {
+            if let Some(pm) = self
+                .tab_manager
+                .active_tab_mut()
+                .and_then(|t| t.pane_manager_mut())
+                && pm.focused_pane_id() != Some(pane_id)
+            {
+                pm.focus_pane(pane_id);
+                self.after_user_pane_focus();
+            }
+            self.is_shutting_down |= action == "close_pane" && self.close_focused_pane();
+            if action != "close_pane" {
+                self.execute_keybinding_action(action);
+            }
+            self.focus_state.needs_redraw = true;
+        }
+
+        // Session chip click (UX.md V1)
+        #[cfg(feature = "mux")]
+        if let Some(chip_action) = self.tab_bar_ui.chip_action.take() {
+            self.handle_session_chip_action(chip_action);
         }
 
         // Check for shader installation completion from background thread

@@ -237,6 +237,8 @@ When a terminal application requests mouse tracking (vim, htop, etc.), scroll ev
 
 Right-click forwards the event to the terminal application when mouse tracking is enabled. This allows applications like tmux and vim to handle right-click for their own context menus or actions.
 
+When the program in the pane is not tracking the mouse, right-click focuses the pane under the pointer and opens the **pane menu**: Split Right, Split Down, Zoom Pane, Equalize Panes, Rename Pane, Move Pane to New Tab, Toggle Broadcast for This Pane, Restart Pane Process, and Close Pane. Each row shows its current keyboard chord. Escape or a click elsewhere closes the menu. Right-click on a pane title bar still opens the title rename.
+
 ## Pane Interaction
 
 ### Focus Panes

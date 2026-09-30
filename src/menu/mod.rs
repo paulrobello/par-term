@@ -17,6 +17,7 @@ mod actions;
 mod bridge;
 pub mod egui_menu;
 pub mod model;
+mod model_pane_session;
 mod registry_accel;
 
 /// macOS-specific menu building and NSApp initialization.

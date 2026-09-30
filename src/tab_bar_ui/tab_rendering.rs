@@ -31,8 +31,9 @@ pub(super) struct TabRenderParams<'a> {
     pub is_active: bool,
     pub has_activity: bool,
     pub is_bell_active: bool,
-    /// Tab's window is attached to a par-mux session (all its tabs are mux tabs)
-    pub mux_attached: bool,
+    /// The tab's par-mux view: attached badge (V2) and agent badges (V3),
+    /// decided per tab.
+    pub mux_view: &'a crate::tab::pane_badges::TabMuxView,
     /// Pane-mode badge (zoom / broadcast, UX.md V5/V6) and its hover text.
     pub pane_badge: Option<(&'static str, &'static str)>,
     pub custom_color: Option<[u8; 3]>,
@@ -120,7 +121,7 @@ impl TabBarUI {
             is_active,
             has_activity,
             is_bell_active,
-            mux_attached,
+            mux_view,
             pane_badge,
             custom_color,
             config,
@@ -229,16 +230,9 @@ impl TabBarUI {
                     egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
                 };
 
-                // par-mux attach indicator: every tab in an attached window is
-                // a mux tab, so the glyph marks them apart from local tabs
-                let mux_width = if mux_attached {
-                    ui.label(egui::RichText::new("🔗").color(text_color))
-                        .on_hover_text("Attached to a par-mux session");
-                    ui.add_space(2.0);
-                    18.0
-                } else {
-                    0.0
-                } + pane_badge_label(ui, pane_badge, text_color);
+                // par-mux badges (UX.md V2/V3), decided per tab
+                let mux_width = mux_badges(ui, mux_view, text_color)
+                    + pane_badge_label(ui, pane_badge, text_color);
 
                 // Truncate title to fit available width
                 let close_width = if config.tabs.tab_show_close_button {
@@ -253,7 +247,12 @@ impl TabBarUI {
                 let max_chars = estimate_max_chars(ui, &base_font_id, available);
                 let safe_title = sanitize_egui_title_text(title);
                 let display_title = truncate_plain(safe_title.as_ref(), max_chars);
-                ui.label(egui::RichText::new(display_title).color(text_color));
+                let truncated = display_title != safe_title.as_ref();
+                let label = ui.label(egui::RichText::new(display_title).color(text_color));
+                // UX.md V13: a truncated title shows in full on hover.
+                if truncated {
+                    label.on_hover_text(safe_title.as_ref());
+                }
             });
 
             // Close button at right edge
@@ -370,6 +369,28 @@ impl TabBarUI {
 }
 
 /// Draw the pane-mode badge (UX.md V5/V6) and return the width it takes.
+/// Draw a tab's par-mux badges — attached (V2) and its most urgent agent
+/// (V3) — and return the width they took, for title truncation.
+pub(super) fn mux_badges(
+    ui: &mut egui::Ui,
+    view: &crate::tab::pane_badges::TabMuxView,
+    text_color: egui::Color32,
+) -> f32 {
+    let mut width = 0.0;
+    if view.attached {
+        ui.label(egui::RichText::new(crate::tab::pane_badges::ATTACHED_BADGE).color(text_color))
+            .on_hover_text(view.attached_tooltip());
+        ui.add_space(2.0);
+        width += 18.0;
+    }
+    if let Some(agent) = view.agent_badge() {
+        ui.label(agent.glyph()).on_hover_text(agent.describe());
+        ui.add_space(2.0);
+        width += 18.0;
+    }
+    width
+}
+
 pub(super) fn pane_badge_label(
     ui: &mut egui::Ui,
     badge: Option<(&'static str, &'static str)>,

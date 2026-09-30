@@ -258,6 +258,34 @@ impl WindowState {
                     self.request_redraw();
                     return; // consumed — never forwarded to mouse tracking
                 }
+                // UX.md V10: a right-click focuses the pane under the pointer
+                // (as a click would) and then, when the program in THAT pane
+                // is not tracking the mouse, opens the pane menu. The
+                // tracking check must follow the focus: it reads the focused
+                // pane, so checking first asks the previously focused one.
+                if state == ElementState::Pressed {
+                    let refocused = self.tab_manager.active_tab_mut().is_some_and(|tab| {
+                        let before = tab.focused_pane_id();
+                        tab.has_multiple_panes()
+                            && tab
+                                .focus_pane_at(mouse_position.0 as f32, mouse_position.1 as f32)
+                                .is_some_and(|id| Some(id) != before)
+                    });
+                    if refocused {
+                        self.after_user_pane_focus();
+                    }
+                    if !self.active_terminal_mouse_tracking_enabled_at(mouse_position)
+                        && let Some(pane_id) = self
+                            .tab_manager
+                            .active_tab()
+                            .and_then(|t| t.focused_pane_id())
+                    {
+                        let pos = self.physical_to_logical_pos(mouse_position);
+                        self.overlay_ui.pane_context_menu.open(pane_id, pos);
+                        self.request_redraw();
+                        return;
+                    }
+                }
                 // Try to send to terminal if mouse tracking is enabled
                 let _ = self.try_send_mouse_event(2, state == ElementState::Pressed);
                 // Event consumed by terminal (or ignored)

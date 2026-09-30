@@ -52,6 +52,7 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                 {
                     log::info!("Auto-restoring arrangement: {}", name);
                     self.restore_arrangement_by_name(name, event_loop);
+                    self.launch_mux_auto_attach();
                     return;
                 }
 
@@ -59,10 +60,12 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                 if self.config.load().session_restore.restore_session
                     && self.restore_session(event_loop)
                 {
+                    self.launch_mux_auto_attach();
                     return;
                 }
             }
             self.create_window(event_loop);
+            self.launch_mux_auto_attach();
         }
     }
 
@@ -387,6 +390,11 @@ impl ApplicationHandler<AppEvent> for WindowManager {
         for (source_window_id, req) in pending_moves {
             self.move_tab(event_loop, source_window_id, req.tab_id, req.destination);
         }
+
+        // Tree picker (UX.md A15): the cross-window snapshot for open
+        // pickers, then any jump chosen last frame.
+        self.refresh_tree_pickers();
+        self.apply_tree_picker_jumps();
 
         // Sync agent config changes to WindowManager and settings window
         // so other saves (update checker, settings) don't overwrite the agent's changes

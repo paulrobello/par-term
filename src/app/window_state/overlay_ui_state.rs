@@ -81,6 +81,14 @@ pub(crate) struct OverlayUiState {
     /// *other* par-term window, used to populate the "Move Tab to Window →"
     /// submenu in the tab right-click context menu.
     pub(crate) move_tab_candidates: Vec<(winit::window::WindowId, String)>,
+    /// The tree picker (UX.md A15); its rows are refreshed by the window
+    /// manager while it is open.
+    pub(crate) tree_picker_ui: crate::tree_picker_ui::TreePickerUI,
+    /// A tree-picker jump chosen this frame, applied by the window manager
+    /// (the target may be another window).
+    pub(crate) pending_tree_jump: Option<crate::tree_picker_ui::TreeTarget>,
+    /// Right-click menu in a pane body (UX.md V10).
+    pub(crate) pane_context_menu: crate::pane_context_menu_ui::PaneContextMenuUI,
 }
 
 impl OverlayUiState {
@@ -127,6 +135,9 @@ impl OverlayUiState {
             profile_manager,
             pending_move_tab_request: None,
             move_tab_candidates: Vec::new(),
+            tree_picker_ui: crate::tree_picker_ui::TreePickerUI::new(),
+            pending_tree_jump: None,
+            pane_context_menu: Default::default(),
         }
     }
 }

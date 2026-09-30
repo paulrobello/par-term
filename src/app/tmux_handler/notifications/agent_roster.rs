@@ -127,6 +127,12 @@ impl AgentRoster {
         self.done_unseen.clear();
     }
 
+    /// Whether `pane`'s agent finished and has not been seen since
+    /// (UX.md A17/V3 read the same mark the widget does).
+    pub(crate) fn is_done_unseen(&self, pane: TmuxPaneId) -> bool {
+        self.done_unseen.contains(&pane)
+    }
+
     /// The rostered entries, pane-ordered, for surfaces to render.
     /// A2b tasks 2/3 (the status widget, the palette picker) are the callers.
     pub(crate) fn iter(&self) -> impl Iterator<Item = &AgentEntry> {

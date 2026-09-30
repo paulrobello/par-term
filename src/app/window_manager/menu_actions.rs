@@ -34,6 +34,16 @@ impl WindowManager {
                     self.close_window(window_id);
                 }
             }
+            MenuAction::CloseWholeWindow => self.close_whole_window(focused_window),
+            MenuAction::Action(id) => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.execute_keybinding_action(id);
+                }
+            }
+            MenuAction::CycleWindow(step) => self.cycle_window_focus(focused_window, step),
+            MenuAction::FocusWindowNumber(n) => self.focus_window_number(n),
             MenuAction::ClosePane => {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)

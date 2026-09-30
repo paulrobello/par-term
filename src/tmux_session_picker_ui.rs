@@ -1,8 +1,9 @@
-//! tmux Session Picker UI
+//! Session picker UI (UX.md A16): par-mux and tmux sessions in one list.
 //!
-//! An egui dialog that lists available tmux sessions and allows the user to:
-//! - Attach to an existing session
-//! - Create a new session
+//! An egui dialog that lists running par-mux sessions (attach here, switch,
+//! create, rename, end, detach — see [`crate::session_picker_mux`]) and tmux
+//! sessions (attach or create through the tmux gateway, when tmux
+//! integration is on). Both lists load off the frame.
 
 use crate::ui_constants::{
     TMUX_PICKER_LIST_MAX_HEIGHT, TMUX_PICKER_WINDOW_DEFAULT_HEIGHT,
@@ -35,10 +36,22 @@ pub struct TmuxSessionInfo {
 pub enum SessionPickerAction {
     /// No action
     None,
-    /// Attach to the specified session
+    /// Attach to the specified tmux session
     Attach(String),
-    /// Create a new session with optional name
+    /// Create a new tmux session with optional name
     CreateNew(Option<String>),
+    /// A par-mux session operation
+    Mux(crate::session_picker_mux::MuxPickerAction),
+}
+
+/// What the picker needs from the window each frame.
+pub struct SessionPickerContext<'a> {
+    /// The tmux executable (tmux section).
+    pub tmux_path: &'a str,
+    /// Whether tmux integration is on; the tmux section is hidden when off.
+    pub tmux_enabled: bool,
+    /// The par-mux section's input; `None` in a build without par-mux.
+    pub mux: Option<crate::session_picker_mux::MuxPickerInput<'a>>,
 }
 
 /// tmux Session Picker UI
@@ -57,6 +70,8 @@ pub struct TmuxSessionPickerUI {
     /// thread so an unresponsive server cannot stall the egui frame; the
     /// receiver is polled every frame until it yields the result.
     pending_load: Option<Receiver<Result<Vec<TmuxSessionInfo>, String>>>,
+    /// The par-mux section's editing state.
+    mux_section: crate::session_picker_mux::MuxPickerSection,
 }
 
 impl TmuxSessionPickerUI {
@@ -69,6 +84,7 @@ impl TmuxSessionPickerUI {
             error_message: None,
             sessions_loaded: false,
             pending_load: None,
+            mux_section: crate::session_picker_mux::MuxPickerSection::default(),
         }
     }
 
@@ -81,6 +97,7 @@ impl TmuxSessionPickerUI {
         self.pending_load = None;
         self.error_message = None;
         self.new_session_name.clear();
+        self.mux_section.reset();
     }
 
     /// Hide the session picker
@@ -186,10 +203,15 @@ impl TmuxSessionPickerUI {
     }
 
     /// Show the session picker UI and return any requested action
-    pub fn show(&mut self, ctx: &Context, tmux_path: &str) -> SessionPickerAction {
+    pub fn show(
+        &mut self,
+        ctx: &Context,
+        picker: &SessionPickerContext<'_>,
+    ) -> SessionPickerAction {
         if !self.visible {
             return SessionPickerAction::None;
         }
+        let tmux_path = picker.tmux_path;
 
         // Escape closes the picker on the egui side (B69), mirroring the
         // command palette: with the session-name field focused this is the
@@ -202,7 +224,7 @@ impl TmuxSessionPickerUI {
         }
 
         // Load sessions on first show, off the frame (B69)
-        if !self.sessions_loaded {
+        if picker.tmux_enabled && !self.sessions_loaded {
             self.refresh_sessions(tmux_path);
         }
         self.poll_pending_load();
@@ -220,7 +242,7 @@ impl TmuxSessionPickerUI {
         let mut open = true;
         let viewport = ctx.input(|i| i.viewport_rect());
 
-        Window::new("tmux Sessions")
+        Window::new("Sessions")
             .resizable(true)
             .default_width(TMUX_PICKER_WINDOW_DEFAULT_WIDTH)
             .default_height(TMUX_PICKER_WINDOW_DEFAULT_HEIGHT)
@@ -239,6 +261,27 @@ impl TmuxSessionPickerUI {
                     }),
             )
             .show(ctx, |ui| {
+                if let Some(mux) = picker.mux.as_ref()
+                    && let Some(chosen) = self.mux_section.show(ui, mux)
+                {
+                    action = SessionPickerAction::Mux(chosen);
+                    close_requested = true;
+                }
+                if !picker.tmux_enabled {
+                    if picker.mux.is_none() {
+                        ui.label(
+                            RichText::new(
+                                "Turn on tmux integration in Settings to list tmux sessions",
+                            )
+                            .italics(),
+                        );
+                    }
+                    return;
+                }
+                if picker.mux.is_some() {
+                    ui.add_space(16.0);
+                }
+
                 // Error message
                 if let Some(ref err) = self.error_message {
                     ui.colored_label(Color32::from_rgb(255, 100, 100), err);
@@ -246,7 +289,7 @@ impl TmuxSessionPickerUI {
                 }
 
                 // Existing sessions section
-                ui.heading("Existing Sessions");
+                ui.heading("tmux Sessions");
                 ui.separator();
 
                 if self.sessions.is_empty() {
@@ -313,7 +356,7 @@ impl TmuxSessionPickerUI {
                 ui.add_space(16.0);
 
                 // Create new session section
-                ui.heading("Create New Session");
+                ui.heading("Create New tmux Session");
                 ui.separator();
 
                 ui.horizontal(|ui| {

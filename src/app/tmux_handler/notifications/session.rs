@@ -144,6 +144,13 @@ impl WindowState {
         self.update_window_title_with_tmux();
     }
 
+    /// Test seam: run the shared session-ended teardown from outside the
+    /// notifications module (the chip tests end a view directly).
+    #[cfg(test)]
+    pub(crate) fn handle_tmux_session_ended_for_test(&mut self) {
+        self.handle_tmux_session_ended();
+    }
+
     /// Handle session ended notification
     pub(super) fn handle_tmux_session_ended(&mut self) {
         crate::debug_info!("TMUX", "Session ended");
@@ -233,12 +240,13 @@ impl WindowState {
         // Clear sync state
         self.tmux_state.tmux_sync = crate::tmux::TmuxSync::new();
 
-        // Show toast
-        let message = if mux_view_ended {
-            "par-mux: daemon connection lost"
+        // Show toast. A lost par-mux daemon is an error the session chip
+        // holds until dismissed (UX.md M12); a caller that knows better
+        // (detach, a session ended elsewhere) clears it right after.
+        if mux_view_ended {
+            self.record_mux_error("par-mux: daemon connection lost");
         } else {
-            "tmux: Session ended"
-        };
-        self.show_toast(message);
+            self.show_toast("tmux: Session ended");
+        }
     }
 }

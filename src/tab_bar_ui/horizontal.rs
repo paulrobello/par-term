@@ -14,6 +14,26 @@ use super::state::TabBarUI;
 use super::tab_rendering::TabRenderParams;
 
 impl TabBarUI {
+    /// The scroll offset that shows tab `index` whole (UX.md V13): unchanged
+    /// when it is already visible, else the smallest move that brings it in.
+    pub(super) fn scroll_to_show(
+        offset: f32,
+        index: usize,
+        tab_width: f32,
+        tab_spacing: f32,
+        area_width: f32,
+    ) -> f32 {
+        let left = index as f32 * (tab_width + tab_spacing);
+        let right = left + tab_width;
+        if left < offset {
+            left
+        } else if right > offset + area_width {
+            right - area_width
+        } else {
+            offset
+        }
+    }
+
     /// Render the tab bar in horizontal layout (top or bottom)
     pub(super) fn render_horizontal(
         &mut self,
@@ -22,7 +42,7 @@ impl TabBarUI {
         config: &Config,
         profiles: &crate::profile::ProfileManager,
         right_reserved_width: f32,
-        mux_attached: bool,
+        chip: &crate::session_chip::SessionChip,
     ) -> TabBarAction {
         let tab_count = tabs.visible_tab_count();
         let visible_tabs = tabs.visible_tabs();
@@ -111,6 +131,22 @@ impl TabBarUI {
                 0.0
             };
 
+            // UX.md V13: a newly active tab scrolls into view once.
+            if needs_scroll && self.scrolled_to_active != active_tab_id {
+                if let Some(index) =
+                    active_tab_id.and_then(|id| visible_tabs.iter().position(|t| t.id == id))
+                {
+                    self.scroll_offset = Self::scroll_to_show(
+                        self.scroll_offset,
+                        index,
+                        tab_width,
+                        tab_spacing,
+                        tabs_area_width,
+                    );
+                }
+                self.scrolled_to_active = active_tab_id;
+            }
+
             // Clamp scroll offset
             self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
 
@@ -127,6 +163,10 @@ impl TabBarUI {
 
                     if show_app_menu {
                         self.app_menu.show(ui, profiles, btn_h);
+                    }
+                    // Session chip (UX.md V1) — left of the tabs
+                    if let Some(chip_action) = crate::session_chip::show(ui, chip, btn_h) {
+                        self.chip_action = Some(chip_action);
                     }
 
                     if needs_scroll {
@@ -194,7 +234,7 @@ impl TabBarUI {
                                     is_active,
                                     has_activity: tab.activity.has_activity,
                                     is_bell_active,
-                                    mux_attached,
+                                    mux_view: &tab.mux_view,
                                     pane_badge: tab
                                         .pane_mode_badge()
                                         .map(|b| (b, tab.pane_mode_badge_tooltip())),
@@ -252,7 +292,7 @@ impl TabBarUI {
                                     is_active,
                                     has_activity: tab.activity.has_activity,
                                     is_bell_active,
-                                    mux_attached,
+                                    mux_view: &tab.mux_view,
                                     pane_badge: tab
                                         .pane_mode_badge()
                                         .map(|b| (b, tab.pane_mode_badge_tooltip())),

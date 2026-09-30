@@ -142,6 +142,13 @@ For full details on reopen closed tab configuration and keeping the shell runnin
 | Next tab | `Cmd+Shift+]` or `Ctrl+Tab` |
 | Previous tab | `Cmd+Shift+[` or `Ctrl+Shift+Tab` |
 | Go to tab 1-9 | `Cmd+1` through `Cmd+9` (macOS) / `Alt+1` through `Alt+9` |
+| Last-used tab | `last_tab` (no default chord) |
+| Rightmost tab | `go_to_last_tab` (no default chord) |
+| Any window, tab, or pane | Open Quickly: `Cmd+Shift+O` (macOS) / `Ctrl+Alt+O` |
+
+When the tab bar scrolls, switching tabs by keyboard or picker scrolls the newly active tab into view. A tab whose title is cut short shows the full title on hover.
+
+`rename_tab` opens the inline rename on the active tab from the keyboard (the same field a double-click opens), and it works with the tab bar hidden. `close_other_tabs` and `close_tabs_to_right` close tabs in bulk; each tab keeps its own running-job confirmation, and a dialog stops the batch there.
 
 ## Reordering Tabs
 
@@ -173,6 +180,8 @@ Click and drag any tab in the tab bar to move it to a new position:
 | Move tab right | `Cmd+Opt+Shift+]` or `Cmd+Shift+Right` (macOS) / `Ctrl+Shift+Right` |
 
 A tab already at the left or right end stays put; the move does not wrap around to the other end.
+
+A par-mux tab's move is sent to the daemon (`move-window`), so the new order is the session's window order: it survives reattach and other attached clients see it.
 
 ## Duplicating Tabs
 

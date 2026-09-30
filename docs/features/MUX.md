@@ -53,7 +53,9 @@ par-term's own labels always say **tab** for a daemon window, and use **session*
 
 The full vocabulary, including which old labels were renamed, is in the [documentation style guide](../DOCUMENTATION_STYLE_GUIDE.md#par-term-vocabulary-uxmd-t1-t8).
 
-Opening a profile with `mux_session_name` in a window starts the attach; every window in the session then gets its own tab in that par-term window, and new session windows arrive as new tabs. While attached, tab operations map onto daemon windows: **Cmd+T / New Tab** asks the daemon for a `new-window` (the tab arrives as the daemon's `%window-add`), a tab's title carries the daemon window's name (renaming a tab sends `rename-window`, so names survive detach), and **Move Tab to Another Window** is blocked for mux tabs — the tab is a mirror with no transport of its own, so moving it would strand the mirror (detach first). Every tab in an attached window shows a link glyph between its icon and title (hover for a tooltip), so mux tabs are distinguishable from local ones at a glance; it appears and disappears on the frame after attach or detach.
+The **session chip** at the start of the tab bar (top of a vertical bar) shows the attached session's name, `N hidden` for tabs whose last pane you closed (they keep running daemon-side), and the daemon's health when it is not plain connected (attaching, not responding, out of date). A par-mux error — a failed split, a lost daemon connection, a refused attach — also stays on the chip, in red, until you dismiss it with its ×, so a two-second toast cannot hide it. Click the chip to open the session picker. Each attached tab carries its own 🔗 badge (hover names the session); a local tab in the same window has none.
+
+Opening a profile with `mux_session_name` in a window starts the attach; every window in the session then gets its own tab in that par-term window, and new session windows arrive as new tabs. While attached, tab operations map onto daemon windows: **Cmd+T / New Tab** asks the daemon for a `new-window` (the tab arrives as the daemon's `%window-add`), a tab's title carries the daemon window's name (renaming a tab sends `rename-window`, so names survive detach; clearing the name sends the tab's automatic title, since the daemon keeps no empty name), reordering a tab moves its daemon window (`move-window`, so the order survives reattach), **Clear Scrollback** clears the pane you see (the daemon has no command to drop its own history, so a reattach brings that history back), and **Move Tab to Another Window** is blocked for mux tabs — the tab is a mirror with no transport of its own, so moving it would strand the mirror (detach first). An attached tab shows a link glyph between its icon and title (hover names the session), decided per tab, so mux tabs are distinguishable from local ones at a glance; it appears and disappears on the frame after attach or detach.
 
 A par-term window holds one par-mux session at a time. Opening a second mux profile in a window that is already attached (or still attaching) explains itself with a toast naming the attached (or attaching) session; open it in a new par-term window instead. There is no workspace or tab level above the session — to keep separate groups of sessions apart, run separate daemons (`par-mux <name>` gives each its own socket).
 
@@ -67,7 +69,11 @@ A par-term launched **from inside a par-mux pane** refuses to attach to the sess
 
 ## Setup
 
-par-mux attach is a **profile** property. In Settings → Profiles → the profile editor, the **par-mux Auto-Attach** section (separate from the tmux section) has one field, **Session Name** (empty = disabled):
+No setup is needed to attach: the **session picker** (`toggle_session_picker`, `Cmd + Ctrl + S` on macOS, `Ctrl + Alt + S` elsewhere) lists every running par-mux session and attaches, switches, creates, renames, ends, or detaches without touching a profile. The command palette lists the same sessions as **Attach par-mux Session: <name>** rows, plus **New par-mux Session** and **Detach from par-mux Session**. From the command line, `par-term --attach <session>` attaches a window at launch (creating the session when it does not exist), and the `mux_auto_attach: <session>` config key does the same on every launch (Settings → Advanced → par-mux Auto-Attach). With windows restored on launch, it attaches the focused window unless that window is already reattaching its own session, in which case it takes the first window that is not; when every restored window is reattaching, nothing more is attached.
+
+Sessions are grouped by daemon: par-term starts one daemon per session it creates, named after it. A session held by a differently named daemon (created by `par-mux` itself, say) still attaches through that daemon; the picker marks it with its daemon's name because such a session is not reattached on the next launch.
+
+par-mux attach can also be a **profile** property. In Settings → Profiles → the profile editor, the **par-mux Auto-Attach** section (separate from the tmux section) has one field, **Session Name** (empty = disabled):
 
 | Setting | Config key | Meaning |
 |---|---|---|
@@ -92,7 +98,7 @@ Opening a profile with `mux_session_name` set attaches:
 1. **Stale-daemon check** — attach first queries the daemon's build; a daemon that predates the client is reported up front, because a version mismatch is the cheapest explanation for everything downstream misbehaving.
 2. **Create-or-attach** — a missing session is created; an existing session is joined.
 3. **Tabs for existing windows** — the daemon's existing windows each get a par-term tab.
-4. **Seed** — each pane is seeded with the pane's current screen (a clear plus a replay), so you see the live state rather than a blank pane or stale bytes.
+4. **Seed** — each pane is seeded with the pane's current screen (a clear plus a replay), so you see the live state rather than a blank pane or stale bytes. The replay carries the pane's scrollback too, so the scrollbar and mouse wheel reach history written while you were detached, up to your `scrollback_lines` limit (the newest lines are kept when the daemon holds more).
 5. **Roster fill** — the initial agent roster is read with `list-agents`.
 
 ## Working in a mux pane
@@ -131,8 +137,8 @@ Values can carry secrets (tokens in `shell_env`). They travel over the owner-onl
 
 Detach closes the par-term side and leaves the session running in the daemon:
 
-- **Command palette** — the palette carries an explicit **Detach par-mux session** row when a session is attached.
-- **Action** — `mux-detach` is a bindable action (`action: mux-detach` in your keybindings config).
+- **Command palette** — **Detach from par-mux Session** in the palette.
+- **Action** — `detach` is a bindable action (`action: detach` in your keybindings config); the older id `mux-detach` still works.
 - Windows arrangements that captured `mux_session_name` reattach on restore.
 
 Reattach by opening the profile (or restoring an arrangement) again: the stale-daemon check runs, existing windows become tabs, and every pane is reseeded. Sessions also survive a par-term crash for the same reason — the daemon kept them.
@@ -147,8 +153,10 @@ par-term queries the daemon's build when attaching. If the daemon predates the c
 
 While attached, par-term shows what agents are running in the session:
 
-- **Agent Roster status-bar widget** (`status_bar: agent_roster`, disabled by default): a summary like `👥 2 blocked, 1 done, 1~ working`, self-hides without an attached session, hover lists each agent with its provenance (reported by the agent itself vs detected), click opens the command palette.
+- **Agent Roster status-bar widget** (`status_bar: agent_roster`, enabled by default; the status bar itself is off until `status_bar_enabled: true`): a summary like `👥 2 blocked, 1 done, 1~ working`, self-hides without an attached session, hover lists each agent with its provenance (reported by the agent itself vs detected), click opens the command palette.
 - **Roster picker in the command palette**: runtime rows, blocked and done-unseen first, each jumping to that agent's pane.
+- **Badges on tabs and pane title bars**: a tab shows its most urgent agent (🟠 blocked, 🟢 done and not yet seen, ⋯ working), and a pane's title bar leads with its own agent's badge.
+- **Next agent needing attention** (`focus_next_attention_agent`, `Cmd + Opt + A` / `Ctrl + Alt + A`): jumps to the next blocked agent, then to agents that finished while you were elsewhere, across tabs and in tab order. Focusing a finished agent marks it seen, so the next press moves on.
 - **Done, unseen**: when an agent goes from `working` to `idle` in a pane you are not looking at, the roster shows it as `done` (widget), `done (unseen)` (hover), and `done ✓` (palette) until you focus that pane. Focusing the pane clears the mark; an agent that finishes in the pane you are watching is never marked.
 
 States are shown as the agent reports them (`working`, `blocked`, `idle`); `done` is the only state par-term derives. The roster is passive: a state change updates the widget and palette, but par-term sends no desktop notification, toast, or bell for an agent that blocks or finishes. An agent that wants a desktop notification must emit one itself (OSC 9/777/99, see [NOTIFICATIONS.md](NOTIFICATIONS.md)).

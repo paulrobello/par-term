@@ -134,6 +134,11 @@ pub struct Tab {
     pub(crate) shutdown_fast: bool,
     /// When true, this tab is hidden from the tab bar (e.g., tmux gateway tab while windows are active)
     pub(crate) is_hidden: bool,
+    /// Per-frame par-mux roster view for this tab (UX.md V2/V3): whether it
+    /// mirrors a daemon window, and each pane's agent attention state.
+    /// Written by the window each frame from the roster cache, read by the
+    /// tab bar and pane titles; never persisted.
+    pub(crate) mux_view: pane_badges::TabMuxView,
     /// Broadcast input to every pane in this tab (UX.md V5; per tab, D8).
     pub(crate) broadcast_input: bool,
     /// The program this tab's profile runs (its command, SSH connection, or

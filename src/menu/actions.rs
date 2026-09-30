@@ -12,12 +12,21 @@ pub enum MenuAction {
     /// Create a new terminal window
     NewWindow,
     /// Smart close: the active tab when the window has several, else the
-    /// window. Emitted by the `close_window` keybinding action; no menu item
-    /// carries it since File › Close became [`Self::ClosePane`].
+    /// window. Emitted by the `close_tab_or_window` keybinding action (UX.md
+    /// A14 moved it off `close_window`); no menu item carries it since
+    /// File › Close became [`Self::ClosePane`].
     CloseWindow,
     /// iTerm2's Close (UX.md I15): the focused pane, cascading to the tab
     /// when it was the tab's last pane and to the window after the last tab.
     ClosePane,
+    /// Close the whole focused window with all its tabs (UX.md A14), through
+    /// the title-bar close's confirmation.
+    CloseWholeWindow,
+    /// Focus the next (+1) or previous (-1) window in window-number order
+    /// (UX.md A13).
+    CycleWindow(i8),
+    /// Focus the window holding number N (UX.md A13, iTerm2 Cmd+Opt+N).
+    FocusWindowNumber(usize),
     /// Quit the application (only used on Windows/Linux - macOS handles quit via system menu)
     Quit,
 
@@ -97,6 +106,11 @@ pub enum MenuAction {
     /// Install shell integration on a remote host via curl
     InstallShellIntegrationRemote,
 
+    /// Run a registry action by id in the focused window (UX.md V10: the
+    /// Pane and Session menus). The id is the item's registry action, so
+    /// its accelerator comes from the registry like every other item.
+    Action(&'static str),
+
     // Keybinding actions (triggered by user-defined keybindings or menu)
     /// Toggle background/custom shader on/off
     ToggleBackgroundShader,
@@ -119,7 +133,13 @@ impl MenuAction {
     pub fn keybinding_action(&self) -> Option<std::borrow::Cow<'static, str>> {
         let id = match self {
             Self::NewWindow => "new_window",
-            Self::CloseWindow => "close_window",
+            Self::CloseWindow => "close_tab_or_window",
+            Self::CloseWholeWindow => "close_window",
+            Self::CycleWindow(1) => "next_window",
+            Self::CycleWindow(_) => "prev_window",
+            Self::FocusWindowNumber(n) => {
+                return Some(std::borrow::Cow::Owned(format!("switch_to_window_{n}")));
+            }
             Self::ClosePane => "close_pane",
             Self::Quit => "quit",
             Self::ToggleProfileDrawer => "toggle_profile_drawer",
@@ -146,6 +166,7 @@ impl MenuAction {
             Self::ToggleCursorShader => "toggle_cursor_shader",
             Self::ReloadConfig => "reload_config",
             Self::ToggleAlwaysOnTop => "toggle_always_on_top",
+            Self::Action(id) => id,
             Self::SwitchToTab(n) => {
                 return Some(std::borrow::Cow::Owned(format!("switch_to_tab_{n}")));
             }

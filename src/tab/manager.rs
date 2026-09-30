@@ -13,6 +13,9 @@ pub struct TabManager {
     pub(super) tabs: Vec<Tab>,
     /// Currently active tab ID
     pub(super) active_tab_id: Option<TabId>,
+    /// The tab that was active before the current one (UX.md A10, tmux
+    /// `last-window`). May name a tab that has since closed; readers check.
+    pub(super) previous_active_tab_id: Option<TabId>,
     /// Counter for generating unique tab IDs
     next_tab_id: TabId,
 }
@@ -23,6 +26,7 @@ impl TabManager {
         Self {
             tabs: Vec::new(),
             active_tab_id: None,
+            previous_active_tab_id: None,
             next_tab_id: 1,
         }
     }
@@ -51,6 +55,9 @@ impl TabManager {
                     pane.is_active.store(true, Ordering::Relaxed);
                 }
             }
+        }
+        if self.active_tab_id != id && self.active_tab_id.is_some() {
+            self.previous_active_tab_id = self.active_tab_id;
         }
         self.active_tab_id = id;
     }

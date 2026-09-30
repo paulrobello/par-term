@@ -15,6 +15,8 @@
 
 mod context_menu;
 mod drag_drop;
+#[cfg(test)]
+mod hidden_bar_rename_tests;
 mod horizontal;
 mod profile_menu;
 mod state;
@@ -88,8 +90,9 @@ impl TabBarUI {
 
     /// Render the tab bar and return any action triggered
     ///
-    /// `mux_attached` marks the window's par-mux attach state so its tabs can
-    /// show the mux indicator glyph.
+    /// `chip` is this window's session chip (UX.md V1), drawn at the start
+    /// of the bar when attached or when a par-mux error is held. Each tab's
+    /// attached and agent badges come from its own `mux_view` (V2/V3).
     pub fn render(
         &mut self,
         ctx: &mut egui::Ui,
@@ -97,7 +100,7 @@ impl TabBarUI {
         config: &Config,
         profiles: &crate::profile::ProfileManager,
         right_reserved_width: f32,
-        mux_attached: bool,
+        chip: &crate::session_chip::SessionChip,
     ) -> TabBarAction {
         let tab_count = tabs.visible_tab_count();
 
@@ -108,19 +111,20 @@ impl TabBarUI {
             // which only takes effect where the menu is drawn. Users who hide
             // the tab bar need keybindings for the commands themselves.
             self.app_menu.hide(ctx.ctx());
+            // A keyboard rename (UX.md A12) can open with the bar hidden. The
+            // context menu is a free-floating Area, so it still draws, and
+            // it owns the rename field's Enter/Escape — skipping it would
+            // leave the modal guard holding the keyboard with nothing on
+            // screen to dismiss.
+            if let Some(context_tab_id) = self.context_menu_tab {
+                return self.render_context_menu(ctx, context_tab_id);
+            }
             return TabBarAction::None;
         }
 
         match config.tabs.tab_bar_position {
-            TabBarPosition::Left => self.render_vertical(ctx, tabs, config, profiles, mux_attached),
-            _ => self.render_horizontal(
-                ctx,
-                tabs,
-                config,
-                profiles,
-                right_reserved_width,
-                mux_attached,
-            ),
+            TabBarPosition::Left => self.render_vertical(ctx, tabs, config, profiles, chip),
+            _ => self.render_horizontal(ctx, tabs, config, profiles, right_reserved_width, chip),
         }
     }
 
@@ -131,7 +135,7 @@ impl TabBarUI {
         tabs: &TabManager,
         config: &Config,
         profiles: &crate::profile::ProfileManager,
-        mux_attached: bool,
+        chip: &crate::session_chip::SessionChip,
     ) -> TabBarAction {
         let tab_count = tabs.visible_tab_count();
         let visible_tabs = tabs.visible_tabs();
@@ -164,6 +168,14 @@ impl TabBarUI {
                                     profiles,
                                     tab_height - TAB_DRAW_SHRINK_Y * 2.0,
                                 );
+                            }
+                            // Session chip (UX.md V1) — top of the vertical bar
+                            if let Some(chip_action) = crate::session_chip::show(
+                                ui,
+                                chip,
+                                tab_height - TAB_DRAW_SHRINK_Y * 2.0,
+                            ) {
+                                self.chip_action = Some(chip_action);
                             }
 
                             // New tab split button — rendered first (top of the panel)
@@ -232,7 +244,7 @@ impl TabBarUI {
                                         is_active,
                                         has_activity: tab.activity.has_activity,
                                         is_bell_active,
-                                        mux_attached,
+                                        mux_view: &tab.mux_view,
                                         pane_badge: tab
                                             .pane_mode_badge()
                                             .map(|b| (b, tab.pane_mode_badge_tooltip())),
@@ -328,6 +340,17 @@ impl TabBarUI {
             }
         }
         None
+    }
+
+    /// Where the keyboard rename (UX.md A12) anchors its field: under the
+    /// tab's last drawn rect, or the top-left corner when the tab bar is
+    /// hidden and no rect exists.
+    pub(crate) fn rename_anchor(&self, tab_id: TabId) -> egui::Pos2 {
+        self.tab_rects
+            .iter()
+            .find(|(id, _)| *id == tab_id)
+            .map(|(_, rect)| rect.left_bottom())
+            .unwrap_or(egui::pos2(8.0, 8.0))
     }
 
     /// Open the inline rename field for `tab_id` at `pos` (UX.md TW6:

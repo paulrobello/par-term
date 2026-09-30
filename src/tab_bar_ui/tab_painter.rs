@@ -35,7 +35,7 @@ impl TabBarUI {
             is_active,
             has_activity,
             is_bell_active,
-            mux_attached,
+            mux_view,
             pane_badge,
             custom_color,
             config,
@@ -162,9 +162,13 @@ impl TabBarUI {
                     0.0
                 };
 
-                // par-mux attach indicator: every tab in an attached window is
-                // a mux tab, so the glyph marks them apart from local tabs
-                let mux_width = if mux_attached { 18.0 } else { 0.0 }
+                // par-mux badges (UX.md V2/V3, per tab) and the pane-mode badge
+                let mux_width = if mux_view.attached { 18.0 } else { 0.0 }
+                    + if mux_view.agent_badge().is_some() {
+                        18.0
+                    } else {
+                        0.0
+                    }
                     + if pane_badge.is_some() { 18.0 } else { 0.0 };
 
                 // Title rendering with width-aware truncation
@@ -206,11 +210,7 @@ impl TabBarUI {
                     egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
                 };
 
-                if mux_attached {
-                    ui.label(egui::RichText::new("🔗").color(text_color))
-                        .on_hover_text("Attached to a par-mux session");
-                    ui.add_space(2.0);
-                }
+                super::tab_rendering::mux_badges(ui, mux_view, text_color);
                 super::tab_rendering::pane_badge_label(ui, pane_badge, text_color);
 
                 if config.tab_colors.tab_html_titles {
@@ -220,7 +220,12 @@ impl TabBarUI {
                 } else {
                     let safe_title = sanitize_egui_title_text(title);
                     let display_title = truncate_plain(safe_title.as_ref(), max_chars);
-                    ui.label(egui::RichText::new(display_title).color(text_color));
+                    let truncated = display_title != safe_title.as_ref();
+                    let label = ui.label(egui::RichText::new(display_title).color(text_color));
+                    // UX.md V13: a truncated title shows in full on hover.
+                    if truncated {
+                        label.on_hover_text(safe_title.as_ref());
+                    }
                 }
 
                 // Hotkey indicator (only for tabs 1-9) - show on right side, leave space for close button

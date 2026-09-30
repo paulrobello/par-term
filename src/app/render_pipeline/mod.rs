@@ -29,6 +29,7 @@ mod plugin_overlay_render;
 mod plugin_overlay_ui;
 mod post_render;
 mod renderer_ops;
+mod session_picker_render;
 mod tab_snapshot;
 mod types;
 mod viewport;

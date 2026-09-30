@@ -32,3 +32,4 @@ pub(crate) mod keybinding_helpers;
 pub(crate) mod keybinding_view_actions;
 mod pane_actions;
 mod snippet_actions;
+mod tab_nav_actions;

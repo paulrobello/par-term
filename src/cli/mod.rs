@@ -66,6 +66,11 @@ pub struct Cli {
     #[arg(long)]
     pub log_session: bool,
 
+    /// Attach the first window to this par-mux session, creating it when it
+    /// does not exist (no profile needed)
+    #[arg(long, value_name = "SESSION")]
+    pub attach: Option<String>,
+
     /// Set debug log level (overrides config and RUST_LOG)
     #[arg(long, value_enum, value_name = "LEVEL")]
     pub log_level: Option<LogLevelArg>,
@@ -213,6 +218,8 @@ pub struct RuntimeOptions {
     pub log_session: bool,
     /// Log level override from CLI
     pub log_level: Option<log::LevelFilter>,
+    /// par-mux session the first window attaches to (`--attach`, UX.md M15)
+    pub attach: Option<String>,
 }
 
 /// Result of CLI processing
@@ -315,6 +322,7 @@ pub fn process_cli() -> CliResult {
                 ui_test_report: cli.ui_test_report,
                 log_session: cli.log_session,
                 log_level: cli.log_level.map(|l| l.to_level_filter()),
+                attach: cli.attach,
             };
             CliResult::Continue(options)
         }

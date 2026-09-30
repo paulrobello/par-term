@@ -125,6 +125,14 @@ impl WindowState {
             self.status_bar_ui.agent_roster_summary = None;
             self.status_bar_ui.agent_roster_tooltip = None;
         }
+        // Tab/pane agent badges and the session chip (UX.md V1-V3), from
+        // the same roster cache.
+        #[cfg(feature = "mux")]
+        self.refresh_tab_mux_views();
+        #[cfg(feature = "mux")]
+        let session_chip = self.session_chip();
+        #[cfg(not(feature = "mux"))]
+        let session_chip = crate::session_chip::SessionChip::default();
 
         // Broadcast status-bar item (V5): the active tab's receivers while
         // broadcast is on.
@@ -428,7 +436,7 @@ impl WindowState {
                         &self.config.load(),
                         &self.overlay_ui.profile_manager,
                         tab_bar_right_reserved,
-                        self.tmux_state.transport.is_some(),
+                        &session_chip,
                     );
 
                     // Render tmux status bar if connected
@@ -526,10 +534,34 @@ impl WindowState {
                         .ai_inspector
                         .show(ctx, &self.agent_state.available_agents);
 
-                    // Show tmux session picker UI and collect action
-                    let tmux_path = self.config.load().resolve_tmux_path();
-                    actions.session_picker =
-                        self.overlay_ui.tmux_session_picker_ui.show(ctx, &tmux_path);
+                    // Pane context menu (UX.md V10): rows show live chords.
+                    {
+                        let registry = &self.keybinding_registry;
+                        let chord_for = |id: &str| {
+                            registry
+                                .chord_for_action(id)
+                                .map(|combo| crate::command_palette::catalog::chord_display(&combo))
+                        };
+                        if let Some(choice) =
+                            self.overlay_ui.pane_context_menu.render(ctx, &chord_for)
+                        {
+                            actions.pane_menu = Some(choice);
+                        }
+                    }
+
+                    // Tree picker (UX.md A15): the chosen jump is applied
+                    // by the window manager, which may focus another window.
+                    if let Some(target) = self.overlay_ui.tree_picker_ui.show(ctx) {
+                        self.overlay_ui.pending_tree_jump = Some(target);
+                    }
+
+                    // Session picker (par-mux + tmux, UX.md A16)
+                    actions.session_picker = super::session_picker_render::show_session_picker(
+                        ctx,
+                        &mut self.overlay_ui.tmux_session_picker_ui,
+                        &self.config,
+                        &self.tmux_state,
+                    );
 
                     // Show shader install dialog if visible
                     actions.shader_install = self.overlay_ui.shader_install_ui.show(ctx);

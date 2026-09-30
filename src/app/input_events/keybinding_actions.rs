@@ -34,6 +34,7 @@ use super::keybinding_view_actions::{
     toggle_copy_mode, toggle_fullscreen, toggle_search, toggle_session_logging,
 };
 use super::pane_actions;
+use super::tab_nav_actions;
 
 /// Handler for one named keybinding action.
 ///
@@ -143,6 +144,13 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         // a runtime row, present only while a transport is installed.
         #[cfg(feature = "mux")]
         plugin_rows.extend(s.tmux_state.mux_palette_rows());
+        // Listed par-mux sessions (A22), from the cached directory; the
+        // open also refreshes it for next time.
+        #[cfg(feature = "mux")]
+        {
+            plugin_rows.extend(WindowState::mux_session_palette_rows(&s.tmux_state));
+            s.refresh_mux_directory();
+        }
         s.overlay_ui
             .command_palette
             .toggle(plugin_rows, &s.keybinding_registry);
@@ -298,11 +306,15 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
     ("split_left", pane_actions::split_left),
     ("split_up", pane_actions::split_up),
     ("enter_resize_mode", pane_actions::enter_resize_mode),
-    ("toggle_tmux_session_picker", |s: &mut WindowState| {
+    ("toggle_session_picker", |s: &mut WindowState| {
         s.overlay_ui.tmux_session_picker_ui.toggle();
+        #[cfg(feature = "mux")]
+        if s.overlay_ui.tmux_session_picker_ui.visible {
+            s.refresh_mux_directory();
+        }
         s.request_redraw();
         log::info!(
-            "tmux session picker toggled via keybinding: {}",
+            "Session picker toggled via keybinding: {}",
             if s.overlay_ui.tmux_session_picker_ui.visible {
                 "visible"
             } else {
@@ -406,16 +418,79 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         crate::menu::dispatch(crate::menu::MenuAction::NewWindow);
         true
     }),
-    ("close_window", |_s: &mut WindowState| {
-        crate::menu::dispatch(crate::menu::MenuAction::CloseWindow);
-        true
-    }),
+    ("close_window", tab_nav_actions::close_window),
+    ("close_tab_or_window", tab_nav_actions::close_tab_or_window),
+    ("next_window", tab_nav_actions::next_window),
+    ("prev_window", tab_nav_actions::prev_window),
+    ("switch_to_window_1", tab_nav_actions::switch_to_window_1),
+    ("switch_to_window_2", tab_nav_actions::switch_to_window_2),
+    ("switch_to_window_3", tab_nav_actions::switch_to_window_3),
+    ("switch_to_window_4", tab_nav_actions::switch_to_window_4),
+    ("switch_to_window_5", tab_nav_actions::switch_to_window_5),
+    ("switch_to_window_6", tab_nav_actions::switch_to_window_6),
+    ("switch_to_window_7", tab_nav_actions::switch_to_window_7),
+    ("switch_to_window_8", tab_nav_actions::switch_to_window_8),
+    ("switch_to_window_9", tab_nav_actions::switch_to_window_9),
+    ("last_tab", tab_nav_actions::last_tab),
+    ("go_to_last_tab", tab_nav_actions::go_to_last_tab),
+    ("rename_tab", tab_nav_actions::rename_tab),
+    ("close_other_tabs", tab_nav_actions::close_other_tabs),
+    (
+        "move_tab_to_window_picker",
+        tab_nav_actions::move_tab_to_window_picker,
+    ),
+    ("close_tabs_to_right", tab_nav_actions::close_tabs_to_right),
     ("quit", |_s: &mut WindowState| {
         crate::menu::dispatch(crate::menu::MenuAction::Quit);
         true
     }),
     ("select_all", |_s: &mut WindowState| {
         crate::menu::dispatch(crate::menu::MenuAction::SelectAll);
+        true
+    }),
+    // UX.md A15: windows, tabs, and panes (hidden par-mux tabs included) in
+    // one fuzzy list; the manager fills it while it is open.
+    ("toggle_tree_picker", |s: &mut WindowState| {
+        s.overlay_ui.tree_picker_ui.toggle();
+        s.focus_state.needs_redraw = true;
+        s.request_redraw();
+        true
+    }),
+    // UX.md A17: jump to the next agent that is blocked, then done-unseen.
+    ("focus_next_attention_agent", |s: &mut WindowState| {
+        #[cfg(feature = "mux")]
+        if s.focus_next_attention_agent() {
+            return true;
+        }
+        s.show_toast("No agent needs attention");
+        true
+    }),
+    // UX.md A22: a new par-mux session, no profile. Named session-N (the
+    // picker takes a typed name); attaches this window, switching if needed.
+    ("new_mux_session", |s: &mut WindowState| {
+        #[cfg(feature = "mux")]
+        {
+            let name = crate::session_picker_mux::free_session_name(
+                s.tmux_state
+                    .mux_directory
+                    .as_ref()
+                    .map_or(&[][..], |d| &d.sessions[..]),
+            );
+            s.handle_mux_session_request(crate::session_picker_mux::MuxPickerAction::Create(name));
+        }
+        #[cfg(not(feature = "mux"))]
+        s.show_toast("This build has no par-mux support");
+        true
+    }),
+    // UX.md A23: the public detach id (`mux-detach` stays an alias through
+    // ACTION_RENAMES). No transport means nothing to detach: say so.
+    ("detach", |s: &mut WindowState| {
+        #[cfg(feature = "mux")]
+        if s.detach_mux_session() {
+            log::info!("Detached from par-mux session");
+            return true;
+        }
+        s.show_toast("Not attached to a par-mux session");
         true
     }),
     ("toggle_menu", |s: &mut WindowState| {
@@ -532,18 +607,12 @@ impl WindowState {
                 );
                 false
             }
-        } else if action == "mux-detach" {
-            // The palette offers this row only while a transport is attached
-            // (mux feature); a hand-bound keybinding on a build without the
-            // feature, or after the session ended, lands here and no-ops.
+        } else if action.starts_with("move_tab_to_window:") {
+            self.dispatch_move_tab_to_window(action)
+        } else if action.starts_with("attach_mux_session:") {
             #[cfg(feature = "mux")]
-            {
-                if self.detach_mux_session() {
-                    log::info!("Detached from par-mux session via palette");
-                    return true;
-                }
-            }
-            log::warn!("par-mux detach requested but no transport is attached");
+            return self.dispatch_attach_mux_session(action);
+            #[cfg(not(feature = "mux"))]
             false
         } else if action == "mux-restart-pane" {
             self.palette_restart_mux_pane()

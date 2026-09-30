@@ -70,7 +70,7 @@ par-term includes 13 built-in widgets plus custom widgets:
 | **Current Command** | `current_command` | Currently executing shell command | Center | Enabled |
 | **Agent Usage** | `agent_usage` | Tightest subscription limit across agents (e.g. "◆ 71%"); self-hides | Right | Disabled |
 | **Broadcast Input** | `broadcast_input` | Shown while broadcast input is on in the active tab, with the number of panes receiving it (e.g. "📡 Broadcast: 3 panes"); self-hides otherwise | Left | Enabled |
-| **Agent Roster** | `agent_roster` | par-mux agent roster state summary (e.g. "👥 2 blocked, 1~ working"); self-hides without an attached mux session; hover lists each agent with reported/detected provenance; click opens the command palette; `~` marks scrape-detected counts; `done` counts agents that finished (working → idle) in a pane you have not focused since | Right | Disabled |
+| **Agent Roster** | `agent_roster` | par-mux agent roster state summary (e.g. "👥 2 blocked, 1~ working"); self-hides without an attached mux session; hover lists each agent with reported/detected provenance; click opens the command palette; `~` marks scrape-detected counts; `done` counts agents that finished (working → idle) in a pane you have not focused since | Right | Enabled |
 | **Custom Text** | `custom:<name>` | User-defined text with variable interpolation | Configurable | User-created |
 
 ### Clock
@@ -140,7 +140,7 @@ Widgets within each section are separated by a configurable separator character 
 |---------|-------------------|
 | **Left** | Broadcast Input (hidden unless broadcast is on), User@Hostname, Current Directory, Git Branch |
 | **Center** | Current Command |
-| **Right** | CPU (off), Memory (off), Network (off), Disk (off), Agent Usage (off), Agent Roster (off), Bell, Clock, Update Available |
+| **Right** | CPU (off), Memory (off), Network (off), Disk (off), Agent Usage (off), Agent Roster (on; empty until a par-mux session with agents is attached), Bell, Clock, Update Available |
 
 Widgets can be moved between sections and reordered via the Settings UI.
 

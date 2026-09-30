@@ -144,6 +144,9 @@ pub(super) fn gather_pane_render_data(
     // A tmux/par-mux display tab (tmux_pane_id set by the layout
     // consumers): its panes' sizes belong to the daemon layout.
     let tab_is_daemon_driven = tab.tmux.tmux_pane_id.is_some();
+    // Agent badges on pane titles (UX.md V3); cloned so the pane manager
+    // can be borrowed mutably below.
+    let tab_mux_view = tab.mux_view.clone();
 
     let pm = tab.pane_manager.as_mut()?;
 
@@ -353,13 +356,14 @@ pub(super) fn gather_pane_render_data(
                 y: title_y,
                 width: bounds.width,
                 height: title_height,
-                title: crate::tab::pane_badges::decorate_pane_title(
+                title: crate::tab::pane_badges::decorate_pane_title_with_agent(
                     pane.get_title(),
                     zoomed_pane == Some(*pane_id),
                     pane_numbers
                         .iter()
                         .position(|id| id == pane_id)
                         .map(|i| i + 1),
+                    tab_mux_view.pane_agent(*pane_id),
                 ),
                 focused: is_focused,
                 text_color: title_text_color,

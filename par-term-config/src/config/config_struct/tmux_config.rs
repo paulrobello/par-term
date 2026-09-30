@@ -29,6 +29,13 @@ pub struct TmuxConfig {
     #[serde(default = "crate::defaults::tmux_auto_attach_session")]
     pub tmux_auto_attach_session: Option<String>,
 
+    /// par-mux session the first window attaches to on launch (UX.md M15),
+    /// created when it does not exist. `None` or empty = no auto-attach.
+    /// Independent of `tmux_enabled`: par-mux is not tmux. A session a
+    /// restored window already reattaches is not attached twice.
+    #[serde(default)]
+    pub mux_auto_attach: Option<String>,
+
     /// Sync clipboard with tmux paste buffer
     /// When copying in par-term, also update tmux's paste buffer via set-buffer
     #[serde(default = "crate::defaults::bool_true")]
@@ -104,6 +111,7 @@ impl Default for TmuxConfig {
             tmux_default_session: crate::defaults::tmux_default_session(),
             tmux_auto_attach: crate::defaults::bool_false(),
             tmux_auto_attach_session: crate::defaults::tmux_auto_attach_session(),
+            mux_auto_attach: None,
             tmux_clipboard_sync: crate::defaults::bool_true(),
             tmux_hide_gateway_tab: crate::defaults::bool_false(),
             tmux_profile: None,

@@ -39,6 +39,12 @@ pub(crate) mod mux;
 #[cfg(feature = "mux")]
 mod mux_attach;
 #[cfg(feature = "mux")]
+pub(crate) mod mux_attention;
+#[cfg(all(test, feature = "mux", unix))]
+mod mux_attention_tests;
+#[cfg(feature = "mux")]
+pub(crate) mod mux_directory;
+#[cfg(feature = "mux")]
 mod mux_drain;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_pane_exit;
@@ -48,6 +54,14 @@ mod mux_pane_moves;
 mod mux_pane_sync_tests;
 #[cfg(feature = "mux")]
 mod mux_panes;
+#[cfg(all(test, feature = "mux", unix))]
+mod mux_reattach_scrollback_tests;
+#[cfg(feature = "mux")]
+pub(crate) mod mux_sessions;
+#[cfg(all(test, feature = "mux", unix))]
+mod mux_sessions_tests;
+#[cfg(all(test, feature = "mux"))]
+pub(crate) mod mux_test_seams;
 #[cfg(feature = "mux")]
 mod mux_transport;
 mod output;

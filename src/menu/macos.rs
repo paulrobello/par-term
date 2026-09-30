@@ -104,5 +104,9 @@ pub fn build_window_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuActio
     window_menu.append(&always_on_top)?;
 
     menu.append(&window_menu)?;
+    // UX.md V10/TW8: register this as NSApp's Window menu so AppKit appends
+    // the open-window list (and Bring All to Front). Must follow `append`:
+    // AppKit needs the submenu in the bar.
+    window_menu.set_as_windows_menu_for_nsapp();
     Ok(())
 }
