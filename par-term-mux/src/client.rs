@@ -9,7 +9,7 @@
 //! `refresh-client -C`.
 
 use par_term_emu_core_rust::mux::MuxClient;
-use par_term_tmux::{ParserBridge, SyncAction, TmuxPaneId, TmuxSync, escape_keys_for_tmux};
+use par_term_tmux::{ParserBridge, SyncAction, TmuxPaneId, TmuxSync, send_keys_arguments};
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::sync::mpsc::TryRecvError;
@@ -128,13 +128,16 @@ impl MuxSessionClient {
 
     /// Route raw input bytes to a pane as tmux key names.
     ///
-    /// This is the form the tmux gateway sends today: the daemon's
-    /// `send-keys` accepts `escape_keys_for_tmux`'s key names (`C-a`…
-    /// `C-z`, `Escape`, `BSpace`, `Space`, quoted literals, `0xNN`) with
-    /// no implicit newline appended.
+    /// This is the form the tmux gateway sends: `send_keys_arguments`
+    /// passes `-l` for pure-literal payloads (so text that merely spells a
+    /// tmux key name — "Enter", "C-c" — is typed, not pressed) and emits
+    /// bare key names otherwise (`C-a`… `C-z`, `Escape`, `BSpace`, `Space`,
+    /// quoted literals, `0xNN`), with no implicit newline appended.
     pub fn send_keys(&mut self, pane: TmuxPaneId, data: &[u8]) -> io::Result<Vec<String>> {
-        let escaped = escape_keys_for_tmux(data);
-        self.send(&format!("send-keys -t %{pane} {escaped}"))
+        self.send(&format!(
+            "send-keys -t %{pane} {}",
+            send_keys_arguments(data)
+        ))
     }
 
     /// Send literal text (no key translation, no appended newline).

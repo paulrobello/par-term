@@ -21,7 +21,7 @@ pub(crate) use super::mux_panes::MuxLaunchOutcome;
 pub(crate) use super::mux_transport::MuxTransport;
 use crate::app::tmux_handler::tmux_state::{TmuxState, TmuxTransport};
 use crate::app::window_state::WindowState;
-use crate::tmux::escape_keys_for_tmux;
+use crate::tmux::send_keys_arguments;
 use par_term_mux::{AttachOutcome, MuxSessionClient, VersionCheck, check_daemon_version};
 use par_term_tmux::TmuxPaneId;
 use std::io;
@@ -93,7 +93,7 @@ pub(crate) fn push_client_colors(transport: &dyn TmuxTransport, fg: &str, bg: &s
 }
 
 /// Route input bytes to the daemon as tmux key names — the same
-/// `escape_keys_for_tmux` form the gateway sends, targeted at the focused
+/// `send_keys_arguments` form the gateway sends, targeted at the focused
 /// pane when known. Always consumes once a transport is attached: the
 /// panes live in the daemon, so falling through to a PTY write would go
 /// nowhere. An unknown target DROPS the input with a visible error — the
@@ -108,8 +108,7 @@ pub(crate) fn route_input(
         crate::debug_error!("MUX", "input dropped — no focused pane to target");
         return true;
     };
-    let escaped = escape_keys_for_tmux(data);
-    let command = format!("send-keys -t %{pane} {escaped}");
+    let command = format!("send-keys -t %{pane} {}", send_keys_arguments(data));
     if let Err(e) = transport.send_command_no_wait(&command) {
         crate::debug_error!("MUX", "send-keys failed: {e}");
     }

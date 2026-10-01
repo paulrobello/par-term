@@ -324,8 +324,11 @@ impl TmuxSession {
         }
 
         let pane_id = self.focused_pane?;
-        let escaped = escape_keys_for_tmux(data);
-        Some(format!("send-keys -t %{} {}\n", pane_id, escaped))
+        Some(format!(
+            "send-keys -t %{} {}\n",
+            pane_id,
+            send_keys_arguments(data)
+        ))
     }
 
     /// Format a literal paste for sending via tmux.
@@ -430,7 +433,16 @@ pub fn set_buffer_command(content: &str) -> String {
 
 /// Escape a byte sequence for tmux send-keys command.
 ///
-/// This handles special characters that need escaping for tmux.
+/// This handles special characters that need escaping for tmux: control
+/// bytes become key names (`C-c`, `Escape`, `BSpace`), space becomes the
+/// `Space` key, high bytes become `0xNN` tokens, and printable runs are
+/// quoted literals.
+///
+/// Send-keys runs should format their arguments through
+/// [`send_keys_arguments`], which wraps this output with `-l` when the
+/// payload is pure literal text — quoted text that spells a key name
+/// ("Enter", "C-c") is still resolved as a key after quote-stripping
+/// unless the run passes `-l`.
 pub fn escape_keys_for_tmux(data: &[u8]) -> String {
     // For simple ASCII, we can use literal strings with proper escaping
     // For complex sequences (control chars, etc.), use hex keys
@@ -495,6 +507,37 @@ fn close_literal(result: &mut String, in_literal: &mut bool) {
         result.push_str("' ");
         *in_literal = false;
     }
+}
+
+/// True when every byte of `data` is printable ASCII or a single quote —
+/// the byte class [`escape_keys_for_tmux`] renders as one quoted literal
+/// run with no key-name or hex tokens.
+fn escaped_payload_is_pure_literal(data: &[u8]) -> bool {
+    !data.is_empty()
+        && data
+            .iter()
+            .all(|&b| b == b'\'' || (0x21..=0x7e).contains(&b))
+}
+
+/// Format the full argument list of a `send-keys` run from raw payload
+/// bytes: the [`escape_keys_for_tmux`] tokens, prefixed with `-l` when the
+/// payload is pure literal text.
+///
+/// tmux and the par-mux daemon resolve key names after stripping quotes,
+/// so a quoted run that spells a key name — literal text like "Enter",
+/// "Space", or "C-c" — is pressed as a key unless the run passes `-l`.
+/// A payload with no control bytes, no space, and no high bytes is literal
+/// text by construction and always takes `-l`. Payloads with deliberate
+/// key notation keep the bare name form with no `-l`: the notation exists
+/// so the receiving application's input modes decide what each key does
+/// (ARC-093 mode-following), which `-l` would suppress.
+pub fn send_keys_arguments(data: &[u8]) -> String {
+    let mut args = String::new();
+    if escaped_payload_is_pure_literal(data) {
+        args.push_str("-l ");
+    }
+    args.push_str(&escape_keys_for_tmux(data));
+    args
 }
 
 #[cfg(test)]
@@ -567,6 +610,45 @@ mod tests {
     fn test_escape_keys_escape() {
         let escaped = escape_keys_for_tmux(&[0x1b]);
         assert_eq!(escaped, "Escape");
+    }
+
+    #[test]
+    fn test_send_keys_arguments_key_name_text_takes_l_flag() {
+        // Literal text that spells tmux key names: -l makes the daemon type
+        // it instead of pressing the key ("Enter" without -l inserts a
+        // newline, "C-c" sends SIGINT).
+        assert_eq!(send_keys_arguments(b"Enter"), "-l 'Enter'");
+        assert_eq!(send_keys_arguments(b"Space"), "-l 'Space'");
+        assert_eq!(send_keys_arguments(b"C-c"), "-l 'C-c'");
+        assert_eq!(send_keys_arguments(b"hello"), "-l 'hello'");
+    }
+
+    #[test]
+    fn test_send_keys_arguments_key_notation_stays_bare() {
+        // Deliberate key notation keeps the bare key-name form: no -l, so
+        // the receiving app's input modes decide the key's effect
+        // (ARC-093 mode-following).
+        assert_eq!(send_keys_arguments(&[0x03]), "C-c");
+        assert_eq!(send_keys_arguments(&[0x1b]), "Escape");
+        assert_eq!(send_keys_arguments(&[0x7f]), "BSpace");
+        assert_eq!(send_keys_arguments(b"hello world"), "'hello' Space 'world'");
+        assert_eq!(send_keys_arguments(&[0x41, 0xc3, 0xa9]), "'A' 0xc3 0xa9");
+        assert_eq!(send_keys_arguments(b""), "");
+    }
+
+    #[test]
+    fn test_format_send_keys_appends_l_for_literal_text() {
+        let mut session = TmuxSession::new();
+        session.set_gateway_connected("dev".to_string());
+        session.set_focused_pane(Some(5));
+        assert_eq!(
+            session.format_send_keys(b"Enter"),
+            Some("send-keys -t %5 -l 'Enter'\n".to_string())
+        );
+        assert_eq!(
+            session.format_send_keys(&[0x03]),
+            Some("send-keys -t %5 C-c\n".to_string())
+        );
     }
 
     #[test]

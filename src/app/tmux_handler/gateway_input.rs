@@ -64,8 +64,8 @@ impl WindowState {
                 } else {
                     // No window mapping either - use untargeted send-keys
                     // This sends to tmux's currently active pane
-                    let escaped = crate::tmux::escape_keys_for_tmux(data);
-                    format!("send-keys {}\n", escaped)
+                    let args = crate::tmux::send_keys_arguments(data);
+                    format!("send-keys {}\n", args)
                 }
             }
         };
@@ -234,7 +234,7 @@ impl WindowState {
         let tmux_window_id = self.tmux_state.tmux_sync.get_window(active_tab_id)?;
 
         // Format send-keys command with window target using proper escaping
-        let escaped = crate::tmux::escape_keys_for_tmux(data);
+        let escaped = crate::tmux::send_keys_arguments(data);
         Some(format!("send-keys -t @{} {}\n", tmux_window_id, escaped))
     }
 
@@ -270,7 +270,7 @@ impl WindowState {
         };
 
         // Format send-keys command with window target using proper escaping
-        let escaped = crate::tmux::escape_keys_for_tmux(data);
+        let escaped = crate::tmux::send_keys_arguments(data);
         let cmd = format!("send-keys -t @{} {}\n", tmux_window_id, escaped);
 
         // Write to gateway tab

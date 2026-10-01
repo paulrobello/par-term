@@ -94,13 +94,13 @@ impl WindowState {
                 match session.format_send_keys(&bytes) {
                     Some(c) => c,
                     None => {
-                        let escaped = crate::tmux::escape_keys_for_tmux(&bytes);
-                        format!("send-keys {}\n", escaped)
+                        let args = crate::tmux::send_keys_arguments(&bytes);
+                        format!("send-keys {}\n", args)
                     }
                 }
             } else {
-                let escaped = crate::tmux::escape_keys_for_tmux(&bytes);
-                format!("send-keys {}\n", escaped)
+                let args = crate::tmux::send_keys_arguments(&bytes);
+                format!("send-keys {}\n", args)
             };
             if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id
                 && let Some(tab) = self.tab_manager.get_tab(gateway_tab_id)
