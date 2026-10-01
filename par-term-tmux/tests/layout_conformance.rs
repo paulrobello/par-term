@@ -237,6 +237,17 @@ impl PaneFactory for QuietFactory {
     ) -> Result<MuxPane, MuxError> {
         ShellPaneFactory::default().create_pane(id, cols, rows, Some("sleep 30"), context)
     }
+
+    fn create_dead_pane(
+        &self,
+        id: PaneId,
+        cols: u16,
+        rows: u16,
+        _command: Option<&str>,
+        _exit_code: Option<i32>,
+    ) -> Result<MuxPane, MuxError> {
+        ShellPaneFactory::default().create_dead_pane(id, cols, rows, None, None)
+    }
 }
 
 /// The (only) window of a freshly created session.

@@ -4000,13 +4000,12 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.57.0"
+version = "0.58.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11d26a4d3a69ae54bfb4c5b3f8fb05735b1f058c9619725de1cb3e664f4fc572"
+checksum = "051e1bc4a25b1392da0396d31028637bdff84191d3d8a004aab711e402e3d04b"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.2",
- "clap",
  "dirs 6.0.0",
  "flate2",
  "image",
@@ -4021,7 +4020,6 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "serde_yaml_ng",
  "smallvec",
  "swash",
  "toml 0.9.12+spec-1.1.0",
