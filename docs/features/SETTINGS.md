@@ -35,7 +35,7 @@ badged, and the banner after Save lists them.
 - [Panes](#panes): Layout & Dividers, Appearance, Pane Backgrounds
 - [Sessions](#sessions): par-mux, tmux, Arrangements
 - [Profiles](#profiles): Profiles, Dynamic Sources, SSH
-- [Keys](#keys): Key Bindings, Option/Alt, Modifiers
+- [Keys](#keys): Key Bindings, Leader Key, Option/Alt, Modifiers
 - [Pointer](#pointer): Mouse, Word Selection, Copy Mode
 - [Effects & Shaders](#effects--shaders): Background & Shader, Inline Images
 - [Automation](#automation): Triggers, Snippets, Custom Actions, Coprocesses, Observer Scripts, Plugins
@@ -482,6 +482,15 @@ No `config.yaml` keys. Actions and display only.
 
 - Edited row by row — `keybindings`
 
+### Leader Key
+
+#### Leader Key
+
+- Record — `leader_key`
+- Timeout: — `leader_timeout_ms`
+- Overlay delay: — `leader_overlay_delay_ms`
+- Vim-style focus and swap keys — `leader_vim_keys`
+
 ### Option/Alt
 
 #### Keyboard
@@ -813,10 +822,6 @@ No `config.yaml` keys. Actions and display only.
 
 These keys have no Settings control on purpose.
 
-- `leader_key`: The leader chord in keybinding syntax; arms the which-key action table
-- `leader_timeout_ms`: How long the armed leader waits for its next key
-- `leader_overlay_delay_ms`: Delay before the which-key overlay appears
-- `leader_vim_keys`: Add vim-style h/j/k/l focus and H/J/K/L swap keys to the leader table
 - `pane_title_font`: no runtime reader (UX.md B7); a control would be a dead control
 - `status_bar_font`: no runtime reader; a control would be a dead control
 - `font_ranges`: per-codepoint-range font list; edited in YAML until a range editor exists

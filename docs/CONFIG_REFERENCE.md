@@ -225,10 +225,10 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `right_option_key_mode` | `enum` | `esc` | Right Option/Alt key: `normal`, `meta`, `esc` | Keys › Option/Alt › Keyboard |
 | `modifier_remapping` | `object` | `{}` | Remap modifier keys: fields `left_ctrl`, `right_ctrl`, `left_alt`, `right_alt`, `left_super`, `right_super` | Keys › Modifiers › Modifier Remapping |
 | `use_physical_keys` | `bool` | `false` | Use physical key positions for keybindings (layout-independent) | Keys › Option/Alt › Keyboard |
-| `leader_key` | `string` | `Cmd+B` (macOS), `Ctrl+Shift+B` (Linux/Windows) | The leader chord, in keybinding syntax: arms a one-key table of window, tab, pane, and par-mux session actions ([Leader Key](features/LEADER_KEY.md)). Empty turns the leader off | YAML only |
-| `leader_timeout_ms` | `integer` | `2000` | How long the armed leader waits for its next key | YAML only |
-| `leader_overlay_delay_ms` | `integer` | `400` | How long after the leader its which-key overlay appears | YAML only |
-| `leader_vim_keys` | `bool` | `false` | Add `h j k l` (focus) and `H J K L` (swap) to the leader table; last-used tab moves from `l` to `Tab` | YAML only |
+| `leader_key` | `string` | `Cmd+B` (macOS), `Ctrl+Shift+B` (Linux/Windows) | The leader chord, in keybinding syntax: arms a one-key table of window, tab, pane, and par-mux session actions ([Leader Key](features/LEADER_KEY.md)). Empty turns the leader off | Keys › Leader Key › Leader Key |
+| `leader_timeout_ms` | `integer` | `2000` | How long the armed leader waits for its next key | Keys › Leader Key › Leader Key |
+| `leader_overlay_delay_ms` | `integer` | `400` | How long after the leader its which-key overlay appears | Keys › Leader Key › Leader Key |
+| `leader_vim_keys` | `bool` | `false` | Add `h j k l` (focus) and `H J K L` (swap) to the leader table; last-used tab moves from `l` to `Tab` | Keys › Leader Key › Leader Key |
 | `keybindings` | `array` | (built-in defaults) | Custom keybindings: `[{key: "CmdOrCtrl+Shift+B", action: "toggle_background_shader"}]` | Keys › Key Bindings › Keybindings |
 
 ---

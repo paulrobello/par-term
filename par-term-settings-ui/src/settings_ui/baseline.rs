@@ -132,6 +132,7 @@ impl SettingsUI {
                 self.open_section("profiles_management");
                 return None;
             }
+            self.apply_pending_profile_binding();
             if self.profile_modal_ui.has_unsaved_changes() {
                 if self.profile_modal_ui.request_list_save()
                     != crate::profile_modal_ui::ProfileModalAction::Save
@@ -160,6 +161,7 @@ impl SettingsUI {
 
     fn cancel_open_editors(&mut self) {
         self.keybinding_recording_index = None;
+        self.leader_recording = false;
         self.keybinding_recorded_combo = None;
 
         self.snippets_tab.editing_snippet_index = None;

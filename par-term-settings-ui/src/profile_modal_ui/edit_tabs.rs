@@ -139,12 +139,7 @@ impl ProfileModalUI {
             self.render_parent_selector(ui);
             ui.end_row();
 
-            text_row(
-                ui,
-                "Keyboard Shortcut:",
-                &mut self.temp_keyboard_shortcut,
-                "(modifiers and a key joined with \"+\")",
-            );
+            self.render_shortcut_row(ui);
 
             ui.label("Working Directory:");
             ui.horizontal(|ui| {

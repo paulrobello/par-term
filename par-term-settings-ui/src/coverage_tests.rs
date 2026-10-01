@@ -19,23 +19,6 @@ use crate::sidebar::SettingsTab;
 
 /// Fields with no Settings control on purpose.
 pub(crate) const YAML_ONLY: &[(&str, &str)] = &[
-    // Leader key (UX.md K4): YAML-configurable; Settings controls deferred until after SP3.
-    (
-        "leader_key",
-        "The leader chord in keybinding syntax; arms the which-key action table",
-    ),
-    (
-        "leader_timeout_ms",
-        "How long the armed leader waits for its next key",
-    ),
-    (
-        "leader_overlay_delay_ms",
-        "Delay before the which-key overlay appears",
-    ),
-    (
-        "leader_vim_keys",
-        "Add vim-style h/j/k/l focus and H/J/K/L swap keys to the leader table",
-    ),
     (
         "pane_title_font",
         "no runtime reader (UX.md B7); a control would be a dead control",

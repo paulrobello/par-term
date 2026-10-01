@@ -1,6 +1,7 @@
 //! Profile management section (inline profile list/editor).
 
 use crate::profile_modal_ui::ProfileModalAction;
+use crate::profile_modal_ui::shortcut;
 use crate::section::{keyword_section, keyword_section_with_state};
 use crate::settings_ui::SettingsUI;
 use std::collections::HashSet;
@@ -49,7 +50,19 @@ pub(crate) fn show_management_section(
         |ui, collapsed| {
             // Render the profile list/edit UI inline
             settings.profile_modal_ui.global_tmux_enabled = settings.config.tmux.tmux_enabled;
+            let bound = settings
+                .profile_modal_ui
+                .editing_profile()
+                .and_then(|id| shortcut::bound_chord(&settings.config.keybindings, id));
+            settings.profile_modal_ui.set_config_shortcut(bound);
             let action = settings.profile_modal_ui.show_inline(ui, collapsed);
+
+            // Recorded chords are conflict-checked here, where the config is.
+            if let Some((chord, action_id)) = settings.profile_modal_ui.take_chord_to_check() {
+                let conflict = settings.check_recorded_chord_conflict(&chord, &action_id);
+                settings.profile_modal_ui.set_shortcut_conflict(conflict);
+            }
+            settings.apply_pending_profile_binding();
 
             // Handle returned actions
             match action {
@@ -66,6 +79,18 @@ pub(crate) fn show_management_section(
             }
         },
     );
+}
+
+impl SettingsUI {
+    /// Done on the profile editor (or a Save that finishes the open form)
+    /// stages a shortcut change; write it into the working config, replacing
+    /// the profile's existing `open_profile:<id>` binding.
+    pub(crate) fn apply_pending_profile_binding(&mut self) {
+        if let Some(change) = self.profile_modal_ui.take_pending_binding() {
+            shortcut::apply_binding(&mut self.config.keybindings, &change);
+            self.has_changes = true;
+        }
+    }
 }
 
 /// Show the display options section (profile drawer toggle button).

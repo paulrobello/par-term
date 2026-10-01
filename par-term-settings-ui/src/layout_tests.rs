@@ -298,6 +298,8 @@ const NEW_SECTIONS: &[(&str, SettingsTab, &str)] = &[
     ),
     // SX1.
     ("sessions_par_mux", SettingsTab::Sessions, "par-mux"),
+    // Leader key controls (card 01a0f612a670).
+    ("input_leader", SettingsTab::Keys, "Leader Key"),
 ];
 
 fn page_title(tab: SettingsTab, page: usize) -> &'static str {

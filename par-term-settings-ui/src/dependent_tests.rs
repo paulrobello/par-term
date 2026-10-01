@@ -42,6 +42,7 @@ const SPOT_TESTS: &[(SettingsTab, &str)] = &[
     (SettingsTab::Advanced, "Command Complete"),
     (SettingsTab::WindowsAndTabs, "Tab style: Automatic"),
     (SettingsTab::WindowsAndTabs, "Position: Left"),
+    (SettingsTab::Keys, "Leader chord: a chord recorded"),
 ];
 
 fn config_with_parents_off() -> Config {
@@ -73,6 +74,7 @@ fn config_with_parents_off() -> Config {
     c.notifications.alert_sounds.clear();
     c.tabs.tab_style = par_term_config::TabStyle::Dark;
     c.tabs.tab_bar_position = par_term_config::TabBarPosition::Top;
+    c.input.leader_key = String::new();
     c.collapsed_settings_sections = Vec::new();
     c
 }

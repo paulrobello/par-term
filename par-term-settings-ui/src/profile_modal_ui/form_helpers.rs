@@ -25,6 +25,7 @@ impl ProfileModalUI {
         self.temp_tags.clear();
         self.temp_parent_id = None;
         self.temp_keyboard_shortcut.clear();
+        self.reset_shortcut_state();
         self.temp_hostname_patterns.clear();
         self.temp_tmux_session_patterns.clear();
         self.temp_directory_patterns.clear();
@@ -284,6 +285,7 @@ impl ProfileModalUI {
                 ModalMode::List => {}
             }
             self.has_changes = true;
+            self.commit_shortcut(id);
         }
 
         self.mode = ModalMode::List;

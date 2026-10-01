@@ -210,6 +210,7 @@ impl SettingsUI {
             keybinding_recording_index: None,
             keybinding_recorded_combo: None,
             keybinding_conflict: None,
+            leader_recording: false,
             test_notification_requested: false,
             selected_tab: SettingsTab::default(),
             selected_pages: [0; 12],

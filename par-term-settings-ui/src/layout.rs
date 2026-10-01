@@ -39,7 +39,7 @@ use crate::advanced_tab::{import_export, logging, system, tmux};
 use crate::ai_inspector_tab::{agent_config_section, context_section, prompt_library};
 use crate::appearance_tab::{cursor_section, fonts_section};
 use crate::automation_tab::{coprocesses_section, plugins_section, triggers_section};
-use crate::input_tab::{keybindings, keyboard, mouse, selection, word_selection};
+use crate::input_tab::{keybindings, keyboard, leader, mouse, selection, word_selection};
 use crate::notifications_tab::{activity, alert_sounds, anti_idle, bell};
 use crate::profiles_tab::{dynamic_sources, management};
 use crate::status_bar_tab as sb;
@@ -292,6 +292,10 @@ const KEYS: &[PageDef] = &[
             "input_keybindings",
             keybindings::show_keybindings_section,
         )],
+    ),
+    page(
+        "Leader Key",
+        &[s("input_leader", leader::show_leader_section)],
     ),
     page(
         "Option/Alt",

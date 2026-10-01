@@ -146,9 +146,10 @@ impl WindowManager {
         &mut self,
         mut profiles: Vec<crate::profile::Profile>,
     ) {
-        // A shortcut typed into the profile editor becomes an
-        // `open_profile:<id>` binding at once (UX.md MD3), through
-        // Settings' baseline so its next Save keeps the binding.
+        // The editor's recorder writes `open_profile:<id>` bindings into the
+        // config directly; a legacy `keyboard_shortcut` still on a profile
+        // (one startup could not migrate) is retried here (UX.md MD3),
+        // through Settings' baseline so its next Save keeps the binding.
         let mut probe = (**self.config.load()).clone();
         let before = probe.keybindings.len();
         let report = crate::profile::actions::migrate_profile_shortcuts(&mut probe, &mut profiles);

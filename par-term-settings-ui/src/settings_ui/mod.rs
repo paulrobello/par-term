@@ -189,6 +189,8 @@ pub struct SettingsUI {
     /// Conflict warning for the last recorded chord (UX.md K25), shown until
     /// the next recording starts
     pub keybinding_conflict: Option<String>,
+    /// True while the Leader Key section is capturing a chord
+    pub leader_recording: bool,
 
     // Notification test state
     /// Flag to request sending a test notification

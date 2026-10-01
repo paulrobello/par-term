@@ -44,10 +44,9 @@ const fn to_section(query: &'static str, tab: SettingsTab, section: &'static str
 /// failed ("cursor blink" … "par-mux") and seven that hit a dimmed,
 /// unclickable tab ("notify" … "prompt library").
 ///
-/// "leader" has no control yet (the leader key, K7, is not in Settings),
-/// so it lands on the Key Bindings section, where it will live. "par-mux"
-/// lands on Sessions › par-mux (SX1) and quit/close confirmation on General
-/// › Closing & Quitting (SX2), their SP3 homes.
+/// "leader" lands on Keys › Leader Key (K7), "par-mux" on Sessions ›
+/// par-mux (SX1), and quit/close confirmation on General › Closing &
+/// Quitting (SX2), their SP3 homes.
 fn audit_queries() -> Vec<Expect> {
     use SettingsTab::*;
     vec![
@@ -71,7 +70,7 @@ fn audit_queries() -> Vec<Expect> {
             "Closing & Quitting",
             "Confirm before quitting with open tabs",
         ),
-        to_section("leader", Keys, "Keybindings"),
+        to_section("leader", Keys, "Leader Key"),
         to("detach", Keys, "Keybindings", "Move Tab to New Window"),
         to_section("par-mux", Sessions, "par-mux"),
         to(
@@ -276,6 +275,7 @@ fn yaml_keys_find_their_controls() {
             "Hide on mouse inactivity",
         ),
         ("mux_auto_attach", Sessions, "Attach on launch:"),
+        ("leader_timeout_ms", Keys, "Timeout:"),
     ] {
         let hits = registry.search(&Query::parse(key));
         assert!(

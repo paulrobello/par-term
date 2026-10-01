@@ -87,7 +87,7 @@ Each profile can customize the following:
 | **Login Shell** | Override global login shell setting (None/true/false) | No |
 | **Tags** | Comma-separated tags for organization and filtering | No |
 | **Parent Profile** | Inherit settings from another profile | No |
-| **Keyboard Shortcut** | Legacy: migrated to an `open_profile:<id>` keybinding on first launch (see [Profile Shortcuts](#profile-shortcuts)) | No |
+| **Keyboard Shortcut** | Records the chord bound to this profile's `open_profile:<id>` keybinding (see [Profile Shortcuts](#profile-shortcuts)) | No |
 | **SSH Host** | SSH hostname for remote connections | No |
 | **SSH User** | SSH username | No |
 | **SSH Port** | SSH port number | No |
@@ -159,7 +159,7 @@ The drawer takes keys only while its filter has focus, so typing in the terminal
 
 ### Profile Shortcuts
 
-A profile shortcut is an ordinary keybinding to `open_profile:<id>`. Record it in **Settings › Input › Keybindings** like any other binding: it is conflict-checked against every other chord and shows in the command palette and the launcher.
+A profile shortcut is an ordinary keybinding to `open_profile:<id>`. Record it in the profile editor's **Keyboard Shortcut** field (General sub-tab): **Record** captures a chord and **Clear** removes it. Done writes the profile's one `open_profile:<id>` binding, replacing any previous chord rather than adding a second, and Settings' Save persists it. You can also bind it in **Settings › Keys › Key Bindings** like any other action. Either way it is conflict-checked against every other chord and shows in the command palette and the launcher.
 
 The older per-profile **Keyboard Shortcut** field is migrated on first launch: each profile's shortcut becomes an `open_profile:<id>` binding with the same chord, and the field is cleared. A shortcut that does not parse, or whose chord another binding already holds, is left on the profile and logged; bind it by hand. A child profile no longer inherits its parent's shortcut.
 

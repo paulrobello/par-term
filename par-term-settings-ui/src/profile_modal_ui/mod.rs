@@ -11,6 +11,7 @@
 //! | `list_view.rs` | Profile list view renderer and delete confirmation dialog |
 //! | `edit_view.rs` | Profile edit/create view: header, sub-tab bar, footer, icon and shell pickers |
 //! | `edit_tabs.rs` | Editor sub-tabs (General, Session, Text & Badge, Shader, SSH, Auto-Switch) |
+//! | `shortcut.rs` | Keyboard Shortcut recorder, bound to the profile's `open_profile:<id>` action |
 //! | `badge_section.rs` | Badge, shader, tmux, par-mux, and SSH sections the sub-tabs draw |
 
 mod badge_section;
@@ -19,6 +20,7 @@ mod edit_view;
 mod form_helpers;
 mod list_view;
 mod parent_selector;
+pub(crate) mod shortcut;
 
 pub use edit_tabs::ProfileEditTab;
 use par_term_config::{Profile, ProfileId, ProfileManager};
@@ -133,6 +135,20 @@ pub struct ProfileModalUI {
     pub edit_tab: ProfileEditTab,
     /// Row armed for delete by the list's first Delete click (UX.md SC4).
     pub(super) pending_row_delete: crate::delete_confirm::PendingDelete,
+    /// The chord bound to the edited profile's `open_profile:<id>` action
+    /// in the working config, set by the Settings window each frame.
+    pub(super) config_shortcut: Option<String>,
+    /// Shortcut edit staged in the open editor: `Some(Some(chord))` records,
+    /// `Some(None)` clears. Applied to the config when Done saves the form.
+    pub(super) staged_shortcut: Option<Option<String>>,
+    /// The Keyboard Shortcut recorder is waiting for a chord.
+    pub(super) shortcut_recording: bool,
+    /// A recorded chord awaiting its conflict check by the config owner.
+    pub(super) unchecked_chord: Option<String>,
+    /// Result of the last conflict check, shown under the field.
+    pub(super) shortcut_conflict: Option<String>,
+    /// A saved binding change for the config owner to apply.
+    pub(super) pending_binding: Option<shortcut::PendingBinding>,
 }
 
 impl ProfileModalUI {
@@ -192,6 +208,12 @@ impl ProfileModalUI {
             global_tmux_enabled: true,
             edit_tab: ProfileEditTab::default(),
             pending_row_delete: None,
+            config_shortcut: None,
+            staged_shortcut: None,
+            shortcut_recording: false,
+            unchecked_chord: None,
+            shortcut_conflict: None,
+            pending_binding: None,
         }
     }
 
