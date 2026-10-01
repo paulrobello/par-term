@@ -34,7 +34,7 @@ pub(crate) fn show_leader_section(
 
             if settings.leader_recording {
                 if let Some(combo) = capture_key_combo(ui) {
-                    settings.keybinding_conflict =
+                    settings.leader_conflict =
                         settings.check_recorded_chord_conflict(&combo, "leader_key");
                     settings.config.input.leader_key = combo;
                     settings.leader_recording = false;
@@ -42,7 +42,7 @@ pub(crate) fn show_leader_section(
                     *changes_this_frame = true;
                 } else if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                     settings.leader_recording = false;
-                    settings.keybinding_conflict = None;
+                    settings.leader_conflict = None;
                 }
             }
 
@@ -64,7 +64,7 @@ pub(crate) fn show_leader_section(
                 let record = ui.button(label).search_tag(&["leader_key"]);
                 if record.clicked() {
                     settings.leader_recording = !settings.leader_recording;
-                    settings.keybinding_conflict = None;
+                    settings.leader_conflict = None;
                 }
 
                 if !settings.leader_recording
@@ -75,7 +75,7 @@ pub(crate) fn show_leader_section(
                         .clicked()
                 {
                     settings.config.input.leader_key.clear();
-                    settings.keybinding_conflict = None;
+                    settings.leader_conflict = None;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -84,10 +84,10 @@ pub(crate) fn show_leader_section(
                 });
             });
 
-            if let Some(conflict) = &settings.keybinding_conflict {
+            if let Some(conflict) = &settings.leader_conflict {
                 ui.colored_label(
                     egui::Color32::RED,
-                    format!("Keybinding conflict: {conflict}"),
+                    format!("Leader key conflict: {conflict}"),
                 );
             }
 

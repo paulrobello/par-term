@@ -185,6 +185,13 @@ impl SettingsUI {
     /// bindings — the same defaults the menu advertises — with normalized
     /// comparison. The recorded action's own entries never self-conflict.
     pub fn check_recorded_chord_conflict(&self, key: &str, action: &str) -> Option<String> {
+        // The leader chord is not a registry action: recording any other
+        // binding onto it is a conflict (UX.md K25).
+        let leader = self.config.input.leader_key.trim();
+        if action != "leader_key" && !leader.is_empty() && chords_equal(leader, key) {
+            return Some("Already bound to the leader chord".to_string());
+        }
+
         for binding in &self.config.keybindings {
             if binding.action == action || !chords_equal(&binding.key, key) {
                 continue;
@@ -435,5 +442,41 @@ mod tests {
             settings.check_recorded_chord_conflict("Alt+K", "my_action"),
             None
         );
+    }
+
+    #[test]
+    fn recorded_chord_flags_leader_chord_but_not_leader_itself() {
+        let settings = SettingsUI::new_for_tests(Config::default());
+        let leader = settings.config.input.leader_key.clone();
+        let conflict = settings.check_recorded_chord_conflict(&leader, "my_action");
+        assert!(
+            conflict
+                .as_deref()
+                .is_some_and(|c| c.contains("leader chord")),
+            "recording onto the leader chord must conflict, got {conflict:?}"
+        );
+        // The leader recorder itself does not self-conflict with its old value.
+        let own = settings.check_recorded_chord_conflict(&leader, "leader_key");
+        assert!(own.as_deref().is_none_or(|c| !c.contains("leader chord")));
+
+        // A disabled leader (empty chord) never conflicts.
+        let mut config = Config::default();
+        config.input.leader_key.clear();
+        let settings = SettingsUI::new_for_tests(config);
+        assert!(
+            settings
+                .check_recorded_chord_conflict("Ctrl+B", "my_action")
+                .is_none_or(|c| !c.contains("leader chord"))
+        );
+    }
+
+    #[test]
+    fn leader_and_keybinding_conflicts_are_separate_fields() {
+        let mut settings = SettingsUI::new_for_tests(Config::default());
+        settings.leader_conflict = Some("x".to_string());
+        assert!(settings.keybinding_conflict.is_none());
+        settings.leader_conflict = None;
+        settings.keybinding_conflict = Some("y".to_string());
+        assert!(settings.leader_conflict.is_none());
     }
 }
