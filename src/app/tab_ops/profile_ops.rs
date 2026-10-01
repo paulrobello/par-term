@@ -83,9 +83,12 @@ impl WindowState {
                         self.tab_manager.move_tab_to_index(tab_id, idx + 1);
                     }
 
-                    // Set profile icon on the new tab
+                    // Record the tab's profile (UX.md PR5), its icon, and
+                    // its badge text, which follows the tab (B60)
                     if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
                         tab.profile.profile_icon = profile.icon.clone();
+                        tab.profile.source_profile_id = Some(profile.id);
+                        tab.profile.badge_override = profile.badge_text.clone();
                     }
 
                     // Start refresh task for the new tab and resize to match window
@@ -316,13 +319,6 @@ impl WindowState {
                 profile.name
             );
         }
-    }
-
-    /// Toggle the profile drawer visibility
-    pub fn toggle_profile_drawer(&mut self) {
-        self.overlay_ui.profile_drawer_ui.toggle();
-        self.focus_state.needs_redraw = true;
-        self.request_redraw();
     }
 
     /// Save profiles to disk

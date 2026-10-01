@@ -93,6 +93,7 @@ pub mod platform;
 pub(crate) mod process_timeout;
 pub mod profile;
 pub mod profile_drawer_ui;
+pub mod profile_launcher_ui;
 pub mod progress_bar;
 pub mod quit_confirmation_ui;
 pub mod remote_shell_install_ui;

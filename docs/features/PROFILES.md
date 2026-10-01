@@ -7,10 +7,13 @@ par-term provides a profile system for saving and quickly launching shells with 
 - [Profile Settings](#profile-settings)
 - [Managing Profiles](#managing-profiles)
   - [Settings UI](#settings-ui)
-  - [Profile Drawer](#profile-drawer)
+  - [Open Profiles](#open-profiles)
+  - [Profiles Drawer](#profiles-drawer)
+  - [Profile Shortcuts](#profile-shortcuts)
 - [Creating Profiles](#creating-profiles)
   - [Profile Icon Picker](#profile-icon-picker)
 - [Using Profiles](#using-profiles)
+- [Which Profile a Tab Runs](#which-profile-a-tab-runs)
 - [Auto-Switching](#auto-switching)
   - [Directory-Based Profile Switching](#directory-based-profile-switching)
   - [Tmux Profile Auto-Switching](#tmux-profile-auto-switching)
@@ -47,17 +50,17 @@ Profiles allow you to save terminal configurations for quick access:
 graph TD
     Profiles[Profile System]
     Manager[ProfileManager]
-    Drawer[Profile Drawer]
-    Modal[Profile Modal]
+    Drawer[Open Profiles / Profiles Drawer]
+    Modal[Settings > Profiles]
     Storage[profiles.yaml]
-    Session[New Tab]
+    Session[Tab, Window, or Split]
 
     Profiles --> Manager
     Manager --> Drawer
     Manager --> Modal
     Manager --> Storage
 
-    Drawer -->|Open Profile| Session
+    Drawer -->|open_profile actions| Session
     Modal -->|Create/Edit| Manager
 
     style Profiles fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
@@ -84,7 +87,7 @@ Each profile can customize the following:
 | **Login Shell** | Override global login shell setting (None/true/false) | No |
 | **Tags** | Comma-separated tags for organization and filtering | No |
 | **Parent Profile** | Inherit settings from another profile | No |
-| **Keyboard Shortcut** | Quick-launch shortcut (e.g., `Cmd+1`) | No |
+| **Keyboard Shortcut** | Legacy: migrated to an `open_profile:<id>` keybinding on first launch (see [Profile Shortcuts](#profile-shortcuts)) | No |
 | **SSH Host** | SSH hostname for remote connections | No |
 | **SSH User** | SSH username | No |
 | **SSH Port** | SSH port number | No |
@@ -115,51 +118,59 @@ Profile management is embedded in the Settings window under the **Profiles** tab
 - Edit (pencil) and Delete (trash) buttons per profile
 - Unsaved changes indicator
 
-The profile drawer's **Manage** button and the menu's **Manage Profiles** action both open the Settings window to the Profiles tab.
+**Profiles › Manage Profiles...** in the menu bar, the Profiles drawer's **Manage** button, the launcher's row menu, and the `manage_profiles` action (command palette: **Manage Profiles**) all open the Settings window to the Profiles tab.
 
-### Profile Drawer
+### Open Profiles
 
-The profile drawer provides quick access to your profiles from the right side of the window.
+**Open Profiles…** is one keyboard-first launcher for every profile (iTerm2's Open Profiles). It replaced the tab bar's old "New Tab" profile window.
 
-**Opening the Drawer:**
-- Press `Cmd+O` (macOS; iTerm2's Open Profiles). On Windows/Linux it ships unbound, so use the **Profiles** menu or the command palette, or bind `toggle_profile_drawer`
-- Or click the toggle button on the right edge of the window
+**Opening it:**
+- Press `Cmd+O` (macOS). On Windows/Linux it ships unbound: use the **Profiles** menu, the command palette, or bind `toggle_profile_drawer`
+- Click the chevron next to the tab bar's `+` button
+- With `new_tab_shortcut_shows_profiles: true`, the new-tab shortcut opens it
 
-**Drawer Features:**
-- Collapsible panel (220px wide when expanded, 12px when collapsed)
-- Scrollable profile list with icons
-- Single-click to select, double-click to open
-- Indicator dots (`...`) for profiles with custom settings
-- Quick action buttons: **Open** and **Manage**
+**Keys:**
 
-```mermaid
-flowchart LR
-    Toggle[Toggle Button]
-    Drawer[Profile Drawer]
-    List[Profile List]
-    Actions[Action Buttons]
+| Key | Action |
+|-----|--------|
+| type | Filter by profile name or tag |
+| `↑` `↓` `PgUp` `PgDn` `Home` `End` | Move the selection |
+| `Enter` | Open the profile in a new tab |
+| `Shift+Enter` | Open it in a new window |
+| `Cmd+D` / `Cmd+Shift+D` | Split the focused pane right / down, running the profile |
+| `Cmd+Enter` | Give the active tab this profile (and pin it) |
+| `Ctrl+Space` | Mark the row; an activation with marked rows opens every marked profile |
+| `Esc` or the toggle chord | Close |
 
-    Toggle -->|Click| Drawer
-    Drawer --> List
-    Drawer --> Actions
-    Actions -->|Open| Launch[Launch Tab]
-    Actions -->|Manage| Settings[Settings > Profiles]
+Each row shows the profile's live keybinding (its `open_profile:<id>` chord), its tags, and a **dynamic** marker for profiles from a remote source. The first row, **Default**, is a plain tab running your configured shell. Click a tag chip to show only that tag. Right-click a row for **Open in** (New Tab, New Window, Split Right, Split Down, This Tab), **Edit Profile…**, and **Duplicate**.
 
-    style Toggle fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Drawer fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style List fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Actions fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Launch fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Settings fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-```
+A split with a profile works in local tabs. A par-mux or tmux pane cannot start a profile's program yet (the daemon's `split-window` takes a directory but no command), so the launcher says so instead of opening a pane that ignores the profile.
+
+### Profiles Drawer
+
+The Profiles drawer is Open Profiles pinned to the right edge of the window: the same list, keys, and actions. The terminal reflows beside it rather than drawing under it.
+
+**Opening the drawer:**
+- Click the toggle button on the right edge of the window,
+- Choose **View › Profiles Panel** in the menu bar (checked while the drawer is open), or
+- Bind `toggle_profiles_panel`
+
+The drawer takes keys only while its filter has focus, so typing in the terminal never moves its selection. `Esc` in the filter, or its **✕** button, closes it.
+
+### Profile Shortcuts
+
+A profile shortcut is an ordinary keybinding to `open_profile:<id>`. Record it in **Settings › Input › Keybindings** like any other binding: it is conflict-checked against every other chord and shows in the command palette and the launcher.
+
+The older per-profile **Keyboard Shortcut** field is migrated on first launch: each profile's shortcut becomes an `open_profile:<id>` binding with the same chord, and the field is cleared. A shortcut that does not parse, or whose chord another binding already holds, is left on the profile and logged; bind it by hand. A child profile no longer inherits its parent's shortcut.
+
+Related actions: `open_profile_window:<id>`, `split_profile:<id>:right`, `split_profile:<id>:down`, and `set_tab_profile:<id>` (see [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md)).
 
 ## Creating Profiles
 
 **Step-by-step:**
 
-1. Open the profile drawer (`Cmd+O` on macOS, or the Profiles menu)
-2. Click **Manage**
-3. Click **+ New Profile**
+1. Open Settings › Profiles (**Profiles › Manage Profiles...** in the menu bar, the drawer's **Manage** button, or **Manage Profiles** in the command palette)
+2. Click **+ New Profile**
 4. Fill in the profile settings:
    - **Name** (required): Give your profile a descriptive name
    - **Icon**: Add a Nerd Font icon for visual identification
@@ -207,9 +218,11 @@ Click any icon to set it as the profile icon, or type a custom value directly in
 
 **Launch a Profile:**
 
-1. Open the profile drawer (`Cmd+O` on macOS, or the Profiles menu)
-2. Double-click a profile, or
-3. Select a profile and click **Open**
+1. Open Profiles (`Cmd+O` on macOS, the tab bar chevron, or the Profiles menu)
+2. Type part of its name or a tag
+3. Press `Enter` (new tab), `Shift+Enter` (new window), or `Cmd+D` / `Cmd+Shift+D` (split)
+
+The command palette lists four rows per profile: **Open Profile**, **Open Profile in New Window**, **Split with Profile**, and **Change Tab Profile**.
 
 **What Happens:**
 - A new tab opens with the profile's configuration
@@ -222,6 +235,16 @@ Click any icon to set it as the profile icon, or type a custom value directly in
 - A profile that attaches a tmux or par-mux session is not inherited, since its program would attach again. Splits of those tabs, and of par-mux tabs, work as usual.
 - **Restart Pane** (`restart_pane`) reruns the program the pane was started with, so a profile tab's first pane restarts its SSH connection or command rather than a local shell. So do the `shell_exit_action` restart options.
 - An SSH connection typed by hand, or opened with SSH Quick Connect (which types `ssh` into the current shell), is not a profile program: a split of that tab starts a local shell.
+
+## Which Profile a Tab Runs
+
+A tab remembers the profile it was opened from, and any profile an automatic switch applied on top of it:
+
+- **Tab tooltip:** hover a tab for `Profile: Work`, or `Profile: Prod (auto: host prod.example.com)` while an automatic switch is applied.
+- **Profile status-bar widget:** the active tab's profile name. It ships off; turn it on in Settings › Status Bar.
+- **Variables:** `\(tab.profile_name)` in a badge or status-bar format is the active tab's profile (`Default` for a plain tab); `\(session.profile_name)` follows the active tab too.
+- **Change it:** **Change Profile…** on the tab's context menu, `Cmd+Enter` in Open Profiles, or **Change Tab Profile: X** in the palette. This applies the profile's icon, title, badge, and shader to the tab (the running process is not replaced) and pins the tab.
+- **Edit it:** **Session › Edit Tab's Profile...** in the menu bar, or the `edit_tab_profile` action, opens Settings › Profiles and names the tab's profile in a toast.
 
 ## Default Startup Directory
 
@@ -353,27 +376,32 @@ Profiles automatically apply when connecting to remote hosts with matching hostn
 
 When multiple auto-switch mechanisms could apply, the following priority order determines which profile wins:
 
-1. **Explicit user selection** — manual profile selection always takes precedence
-2. **Hostname match** — remote host detection via OSC 7 (highest auto priority)
-3. **SSH command detection** — running `ssh` process triggers profile matching
-4. **Directory match** — CWD-based matching via OSC 7
-5. **Tmux session match** — tmux session name pattern matching (applied via the tmux gateway separately)
+1. **Explicit user selection** — a tab given a profile with Change Tab Profile, or pinned, never switches automatically
+2. **Hostname match** — remote host detection via OSC 7 (an SSH session reports its host this way; highest auto priority)
+3. **Directory match** — CWD-based matching via OSC 7
+4. **Tmux session match** — tmux session name pattern matching (applied via the tmux gateway separately)
 
-Tmux session matching runs independently through the gateway tab and does not compete with hostname/directory/SSH switching.
+Tmux session matching runs independently through the gateway tab and does not compete with hostname or directory switching.
+
+Every tab is evaluated, not only the one you are looking at: a background tab that connects to a matching host switches too.
+
+**Announced and undoable.** Each switch shows a toast — `Profile Prod applied (host prod.example.com)` — with an **Undo** button. Undo reverts the tab and does not re-apply that profile until its rule stops matching (you leave the host or directory).
+
+**Pin a tab** to keep automatic switching away from it: **Pin / Unpin Profile** on the tab's context menu, **Session › Pin Profile** in the menu bar (checked while the active tab is pinned), or the `toggle_tab_profile_pin` action. Changing a tab's profile by hand pins it too.
 
 ### Auto-Switch Visual Application
 
-When a profile is auto-applied via any switching mechanism (directory, hostname, or tmux session), the following settings are applied:
+When a profile is auto-applied via any switching mechanism (directory, hostname, or tmux session), the following settings are applied to that tab:
 
 | Setting | Description |
 |---------|-------------|
 | **Profile icon** | Displayed in the tab bar (horizontal and vertical layouts) |
 | **Tab title** | Overrides the current tab title |
-| **Badge text** | Sets the badge overlay text |
-| **Badge styling** | Applies badge color, alpha, font, bold, margins, size |
-| **Command** | Queues the profile's command for confirmation (if configured) — see [Profile Commands and Confirmation](#profile-commands-and-confirmation) |
+| **Badge text** | The tab's badge; it follows the tab, so switching tabs switches badges |
+| **Badge styling** | Applies badge color, alpha, font, bold, margins, size while the tab is active |
+| **Command** | Queues the profile's command for confirmation (if configured), aimed at the switched tab — see [Profile Commands and Confirmation](#profile-commands-and-confirmation) |
 
-The original tab title saves when an auto-profile applies and restores when the auto-profile clears.
+The tab's original title, icon, and badge are saved when an auto-profile applies and restored when it clears or is undone.
 
 ### Profile Commands and Confirmation
 

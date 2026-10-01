@@ -58,16 +58,10 @@ impl WindowState {
             0.0
         };
 
-        // Capture badge state for closure
-        let badge_enabled = self.badge_state.enabled;
-        let badge_state = if badge_enabled {
-            if self.badge_state.is_dirty() {
-                self.badge_state.interpolate();
-            }
-            Some(self.badge_state.clone())
-        } else {
-            None
-        };
+        // Profile variables follow the active tab even with badges off (the
+        // Profile widget reads them); the badge itself is per-tab (B60).
+        self.sync_tab_profile_variable();
+        let badge_state = self.badge_state.enabled.then(|| self.frame_badge());
 
         // Agent-usage upkeep runs every frame regardless of the status bar's
         // visibility — the popup panel opens by its own action and reads the
@@ -421,11 +415,12 @@ impl WindowState {
                     egui_overlays::render_scrollbar_mark_tooltip(ctx, hovered_mark.as_ref());
 
                     // Render tab bar if visible (action handled after closure)
-                    let tab_bar_right_reserved = if self.overlay_ui.ai_inspector.open {
-                        self.overlay_ui.ai_inspector.consumed_width()
-                    } else {
-                        0.0
-                    };
+                    let tab_bar_right_reserved =
+                        if self.overlay_ui.ai_inspector.open {
+                            self.overlay_ui.ai_inspector.consumed_width()
+                        } else {
+                            0.0
+                        } + self.overlay_ui.profile_drawer_ui.consumed_width();
                     // Populate move-tab context so the right-click context
                     // menu has fresh state. Values captured before the closure
                     // to avoid borrowing `self` for `is_gateway_active()`
@@ -483,6 +478,7 @@ impl WindowState {
                                 &mut self.crash_triage,
                                 &self.config,
                                 &mut self.overlay_ui.command_palette,
+                                &self.overlay_ui.profile_manager,
                                 &self.keybinding_registry,
                                 #[cfg(feature = "mux")]
                                 &self.tmux_state,
@@ -601,23 +597,13 @@ impl WindowState {
                         actions,
                     );
 
-                    // Render profile drawer (right side panel).
-                    // Pass the custom status bar height as a bottom margin so the
-                    // panel does not extend behind the floating Area-based status bar.
-                    let profile_drawer_bottom_margin =
-                        if self.config.load().status_bar.status_bar_position
-                            == par_term_config::StatusBarPosition::Bottom
-                        {
-                            badge_custom_sb_height
-                        } else {
-                            0.0
-                        };
-                    actions.profile_drawer = self.overlay_ui.profile_drawer_ui.render(
+                    // Open Profiles… popup and the Profiles drawer (UX.md
+                    // PR1/PR2): one launcher, floating or pinned.
+                    actions.profile_launcher = super::egui_dialogs::render_profile_launcher(
                         ctx,
-                        &self.overlay_ui.profile_manager,
+                        &mut self.overlay_ui,
                         &self.config.load(),
-                        false, // profile modal is no longer in the terminal window
-                        profile_drawer_bottom_margin,
+                        badge_custom_sb_height,
                     );
 
                     // Render progress bar overlay

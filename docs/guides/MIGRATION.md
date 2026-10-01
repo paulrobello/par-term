@@ -5,6 +5,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 ## Table of Contents
 
 - [Unreleased — Leader Key](#unreleased--leader-key)
+- [Unreleased — Profile Shortcuts and the Open Profiles Launcher](#unreleased--profile-shortcuts-and-the-open-profiles-launcher)
 - [Unreleased — Session Picker, Window Actions, and Detach](#unreleased--session-picker-window-actions-and-detach)
 - [Unreleased — Pane Dimming, Splits, and Restart](#unreleased--pane-dimming-splits-and-restart)
 - [Unreleased — Default Shortcuts Aligned with iTerm2](#unreleased--default-shortcuts-aligned-with-iterm2)
@@ -37,6 +38,13 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - **The background-shader toggle moved to `Ctrl + Alt + B` on Linux and Windows.** A saved config that binds `toggle_background_shader` to `Ctrl + Shift + B` is moved to `Ctrl + Alt + B` on load when that chord is free; otherwise it is left alone and the leader takes the key. macOS keeps `Cmd + Shift + B`.
 - **The tmux prefix arms the leader in a tmux gateway tab.** The keys tmux's prefix table knows still go to tmux. The ones that open par-term overlays (`:`, `?`, `w`, `s`, `q`, `,`) now open par-term's palette, help, tree picker, session picker, pane letters, and tab rename instead of tmux's prompt or choose-tree. Tab navigation (`n`, `p`, `l`, `1`–`9`) switches par-term's tab, as the tab chords do, instead of tmux's current window, which par-term did not follow. In a local tab beside a gateway, the tmux prefix now reaches the shell.
 
+## Unreleased — Profile Shortcuts and the Open Profiles Launcher
+
+- **Profile shortcuts move into your keybindings.** On first launch, each profile's **Keyboard Shortcut** (`keyboard_shortcut` in `profiles.yaml`) becomes a keybinding to `open_profile:<id>` with the same chord, saved to `config.yaml`, and the profile field is cleared. Nothing to do unless the log reports a shortcut that was not migrated: one that does not parse, or whose chord another binding already holds, stays on the profile and does nothing. Bind it in Settings › Input › Keybindings instead. Child profiles no longer inherit a parent's shortcut.
+- **The tab bar's "New Tab" profile window is gone.** The chevron next to `+`, and the new-tab shortcut with `new_tab_shortcut_shows_profiles: true`, open the Open Profiles launcher instead. The window's **Assistant Panel** entry is not in the launcher; use the assistant keybinding or the View menu.
+- **`toggle_profile_drawer` opens Open Profiles.** The id is unchanged, so existing bindings keep working, but the chord now opens the launcher popup. The docked drawer is `toggle_profiles_panel`, or its button on the window edge.
+- **Automatic profile switching runs on every tab and can be undone.** A background tab that connects to a matching host switches too; each switch shows a toast with **Undo**. Pin a tab (tab context menu) to keep it from switching.
+>
 ---
 
 ## Unreleased — Session Picker, Window Actions, and Detach

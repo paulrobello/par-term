@@ -11,7 +11,6 @@
 //! cross-table disjointness, coverage of a frozen action inventory, and
 //! coverage of every shipped default keybinding.
 
-use super::key_handler::KEY_LAYERS;
 use super::keybinding_actions::ACTION_HANDLERS;
 use super::keybinding_actions::{parse_agent_roster_focus_id, parse_plugin_action_id};
 use super::keybinding_display_actions::DISPLAY_ACTION_HANDLERS;
@@ -155,14 +154,12 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "focus_next_attention_agent",
     "toggle_tree_picker",
     "move_tab_to_window_picker",
+    // UX MP3 profile surfaces (PR3/PR5/PR6).
+    "manage_profiles",
+    "edit_tab_profile",
+    "toggle_tab_profile_pin",
+    "toggle_profiles_panel",
 ];
-
-/// Precedence order of the uniform shortcut layers in `handle_key_event`.
-///
-/// Same rule as the inventory above: this is a record, not a derivation. An
-/// earlier layer pre-empts a later one for the same chord, so a reordering is
-/// a behavior change and must be made on purpose.
-const FROZEN_LAYER_ORDER: &[&str] = &["profile_shortcuts"];
 
 fn action_keys() -> Vec<&'static str> {
     ACTION_HANDLERS.iter().map(|(name, _)| *name).collect()
@@ -305,19 +302,6 @@ fn renamed_action_ids_alias_a_live_handler() {
             "{previous} is renamed but still has its own handler"
         );
     }
-}
-
-/// Ordering tripwire, deliberately a change-detector: `KEY_LAYERS` is ordered
-/// dispatch, so silently reordering it changes which shortcut wins a chord.
-#[test]
-fn key_layer_precedence_is_unchanged() {
-    let live: Vec<&str> = KEY_LAYERS.iter().map(|(name, _)| *name).collect();
-    assert_eq!(
-        live, FROZEN_LAYER_ORDER,
-        "KEY_LAYERS precedence changed — an earlier layer pre-empts a later one \
-         for the same chord, so update FROZEN_LAYER_ORDER only alongside a \
-         deliberate precedence change"
-    );
 }
 
 // --- plugin-action: dispatch (O2 action contributors) ---

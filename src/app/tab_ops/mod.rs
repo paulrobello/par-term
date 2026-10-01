@@ -20,8 +20,13 @@ mod pane_launch_tests;
 mod pane_layout_ops;
 mod pane_ops;
 pub(crate) mod pane_transfer;
-mod profile_auto_switch;
+pub(crate) mod profile_auto_switch;
+mod profile_badge;
+pub(crate) mod profile_command;
+mod profile_launcher;
 mod profile_ops;
+#[cfg(test)]
+mod profile_switch_tests;
 mod tab_helpers;
 mod tab_reopen;
 

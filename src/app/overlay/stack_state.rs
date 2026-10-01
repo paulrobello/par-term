@@ -32,7 +32,7 @@ impl WindowState {
             OverlayId::TreePicker => o.tree_picker_ui.visible,
             OverlayId::SessionPicker => o.tmux_session_picker_ui.visible,
             OverlayId::TabContextMenu => self.tab_bar_ui.is_context_menu_open(),
-            OverlayId::NewTabProfileMenu => self.tab_bar_ui.show_new_tab_profile_menu,
+            OverlayId::ProfileLauncher => o.profile_launcher_ui.visible,
             OverlayId::AppMenu => self.tab_bar_ui.is_app_menu_open(),
             OverlayId::PaneRename => o.pane_rename_ui.is_open(),
             OverlayId::SshConnect => o.ssh_connect_ui.is_visible(),

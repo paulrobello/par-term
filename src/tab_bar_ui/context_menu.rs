@@ -202,6 +202,17 @@ impl TabBarUI {
                             close_menu = true;
                         }
 
+                        // Profile (UX.md PR5/PR6): change it through Open
+                        // Profiles, pin it against automatic switching.
+                        if menu_item(ui, "Change Profile…") {
+                            action = TabBarAction::ChangeProfile(tab_id);
+                            close_menu = true;
+                        }
+                        if menu_item(ui, "Pin / Unpin Profile") {
+                            action = TabBarAction::TogglePinProfile(tab_id);
+                            close_menu = true;
+                        }
+
                         // Close Tab
                         if menu_item(ui, "Close Tab") {
                             action = TabBarAction::Close(tab_id);

@@ -146,6 +146,9 @@ impl TreePickerUI {
             enter_verb: "jump",
             toggle_chord: self.toggle_chord.as_deref(),
             alternates: false,
+            alternate_labels: None,
+            extra_keys: &[],
+            multi_select: false,
         };
         let (outcome, query_changed) = picker::show_list(
             ctx,
@@ -168,7 +171,7 @@ impl TreePickerUI {
                 self.close();
                 None
             }
-            ListOutcome::Open => None,
+            ListOutcome::Open | ListOutcome::ToggleMark(_) => None,
         }
     }
 }

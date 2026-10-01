@@ -219,7 +219,8 @@ impl Rule {
 /// 4. Everything in [`LAYER_CLAIMS`], in its declared order.
 ///
 /// Excluded, because what they claim is only knowable at runtime: the tmux
-/// prefix, the custom-action prefix, and `profile_shortcuts`.
+/// prefix and the custom-action prefix. Profile shortcuts are ordinary
+/// registry bindings (UX MP3, B59), not a separate source.
 pub(crate) fn claim_chain() -> Vec<Rule> {
     let p = Platform::HOST;
     let mut rules = Vec::new();
@@ -363,7 +364,6 @@ fn menu_action_name(action: crate::menu::MenuAction) -> String {
         Some(id) => id.into_owned(),
         // Test-only labels for menu items with no registry action.
         None => match action {
-            A::ManageProfiles => "internal:manage_profiles".into(),
             A::OpenProfile(_) => "internal:open_profile".into(),
             A::Copy => "internal:copy".into(),
             A::Paste => "internal:paste".into(),

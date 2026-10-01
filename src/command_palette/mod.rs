@@ -182,6 +182,13 @@ impl CommandPalette {
         self.filtered_ids(&self.query).first().copied()
     }
 
+    /// Test read: the open palette's row for `action_id` (label, live
+    /// chord).
+    #[cfg(test)]
+    pub(crate) fn row(&self, action_id: &str) -> Option<&PaletteEntry> {
+        self.entries.iter().find(|e| e.action_id == action_id)
+    }
+
     /// Harness read (`--ui-test`): the selected row's index into the
     /// filtered list.
     pub(crate) fn selected_index(&self) -> usize {
@@ -222,6 +229,9 @@ impl CommandPalette {
             enter_verb: "run",
             toggle_chord: self.toggle_chord.as_deref(),
             alternates: false,
+            alternate_labels: None,
+            extra_keys: &[],
+            multi_select: false,
         };
         let (outcome, query_changed) = picker::show_list(
             ctx,
@@ -253,7 +263,7 @@ impl CommandPalette {
                 self.close();
                 None
             }
-            ListOutcome::Open => None,
+            ListOutcome::Open | ListOutcome::ToggleMark(_) => None,
         }
     }
 }

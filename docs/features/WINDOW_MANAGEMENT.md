@@ -182,7 +182,7 @@ A new window takes the lowest number no open window holds. Closing window 2 of t
 
 ### Menu bar
 
-The menu bar follows iTerm2: **Shell** (windows, tabs, splits, closing, broadcast input, par-mux/tmux sessions, SSH), **Edit** (clipboard, copy mode, find, marks, clearing, histories), **View** (pickers, full screen, pane zoom, panels, font size, shaders), **Session** (rename, restart, move the pane, record output), **Profiles**, **Window** (minimize, arrangements, Tab and Pane navigation, always on top, window list), and **Help**. On Linux the same menus are in the in-app `☰` menu.
+The menu bar follows iTerm2: **Shell** (windows, tabs, splits, closing, broadcast input, par-mux/tmux sessions, SSH), **Edit** (clipboard, copy mode, find, marks, clearing, histories), **View** (pickers, full screen, pane zoom, panels, font size, shaders), **Session** (rename, restart, move the pane, record output, edit or pin the tab's profile), **Profiles** (Open Profiles, one item per profile, Manage Profiles), **Window** (minimize, arrangements, Tab and Pane navigation, always on top, window list), and **Help**. On Linux the same menus are in the in-app `☰` menu.
 
 - Every item runs a bindable action and shows that action's **current** chord. Rebinding or unbinding a chord (in Settings, with F5, or by editing `config.yaml`) updates the menu at once, and an unbound chord is released for the shell.
 - Toggles show a checkmark. Items that cannot apply are disabled: pane items with one pane, **Shell > Session** until the window is attached to a par-mux or tmux session, and moving a tab that is attached to a par-mux session (the item says "(attached tab)"). **Window > Tab > Tab 1–9** show each tab's title.

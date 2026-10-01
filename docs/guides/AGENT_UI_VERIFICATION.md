@@ -54,13 +54,13 @@ A JSON object with a `steps` array. Each step is one object with an optional
 |---|---|
 | `{"chord": "Ctrl+Alt+Cmd+P"}` | Inject a chord through the **real key path**: first the overlay-stack routing that `handle_window_event` runs for every key (UX.md OV2 — the same `route_overlay_key` call, not a mirror), then, if no overlay owns the key, the registry lookup → `execute_keybinding_action`. So while an overlay is open the chord does what a real key does: an overlay's own toggle chord closes it, another popup's chord replaces the top popup, Escape closes only the top overlay, and a dialog consumes everything else. The chord fires the action literally — `open_settings` opens (it is not a toggle), so closing the window again needs the window's own close path, not a second chord. |
 | `{"type_text": "fullscr"}` | Deliver text to the focused egui widget (the same synthetic-input channel macOS menu accelerators use), then render one frame synchronously so the next step reads post-input state. |
-| `{"press": "Enter"}` | Press a named key on the egui side, then render one frame synchronously (the redraw round-trip is neither immediate nor guaranteed — an occluded window or a gate-rejected redraw left presses undelivered run-to-run before this). Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). A `Shift+` prefix (e.g. `Shift+Enter`) carries the modifier on the egui event — panels that distinguish shifted keys read it via exact-modifier `consume_key`. |
+| `{"press": "Enter"}` | Press a named key on the egui side, then render one frame synchronously (the redraw round-trip is neither immediate nor guaranteed — an occluded window or a gate-rejected redraw left presses undelivered run-to-run before this). Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). `Shift+`, `Cmd+`, and `Ctrl+` prefixes, in any order (e.g. `Shift+Enter`, `Cmd+Shift+d`), carry the modifiers on the egui event — panels that distinguish modified keys read them via `consume_key` (`Cmd+` is egui's platform command modifier). |
 | PTY-delivery asserts | A `file_bytes` proof that a keypress reached the shell needs a **primer and a flush chord** around it (see `tests/ui/b64_enter_safe_choice.json`, `b70_panel_nav.json`): a `{"chord": "Enter"}` before the interaction proves the sink is live, and one after flushes the read — without the trailing chord an async paste can sit in the PTY buffer unread when the script ends, and the sink asserts empty even though the app wrote the bytes. |
 | `{"assert": "X"}` / `{"assert_not": "X"}` | Boolean conditions, below. |
 | `{"assert_eq": ["what", "expected"]}` | Keyed values, below. |
 | `{"capture": "what"}` | Stash a capture-capable operand's current value. |
 | `{"assert_eq_captured": "what"}` | Assert the operand's current value equals the stashed one — for values a script cannot know up front, like a spawned shell's PID. |
-| `{"open_modal": "D"}` | Seed dialog `D` open through its real entry point (`close_running_job`, `mux_last_tab`, `trigger_confirm`, `agent_command_confirm`, `update_dialog`, `tab_context_menu`, `new_tab_profile_menu`, `demote_chooser`, `profile_drawer`, `quit_confirmation`, `tmux_picker`, `command_history`, `clipboard_history`) — the seam standing in for the user interaction that opens it, so a script can prove typed keys stay off the PTY while it is open (worked example: `tests/ui/b61_modal_guard.json`). |
+| `{"open_modal": "D"}` | Seed dialog `D` open through its real entry point (`close_running_job`, `mux_last_tab`, `trigger_confirm`, `agent_command_confirm`, `update_dialog`, `tab_context_menu`, `profile_launcher`, `demote_chooser`, `profile_drawer`, `quit_confirmation`, `tmux_picker`, `command_history`, `clipboard_history`) — the seam standing in for the user interaction that opens it, so a script can prove typed keys stay off the PTY while it is open (worked example: `tests/ui/b61_modal_guard.json`). |
 | `{"close_modal": "D"}` | Clear the state `open_modal` seeded. Buttons and Escape are the dialog's own egui handling (`press` steps); this only arms/disarms the modal the key guard sums over. |
 | `{"seed_clipboard": ["s1", "s2"]}` | Seed clipboard-history entries into the focused pane's terminal, newest last (B70: in production only selection copies feed that history, which a script cannot drive; the pinned core's OSC 52 parser sets `clipboard_content` but records no history). |
 
@@ -93,7 +93,9 @@ A JSON object with a `steps` array. Each step is one object with an optional
 - `["font_size", "13.5"]` — live config font size (the B68 reset proof)
 - `["file_empty", "/path"]` — file is absent or zero bytes (a missing file counts as empty)
 - `["window_count", "N"]` — the app's open-window count (manager-level; works with zero terminal windows)
-- `["tab_count", "N"]` / `["active_tab", "N"]` / `["pane_count", "N"]` — visible tabs, the 1-based active tab, and the active tab's panes (the leader proof)
+- `["tab_count", "N"]` / `["pane_count", "N"]` — the first terminal window's visible tab count / its active tab's pane count
+- `["tab_profile", "Name"]` — the active tab's profile name (`Default` for a plain tab)
+- `["tab_count", "N"]` / `["active_tab", "N"]` — visible tabs and the 1-based active tab (the leader proof)
 
 Capture-capable operands (usable with `capture`/`assert_eq_captured`):
 
@@ -253,6 +255,41 @@ HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
 `#[serde(flatten)]`ed) — nesting it under a `session_restore:` key silently
 defaults it off and run B restores nothing. Before the TW2 fix, run B reports
 `window_count` 1 ≠ 3 — the negative control.
+
+## Checked-in script: Open Profiles opens a tab, a window, and splits (UX MP3)
+
+`tests/ui/mp3_open_profiles.json` proves the profile launcher end to end
+from a config with a legacy per-profile `keyboard_shortcut`: the startup
+migration turns it into an `open_profile:<id>` binding and the chord opens
+the profile in a new tab (`tab_count` 2, `tab_profile` Work); Open Profiles
+(Enter) opens another tab; `Cmd+d` and `Cmd+Shift+d` split the active tab
+(`pane_count` 2 then 3); `Shift+Enter` opens a second window
+(`window_count` 2); Escape closes the launcher. The chords ride the
+injector, which bypasses the native menu — on macOS the menu's Split
+accelerators reach the launcher through `execute_keybinding_action` instead
+(unit test `a_native_menu_split_while_the_launcher_is_open_splits_with_the_profile`).
+
+```bash
+mkdir -p /tmp/pt-mp3/cfg/par-term /tmp/pt-mp3/home
+cat > /tmp/pt-mp3/cfg/par-term/config.yaml <<'EOF'
+custom_shell: /bin/sh
+shader_install_prompt: never
+shell_integration_state: never
+agent_skill_state: never
+keybindings:
+  - key: "Ctrl+Alt+Cmd+O"
+    action: "toggle_profile_drawer"
+EOF
+cat > /tmp/pt-mp3/cfg/par-term/profiles.yaml <<'EOF'
+- id: 11111111-1111-4111-8111-111111111111
+  name: Work
+  order: 0
+  keyboard_shortcut: "Ctrl+Alt+Cmd+W"
+  tags: [dev]
+EOF
+HOME=/tmp/pt-mp3/home XDG_CONFIG_HOME=/tmp/pt-mp3/cfg PAR_TERM_NO_MIGRATE=1 \
+  par-term --ui-test tests/ui/mp3_open_profiles.json --ui-test-report /tmp/pt-mp3/report.json
+```
 
 ## Checked-in script: pass_to_terminal delivers to the shell (K27)
 

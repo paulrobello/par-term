@@ -53,6 +53,32 @@ pub struct WidgetContext {
     pub plugin_texts: std::collections::HashMap<String, String>,
 }
 
+#[cfg(test)]
+impl WidgetContext {
+    /// A context carrying `session_vars` and empty everything else.
+    pub(crate) fn for_test(session_vars: SessionVariables) -> Self {
+        Self {
+            session_vars,
+            system_data: SystemMonitorData::default(),
+            git_branch: None,
+            git_ahead: 0,
+            git_behind: 0,
+            git_dirty: false,
+            git_show_status: false,
+            time_format: String::new(),
+            update_available_version: None,
+            disk_free_percent: 0.0,
+            disk_free_bytes: 0,
+            disk_total_bytes: 0,
+            agent_usage_summary: None,
+            agent_roster_summary: None,
+            agent_roster_tooltip: None,
+            broadcast_receivers: None,
+            plugin_texts: std::collections::HashMap::new(),
+        }
+    }
+}
+
 /// Generate display text for a single widget.
 ///
 /// If `format_override` is `Some`, the format string is interpolated instead
@@ -130,6 +156,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
             .broadcast_receivers
             .map(|n| format!("\u{1f4e1} Broadcast: {n} panes"))
             .unwrap_or_default(),
+        WidgetId::Profile => ctx.session_vars.tab_profile_name.clone(),
         WidgetId::Plugin(id) => ctx.plugin_texts.get(id).cloned().unwrap_or_default(),
         WidgetId::Custom(_) => String::new(),
     }
@@ -180,7 +207,9 @@ pub fn interpolate_format(fmt: &str, ctx: &WidgetContext) -> String {
 fn resolve_variable(name: &str, ctx: &WidgetContext) -> String {
     match name {
         // Session variables delegate to SessionVariables::get
-        n if n.starts_with("session.") => ctx.session_vars.get(n).unwrap_or_default(),
+        n if n.starts_with("session.") || n == "tab.profile_name" => {
+            ctx.session_vars.get(n).unwrap_or_default()
+        }
         "git.branch" => ctx.git_branch.clone().unwrap_or_default(),
         "git.ahead" => ctx.git_ahead.to_string(),
         "git.behind" => ctx.git_behind.to_string(),
@@ -254,6 +283,27 @@ mod tests {
             broadcast_receivers: None,
             plugin_texts: std::collections::HashMap::new(),
         }
+    }
+
+    /// PR5: the Profile widget names the active tab's profile, and
+    /// `\(tab.profile_name)` works in a custom format too.
+    #[test]
+    fn test_widget_text_profile() {
+        let mut ctx = make_ctx();
+        ctx.session_vars.tab_profile_name = "Prod SSH".to_string();
+        assert_eq!(widget_text(&WidgetId::Profile, &ctx, None), "Prod SSH");
+        assert_eq!(
+            widget_text(&WidgetId::Profile, &ctx, Some("[\\(tab.profile_name)]")),
+            "[Prod SSH]"
+        );
+        let defaults = crate::config::Config::default()
+            .status_bar
+            .status_bar_widgets;
+        let profile = defaults
+            .iter()
+            .find(|w| w.id == WidgetId::Profile)
+            .expect("shipped in the default list");
+        assert!(!profile.enabled, "off until the user turns it on");
     }
 
     /// V5: the broadcast item names the receiving panes and hides itself

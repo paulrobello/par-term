@@ -108,11 +108,15 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                         self.save_profiles_from_settings(profiles);
                     }
                     SettingsWindowAction::OpenProfile(id) => {
-                        // Open profile in the focused terminal window
+                        // Open the profile in the focused terminal window
+                        // through its registry action (UX.md PR3, B71), the
+                        // path the launcher and a bound shortcut take.
                         if let Some(window_id) = self.get_focused_window_id()
                             && let Some(window_state) = self.windows.get_mut(&window_id)
                         {
-                            window_state.open_profile(id);
+                            window_state.execute_keybinding_action(
+                                &crate::profile::actions::ProfileAction::OpenTab(id).id(),
+                            );
                         }
                     }
                     SettingsWindowAction::StartCoprocess(index) => {
@@ -397,6 +401,9 @@ impl ApplicationHandler<AppEvent> for WindowManager {
         // pickers, then any jump chosen last frame.
         self.refresh_tree_pickers();
         self.apply_tree_picker_jumps();
+
+        // Profiles opened in new windows (UX.md PR3) need the event loop.
+        self.open_pending_profile_windows(event_loop);
 
         // Sync agent config changes to WindowManager and settings window
         // so other saves (update checker, settings) don't overwrite the agent's changes

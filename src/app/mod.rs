@@ -57,6 +57,10 @@ impl App {
     pub fn new(runtime: Arc<Runtime>, runtime_options: RuntimeOptions) -> Result<Self> {
         let mut config = Config::load()?;
 
+        // UX MP3 (MD3): per-profile shortcut strings become registry
+        // bindings once, persisted before any window builds its registry.
+        crate::profile::actions::migrate_profile_shortcuts_on_disk(&mut config);
+
         // Apply CLI shader override if specified
         if let Some(ref shader) = runtime_options.shader {
             config.shader.custom_shader = Some(shader.clone());

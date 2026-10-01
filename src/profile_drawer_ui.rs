@@ -1,34 +1,23 @@
-//! Profile drawer UI using egui
+//! The Profiles drawer (UX.md PR2): Open Profiles… pinned to the window's
+//! right edge.
 //!
-//! Provides a collapsible right-side drawer for quick profile access.
+//! The drawer is a panel shell — its open state, width, and edge toggle
+//! button — around the launcher's own list ([`ProfileLauncherUI`]): the same
+//! rows, keys, and actions as the popup. The terminal reflows beside it
+//! (`WindowState::profile_drawer_inset`) instead of drawing under it, it
+//! joins the overlay stack as a Panel (keys go to it only while its filter
+//! holds focus), and Escape in the filter closes it.
 
 use crate::config::Config;
-use crate::profile::{ProfileId, ProfileManager};
+use crate::profile_launcher_ui::{LauncherChoice, ProfileLauncherUI};
 use crate::ui_constants::{PROFILE_DRAWER_MAX_WIDTH, PROFILE_DRAWER_MIN_WIDTH};
 
-/// Actions that can be triggered from the profile drawer
-#[derive(Debug, Clone, PartialEq)]
-pub enum ProfileDrawerAction {
-    /// No action
-    None,
-    /// Open a profile (create new tab from profile)
-    OpenProfile(ProfileId),
-    /// Open the profile management modal
-    ManageProfiles,
-}
-
-/// Profile drawer UI state
+/// The drawer's panel state.
 pub struct ProfileDrawerUI {
     /// Whether the drawer is expanded (visible)
     pub expanded: bool,
-    /// Currently selected profile ID
-    pub selected: Option<ProfileId>,
-    /// Currently hovered profile ID
-    pub hovered: Option<ProfileId>,
     /// Drawer width in pixels
     pub width: f32,
-    /// Tag filter text (for searching/filtering profiles by tags)
-    pub tag_filter: String,
 }
 
 impl ProfileDrawerUI {
@@ -43,10 +32,7 @@ impl ProfileDrawerUI {
     pub fn new() -> Self {
         Self {
             expanded: false,
-            selected: None,
-            hovered: None,
             width: Self::DEFAULT_WIDTH,
-            tag_filter: String::new(),
         }
     }
 
@@ -78,6 +64,16 @@ impl ProfileDrawerUI {
         px >= x && px <= x + w && py >= y && py <= y + h
     }
 
+    /// The width the open drawer takes from the terminal, in logical
+    /// pixels (0 when collapsed): the panel plus its edge button.
+    pub fn consumed_width(&self) -> f32 {
+        if self.expanded {
+            self.width + Self::COLLAPSED_WIDTH + 2.0
+        } else {
+            0.0
+        }
+    }
+
     /// Toggle drawer expanded state
     pub fn toggle(&mut self) {
         self.expanded = !self.expanded;
@@ -91,7 +87,7 @@ impl ProfileDrawerUI {
         );
     }
 
-    /// Render the profile drawer and return any action triggered.
+    /// Render the drawer and return what its launcher list chose.
     ///
     /// `bottom_margin` should be set to the height of any floating status bar
     /// (e.g. the custom status bar rendered as an `egui::Area`) so the side
@@ -99,18 +95,17 @@ impl ProfileDrawerUI {
     pub fn render(
         &mut self,
         ctx: &mut egui::Ui,
-        profile_manager: &ProfileManager,
+        launcher: &mut ProfileLauncherUI,
         config: &Config,
-        modal_visible: bool,
         bottom_margin: f32,
-    ) -> ProfileDrawerAction {
-        let mut action = ProfileDrawerAction::None;
+    ) -> Option<LauncherChoice> {
+        let mut choice = None;
         let mut toggle_clicked = false;
 
         // Reserve space for any floating status bar rendered via egui::Area.
         // egui::Area does not participate in the panel layout, so without this
         // spacer the SidePanel would extend behind the status bar.
-        if bottom_margin > 0.0 {
+        if bottom_margin > 0.0 && self.expanded {
             egui::Panel::bottom("profile_drawer_bottom_margin")
                 .exact_size(bottom_margin)
                 .frame(egui::Frame::NONE)
@@ -127,11 +122,15 @@ impl ProfileDrawerUI {
                 .max_size(PROFILE_DRAWER_MAX_WIDTH)
                 .frame(
                     egui::Frame::side_top_panel(&ctx.global_style())
-                        .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 245))
+                        .fill(crate::app::overlay::theme::PANEL_FILL)
                         .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
-                    self.render_panel_contents(ui, profile_manager, &mut action);
+                    let (picked, close) = launcher.show_pinned(ui);
+                    choice = picked;
+                    if close {
+                        self.expanded = false;
+                    }
                 });
 
             // Update width from the panel's actual rect
@@ -159,9 +158,8 @@ impl ProfileDrawerUI {
             egui::vec2(button_width, button_height),
         );
 
-        // Render toggle button (skip if modal is open to avoid z-order issues,
-        // or if profile drawer button is disabled in config)
-        if !modal_visible && config.tabs.show_profile_drawer_button {
+        // Render toggle button (skip if the button is disabled in config)
+        if config.tabs.show_profile_drawer_button {
             egui::Area::new(egui::Id::new("profile_drawer_toggle_area"))
                 .fixed_pos(button_rect.min)
                 .order(egui::Order::Foreground)
@@ -169,9 +167,9 @@ impl ProfileDrawerUI {
                     let response = ui.allocate_response(button_rect.size(), egui::Sense::click());
 
                     let bg_color = if response.hovered() {
-                        egui::Color32::from_rgba_unmultiplied(60, 60, 60, 220)
+                        crate::app::overlay::theme::DETAIL_FILL
                     } else {
-                        egui::Color32::from_rgba_unmultiplied(40, 40, 40, 200)
+                        crate::app::overlay::theme::TOAST_FILL
                     };
 
                     ui.painter().rect_filled(response.rect, 4.0, bg_color);
@@ -182,7 +180,7 @@ impl ProfileDrawerUI {
                         egui::Align2::CENTER_CENTER,
                         arrow,
                         egui::FontId::proportional(7.0),
-                        egui::Color32::WHITE,
+                        crate::app::overlay::theme::TEXT_ON_FILL,
                     );
 
                     // Use clicked_by to only respond to mouse clicks, not keyboard Enter/Space
@@ -190,185 +188,19 @@ impl ProfileDrawerUI {
                     if response.clicked_by(egui::PointerButton::Primary) {
                         toggle_clicked = true;
                     }
+                    response.on_hover_text("Profiles");
                 });
 
             if toggle_clicked {
                 self.toggle();
+                if self.expanded {
+                    launcher.prepare_pinned();
+                }
                 ctx.request_repaint();
             }
         }
 
-        action
-    }
-
-    /// Render the panel contents (extracted to allow panel-first rendering)
-    fn render_panel_contents(
-        &mut self,
-        ui: &mut egui::Ui,
-        profile_manager: &ProfileManager,
-        action: &mut ProfileDrawerAction,
-    ) {
-        // Header
-        ui.horizontal(|ui| {
-            ui.heading("Profiles");
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Manage").clicked() {
-                    *action = ProfileDrawerAction::ManageProfiles;
-                }
-            });
-        });
-
-        // Tag filter (search box)
-        ui.horizontal(|ui| {
-            ui.label("🔍");
-            let response = ui.add(
-                egui::TextEdit::singleline(&mut self.tag_filter)
-                    .hint_text("Filter by tag or name...")
-                    .desired_width(ui.available_width() - 20.0),
-            );
-            if response.changed() {
-                // Clear selection when filter changes
-                self.selected = None;
-            }
-        });
-        ui.separator();
-
-        // Profile list
-        crate::debug_info!(
-            "PROFILE",
-            "Profile drawer render: {} profiles",
-            profile_manager.len()
-        );
-        if profile_manager.is_empty() {
-            ui.vertical_centered(|ui| {
-                ui.add_space(20.0);
-                ui.label(
-                    egui::RichText::new("No profiles")
-                        .italics()
-                        .color(egui::Color32::GRAY),
-                );
-                ui.add_space(10.0);
-                if ui.button("Create Profile").clicked() {
-                    *action = ProfileDrawerAction::ManageProfiles;
-                }
-            });
-        } else {
-            // Get filtered profiles
-            let filtered_profiles = profile_manager.filter_by_tags(&self.tag_filter);
-
-            // Reserve space for the action buttons at the bottom
-            let available = ui.available_height();
-            let button_area_height = 40.0;
-            let scroll_height = (available - button_area_height).max(100.0);
-
-            if filtered_profiles.is_empty() {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(20.0);
-                    ui.label(
-                        egui::RichText::new("No matching profiles")
-                            .italics()
-                            .color(egui::Color32::GRAY),
-                    );
-                    ui.add_space(10.0);
-                    if ui.small_button("Clear filter").clicked() {
-                        self.tag_filter.clear();
-                    }
-                });
-            } else {
-                // Scrollable profile list
-                egui::ScrollArea::vertical()
-                    .max_height(scroll_height)
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        for profile in filtered_profiles {
-                            let is_selected = self.selected == Some(profile.id);
-                            let is_dynamic = profile.source.is_dynamic();
-
-                            // Build the label text
-                            let label = if let Some(icon) = &profile.icon {
-                                format!("{} {}", icon, profile.name)
-                            } else {
-                                profile.name.clone()
-                            };
-
-                            // Add indicator for profiles with custom settings
-                            let has_custom = profile.command.is_some()
-                                || profile.working_directory.is_some()
-                                || profile.parent_id.is_some();
-                            let label = if has_custom {
-                                format!("{} ...", label)
-                            } else {
-                                label
-                            };
-
-                            ui.horizontal(|ui| {
-                                // Use selectable_label which has reliable click handling
-                                let response = ui.selectable_label(is_selected, &label);
-
-                                // Dynamic profile indicator
-                                if is_dynamic {
-                                    ui.label(
-                                        egui::RichText::new("[dynamic]")
-                                            .color(egui::Color32::from_rgb(100, 180, 255))
-                                            .small(),
-                                    );
-                                }
-
-                                // Single click selects
-                                if response.clicked() {
-                                    self.selected = Some(profile.id);
-                                }
-
-                                // Double click opens (using egui's built-in detection)
-                                if response.double_clicked() {
-                                    *action = ProfileDrawerAction::OpenProfile(profile.id);
-                                }
-
-                                // Show keyboard shortcut if defined
-                                if let Some(shortcut) = &profile.keyboard_shortcut {
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            ui.label(
-                                                egui::RichText::new(shortcut)
-                                                    .small()
-                                                    .color(egui::Color32::DARK_GRAY),
-                                            );
-                                        },
-                                    );
-                                }
-                            });
-
-                            // Show tags as small labels below the profile name
-                            if !profile.tags.is_empty() {
-                                ui.horizontal(|ui| {
-                                    ui.add_space(16.0); // Indent
-                                    for tag in &profile.tags {
-                                        ui.label(
-                                            egui::RichText::new(format!("#{}", tag))
-                                                .small()
-                                                .color(egui::Color32::from_rgb(100, 150, 200)),
-                                        );
-                                    }
-                                });
-                            }
-                        }
-                    });
-            }
-
-            // Action buttons (always visible at bottom)
-            ui.separator();
-            ui.horizontal(|ui| {
-                let open_enabled = self.selected.is_some();
-                if ui
-                    .add_enabled(open_enabled, egui::Button::new("Open"))
-                    .clicked()
-                    && let Some(id) = self.selected
-                {
-                    *action = ProfileDrawerAction::OpenProfile(id);
-                }
-            });
-        }
+        choice
     }
 }
 

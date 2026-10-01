@@ -164,11 +164,6 @@ pub const TAB_HOTKEY_LABEL_WIDTH: f32 = 26.0;
 pub const TAB_CONTEXT_PADDING: f32 = 12.0;
 /// Width of the drop-zone diamond indicator drawn during tab drag.
 pub const TAB_DROP_DIAMOND_SIZE: f32 = 4.0;
-/// Minimum width of the "New Tab" profile picker window.
-pub const TAB_NEW_PROFILE_MENU_WIDTH: f32 = 200.0;
-/// Anchor offset for the "New Tab" profile picker window.
-pub const TAB_NEW_PROFILE_MENU_OFFSET_X: f32 = -4.0;
-pub const TAB_NEW_PROFILE_MENU_OFFSET_Y: f32 = 4.0;
 /// Minimum width of the tab context menu.
 pub const TAB_CONTEXT_MENU_MIN_WIDTH: f32 = 160.0;
 /// Height of each item row in the tab context menu.

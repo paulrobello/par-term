@@ -23,6 +23,41 @@ impl WindowState {
         self.split_pane_placed(direction, false, focus_new, initial_command, split_percent)
     }
 
+    /// Split the focused pane running `profile` (UX.md PR1 "Split with
+    /// Profile"): the profile's program (env included), its working
+    /// directory, focused, rebalanced like a keyboard split. Local panes
+    /// only — the caller gates par-mux and tmux tabs
+    /// (`split_with_profile`).
+    pub(crate) fn split_pane_direction_with_profile(
+        &mut self,
+        direction: crate::pane::SplitDirection,
+        profile: &crate::profile::Profile,
+    ) -> Option<crate::pane::PaneId> {
+        let config = self.config.load_full();
+        let new_pane = self.split_pane_with(
+            direction,
+            false,
+            crate::tab::SplitRequest {
+                focus_new: true,
+                dpi_scale: 1.0,
+                initial_command: None,
+                split_percent: 50,
+                launch: Some(crate::tab::profile_split_launch(profile, &config)),
+                cwd: profile.working_directory.clone(),
+            },
+        )?;
+        let balance = config.panes.split_balance;
+        let rebalanced = self
+            .tab_manager
+            .active_tab_mut()
+            .and_then(|t| t.pane_manager_mut())
+            .is_some_and(|pm| pm.balance_after_split(new_pane, balance));
+        if rebalanced {
+            self.after_pane_layout_change();
+        }
+        Some(new_pane)
+    }
+
     /// [`Self::split_pane_direction`] with the new pane placed before (left
     /// of / above) the focused one when `before` is set (UX.md A5).
     pub(crate) fn split_pane_placed(
@@ -32,6 +67,29 @@ impl WindowState {
         focus_new: bool,
         initial_command: Option<(String, Vec<String>)>,
         split_percent: u8,
+    ) -> Option<crate::pane::PaneId> {
+        self.split_pane_with(
+            direction,
+            before,
+            crate::tab::SplitRequest {
+                focus_new,
+                dpi_scale: 1.0,
+                initial_command,
+                split_percent,
+                launch: None,
+                cwd: None,
+            },
+        )
+    }
+
+    /// The split every entry point funnels into. `request.dpi_scale` is
+    /// replaced with the renderer's; a profile split (UX.md PR1) carries
+    /// its `launch` and `cwd` here.
+    pub(crate) fn split_pane_with(
+        &mut self,
+        direction: crate::pane::SplitDirection,
+        before: bool,
+        mut request: crate::tab::SplitRequest,
     ) -> Option<crate::pane::PaneId> {
         let (max_panes, min_cells) = {
             let config = self.config.load();
@@ -118,17 +176,13 @@ impl WindowState {
         }
         let at_max = max_panes > 0 && tab.pane_count() >= max_panes;
 
+        request.dpi_scale = dpi_scale;
         let result = tab.split_placed(
             direction,
             before,
             &self.config.load(),
             Arc::clone(&self.runtime),
-            crate::tab::SplitRequest {
-                focus_new,
-                dpi_scale,
-                initial_command,
-                split_percent,
-            },
+            request,
         );
 
         match result {

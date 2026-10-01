@@ -78,7 +78,12 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<ProfileId>,
 
-    /// Keyboard shortcut for quick launch (e.g., "Cmd+1", "Ctrl+Shift+1")
+    /// Keyboard shortcut for quick launch (e.g., "Cmd+1", "Ctrl+Shift+1").
+    ///
+    /// Legacy storage only (UX.md MD3): at startup par-term moves a set
+    /// value into an `open_profile:<id>` keybinding and clears it here. A
+    /// value that stays set could not be migrated (it does not parse, or
+    /// another binding holds the chord) and is not matched against keys.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyboard_shortcut: Option<String>,
 

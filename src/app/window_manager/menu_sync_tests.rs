@@ -171,6 +171,32 @@ fn the_menu_state_reflects_the_window() {
     assert!(inputs.state.checked(crate::menu::state::Check::FpsOverlay));
 }
 
+/// UX.md MP3: Session › Pin Profile mirrors the active tab's pin, and
+/// View › Profiles Panel mirrors the drawer. Open Profiles is a popup: its
+/// chord stays live while it is open (so it closes it), with no checkmark.
+#[test]
+fn the_profile_items_reflect_the_window() {
+    use crate::menu::state::Check;
+    let mut wm = manager();
+    let inputs = wm.native_menu_inputs().expect("focused window");
+    assert!(!inputs.state.checked(Check::TabProfilePinned));
+    assert!(!inputs.state.checked(Check::ProfileDrawer));
+
+    assert!(focused(&mut wm).execute_keybinding_action("toggle_tab_profile_pin"));
+    let inputs = wm.native_menu_inputs().expect("focused window");
+    assert!(inputs.state.checked(Check::TabProfilePinned));
+
+    assert!(focused(&mut wm).execute_keybinding_action("toggle_profiles_panel"));
+    let inputs = wm.native_menu_inputs().expect("focused window");
+    assert!(inputs.state.checked(Check::ProfileDrawer));
+    assert!(inputs.state.open_toggles.contains("toggle_profiles_panel"));
+    assert!(!inputs.state.open_toggles.contains("toggle_profile_drawer"));
+
+    focused(&mut wm).open_profile_launcher();
+    let inputs = wm.native_menu_inputs().expect("focused window");
+    assert!(inputs.state.open_toggles.contains("toggle_profile_drawer"));
+}
+
 /// B61 parity: an open dialog marks the state modal (items disable) and
 /// captures the keyboard (macOS releases the accelerators), keeping the
 /// open panel's own toggle so its chord still closes it.

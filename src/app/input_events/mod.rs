@@ -4,8 +4,9 @@
 //!
 //! - `key_handler`: `handle_key_event` entry point and all per-category keyboard
 //!   sub-handlers (scroll keys, config reload, clipboard history, command history,
-//!   paste special, search, AI inspector, utility shortcuts, tab shortcuts,
-//!   profile shortcuts, shortcut string building).
+//!   paste special, search, AI inspector, utility shortcuts, tab shortcuts).
+//! - `profile_actions`: the `open_profile:<id>` family of registry actions
+//!   (UX.md PR3) — per-profile shortcuts are bindings to these.
 //! - `keybinding_actions`: named keybinding action dispatch (`execute_keybinding_action`).
 //! - `keybinding_display_actions`: font-size, cursor-style, tab-switch, and
 //!   throughput-mode action handlers (delegated from `keybinding_actions`).
@@ -31,5 +32,6 @@ pub(crate) mod keybinding_display_actions;
 pub(crate) mod keybinding_helpers;
 pub(crate) mod keybinding_view_actions;
 mod pane_actions;
+mod profile_actions;
 mod snippet_actions;
 mod tab_nav_actions;

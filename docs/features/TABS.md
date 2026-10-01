@@ -90,19 +90,15 @@ New tabs inherit the working directory from the current tab (if shell integratio
 The new tab button (`+`) on the tab bar is a split button:
 
 - **Left portion** (`+`): Creates a default tab (existing behavior)
-- **Right portion** (`▾`): Opens a profile dropdown menu
+- **Right portion** (`▾`): Opens [Open Profiles](PROFILES.md#open-profiles), the profile launcher
 
-The dropdown appears anchored to the top-right corner of the window and shows:
-1. **Default** — creates a tab using global terminal config
-2. All user profiles listed in order with their icons
+The launcher lists **Default** (a tab using the global terminal config) and every profile; type to filter, `Enter` opens a new tab, `Shift+Enter` a new window, `Cmd+D` / `Cmd+Shift+D` a split. `Escape` closes it.
 
-Click a profile to open a new tab with that profile's settings (working directory, shell, command, tab name, etc.). Press `Escape` or click outside the dropdown to dismiss it.
-
-> **Note:** The chevron appears when one or more profiles exist or when the Assistant panel is enabled. Works in both horizontal and vertical tab bar layouts.
-
+> **Note:** The chevron appears when one or more profiles exist. Works in both horizontal and vertical tab bar layouts.
+>
 **Configuration:**
 
-To make the new tab shortcut (`Cmd+T` / `Ctrl+Shift+T`) show the profile picker instead of immediately creating a default tab:
+To make the new tab shortcut (`Cmd+T` / `Ctrl+Shift+T`) open Open Profiles instead of immediately creating a default tab:
 
 ```yaml
 new_tab_shortcut_shows_profiles: true  # default: false
@@ -707,7 +703,7 @@ tab_inherit_cwd: true
 
 # Profile selection
 show_profile_drawer_button: false
-new_tab_shortcut_shows_profiles: false  # Show profile picker on Cmd+T
+new_tab_shortcut_shows_profiles: false  # Open Profiles on Cmd+T
 new_tab_position: end  # "end" or "after_active"
 ```
 

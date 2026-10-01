@@ -142,7 +142,32 @@ impl WindowManager {
 
     /// Write the profiles Settings handed over on Save, apply them to every
     /// window, and report the result back to Settings (SS5, SS7).
-    pub(crate) fn save_profiles_from_settings(&mut self, profiles: Vec<crate::profile::Profile>) {
+    pub(crate) fn save_profiles_from_settings(
+        &mut self,
+        mut profiles: Vec<crate::profile::Profile>,
+    ) {
+        // A shortcut typed into the profile editor becomes an
+        // `open_profile:<id>` binding at once (UX.md MD3), through
+        // Settings' baseline so its next Save keeps the binding.
+        let mut probe = (**self.config.load()).clone();
+        let before = probe.keybindings.len();
+        let report = crate::profile::actions::migrate_profile_shortcuts(&mut probe, &mut profiles);
+        let added: Vec<crate::config::KeyBinding> = probe.keybindings.split_off(before);
+        if !added.is_empty() {
+            self.persist_config_change(
+                |config| {
+                    for binding in &added {
+                        if !config.keybindings.contains(binding) {
+                            config.keybindings.push(binding.clone());
+                        }
+                    }
+                },
+                "a profile shortcut binding",
+            );
+        }
+        for (name, chord, why) in &report.skipped {
+            log::warn!("Profile '{name}' shortcut {chord:?} not bound: {why:?}");
+        }
         let manager = crate::profile::ProfileManager::from_profiles(profiles.clone());
         let result = crate::profile::storage::save_profiles(&manager).map_err(|e| format!("{e:#}"));
         if let Err(e) = &result {

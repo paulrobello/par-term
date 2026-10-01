@@ -70,6 +70,7 @@ par-term includes 13 built-in widgets plus custom widgets:
 | **Current Command** | `current_command` | Currently executing shell command | Center | Enabled |
 | **Agent Usage** | `agent_usage` | Tightest subscription limit across agents (e.g. "◆ 71%"); self-hides | Right | Disabled |
 | **Broadcast Input** | `broadcast_input` | Shown while broadcast input is on in the active tab, with the number of panes receiving it (e.g. "📡 Broadcast: 3 panes"); self-hides otherwise | Left | Enabled |
+| **Profile** | `profile` | The active tab's profile name (`Default` for a plain tab) | Left | Disabled |
 | **Agent Roster** | `agent_roster` | par-mux agent roster state summary (e.g. "👥 2 blocked, 1~ working"); self-hides without an attached mux session; hover lists each agent with reported/detected provenance; click opens the command palette; `~` marks scrape-detected counts; `done` counts agents that finished (working → idle) in a pane you have not focused since | Right | Enabled |
 | **Custom Text** | `custom:<name>` | User-defined text with variable interpolation | Configurable | User-created |
 
@@ -169,6 +170,7 @@ Custom widgets support these variables:
 | `\(session.job)` | Current foreground job name | `vim` |
 | `\(session.last_command)` | Last executed command | `cargo test` |
 | `\(session.profile_name)` | Active profile name | `Default` |
+| `\(tab.profile_name)` | The active tab's profile name | `Work` |
 | `\(session.selection)` | Currently selected terminal text | `selected text` |
 | `\(session.tty)` | TTY device name | `/dev/ttys001` |
 | `\(session.columns)` | Terminal columns | `120` |

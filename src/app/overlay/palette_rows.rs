@@ -30,9 +30,12 @@ pub(crate) fn palette_runtime_rows(
     agent_commands: &AgentCommandStore,
     crash_triage: &mut CrashTriageState,
     config: &Config,
+    profiles: &crate::profile::ProfileManager,
     #[cfg(feature = "mux")] tmux_state: &TmuxState,
 ) -> Vec<PaletteEntry> {
     let mut rows = plugin_palette_entries(&status_bar_ui.plugin_host().palette_actions());
+    // Four rows per profile (UX.md PR4); Manage Profiles is a built-in.
+    rows.extend(profile_palette_entries(profiles));
     // Agent-authored commands, hot-reloaded by the commands-dir watcher.
     rows.extend(agent_commands.palette_rows());
     // Configured launchable agents (the `agents:` config list).
@@ -56,4 +59,88 @@ pub(crate) fn palette_runtime_rows(
         rows.extend(crate::app::window_state::WindowState::mux_session_palette_rows(tmux_state));
     }
     rows
+}
+
+/// The palette's profile rows (UX.md PR4): "Open Profile: X", "Open Profile
+/// in New Window: X", "Split with Profile: X", and "Change Tab Profile: X"
+/// for every profile, each running its profile registry action. A row's
+/// chord column shows the live binding when the action is bound (an
+/// `open_profile:` binding migrated from a profile shortcut, MD3) — the
+/// palette fills it from the registry on open.
+pub(crate) fn profile_palette_entries(
+    profiles: &crate::profile::ProfileManager,
+) -> Vec<PaletteEntry> {
+    use crate::profile::actions::{ProfileAction, ProfileSplit};
+    profiles
+        .profiles_ordered()
+        .into_iter()
+        .flat_map(|p| {
+            [
+                ("Open Profile", ProfileAction::OpenTab(p.id)),
+                (
+                    "Open Profile in New Window",
+                    ProfileAction::OpenWindow(p.id),
+                ),
+                (
+                    "Split with Profile",
+                    ProfileAction::Split(p.id, ProfileSplit::Right),
+                ),
+                ("Change Tab Profile", ProfileAction::SetTabProfile(p.id)),
+            ]
+            .map(|(verb, action)| PaletteEntry {
+                action_id: action.id(),
+                label: format!("{verb}: {}", p.name),
+                chord: None,
+                priority: 0,
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_profile_gets_its_four_palette_rows() {
+        // UX.md MP3 acceptance: the palette lists Open / Open in New Window
+        // / Split with / Change Tab Profile rows.
+        let mut profiles = crate::profile::ProfileManager::new();
+        let work = crate::profile::Profile::new("Work");
+        let id = work.id;
+        profiles.add(work);
+        let rows = profile_palette_entries(&profiles);
+        let pairs: Vec<(String, String)> = rows
+            .iter()
+            .map(|r| (r.label.clone(), r.action_id.clone()))
+            .collect();
+        assert_eq!(
+            pairs,
+            [
+                (
+                    "Open Profile: Work".to_string(),
+                    format!("open_profile:{id}")
+                ),
+                (
+                    "Open Profile in New Window: Work".to_string(),
+                    format!("open_profile_window:{id}")
+                ),
+                (
+                    "Split with Profile: Work".to_string(),
+                    format!("split_profile:{id}:right")
+                ),
+                (
+                    "Change Tab Profile: Work".to_string(),
+                    format!("set_tab_profile:{id}")
+                ),
+            ]
+        );
+        for row in &rows {
+            assert_eq!(
+                crate::command_palette::meta::category(&row.action_id),
+                "Profiles"
+            );
+            assert!(crate::command_palette::meta::description(&row.action_id).is_some());
+        }
+    }
 }

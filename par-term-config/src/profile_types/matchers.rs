@@ -141,16 +141,6 @@ impl ProfileManager {
             .find(|p| p.name.to_lowercase() == lower)
     }
 
-    /// Find a profile by keyboard shortcut
-    pub fn find_by_shortcut(&self, shortcut: &str) -> Option<&Profile> {
-        let lower = shortcut.to_lowercase();
-        self.profiles.values().find(|p| {
-            p.keyboard_shortcut
-                .as_ref()
-                .is_some_and(|s| s.to_lowercase() == lower)
-        })
-    }
-
     /// Find all profiles with a specific tag (case-insensitive)
     pub fn find_by_tag(&self, tag: &str) -> Vec<&Profile> {
         let lower = tag.to_lowercase();

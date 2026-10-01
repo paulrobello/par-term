@@ -327,13 +327,9 @@ impl Tab {
     /// Call this when manually switching profiles or when the hostname
     /// returns to local, or when disconnecting from tmux.
     pub fn clear_auto_profile(&mut self) {
-        self.profile.auto_applied_profile_id = None;
-        self.profile.auto_applied_dir_profile_id = None;
-        self.profile.profile_icon = None;
-        if let Some(original) = self.profile.pre_profile_title.take() {
+        if let crate::tab::TitleChange::Set(original) = self.profile.revert_auto() {
             self.set_title(&original);
         }
-        self.profile.badge_override = None;
     }
 }
 

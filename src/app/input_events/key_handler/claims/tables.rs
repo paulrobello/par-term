@@ -12,10 +12,9 @@ use super::*;
 // they do not close on before `handle_key_event` runs, so those layers were
 // unreachable. Their claim slices were empty — no chord was lost with them.
 
-/// `profiles.rs` matches against the user's `profiles.yaml`, so what it claims
-/// is not knowable at build time. Deliberately empty; see the coverage note in
-/// `chord_tests`.
-const PROFILE_SHORTCUTS: &[Claim] = &[];
+// The per-profile hotkey layer (`profiles.rs`) is gone too (UX MP3, B59):
+// profile shortcuts are registry bindings to `open_profile:<id>`, so they
+// arrive through the registry like every other user binding.
 
 // `utility.rs` and `tabs.rs` are gone (UX K2 dissolution): every chord they
 // claimed is a registry default in `defaults::menu_chords` /
@@ -82,21 +81,13 @@ pub(super) const MACOS_APP_MENU: &[Claim] = &[
 ];
 
 /// The hardcoded dispatch sources that remain, in the order
-/// `handle_key_event` consults them.
-///
-/// The first mirrors [`super::KEY_LAYERS`] one-for-one — `chord_tests`
-/// asserts that correspondence so a new layer cannot be added without declaring
-/// what it claims. The last is the inline paste/copy branch, the one
-/// deliberate chord exemption.
+/// `handle_key_event` consults them: only the inline paste/copy branch, the
+/// one deliberate chord exemption.
 ///
 /// Every chord-only layer (scroll, config reload, the UI toggles, utility,
 /// tabs) dissolved into registry defaults (`defaults::layer_chords` and
 /// `defaults::menu_chords`, UX K2): their chords arrive in the chain as
-/// `config_keybindings` rules, derived from the shipped defaults.
-pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
-    ("profile_shortcuts", PROFILE_SHORTCUTS),
-    ("paste_copy", PASTE_COPY),
-];
-
-/// Number of [`LAYER_CLAIMS`] entries that correspond to [`super::KEY_LAYERS`].
-pub(crate) const UNIFORM_LAYER_COUNT: usize = 1;
+/// `config_keybindings` rules, derived from the shipped defaults. The
+/// per-profile hotkey layer became registry bindings (UX MP3, B59), which
+/// removed the `KEY_LAYERS` chain entirely.
+pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[("paste_copy", PASTE_COPY)];

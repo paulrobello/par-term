@@ -4,8 +4,14 @@ use winit::event::MouseScrollDelta;
 
 impl WindowState {
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        // Check if profile drawer is open - let egui handle scroll events
-        if self.overlay_ui.profile_drawer_ui.expanded {
+        // Over the Profiles drawer egui owns the scroll; the terminal
+        // reflowed beside it keeps its own (UX.md PR2).
+        let position = self
+            .tab_manager
+            .active_tab()
+            .map(|t| t.active_mouse().position)
+            .unwrap_or_default();
+        if self.mouse_over_profiles_drawer(position) {
             self.request_redraw();
             return;
         }

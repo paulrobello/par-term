@@ -98,6 +98,19 @@ pub(crate) enum Activation {
     Shift,
     /// Cmd/Ctrl+Enter.
     Command,
+    /// The picker's own extra chord at this index of
+    /// [`ListConfig::extra_keys`] (Open Profiles' Cmd+D split, …).
+    Extra(usize),
+}
+
+/// One extra activation chord a picker takes (UX.md PR1: Cmd+D / Cmd+Shift+D
+/// split right / down in Open Profiles), and how the footer names it.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ExtraKey {
+    pub(crate) modifiers: egui::Modifiers,
+    pub(crate) key: Key,
+    /// Footer text, e.g. "Cmd+D split right".
+    pub(crate) label: &'static str,
 }
 
 /// What a picker frame produced.
@@ -107,6 +120,8 @@ pub(crate) enum ListOutcome {
     Open,
     /// The row at this filtered index was activated.
     Chosen { index: usize, how: Activation },
+    /// Multi-select: flip the mark on the row at this filtered index.
+    ToggleMark(usize),
     /// Escape: close without a choice.
     Closed,
 }
@@ -130,18 +145,33 @@ pub(crate) struct ListConfig<'a> {
     pub(crate) toggle_chord: Option<&'a str>,
     /// Offer Shift+Enter / Cmd+Enter activations.
     pub(crate) alternates: bool,
+    /// Footer names for the alternates when the picker gives them a
+    /// meaning ("Shift+Enter new window"); `None` keeps the generic line.
+    pub(crate) alternate_labels: Option<(&'a str, &'a str)>,
+    /// Picker-specific chords beyond Enter (see [`ExtraKey`]).
+    pub(crate) extra_keys: &'a [ExtraKey],
+    /// Space marks the selected row (multi-select); the caller keeps the
+    /// marks and reads [`ListOutcome::ToggleMark`].
+    pub(crate) multi_select: bool,
 }
 
 /// The footer line for `config`: the navigation keys, Enter's verb, the
-/// alternates only when the picker takes them, and the close keys —
-/// Escape, plus the live toggle chord when one is bound.
+/// alternates and extra chords only when the picker takes them, and the
+/// close keys — Escape, plus the live toggle chord when one is bound.
 pub(crate) fn footer_text(config: &ListConfig<'_>) -> String {
     let mut parts = vec![
         "↑↓ PgUp/PgDn Home/End select".to_string(),
         format!("Enter {}", config.enter_verb),
     ];
     if config.alternates {
-        parts.push("Shift+Enter / Cmd+Enter alternate".to_string());
+        parts.push(match config.alternate_labels {
+            Some((shift, command)) => format!("Shift+Enter {shift} · Cmd+Enter {command}"),
+            None => "Shift+Enter / Cmd+Enter alternate".to_string(),
+        });
+    }
+    parts.extend(config.extra_keys.iter().map(|k| k.label.to_string()));
+    if config.multi_select {
+        parts.push("Ctrl+Space mark".to_string());
     }
     parts.push(match config.toggle_chord {
         Some(chord) => format!("Esc or {chord} close"),
@@ -165,9 +195,20 @@ fn read_nav(ctx: &Context) -> NavInput {
 }
 
 /// Read the activation chord, consuming it so no other widget acts on it.
-fn read_activation(ctx: &Context, alternates: bool) -> Option<Activation> {
+///
+/// egui's `consume_key` matches modifiers logically — an extra Shift is
+/// ignored — so every chord is tried most-specific first: Cmd+Shift+D
+/// before Cmd+D, Cmd+Enter before Shift+Enter before Enter.
+fn read_activation(ctx: &Context, alternates: bool, extra: &[ExtraKey]) -> Option<Activation> {
     ctx.input_mut(|i| {
-        if alternates && i.consume_key(egui::Modifiers::COMMAND, Key::Enter) {
+        let mut order: Vec<usize> = (0..extra.len()).collect();
+        order.sort_by_key(|&n| std::cmp::Reverse(modifier_count(extra[n].modifiers)));
+        if let Some(n) = order
+            .into_iter()
+            .find(|&n| i.consume_key(extra[n].modifiers, extra[n].key))
+        {
+            Some(Activation::Extra(n))
+        } else if alternates && i.consume_key(egui::Modifiers::COMMAND, Key::Enter) {
             Some(Activation::Command)
         } else if alternates && i.consume_key(egui::Modifiers::SHIFT, Key::Enter) {
             Some(Activation::Shift)
@@ -179,7 +220,11 @@ fn read_activation(ctx: &Context, alternates: bool) -> Option<Activation> {
     })
 }
 
-/// Draw a picker for one frame.
+fn modifier_count(m: egui::Modifiers) -> u8 {
+    u8::from(m.alt) + u8::from(m.ctrl) + u8::from(m.shift) + u8::from(m.mac_cmd || m.command)
+}
+
+/// Draw a picker for one frame, as a floating popup.
 ///
 /// `query` is the caller's filter text (edited by the field); `rows_len`
 /// is the number of rows matching it; `draw_row(ui, index, selected)`
@@ -193,23 +238,9 @@ pub(crate) fn show_list(
     request_focus: &mut bool,
     nav: &mut ListNav,
     rows_len: usize,
-    mut draw_row: impl FnMut(&mut egui::Ui, usize, bool) -> bool,
+    draw_row: impl FnMut(&mut egui::Ui, usize, bool) -> bool,
 ) -> (ListOutcome, bool) {
-    if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
-        return (ListOutcome::Closed, false);
-    }
-    nav.apply(read_nav(ctx), rows_len, config.visible_rows);
-    let mut outcome = ListOutcome::Open;
-    if let Some(how) = read_activation(ctx, config.alternates)
-        && rows_len > 0
-    {
-        outcome = ListOutcome::Chosen {
-            index: nav.selected,
-            how,
-        };
-    }
-
-    let mut query_changed = false;
+    let mut result = (ListOutcome::Open, false);
     Window::new(config.id)
         .title_bar(false)
         .resizable(false)
@@ -218,32 +249,99 @@ pub(crate) fn show_list(
         .frame(Frame::popup(&ctx.global_style()).shadow(Shadow::default()))
         .show(ctx, |ui| {
             ui.set_min_width(config.width);
-            let field = ui.add(
-                egui::TextEdit::singleline(query)
-                    .hint_text(config.hint)
-                    .desired_width(f32::INFINITY),
+            result = list_body(
+                ui,
+                config,
+                ListBodyState {
+                    query,
+                    request_focus,
+                    nav,
+                },
+                rows_len,
+                true,
+                draw_row,
             );
-            if *request_focus {
-                field.request_focus();
-                *request_focus = false;
-            }
-            query_changed = field.changed();
-            ui.separator();
-            let end = (nav.scroll_offset + config.visible_rows).min(rows_len);
-            for index in nav.scroll_offset..end {
-                if draw_row(ui, index, index == nav.selected) {
-                    outcome = ListOutcome::Chosen {
-                        index,
-                        how: Activation::Primary,
-                    };
-                }
-            }
-            if rows_len == 0 {
-                ui.weak(config.empty_text);
-            }
-            ui.separator();
-            ui.label(RichText::new(footer_text(config)).weak().small());
         });
+    result
+}
+
+/// The mutable state a picker body edits each frame.
+pub(crate) struct ListBodyState<'s> {
+    pub(crate) query: &'s mut String,
+    pub(crate) request_focus: &'s mut bool,
+    pub(crate) nav: &'s mut ListNav,
+}
+
+/// The picker body — filter, rows, footer — into any `ui`: a popup window
+/// ([`show_list`]) or a docked panel (the pinned Profiles view, UX.md PR2).
+///
+/// `owns_keys`: a popup reads its keys every frame (the overlay stack
+/// feeds them only while it is on top); a docked panel reads them only
+/// while its filter holds focus, so typing in the terminal never moves its
+/// selection.
+pub(crate) fn list_body(
+    ui: &mut egui::Ui,
+    config: &ListConfig<'_>,
+    state: ListBodyState<'_>,
+    rows_len: usize,
+    owns_keys: bool,
+    mut draw_row: impl FnMut(&mut egui::Ui, usize, bool) -> bool,
+) -> (ListOutcome, bool) {
+    let ListBodyState {
+        query,
+        request_focus,
+        nav,
+    } = state;
+    let filter_id = ui.make_persistent_id((config.id, "filter"));
+    let keys_live = owns_keys || ui.ctx().memory(|m| m.has_focus(filter_id));
+    let ctx = ui.ctx().clone();
+    let mut outcome = ListOutcome::Open;
+    if keys_live {
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
+            return (ListOutcome::Closed, false);
+        }
+        nav.apply(read_nav(&ctx), rows_len, config.visible_rows);
+        if config.multi_select
+            && rows_len > 0
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, Key::Space))
+        {
+            outcome = ListOutcome::ToggleMark(nav.selected);
+        } else if let Some(how) = read_activation(&ctx, config.alternates, config.extra_keys)
+            && rows_len > 0
+        {
+            outcome = ListOutcome::Chosen {
+                index: nav.selected,
+                how,
+            };
+        }
+    }
+
+    let field = ui.add(
+        egui::TextEdit::singleline(query)
+            .id(filter_id)
+            .hint_text(config.hint)
+            .desired_width(f32::INFINITY),
+    );
+    if *request_focus {
+        field.request_focus();
+        *request_focus = false;
+    }
+    let query_changed = field.changed();
+    ui.separator();
+    let end = (nav.scroll_offset + config.visible_rows).min(rows_len);
+    for index in nav.scroll_offset..end {
+        if draw_row(ui, index, index == nav.selected) {
+            outcome = ListOutcome::Chosen {
+                index,
+                how: Activation::Primary,
+            };
+        }
+    }
+    if rows_len == 0 {
+        ui.weak(config.empty_text);
+    }
+    ui.separator();
+    ui.label(RichText::new(footer_text(config)).weak().small());
     (outcome, query_changed)
 }
 
@@ -354,6 +452,9 @@ mod tests {
             enter_verb: "run",
             toggle_chord,
             alternates,
+            alternate_labels: None,
+            extra_keys: &[],
+            multi_select: false,
         }
     }
 
@@ -399,10 +500,72 @@ mod tests {
                     events: vec![key(modifiers)],
                     ..Default::default()
                 },
-                |ui| got = read_activation(ui.ctx(), alternates),
+                |ui| got = read_activation(ui.ctx(), alternates, &[]),
             );
             out.textures_delta.clear();
             assert_eq!(got, expected, "{modifiers:?} alternates={alternates}");
         }
+    }
+
+    #[test]
+    fn extra_keys_match_most_specific_first() {
+        // egui ignores an extra Shift when matching, so Cmd+Shift+D must be
+        // tried before Cmd+D or it fires the unshifted chord's action.
+        let extra = [
+            ExtraKey {
+                modifiers: egui::Modifiers::COMMAND,
+                key: Key::D,
+                label: "Cmd+D split right",
+            },
+            ExtraKey {
+                modifiers: egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                key: Key::D,
+                label: "Cmd+Shift+D split down",
+            },
+        ];
+        let ctx = egui::Context::default();
+        for (modifiers, expected) in [
+            (egui::Modifiers::COMMAND, Activation::Extra(0)),
+            (
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                Activation::Extra(1),
+            ),
+        ] {
+            let mut got = None;
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    events: vec![egui::Event::Key {
+                        key: Key::D,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers,
+                    }],
+                    ..Default::default()
+                },
+                |ui| got = read_activation(ui.ctx(), true, &extra),
+            );
+            out.textures_delta.clear();
+            assert_eq!(got, Some(expected), "{modifiers:?}");
+        }
+    }
+
+    #[test]
+    fn the_footer_names_extra_keys_alternate_meanings_and_marking() {
+        let extra = [ExtraKey {
+            modifiers: egui::Modifiers::COMMAND,
+            key: Key::D,
+            label: "Cmd+D split right",
+        }];
+        let config = ListConfig {
+            alternate_labels: Some(("new window", "this tab")),
+            extra_keys: &extra,
+            multi_select: true,
+            ..config(None, true)
+        };
+        let footer = footer_text(&config);
+        assert!(footer.contains("Shift+Enter new window · Cmd+Enter this tab"));
+        assert!(footer.contains("Cmd+D split right"));
+        assert!(footer.contains("Ctrl+Space mark"));
     }
 }

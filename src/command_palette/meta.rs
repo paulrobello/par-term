@@ -32,6 +32,12 @@ pub(crate) fn category(action_id: &str) -> &'static str {
     if action_id.starts_with("attach_mux_session:") || action_id == "mux-restart-pane" {
         return "Session";
     }
+    if crate::profile::actions::PROFILE_ACTION_PREFIXES
+        .iter()
+        .any(|p| action_id.starts_with(p))
+    {
+        return "Profiles";
+    }
     if action_id.starts_with("move_tab_to_window:") {
         return "Tab";
     }
@@ -94,6 +100,14 @@ fn runtime_description(action_id: &str) -> Option<&'static str> {
         "Move the active tab into that window"
     } else if action_id.starts_with("plugin-action:") {
         "Provided by a plugin"
+    } else if action_id.starts_with("open_profile_window:") {
+        "Open this profile in a new window"
+    } else if action_id.starts_with("open_profile:") {
+        "Open this profile in a new tab"
+    } else if action_id.starts_with("split_profile:") {
+        "Split the focused pane running this profile"
+    } else if action_id.starts_with("set_tab_profile:") {
+        "Give this tab the profile and stop automatic switching"
     } else {
         return None;
     })
@@ -246,7 +260,23 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
         "Jump to the next agent that is blocked or finished",
     ),
     // Profiles
-    ("toggle_profile_drawer", "Show or hide the profile drawer"),
+    (
+        "toggle_profile_drawer",
+        "Open Profiles: search profiles and open one",
+    ),
+    (
+        "toggle_profiles_panel",
+        "Show or hide the Profiles drawer beside the terminal",
+    ),
+    (
+        "manage_profiles",
+        "Create, edit, and delete profiles in Settings",
+    ),
+    ("edit_tab_profile", "Edit the profile this tab is running"),
+    (
+        "toggle_tab_profile_pin",
+        "Stop or allow automatic profile switching for this tab",
+    ),
     (
         "reload_dynamic_profiles",
         "Fetch remote profile sources again",

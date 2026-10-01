@@ -24,7 +24,10 @@ mod tmux_state;
 
 pub(crate) use activity_state::TabActivityMonitor;
 pub(crate) use pane_ops::SplitRequest;
-pub(crate) use profile_state::TabProfileState;
+pub(crate) use profile_launch::profile_split_launch;
+pub(crate) use profile_state::{
+    AutoApply, AutoRule, TabProfileState, TitleChange, profile_tooltip,
+};
 pub(crate) use scripting_state::TabScriptingState;
 pub(crate) use tmux_state::TabTmuxState;
 

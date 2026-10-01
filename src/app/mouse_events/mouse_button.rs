@@ -34,8 +34,9 @@ impl WindowState {
             tab.selection_mouse_mut().is_selecting = false;
         }
 
-        // Check if profile drawer is open - let egui handle all mouse events
-        if self.overlay_ui.profile_drawer_ui.expanded {
+        // Over the Profiles drawer egui owns the click; the terminal
+        // reflowed beside it keeps its own (UX.md PR2).
+        if self.mouse_over_profiles_drawer(mouse_position) {
             self.request_redraw();
             return;
         }

@@ -41,7 +41,6 @@ const MENU_ONLY: &[(&str, &str)] = &[
     ("zoom", "window-level command with no registry action"),
     ("about", "opens the About section of the help overlay"),
     ("open_docs", "opens the documentation in the browser"),
-    ("manage_profiles", "opens Settings on the Profiles tab"),
     (
         "install_remote_shell_integration",
         "dialog with no registry action",
@@ -255,6 +254,9 @@ fn toggles_are_checkable() {
         "toggle_clipboard_history",
         "toggle_command_history",
         "toggle_help",
+        // Open Profiles… (UX.md PR1): the id predates the launcher popup.
+        // The persistent drawer is toggle_profiles_panel.
+        "toggle_profile_drawer",
     ];
     for spec in all_items(&menu_model(false)) {
         let Some(id) = spec.action.keybinding_action() else {

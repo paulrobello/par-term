@@ -10,14 +10,14 @@ use crate::tmux::TmuxWindowId;
 use par_term_config::TabId;
 
 impl WindowState {
-    /// Create a new tab, or show profile picker if configured and profiles exist
+    /// Create a new tab, or open Open Profiles… (UX.md PR1, MD2) when
+    /// `new_tab_shortcut_shows_profiles` is set and profiles exist.
     pub fn new_tab_or_show_profiles(&mut self) {
         if self.config.load().tabs.new_tab_shortcut_shows_profiles
             && !self.overlay_ui.profile_manager.is_empty()
         {
-            self.tab_bar_ui.show_new_tab_profile_menu = !self.tab_bar_ui.show_new_tab_profile_menu;
-            self.request_redraw();
-            log::info!("Toggled new-tab profile menu via shortcut");
+            self.open_profile_launcher();
+            log::info!("Opened the profile launcher via the new-tab shortcut");
         } else {
             self.new_tab();
             log::info!("New tab created");

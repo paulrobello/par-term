@@ -9,7 +9,6 @@ use crate::app::window_state::WindowState;
 use crate::close_confirmation_ui::CloseConfirmAction;
 use crate::command_history_ui::CommandHistoryAction;
 use crate::paste_special_ui::PasteSpecialAction;
-use crate::profile_drawer_ui::ProfileDrawerAction;
 use crate::quit_confirmation_ui::QuitConfirmAction;
 use crate::remote_shell_install_ui::{RemoteShellInstallAction, RemoteShellInstallUI};
 use crate::shader_install_ui::ShaderInstallResponse;
@@ -32,7 +31,7 @@ impl WindowState {
             integrations,
             search,
             inspector,
-            profile_drawer,
+            profile_launcher,
             close_confirm,
             mux_last_tab,
             quit_confirm,
@@ -440,22 +439,13 @@ impl WindowState {
         // Handle integrations welcome dialog responses
         self.handle_integrations_response(&integrations);
 
-        // Handle profile drawer actions
-        match profile_drawer {
-            ProfileDrawerAction::OpenProfile(id) => {
-                self.open_profile(id);
-                // Opening a profile is a navigation — collapse the drawer so
-                // the new tab is not hidden behind it.
-                self.overlay_ui.profile_drawer_ui.expanded = false;
-            }
-            ProfileDrawerAction::ManageProfiles => {
-                // Open settings window at the profile list instead of terminal-embedded modal
-                self.overlay_state.open_settings_window_requested = true;
-                self.overlay_state.open_settings_section =
-                    Some(par_term_settings_ui::layout::deep_link::PROFILES);
-            }
-            ProfileDrawerAction::None => {}
+        // Open Profiles… / the Profiles drawer (UX.md PR1/PR2): the same
+        // registry actions a bound shortcut runs. The drawer's rows follow
+        // profile and chord changes (and fill after its edge button opens it).
+        if let Some(choice) = profile_launcher {
+            self.run_launcher_choice(choice);
         }
+        self.refresh_profiles_drawer_rows();
 
         if let Some(start) = self.debug.render_start {
             let total = start.elapsed();

@@ -406,7 +406,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `tab_show_index` | `bool` | `false` | Show tab index number (for Cmd+1-9) | Windows & Tabs › Tab Bar › Tab Bar |
 | `tab_inherit_cwd` | `bool` | `true` | New tabs inherit working directory from active tab | Windows & Tabs › Tab Bar › Tab Bar |
 | `max_tabs` | `usize` | `0` | Maximum tabs per window (0=unlimited) | Windows & Tabs › Tab Bar › Tab Bar |
-| `show_profile_drawer_button` | `bool` | `false` | Show profile drawer button in tab bar | Windows & Tabs › Tab Bar › Tab Bar |
+| `show_profile_drawer_button` | `bool` | `false` | Show the Open Profiles button in the tab bar (opens the profile launcher) | Windows & Tabs › Tab Bar › Tab Bar |
 | `tab_min_width` | `f32` | `120.0` | Minimum tab width before horizontal scrolling | Windows & Tabs › Tab Bar Colors › Tab Bar Appearance |
 | `tab_stretch_to_fill` | `bool` | `true` | Stretch tabs to fill available tab bar width | Windows & Tabs › Tab Bar › Tab Bar |
 | `tab_html_titles` | `bool` | `false` | Render tab titles as limited HTML | Windows & Tabs › Tab Bar › Tab Bar |
@@ -414,7 +414,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `tab_inactive_outline_only` | `bool` | `true` | Render inactive tabs as outline only | Windows & Tabs › Tab Bar Colors › Tab Bar Appearance |
 | `dim_inactive_tabs` | `bool` | `true` | Visually dim inactive tabs | Windows & Tabs › Tab Bar Colors › Tab Bar Appearance |
 | `inactive_tab_opacity` | `f32` | `0.6` | Inactive tab opacity (0.0–1.0) | Windows & Tabs › Tab Bar Colors › Tab Bar Appearance |
-| `new_tab_shortcut_shows_profiles` | `bool` | `false` | Show profile selector instead of opening default tab | Windows & Tabs › Tab Bar › Tab Bar |
+| `new_tab_shortcut_shows_profiles` | `bool` | `false` | The new-tab shortcut opens Open Profiles (the profile launcher) instead of a default tab | Windows & Tabs › Tab Bar › Tab Bar |
 | `new_tab_position` | `enum` | `end` | Where new tabs are inserted: `end` (append to tab bar) or `after_active` (insert right of current tab) | Windows & Tabs › Tab Bar › Tab Bar |
 
 ---

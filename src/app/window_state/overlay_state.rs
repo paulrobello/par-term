@@ -20,6 +20,9 @@ pub(crate) struct OverlayState {
     pub(crate) open_settings_section: Option<&'static str>,
     /// Whether the profiles menu needs to be rebuilt
     pub(crate) profiles_menu_needs_update: bool,
+    /// Profiles to open in new windows (`open_profile_window:<id>`, UX.md
+    /// PR3); window creation needs the event loop, so the manager drains it.
+    pub(crate) pending_profile_windows: Vec<crate::profile::ProfileId>,
 
     /// Whether the resize dimensions overlay is currently visible
     pub(crate) resize_overlay_visible: bool,
@@ -56,6 +59,7 @@ impl Default for OverlayState {
             reload_dynamic_profiles_requested: false,
             open_settings_section: None,
             profiles_menu_needs_update: true,
+            pending_profile_windows: Vec::new(),
             resize_overlay_visible: false,
             resize_overlay_hide_time: None,
             resize_dimensions: None,

@@ -96,6 +96,7 @@ Insert dynamic values using the `\(session.*)` syntax:
 | `\(session.job)` | Current foreground job | `vim` |
 | `\(session.last_command)` | Last executed command | `git status` |
 | `\(session.profile_name)` | Active profile name | `Development` |
+| `\(tab.profile_name)` | The active tab's profile name | `Development` |
 | `\(session.tty)` | TTY device name | `/dev/ttys001` |
 | `\(session.columns)` | Terminal width in columns | `120` |
 | `\(session.rows)` | Terminal height in rows | `40` |

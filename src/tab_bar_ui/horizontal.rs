@@ -57,9 +57,9 @@ impl TabBarUI {
         let tab_spacing = TAB_SPACING;
         let left_padding = TAB_LEFT_PADDING;
         let btn_h = config.tabs.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0;
-        // Show the chevron dropdown when there's menu content:
-        // profiles to pick from, or the AI assistant toggle.
-        let show_chevron = !profiles.is_empty() || config.ai_inspector.ai_inspector_enabled;
+        // The chevron opens Open Profiles… (UX.md PR1) when there are
+        // profiles to pick from.
+        let show_chevron = !profiles.is_empty();
         let new_tab_btn_width =
             TAB_NEW_BTN_BASE_WIDTH + if show_chevron { CHEVRON_RESERVED } else { 0.0 };
         let scroll_btn_width = TAB_SCROLL_BTN_WIDTH;
@@ -238,6 +238,9 @@ impl TabBarUI {
                                     pane_badge: tab
                                         .pane_mode_badge()
                                         .map(|b| (b, tab.pane_mode_badge_tooltip())),
+                                    profile_tooltip: super::tab_rendering::tab_profile_tooltip(
+                                        tab, profiles,
+                                    ),
                                     custom_color: tab.custom_color,
                                     config,
                                     tab_size: tab_width,
@@ -296,6 +299,9 @@ impl TabBarUI {
                                     pane_badge: tab
                                         .pane_mode_badge()
                                         .map(|b| (b, tab.pane_mode_badge_tooltip())),
+                                    profile_tooltip: super::tab_rendering::tab_profile_tooltip(
+                                        tab, profiles,
+                                    ),
                                     custom_color: tab.custom_color,
                                     config,
                                     tab_size: tab_width,
@@ -342,14 +348,14 @@ impl TabBarUI {
                         plus_resp.on_hover_text("New Tab (Ctrl+Shift+T)");
                     }
 
-                    // Chevron — opens dropdown (profiles and/or assistant toggle)
+                    // Chevron — opens the profile launcher (UX.md PR1)
                     if show_chevron {
                         let (chev_rect, chev_resp) = ui.allocate_exact_size(
                             egui::vec2(CHEVRON_RESERVED / 2.0, btn_h),
                             egui::Sense::click(),
                         );
                         if chev_resp.clicked_by(egui::PointerButton::Primary) {
-                            self.show_new_tab_profile_menu = !self.show_new_tab_profile_menu;
+                            action = TabBarAction::OpenProfiles;
                         }
                         let chev_color = if chev_resp.hovered() {
                             egui::Color32::WHITE
@@ -364,7 +370,7 @@ impl TabBarUI {
                             chev_color,
                         );
                         if chev_resp.hovered() {
-                            chev_resp.on_hover_text("New tab from profile");
+                            chev_resp.on_hover_text("Open Profiles…");
                         }
                     }
 
@@ -406,12 +412,6 @@ impl TabBarUI {
             if menu_action != TabBarAction::None {
                 action = menu_action;
             }
-        }
-
-        // Render new-tab profile menu if open
-        let menu_action = self.render_new_tab_profile_menu(ctx, profiles, config);
-        if menu_action != TabBarAction::None {
-            action = menu_action;
         }
 
         action

@@ -210,7 +210,10 @@ impl WindowState {
     /// This method checks whether the consumed width has changed and, if so,
     /// updates the renderer's right content inset and resizes all terminals.
     pub(crate) fn sync_ai_inspector_width(&mut self) {
-        let current_width = self.overlay_ui.ai_inspector.consumed_width();
+        let inspector_width = self.overlay_ui.ai_inspector.consumed_width();
+        // The Profiles drawer docks on the same edge and reflows the
+        // terminal too (UX.md PR2), so the inset is both panels' width.
+        let current_width = inspector_width + self.overlay_ui.profile_drawer_ui.consumed_width();
 
         if let Some(renderer) = &mut self.renderer {
             // Always verify the renderer's content_inset_right matches the expected
@@ -257,8 +260,8 @@ impl WindowState {
 
         // Persist panel width to config when the user finishes resizing.
         if !self.overlay_ui.ai_inspector.is_resizing()
-            && (current_width - self.overlay_ui.last_inspector_width).abs() >= 1.0
-            && current_width > 0.0
+            && (inspector_width - self.overlay_ui.last_inspector_only_width).abs() >= 1.0
+            && inspector_width > 0.0
             && self.overlay_ui.ai_inspector.open
         {
             self.config.rcu(|old| {
@@ -275,6 +278,7 @@ impl WindowState {
         }
 
         self.overlay_ui.last_inspector_width = current_width;
+        self.overlay_ui.last_inspector_only_width = inspector_width;
     }
 
     // ========================================================================

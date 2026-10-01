@@ -1,36 +1,16 @@
-//! Integration tests for the ProfileDrawerUI component.
+//! Integration tests for the ProfileDrawerUI panel shell (UX.md PR2: the
+//! Profiles drawer is Open Profiles… pinned to the right edge).
 //!
-//! Covers: initial state, toggle behavior, toggle button geometry (collapsed/expanded),
-//! hit testing, selection/hover state, width adjustments, state consistency
-//! across toggles, and ProfileDrawerAction variants.
+//! Covers: initial state, toggle behavior, toggle button geometry
+//! (collapsed/expanded), hit testing, width adjustments and the width the
+//! open drawer takes from the terminal. Selection, keys, and actions are the
+//! launcher list's (`profile_launcher_ui` unit tests).
 
-use par_term::profile_drawer_ui::{ProfileDrawerAction, ProfileDrawerUI};
-use uuid::Uuid;
+use par_term::profile_drawer_ui::ProfileDrawerUI;
 
 // ============================================================================
 // ProfileDrawerUI Tests
 // ============================================================================
-
-#[test]
-fn test_profile_drawer_ui_creation() {
-    let drawer = ProfileDrawerUI::new();
-
-    // Initial state should be collapsed
-    assert!(!drawer.expanded);
-    assert!(drawer.selected.is_none());
-    assert!(drawer.hovered.is_none());
-    assert!(drawer.width > 0.0);
-}
-
-#[test]
-fn test_profile_drawer_ui_default() {
-    let drawer = ProfileDrawerUI::default();
-
-    // Default should be same as new
-    assert!(!drawer.expanded);
-    assert!(drawer.selected.is_none());
-    assert!(drawer.hovered.is_none());
-}
 
 #[test]
 fn test_profile_drawer_toggle() {
@@ -152,150 +132,6 @@ fn test_profile_drawer_is_point_in_toggle_button_expanded() {
 }
 
 #[test]
-fn test_profile_drawer_selection_state() {
-    let mut drawer = ProfileDrawerUI::new();
-    let profile_id = Uuid::new_v4();
-
-    // Initially no selection
-    assert!(drawer.selected.is_none());
-
-    // Select a profile
-    drawer.selected = Some(profile_id);
-    assert_eq!(drawer.selected, Some(profile_id));
-
-    // Clear selection
-    drawer.selected = None;
-    assert!(drawer.selected.is_none());
-}
-
-#[test]
-fn test_profile_drawer_hover_state() {
-    let mut drawer = ProfileDrawerUI::new();
-    let profile_id = Uuid::new_v4();
-
-    // Initially no hover
-    assert!(drawer.hovered.is_none());
-
-    // Hover a profile
-    drawer.hovered = Some(profile_id);
-    assert_eq!(drawer.hovered, Some(profile_id));
-
-    // Clear hover
-    drawer.hovered = None;
-    assert!(drawer.hovered.is_none());
-}
-
-#[test]
-fn test_profile_drawer_width_adjustment() {
-    let mut drawer = ProfileDrawerUI::new();
-    let initial_width = drawer.width;
-
-    // Width should be adjustable
-    drawer.width = 300.0;
-    assert_eq!(drawer.width, 300.0);
-    assert_ne!(drawer.width, initial_width);
-
-    // Width affects toggle button position when expanded
-    drawer.expanded = true;
-    let (x1, _, _, _) = drawer.get_toggle_button_rect(800.0, 600.0);
-
-    drawer.width = 400.0;
-    let (x2, _, _, _) = drawer.get_toggle_button_rect(800.0, 600.0);
-
-    // Wider drawer means button is further left
-    assert!(x2 < x1);
-}
-
-// ============================================================================
-// ProfileDrawerAction Tests
-// ============================================================================
-
-#[test]
-fn test_profile_drawer_action_none() {
-    let action = ProfileDrawerAction::None;
-    assert!(matches!(action, ProfileDrawerAction::None));
-}
-
-#[test]
-fn test_profile_drawer_action_open_profile() {
-    let profile_id = Uuid::new_v4();
-    let action = ProfileDrawerAction::OpenProfile(profile_id);
-
-    match action {
-        ProfileDrawerAction::OpenProfile(id) => assert_eq!(id, profile_id),
-        _ => panic!("Expected OpenProfile action"),
-    }
-}
-
-#[test]
-fn test_profile_drawer_action_manage_profiles() {
-    let action = ProfileDrawerAction::ManageProfiles;
-    assert!(matches!(action, ProfileDrawerAction::ManageProfiles));
-}
-
-#[test]
-fn test_profile_drawer_actions_equality() {
-    let id1 = Uuid::new_v4();
-    let id2 = Uuid::new_v4();
-
-    // Same type, same id
-    assert_eq!(
-        ProfileDrawerAction::OpenProfile(id1),
-        ProfileDrawerAction::OpenProfile(id1)
-    );
-
-    // Same type, different id
-    assert_ne!(
-        ProfileDrawerAction::OpenProfile(id1),
-        ProfileDrawerAction::OpenProfile(id2)
-    );
-
-    // Different types
-    assert_ne!(
-        ProfileDrawerAction::None,
-        ProfileDrawerAction::ManageProfiles
-    );
-    assert_ne!(
-        ProfileDrawerAction::OpenProfile(id1),
-        ProfileDrawerAction::ManageProfiles
-    );
-}
-
-#[test]
-fn test_profile_drawer_actions_clone() {
-    let id = Uuid::new_v4();
-    let actions = vec![
-        ProfileDrawerAction::None,
-        ProfileDrawerAction::OpenProfile(id),
-        ProfileDrawerAction::ManageProfiles,
-    ];
-
-    for action in actions {
-        let cloned = action.clone();
-        assert_eq!(action, cloned);
-    }
-}
-
-#[test]
-fn test_profile_drawer_actions_debug() {
-    let id = Uuid::new_v4();
-    let actions = vec![
-        ProfileDrawerAction::None,
-        ProfileDrawerAction::OpenProfile(id),
-        ProfileDrawerAction::ManageProfiles,
-    ];
-
-    for action in actions {
-        let debug_str = format!("{:?}", action);
-        assert!(!debug_str.is_empty());
-    }
-}
-
-// ============================================================================
-// Toggle Button Geometry Edge Cases
-// ============================================================================
-
-#[test]
 fn test_toggle_button_rect_small_window() {
     let drawer = ProfileDrawerUI::new();
     let window_width = 400.0;
@@ -351,36 +187,6 @@ fn test_toggle_button_rect_with_various_drawer_widths() {
 // ============================================================================
 
 #[test]
-fn test_drawer_selection_persists_after_toggle() {
-    let mut drawer = ProfileDrawerUI::new();
-    let profile_id = Uuid::new_v4();
-
-    drawer.selected = Some(profile_id);
-
-    // Toggle drawer
-    drawer.toggle();
-    assert!(drawer.expanded);
-    assert_eq!(drawer.selected, Some(profile_id));
-
-    // Toggle back
-    drawer.toggle();
-    assert!(!drawer.expanded);
-    assert_eq!(drawer.selected, Some(profile_id));
-}
-
-#[test]
-fn test_drawer_hover_persists_after_toggle() {
-    let mut drawer = ProfileDrawerUI::new();
-    let profile_id = Uuid::new_v4();
-
-    drawer.hovered = Some(profile_id);
-
-    // Toggle drawer
-    drawer.toggle();
-    assert_eq!(drawer.hovered, Some(profile_id));
-}
-
-#[test]
 fn test_drawer_width_persists_after_toggle() {
     let mut drawer = ProfileDrawerUI::new();
     drawer.width = 300.0;
@@ -411,18 +217,6 @@ fn test_profile_drawer_minimum_width_constraint() {
 }
 
 #[test]
-fn test_profile_drawer_clear_selection() {
-    let mut drawer = ProfileDrawerUI::new();
-    let id = Uuid::new_v4();
-
-    drawer.selected = Some(id);
-    assert!(drawer.selected.is_some());
-
-    drawer.selected = None;
-    assert!(drawer.selected.is_none());
-}
-
-#[test]
 fn test_profile_drawer_multiple_toggles() {
     let mut drawer = ProfileDrawerUI::new();
 
@@ -433,19 +227,36 @@ fn test_profile_drawer_multiple_toggles() {
 }
 
 #[test]
-fn test_profile_drawer_action_all_variants() {
-    let actions = vec![
-        ProfileDrawerAction::None,
-        ProfileDrawerAction::OpenProfile(Uuid::new_v4()),
-        ProfileDrawerAction::ManageProfiles,
-    ];
+fn test_open_drawer_consumes_its_width_from_the_terminal() {
+    // PR2: the drawer reflows the terminal instead of covering it.
+    let mut drawer = ProfileDrawerUI::new();
+    assert_eq!(drawer.consumed_width(), 0.0, "collapsed takes nothing");
+    drawer.toggle();
+    assert!(drawer.consumed_width() > drawer.width);
+    drawer.width = 300.0;
+    assert!(drawer.consumed_width() > 300.0);
+}
 
-    // Ensure all variants can be matched
-    for action in actions {
-        match action {
-            ProfileDrawerAction::None => {}
-            ProfileDrawerAction::OpenProfile(_) => {}
-            ProfileDrawerAction::ManageProfiles => {}
-        }
-    }
+#[test]
+fn test_profile_drawer_ui_creation() {
+    let drawer = ProfileDrawerUI::new();
+    assert!(!drawer.expanded, "collapsed by default");
+    assert!(drawer.width > 0.0);
+}
+
+#[test]
+fn test_profile_drawer_ui_default() {
+    let drawer = ProfileDrawerUI::default();
+    assert!(!drawer.expanded);
+    assert_eq!(drawer.width, ProfileDrawerUI::new().width);
+}
+
+#[test]
+fn test_profile_drawer_width_adjustment() {
+    let mut drawer = ProfileDrawerUI::new();
+    drawer.expanded = true;
+    let (x1, _, _, _) = drawer.get_toggle_button_rect(800.0, 600.0);
+    drawer.width = 300.0;
+    let (x2, _, _, _) = drawer.get_toggle_button_rect(800.0, 600.0);
+    assert!(x2 < x1, "a wider drawer moves its edge button left");
 }

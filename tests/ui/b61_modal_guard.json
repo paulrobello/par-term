@@ -48,12 +48,12 @@
     { "close_modal": "tab_context_menu" },
     { "wait_ms": 300, "assert_not": "modal_guard" },
 
-    { "open_modal": "new_tab_profile_menu" },
+    { "open_modal": "profile_launcher" },
     { "wait_ms": 300, "assert": "modal_guard" },
     { "chord": "x" },
     { "chord": "Enter" },
     { "chord": "Escape" },
-    { "close_modal": "new_tab_profile_menu" },
+    { "close_modal": "profile_launcher" },
     { "wait_ms": 300, "assert_not": "modal_guard" },
 
     { "open_modal": "demote_chooser" },

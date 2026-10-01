@@ -64,6 +64,7 @@ pub enum Check {
     PaneBroadcastExcluded,
     OutputRecording,
     CopyMode,
+    TabProfilePinned,
 }
 
 /// Why the active tab cannot move to another window.
@@ -207,7 +208,6 @@ pub fn passes_key_block(action: &MenuAction, accelerator: Option<&Accelerator>) 
             | MenuAction::SelectAll
             | MenuAction::Quit
             | MenuAction::OpenSettings
-            | MenuAction::ManageProfiles
             | MenuAction::About
             | MenuAction::OpenDocs
             | MenuAction::Minimize

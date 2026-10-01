@@ -12,7 +12,6 @@ use crate::integrations_ui::IntegrationsResponse;
 use crate::mux_last_tab_ui::MuxLastTabAction;
 use crate::pane::{PaneId, SplitDirection};
 use crate::paste_special_ui::PasteSpecialAction;
-use crate::profile_drawer_ui::ProfileDrawerAction;
 use crate::quit_confirmation_ui::QuitConfirmAction;
 use crate::remote_shell_install_ui::RemoteShellInstallAction;
 use crate::shader_install_ui::ShaderInstallResponse;
@@ -130,7 +129,8 @@ pub(super) struct PostRenderActions {
     pub(super) integrations: IntegrationsResponse,
     pub(super) search: crate::search::SearchAction,
     pub(super) inspector: InspectorAction,
-    pub(super) profile_drawer: ProfileDrawerAction,
+    /// Open Profiles… or the Profiles drawer chose something (UX.md PR1).
+    pub(super) profile_launcher: Option<crate::profile_launcher_ui::LauncherChoice>,
     pub(super) close_confirm: CloseConfirmAction,
     pub(super) mux_last_tab: MuxLastTabAction,
     pub(super) quit_confirm: QuitConfirmAction,
@@ -158,7 +158,7 @@ impl Default for PostRenderActions {
             integrations: IntegrationsResponse::default(),
             search: crate::search::SearchAction::None,
             inspector: InspectorAction::None,
-            profile_drawer: ProfileDrawerAction::None,
+            profile_launcher: None,
             close_confirm: CloseConfirmAction::None,
             mux_last_tab: MuxLastTabAction::None,
             quit_confirm: QuitConfirmAction::None,

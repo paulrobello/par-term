@@ -119,6 +119,7 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
             &s.agent_commands,
             &mut s.crash_triage,
             &s.config.load(),
+            &s.overlay_ui.profile_manager,
             #[cfg(feature = "mux")]
             &s.tmux_state,
         );
@@ -317,16 +318,37 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         s.start_demote_tab();
         true
     }),
+    // Open Profiles… (UX.md PR1, Cmd+O). The id predates the launcher; the
+    // native menu item and saved bindings keep reaching it.
     ("toggle_profile_drawer", |s: &mut WindowState| {
         s.toggle_profile_drawer();
         log::info!(
-            "Profile drawer toggled via keybinding: {}",
-            if s.overlay_ui.profile_drawer_ui.expanded {
-                "expanded"
+            "Open Profiles toggled via keybinding: {}",
+            if s.overlay_ui.profile_launcher_ui.visible {
+                "open"
             } else {
-                "collapsed"
+                "closed"
             }
         );
+        true
+    }),
+    // The Profiles drawer: Open Profiles pinned to the right edge (PR2).
+    ("toggle_profiles_panel", |s: &mut WindowState| {
+        s.toggle_profiles_drawer();
+        true
+    }),
+    // UX.md PR3/PR5/PR6 profile actions; the per-profile ids
+    // (`open_profile:<id>` …) resolve in `dispatch_profile_action`.
+    ("manage_profiles", |s: &mut WindowState| {
+        s.manage_profiles();
+        true
+    }),
+    ("edit_tab_profile", |s: &mut WindowState| {
+        s.edit_tab_profile();
+        true
+    }),
+    ("toggle_tab_profile_pin", |s: &mut WindowState| {
+        s.toggle_tab_profile_pin();
         true
     }),
     ("toggle_clipboard_history", |s: &mut WindowState| {
@@ -523,6 +545,11 @@ impl WindowState {
     /// Returns true if the action was handled, false if unknown.
     pub(crate) fn execute_keybinding_action(&mut self, action: &str) -> bool {
         let action = par_term_config::config::keybindings_methods::current_action_id(action);
+        // Open Profiles' Cmd+D / Cmd+Shift+D arrive here from the native
+        // menu while the launcher is open (UX.md PR1).
+        if self.launcher_takes_split(action) {
+            return true;
+        }
         if let Some((_, handler)) = ACTION_HANDLERS.iter().find(|(name, _)| *name == action) {
             return handler(self);
         }
@@ -584,6 +611,8 @@ impl WindowState {
                 );
                 false
             }
+        } else if let Some(result) = self.dispatch_profile_action(action) {
+            result
         } else if action.starts_with("move_tab_to_window:") {
             self.dispatch_move_tab_to_window(action)
         } else if action.starts_with("attach_mux_session:") {

@@ -223,7 +223,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | Shortcut | Action |
 |----------|--------|
 | `Cmd/Ctrl + Shift + P` | Open the command palette (`toggle_command_palette`) |
-| `Cmd + O` (macOS) / Profiles menu (Linux/Win) | Toggle the profile drawer (`toggle_profile_drawer`) |
+| `Cmd + O` (macOS) / Profiles menu (Linux/Win) | Open Profiles… — search profiles; Enter new tab, Shift+Enter new window, Cmd+D / Cmd+Shift+D split, Cmd+Enter change this tab's profile (`toggle_profile_drawer`) |
 | `Cmd + Shift + B` (macOS) / `Ctrl + Alt + B` (Linux/Win) | Toggle background shader |
 | `Cmd/Ctrl + Shift + U` | Toggle cursor shader |
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
@@ -231,7 +231,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | `Cmd + ,` (macOS) / `F12` | Open the Settings window |
 | `Ctrl + ,` (all platforms) | Cycle cursor style (Block → Beam → Underline) |
 
-> **📝 Note:** The command palette owns `Cmd/Ctrl + Shift + P` (the VS Code convention). The profile drawer moved to iTerm2's **Open Profiles** chord, `Cmd + O`, on macOS. On Linux and Windows it ships unbound, because the matching `Ctrl + Shift + O` is Split Down there; open it from the Profiles menu or the palette. Reach **Manage Profiles...** from the Profiles menu, or from **Settings ▸ Profiles**.
+> **📝 Note:** The command palette owns `Cmd/Ctrl + Shift + P` (the VS Code convention). **Open Profiles** takes iTerm2's chord, `Cmd + O`, on macOS. On Linux and Windows it ships unbound, because the matching `Ctrl + Shift + O` is Split Down there; open it from the Profiles menu or the palette. The pinned Profiles drawer is **View ▸ Profiles Panel** (`toggle_profiles_panel`, unbound). Reach **Manage Profiles...** from the Profiles menu, or from **Settings ▸ Profiles**; **Session ▸ Edit Tab's Profile...** and **Session ▸ Pin Profile** act on the active tab.
 
 > **📝 Note:** The session picker moved off `Cmd + Opt + T` on macOS, which iTerm2 uses for New Tab Next to Current. On Linux, Ubuntu opens a terminal on `Ctrl + Alt + T`, so `Ctrl + Alt + S` is offered as well.
 
@@ -365,11 +365,20 @@ without a binding there is no way to open the in-app menu.
 - `toggle_copy_mode`, `enter_copy_mode`, `toggle_session_logging`, `toggle_throughput_mode`
 - `toggle_background_shader`, `toggle_cursor_shader`
 - `cycle_background_shader`, `toggle_shader_animation`, `toggle_shader_readability_mode`
-- `toggle_broadcast_input`, `toggle_profile_drawer`
+- `toggle_broadcast_input`, `toggle_profile_drawer` (Open Profiles…), `toggle_profiles_panel` (the Profiles drawer)
 - `toggle_session_picker` - The session picker: par-mux sessions (attach, switch, create, rename, end, detach) and, with tmux integration on, tmux sessions. The old id `toggle_tmux_session_picker` still works
 - `ssh_quick_connect`
 - `toggle_ai_inspector`, `toggle_command_history`
 - `reload_dynamic_profiles`
+
+**Profiles** ([Profiles](../features/PROFILES.md)):
+- `open_profile:<id>` - Open profile `<id>` in a new tab. A profile's old **Keyboard Shortcut** is migrated to a binding of this action on first launch
+- `open_profile_window:<id>` - Open profile `<id>` in a new window
+- `split_profile:<id>:right`, `split_profile:<id>:down` - Split the focused pane running profile `<id>` (local tabs; par-mux and tmux panes cannot start a profile's program yet)
+- `set_tab_profile:<id>` - Give the active tab profile `<id>`'s identity and pin it
+- `manage_profiles` - Open Settings › Profiles
+- `edit_tab_profile` - Open Settings › Profiles for the active tab's profile
+- `toggle_tab_profile_pin` - Pin the active tab's profile so automatic switching leaves it alone
 - `toggle_agent_usage_panel` - Show or hide the agent usage panel ([Agent Usage](../features/AGENT_USAGE.md))
 
 **Scrolling:**

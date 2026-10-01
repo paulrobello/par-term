@@ -36,6 +36,9 @@ pub(super) struct TabRenderParams<'a> {
     pub mux_view: &'a crate::tab::pane_badges::TabMuxView,
     /// Pane-mode badge (zoom / broadcast, UX.md V5/V6) and its hover text.
     pub pane_badge: Option<(&'static str, &'static str)>,
+    /// "Profile: X (auto: rule)" hover line (UX.md PR5); `None` for a
+    /// plain tab.
+    pub profile_tooltip: Option<String>,
     pub custom_color: Option<[u8; 3]>,
     pub config: &'a Config,
     /// Tab height (vertical layout) or tab width (horizontal layout).
@@ -123,6 +126,7 @@ impl TabBarUI {
             is_bell_active,
             mux_view,
             pane_badge,
+            profile_tooltip,
             custom_color,
             config,
             tab_size: tab_height,
@@ -293,10 +297,13 @@ impl TabBarUI {
         }
 
         // Handle click and drag
-        let tab_response = ui.interact(
-            tab_rect,
-            egui::Id::new(("tab_click", id)),
-            egui::Sense::click_and_drag(),
+        let tab_response = with_profile_tooltip(
+            ui.interact(
+                tab_rect,
+                egui::Id::new(("tab_click", id)),
+                egui::Sense::click_and_drag(),
+            ),
+            profile_tooltip,
         );
 
         let pointer_in_tab = tab_response.hovered();
@@ -366,6 +373,26 @@ impl TabBarUI {
 
         (action, tab_rect)
     }
+}
+
+/// Hover a tab's whole rect for its profile line (UX.md PR5), shared by
+/// both layouts so the tooltip cannot drift between them.
+pub(super) fn with_profile_tooltip(
+    response: egui::Response,
+    tooltip: Option<String>,
+) -> egui::Response {
+    match tooltip {
+        Some(text) => response.on_hover_text(text),
+        None => response,
+    }
+}
+
+/// The profile line for `tab`'s tooltip, names resolved live.
+pub(super) fn tab_profile_tooltip(
+    tab: &crate::tab::Tab,
+    profiles: &crate::profile::ProfileManager,
+) -> Option<String> {
+    crate::tab::profile_tooltip(&tab.profile, |id| profiles.get(&id).map(|p| p.name.clone()))
 }
 
 /// Draw the pane-mode badge (UX.md V5/V6) and return the width it takes.

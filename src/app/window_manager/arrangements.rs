@@ -140,6 +140,7 @@ impl WindowManager {
                 (w, h),
                 &tab_cwds,
                 window_snapshot.active_tab_index,
+                None,
             );
 
             if let Some(window_id) = created_window_id

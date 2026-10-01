@@ -4,7 +4,6 @@
 //! - `handle_key_event`: main key dispatch entry point (this file)
 //! - `clipboard`: clipboard history toggle, `paste_text`
 //! - `command_history`: the command history toggle
-//! - `profiles`: per-profile hotkeys and shortcut string building
 //!
 //! Every shipped chord resolves through the registry as a default keybinding
 //! (`defaults::menu_chords`, `defaults::layer_chords`, UX K2): the scroll,
@@ -17,13 +16,15 @@
 //! every key they do not close on before this handler runs and feeds it to
 //! egui, where each overlay's `show()` reads its own keys. The per-overlay
 //! layers that used to sit in `KEY_LAYERS` were unreachable behind the stack
-//! and were removed (MP1 Q4).
+//! and were removed (MP1 Q4). The last layer, per-profile hotkeys, was
+//! removed by UX MP3 (B59): profile shortcuts are registry bindings to
+//! `open_profile:<id>` (see `crate::profile::actions`), so `KEY_LAYERS` is
+//! gone with it.
 
 pub(crate) mod claims;
 mod clipboard;
 mod command_history;
 mod config_reload;
-mod profiles;
 
 #[cfg(test)]
 mod chord_tests;
@@ -34,9 +35,6 @@ use winit::event::ElementState;
 use winit::event::KeyEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
-
-/// One shortcut layer: inspects a key event and returns `true` if it consumed it.
-pub(super) type KeyLayer = fn(&mut WindowState, &KeyEvent) -> bool;
 
 /// What a key press in a tab whose panes have all exited should do (B63).
 ///
@@ -68,26 +66,6 @@ fn exited_tab_keypress_action(
         ExitedTabKeypress::CloseTab
     }
 }
-
-/// Shortcut layers in precedence order, as consulted by `handle_key_event`.
-///
-/// This is **ordered dispatch, not a lookup table**: each layer decides for
-/// itself whether the key is its own, so an earlier layer can pre-empt a later
-/// one for the same chord. Reordering entries changes which shortcut wins.
-/// `dispatch_tests::key_layer_precedence_is_unchanged` pins the order so a
-/// reorder has to be deliberate rather than incidental.
-///
-/// What each layer claims is declared as data in [`claims::LAYER_CLAIMS`], which
-/// is what lets `chord_tests` answer "who gets this chord first?" without
-/// running the chain. The utility and tab chord layers that used to continue
-/// this chain dissolved into registry defaults (UX K2), and the per-overlay
-/// state machines (clipboard/command history, paste special, agent usage,
-/// palette, search, help) moved behind the overlay stack (see the module
-/// docs). Only per-profile hotkeys remain.
-pub(super) static KEY_LAYERS: &[(&str, KeyLayer)] = &[
-    // Per-profile hotkeys
-    ("profile_shortcuts", WindowState::handle_profile_shortcuts),
-];
 
 impl WindowState {
     pub(crate) fn handle_key_event(&mut self, event: KeyEvent, event_loop: &ActiveEventLoop) {
@@ -265,9 +243,9 @@ impl WindowState {
         }
 
         // Unbind/passthrough (UX K2/K27): set when the registry matched a
-        // `pass_to_terminal` row below. No hardcoded interception may take the
-        // key after that — it must reach the PTY encoding at the end of this
-        // handler.
+        // `pass_to_terminal` row below. The paste/copy branch must not take
+        // the key after that — it must reach the PTY encoding at the end of
+        // this handler.
         let mut passthrough = false;
 
         // Check user-defined keybindings first (before hardcoded shortcuts)
@@ -300,18 +278,6 @@ impl WindowState {
                 event.logical_key,
                 self.input_handler.modifiers
             );
-        }
-
-        // Shortcut layers, in precedence order — the first layer to claim the
-        // key wins and the key never reaches the terminal.  See KEY_LAYERS.
-        // A passthrough row claims the chord for the shell, so every
-        // hardcoded layer is skipped (K3: Alt+1..9, Ctrl+_, … become freeable).
-        if !passthrough {
-            for (_, layer) in KEY_LAYERS {
-                if layer(self, &event) {
-                    return;
-                }
-            }
         }
 
         // Paste/copy: the one deliberate hardcoded exemption from the

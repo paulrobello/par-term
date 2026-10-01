@@ -63,6 +63,10 @@ impl WindowState {
             Check::OutputRecording,
         );
         check(self.is_copy_mode_active(), Check::CopyMode);
+        check(
+            tab.is_some_and(|t| t.profile.pinned),
+            Check::TabProfilePinned,
+        );
 
         MenuState {
             open_toggles: self.open_toggles(),
@@ -93,7 +97,8 @@ impl WindowState {
             (o.command_history_ui.visible, "toggle_command_history"),
             (o.agent_usage_panel.visible, "toggle_agent_usage_panel"),
             (o.ai_inspector.open, "toggle_ai_inspector"),
-            (o.profile_drawer_ui.expanded, "toggle_profile_drawer"),
+            (o.profile_launcher_ui.visible, "toggle_profile_drawer"),
+            (o.profile_drawer_ui.expanded, "toggle_profiles_panel"),
             (self.is_copy_mode_active(), "toggle_copy_mode"),
         ]
         .into_iter()

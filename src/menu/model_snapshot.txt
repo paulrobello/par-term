@@ -61,6 +61,7 @@ View/Maximize Vertically
 View/Zoom Pane
 View/---
 View/Profile Drawer
+View/Profiles Panel
 View/Assistant Panel
 View/Agent Usage
 View/FPS Overlay
@@ -83,6 +84,9 @@ Session/---
 Session/Move Pane to New Tab
 Session/---
 Session/Record Output to File
+Session/---
+Session/Edit Tab's Profile...
+Session/Pin Profile
 Profiles/Open Profiles...
 Profiles/---
 Profiles/<profiles>

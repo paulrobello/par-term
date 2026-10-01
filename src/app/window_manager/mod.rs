@@ -27,6 +27,7 @@ mod menu_actions;
 mod menu_sync;
 #[cfg(test)]
 mod menu_sync_tests;
+mod profile_windows;
 mod scripting;
 mod settings_actions;
 mod settings_persistence;

@@ -253,6 +253,9 @@ pub struct WindowState {
     pub(crate) pane_resize_mode: crate::app::pane_resize_mode::PaneResizeModeState,
     /// Badge state for session information display
     pub(crate) badge_state: BadgeState,
+    /// The tab `badge_state`'s style was last built for (UX.md B60): a
+    /// change rebuilds it from the config plus the new tab's profile.
+    pub(crate) badge_tab: Option<crate::tab::TabId>,
     /// Copy mode state machine
     pub(crate) copy_mode: crate::copy_mode::CopyModeState,
     /// File transfer UI state

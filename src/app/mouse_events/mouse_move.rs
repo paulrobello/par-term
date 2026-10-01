@@ -18,8 +18,8 @@ impl WindowState {
         // Notify status bar of mouse activity (for auto-hide timer)
         self.status_bar_ui.on_mouse_activity();
 
-        // Check if profile drawer is open - let egui handle mouse events
-        if self.overlay_ui.profile_drawer_ui.expanded {
+        // Over the Profiles drawer egui owns the pointer (UX.md PR2)
+        if self.mouse_over_profiles_drawer(position) {
             self.clear_url_hover_if_needed();
             self.request_redraw();
             return;

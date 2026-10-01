@@ -127,12 +127,14 @@ fn render_demote_overlays(
 /// Blocked agents lead the empty-query view. The par-mux directory refresh
 /// the keybinding path runs needs `&mut WindowState`, which the closure
 /// cannot take; the caller sets a flag and runs it after the closure.
+#[allow(clippy::too_many_arguments)] // Disjoint WindowState fields the egui closure holds; a struct would re-borrow them all
 pub(super) fn open_command_palette_with_runtime_rows(
     status_bar_ui: &StatusBarUI,
     agent_commands: &AgentCommandStore,
     crash_triage: &mut CrashTriageState,
     config: &ArcSwap<Config>,
     command_palette: &mut CommandPalette,
+    profiles: &crate::profile::ProfileManager,
     keybinding_registry: &par_term_keybindings::KeybindingRegistry,
     #[cfg(feature = "mux")] tmux_state: &TmuxState,
 ) {
@@ -141,6 +143,7 @@ pub(super) fn open_command_palette_with_runtime_rows(
         agent_commands,
         crash_triage,
         &config.load(),
+        profiles,
         #[cfg(feature = "mux")]
         tmux_state,
     );
@@ -233,4 +236,30 @@ pub(super) fn render_update_dialog(
     } else {
         update_state.show_dialog = false;
     }
+}
+
+/// Open Profiles… (UX.md PR1) and its pinned view, the Profiles drawer
+/// (PR2): one launcher list, drawn as a popup while open and as a docked
+/// right panel while the drawer is expanded. The drawer stops above a
+/// bottom status bar (an `egui::Area`, outside the panel layout).
+pub(super) fn render_profile_launcher(
+    ctx: &mut egui::Ui,
+    overlay_ui: &mut crate::app::window_state::overlay_ui_state::OverlayUiState,
+    config: &Config,
+    custom_status_bar_height: f32,
+) -> Option<crate::profile_launcher_ui::LauncherChoice> {
+    let popup = overlay_ui.profile_launcher_ui.show(ctx.ctx());
+    let bottom_margin =
+        if config.status_bar.status_bar_position == par_term_config::StatusBarPosition::Bottom {
+            custom_status_bar_height
+        } else {
+            0.0
+        };
+    let pinned = overlay_ui.profile_drawer_ui.render(
+        ctx,
+        &mut overlay_ui.profile_launcher_ui,
+        config,
+        bottom_margin,
+    );
+    popup.or(pinned)
 }

@@ -44,6 +44,21 @@ pub(crate) fn profile_launch_command(profile: &Profile, config: &Config) -> Opti
     })
 }
 
+/// The program a "Split with Profile" pane runs (UX.md PR1): the profile's
+/// program, or — for a profile that runs the configured shell — that shell
+/// explicitly, so the split does not inherit the tab's own profile program.
+pub(crate) fn profile_split_launch(profile: &Profile, config: &Config) -> LaunchCommand {
+    profile_launch_command(profile, config).unwrap_or_else(|| {
+        let (program, mut args) = super::setup::get_shell_command(config);
+        super::setup::apply_login_shell_flag(&mut args, config);
+        LaunchCommand {
+            program,
+            args,
+            extra_env: Vec::new(),
+        }
+    })
+}
+
 /// Whether a split of a tab opened from `profile` inherits its program.
 /// A profile that attaches a tmux or par-mux session is excluded: its
 /// program would attach a second time.

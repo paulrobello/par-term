@@ -121,6 +121,7 @@ impl WindowState {
             pane_resize_mode: Default::default(),
 
             badge_state,
+            badge_tab: None,
 
             copy_mode: crate::copy_mode::CopyModeState::new(),
 

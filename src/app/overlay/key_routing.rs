@@ -141,7 +141,7 @@ impl WindowState {
             OverlayId::TreePicker => o.tree_picker_ui.close(),
             OverlayId::SessionPicker => o.tmux_session_picker_ui.hide(),
             OverlayId::TabContextMenu => self.tab_bar_ui.close_context_menu(),
-            OverlayId::NewTabProfileMenu => self.tab_bar_ui.show_new_tab_profile_menu = false,
+            OverlayId::ProfileLauncher => o.profile_launcher_ui.close(),
             OverlayId::AppMenu => crate::menu::request_toggle(),
             OverlayId::PaneRename => o.pane_rename_ui.cancel(),
             OverlayId::SshConnect => o.ssh_connect_ui.close(),

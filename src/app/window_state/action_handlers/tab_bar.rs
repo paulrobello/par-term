@@ -95,9 +95,17 @@ impl WindowState {
                     self.request_redraw();
                 }
             }
-            TabBarAction::NewTabWithProfile(profile_id) => {
-                self.open_profile(profile_id);
-                self.request_redraw();
+            TabBarAction::OpenProfiles => {
+                self.open_profile_launcher();
+            }
+            TabBarAction::ChangeProfile(id) => {
+                // Cmd+Enter in the launcher changes the ACTIVE tab.
+                self.tab_manager.switch_to(id);
+                self.open_profile_launcher();
+            }
+            TabBarAction::TogglePinProfile(id) => {
+                self.tab_manager.switch_to(id);
+                self.toggle_tab_profile_pin();
             }
             TabBarAction::RenameTab(id, name) => {
                 // A mux tab's name lives daemon-side: forward the rename so
@@ -174,23 +182,6 @@ impl WindowState {
             }
             TabBarAction::Duplicate(id) => {
                 self.duplicate_tab_by_id(id);
-                self.request_redraw();
-            }
-            TabBarAction::ToggleAssistantPanel => {
-                let just_opened = self.overlay_ui.ai_inspector.toggle();
-                self.sync_ai_inspector_width();
-                if just_opened {
-                    if self
-                        .config
-                        .load()
-                        .ai_inspector
-                        .ai_inspector_input_history_mode
-                        == par_term_config::AssistantInputHistoryMode::Persist
-                    {
-                        self.overlay_ui.ai_inspector.merge_persisted_input_history();
-                    }
-                    self.try_auto_connect_agent();
-                }
                 self.request_redraw();
             }
             TabBarAction::SetTabIcon(tab_id, icon) => {

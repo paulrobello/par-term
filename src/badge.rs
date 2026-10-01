@@ -25,6 +25,8 @@ pub struct SessionVariables {
     pub last_command: Option<String>,
     /// Current profile name
     pub profile_name: String,
+    /// The active tab's profile name (`tab.profile_name`, UX.md PR5)
+    pub tab_profile_name: String,
     /// TTY device name
     pub tty: String,
     /// Terminal columns
@@ -65,6 +67,7 @@ impl SessionVariables {
             username,
             path,
             profile_name: "Default".to_string(),
+            tab_profile_name: "Default".to_string(),
             tty: std::env::var("TTY").unwrap_or_default(),
             columns: 80,
             rows: 24,
@@ -81,6 +84,7 @@ impl SessionVariables {
             "session.job" => self.job.clone(),
             "session.last_command" => self.last_command.clone(),
             "session.profile_name" => Some(self.profile_name.clone()),
+            "tab.profile_name" => Some(self.tab_profile_name.clone()),
             "session.tty" => Some(self.tty.clone()),
             "session.columns" => Some(self.columns.to_string()),
             "session.rows" => Some(self.rows.to_string()),
@@ -314,6 +318,7 @@ impl BadgeState {
 /// - `\(session.job)` - Foreground job
 /// - `\(session.last_command)` - Last command
 /// - `\(session.profile_name)` - Profile name
+/// - `\(tab.profile_name)` - The active tab's profile name
 /// - `\(session.tty)` - TTY device
 /// - `\(session.columns)` - Terminal columns
 /// - `\(session.rows)` - Terminal rows

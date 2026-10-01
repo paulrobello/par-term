@@ -73,7 +73,7 @@ fn open_raw(ws: &mut WindowState, id: OverlayId) {
         OverlayId::TreePicker => o.tree_picker_ui.open(),
         OverlayId::SessionPicker => o.tmux_session_picker_ui.visible = true,
         OverlayId::TabContextMenu => ws.tab_bar_ui.test_open_context_menu(1),
-        OverlayId::NewTabProfileMenu => ws.tab_bar_ui.show_new_tab_profile_menu = true,
+        OverlayId::ProfileLauncher => o.profile_launcher_ui.open(Vec::new(), None),
         // The in-app menu's open flag is private to the menu widget and only
         // flips inside an egui frame; its membership is covered by the
         // kind/guard table test instead.
@@ -154,7 +154,7 @@ const MP0_GUARD_SET: &[OverlayId] = &[
     OverlayId::AgentCommandConfirm,
     OverlayId::UpdateDialog,
     OverlayId::TabContextMenu,
-    OverlayId::NewTabProfileMenu,
+    OverlayId::ProfileLauncher,
     OverlayId::DemotePick,
 ];
 
@@ -268,7 +268,7 @@ fn b61_dialogs_block_the_terminal() {
         OverlayId::AgentCommandConfirm,
         OverlayId::UpdateDialog,
         OverlayId::TabContextMenu,
-        OverlayId::NewTabProfileMenu,
+        OverlayId::ProfileLauncher,
         OverlayId::DemotePick,
         OverlayId::CommandPalette,
         OverlayId::AgentUsage,

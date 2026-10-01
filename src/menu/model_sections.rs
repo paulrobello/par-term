@@ -178,9 +178,11 @@ pub(super) fn view() -> Vec<MenuEntry> {
             "Profile Drawer",
             MenuAction::Action("toggle_profile_drawer"),
         )
-        .toggle(Check::ProfileDrawer)
         .alias()
         .into(),
+        MenuItemSpec::action("toggle_profiles_panel", "Profiles Panel")
+            .toggle(Check::ProfileDrawer)
+            .into(),
         MenuItemSpec::action("toggle_ai_inspector", "Assistant Panel")
             .toggle(Check::AssistantPanel)
             .into(),

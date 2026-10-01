@@ -109,13 +109,6 @@ impl WindowManager {
                     log::error!("Failed to open the documentation: {e}");
                 }
             }
-            MenuAction::ManageProfiles => {
-                self.open_settings_window(event_loop);
-                if let Some(sw) = &mut self.settings_window {
-                    sw.settings_ui
-                        .open_section(par_term_settings_ui::layout::deep_link::PROFILES);
-                }
-            }
             MenuAction::OpenProfile(profile_id) => {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
@@ -389,5 +382,19 @@ mod tests {
     #[test]
     fn menu_new_tab_runs_the_registry_action() {
         assert_eq!(action_of("new_tab"), MenuAction::Action("new_tab"));
+    }
+
+    /// UX.md MP3: the profile items run the registry actions their chords,
+    /// the palette, and the tab context menu run.
+    #[test]
+    fn menu_profile_items_run_the_registry_actions() {
+        for id in [
+            "manage_profiles",
+            "toggle_profiles_panel",
+            "edit_tab_profile",
+            "toggle_tab_profile_pin",
+        ] {
+            assert_eq!(action_of(id), MenuAction::Action(id), "{id}");
+        }
     }
 }

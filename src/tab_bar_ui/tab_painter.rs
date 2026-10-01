@@ -37,6 +37,7 @@ impl TabBarUI {
             is_bell_active,
             mux_view,
             pane_badge,
+            profile_tooltip,
             custom_color,
             config,
             tab_size: tab_width,
@@ -303,10 +304,13 @@ impl TabBarUI {
 
         // Handle tab click and drag (switch to tab / initiate drag)
         // Use click_and_drag sense to enable both click and drag detection
-        let tab_response = ui.interact(
-            tab_rect,
-            egui::Id::new(("tab_click", id)),
-            egui::Sense::click_and_drag(),
+        let tab_response = super::tab_rendering::with_profile_tooltip(
+            ui.interact(
+                tab_rect,
+                egui::Id::new(("tab_click", id)),
+                egui::Sense::click_and_drag(),
+            ),
+            profile_tooltip,
         );
 
         // Use egui's response for click detection

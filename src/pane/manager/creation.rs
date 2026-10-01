@@ -164,6 +164,26 @@ impl PaneManager {
         launch: Option<crate::pane::LaunchCommand>,
         ratio: f32,
     ) -> Result<Option<PaneId>> {
+        self.split_placed_in(
+            direction, before, focus_new, config, runtime, launch, ratio, None,
+        )
+    }
+
+    /// [`Self::split_placed`] with the new pane started in `cwd` instead of
+    /// the focused pane's directory — a profile split carries the profile's
+    /// working directory (UX.md PR1).
+    #[allow(clippy::too_many_arguments)] // split_placed() plus the directory
+    pub fn split_placed_in(
+        &mut self,
+        direction: SplitDirection,
+        before: bool,
+        focus_new: bool,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        launch: Option<crate::pane::LaunchCommand>,
+        ratio: f32,
+        cwd: Option<String>,
+    ) -> Result<Option<PaneId>> {
         let focused_id = match self.focused_pane_id {
             Some(id) => id,
             None => return Ok(None),
@@ -182,6 +202,7 @@ impl PaneManager {
         } else {
             (None, self.total_bounds)
         };
+        let working_dir = cwd.or(working_dir);
 
         // Calculate approximate dimensions for the new pane (half of focused pane)
         let (new_cols, new_rows) = match direction {

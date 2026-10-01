@@ -84,7 +84,7 @@ pub(crate) enum UiTestAction {
     AssertEqCaptured { assert_eq_captured: String },
     /// Seed one of the B61 modal dialogs open (`close_running_job`,
     /// `mux_last_tab`, `trigger_confirm`, `agent_command_confirm`,
-    /// `update_dialog`, `tab_context_menu`, `new_tab_profile_menu`,
+    /// `update_dialog`, `tab_context_menu`, `profile_launcher`,
     /// `demote_chooser`, `profile_drawer`, `quit_confirmation`) — the seam
     /// standing in for the user interaction that opens each dialog, so a
     /// script can prove typed keys stay off the PTY while it is open.
@@ -263,6 +263,29 @@ fn named_physical_code(key: &NamedKey) -> PhysicalKey {
     }
 }
 
+/// Split a `press` name's modifier prefixes (`Shift+`, `Cmd+`, `Ctrl+`, in
+/// any order) from its key name. `Cmd+` is egui's platform command
+/// modifier (Cmd on macOS, Ctrl elsewhere), the one egui's `COMMAND`
+/// shortcuts match.
+fn press_modifiers(press: &str) -> (&str, egui::Modifiers) {
+    let mut modifiers = egui::Modifiers::NONE;
+    let mut rest = press;
+    loop {
+        if let Some(r) = rest.strip_prefix("Shift+") {
+            modifiers.shift = true;
+            rest = r;
+        } else if let Some(r) = rest.strip_prefix("Cmd+") {
+            modifiers |= egui::Modifiers::COMMAND;
+            rest = r;
+        } else if let Some(r) = rest.strip_prefix("Ctrl+") {
+            modifiers.ctrl = true;
+            rest = r;
+        } else {
+            return (rest, modifiers);
+        }
+    }
+}
+
 /// Map a step's `press` name to the egui key it should deliver.
 fn press_to_egui_key(name: &str) -> Option<egui::Key> {
     Some(match name.to_ascii_lowercase().as_str() {
@@ -368,13 +391,11 @@ impl WindowManager {
                 StepOutcome::Performed(format!("type_text \"{type_text}\" (egui)"))
             }
             UiTestAction::Press { press } => {
-                // A "Shift+"-prefixed name (e.g. "Shift+Enter") carries the
-                // modifier on the egui event — panels distinguish plain from
-                // shifted keys (clipboard history's Enter vs Shift+Enter).
-                let (key_name, shift) = match press.strip_prefix("Shift+") {
-                    Some(rest) => (rest, true),
-                    None => (press.as_str(), false),
-                };
+                // "Shift+" / "Cmd+" / "Ctrl+" prefixes (any order, e.g.
+                // "Cmd+Shift+d") carry the modifiers on the egui event —
+                // panels distinguish plain from modified keys (clipboard
+                // history's Enter vs Shift+Enter, Open Profiles' Cmd+D).
+                let (key_name, modifiers) = press_modifiers(press);
                 let Some(egui_key) = press_to_egui_key(key_name) else {
                     return StepOutcome::Failed(format!(
                         "press: unknown key name '{press}' (see AGENT_UI_VERIFICATION.md)"
@@ -389,10 +410,7 @@ impl WindowManager {
                     physical_key: None,
                     pressed: true,
                     repeat: false,
-                    modifiers: egui::Modifiers {
-                        shift,
-                        ..Default::default()
-                    },
+                    modifiers,
                 });
                 Self::render_ui_test_frame(ws);
                 StepOutcome::Performed(format!("press {press} (egui)"))
@@ -615,8 +633,12 @@ impl WindowManager {
                     ws.tab_bar_ui.test_close_context_menu();
                 }
             }
-            "new_tab_profile_menu" => {
-                ws.tab_bar_ui.show_new_tab_profile_menu = open;
+            "profile_launcher" => {
+                if open {
+                    ws.open_profile_launcher();
+                } else {
+                    ws.overlay_ui.profile_launcher_ui.close();
+                }
             }
             "demote_chooser" => {
                 if open {
@@ -648,7 +670,9 @@ impl WindowManager {
                 }
             }
             "profile_drawer" => {
-                ws.overlay_ui.profile_drawer_ui.expanded = open;
+                if ws.overlay_ui.profile_drawer_ui.expanded != open {
+                    ws.toggle_profiles_drawer();
+                }
             }
             "quit_confirmation" => {
                 if open {

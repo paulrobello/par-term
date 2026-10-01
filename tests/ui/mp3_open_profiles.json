@@ -1,0 +1,39 @@
+{
+  "steps": [
+    { "wait_ms": 2500, "assert_eq": ["tab_count", "1"] },
+    { "assert_eq": ["window_count", "1"] },
+
+    { "chord": "Ctrl+Alt+Cmd+W", "wait_ms": 800 },
+    { "assert_eq": ["tab_count", "2"] },
+    { "assert_eq": ["tab_profile", "Work"] },
+
+    { "chord": "Ctrl+Alt+Cmd+O", "wait_ms": 500 },
+    { "assert": "overlay_open:profile_launcher" },
+    { "assert": "modal_guard" },
+    { "type_text": "work", "wait_ms": 300 },
+    { "press": "Enter", "wait_ms": 800 },
+    { "assert_not": "overlay_open:profile_launcher" },
+    { "assert_eq": ["tab_count", "3"] },
+    { "assert_eq": ["tab_profile", "Work"] },
+
+    { "chord": "Ctrl+Alt+Cmd+O", "wait_ms": 500 },
+    { "type_text": "work", "wait_ms": 300 },
+    { "press": "Cmd+d", "wait_ms": 800 },
+    { "assert_eq": ["pane_count", "2"] },
+
+    { "chord": "Ctrl+Alt+Cmd+O", "wait_ms": 500 },
+    { "type_text": "work", "wait_ms": 300 },
+    { "press": "Cmd+Shift+d", "wait_ms": 800 },
+    { "assert_eq": ["pane_count", "3"] },
+
+    { "chord": "Ctrl+Alt+Cmd+O", "wait_ms": 500 },
+    { "type_text": "work", "wait_ms": 300 },
+    { "press": "Shift+Enter", "wait_ms": 3500 },
+    { "assert_eq": ["window_count", "2"] },
+
+    { "chord": "Ctrl+Alt+Cmd+O", "wait_ms": 500 },
+    { "assert": "overlay_open:profile_launcher" },
+    { "press": "Escape", "wait_ms": 400 },
+    { "assert_not": "overlay_open:profile_launcher" }
+  ]
+}

@@ -8,7 +8,6 @@
 //! - `horizontal`: Horizontal layout rendering (`render_horizontal`).
 //! - `context_menu`: Right-click context menu (rename, color, icon, duplicate, close).
 //! - `drag_drop`: Drag-and-drop state and rendering for tab reordering.
-//! - `profile_menu`: Profile selection popup for the new-tab chevron button.
 //! - `tab_rendering`: Vertical tab rendering and shared params/helpers.
 //! - `tab_painter`: Horizontal per-tab painting (`render_tab_with_width`).
 //! - `title_utils`: HTML title parsing, emoji sanitization, and styled segment rendering.
@@ -18,7 +17,6 @@ mod drag_drop;
 #[cfg(test)]
 mod hidden_bar_rename_tests;
 mod horizontal;
-mod profile_menu;
 mod state;
 mod tab_painter;
 mod tab_rendering;
@@ -47,8 +45,13 @@ pub enum TabBarAction {
     Close(TabId),
     /// Create a new tab
     NewTab,
-    /// Create a new tab from a specific profile
-    NewTabWithProfile(crate::profile::ProfileId),
+    /// Open Profiles… (UX.md PR1): the chevron next to `+` opens the
+    /// profile launcher, which replaced the chevron's own window (MD2).
+    OpenProfiles,
+    /// Change this tab's profile (PR5): switch to it, then Open Profiles.
+    ChangeProfile(TabId),
+    /// Pin or unpin this tab's profile against automatic switching (PR6).
+    TogglePinProfile(TabId),
     /// Reorder a tab to a new position
     Reorder(TabId, usize),
     /// Set custom color for a tab
@@ -61,8 +64,6 @@ pub enum TabBarAction {
     RenameTab(TabId, String),
     /// Set custom icon for a tab (None = clear)
     SetTabIcon(TabId, Option<String>),
-    /// Toggle the AI assistant panel
-    ToggleAssistantPanel,
     /// Move a tab to a brand-new par-term window.
     MoveTabToNewWindow(TabId),
     /// Move a tab into an existing par-term window.
@@ -187,8 +188,7 @@ impl TabBarUI {
                                 // Zero spacing between + and ▾
                                 ui.spacing_mut().item_spacing.x = 0.0;
 
-                                let show_chevron_v = !profiles.is_empty()
-                                    || config.ai_inspector.ai_inspector_enabled;
+                                let show_chevron_v = !profiles.is_empty();
                                 let chevron_space = if show_chevron_v {
                                     CHEVRON_RESERVED
                                 } else {
@@ -222,11 +222,10 @@ impl TabBarUI {
                                             .fill(egui::Color32::TRANSPARENT),
                                     );
                                     if chevron_btn.clicked_by(egui::PointerButton::Primary) {
-                                        self.show_new_tab_profile_menu =
-                                            !self.show_new_tab_profile_menu;
+                                        action = TabBarAction::OpenProfiles;
                                     }
                                     if chevron_btn.hovered() {
-                                        chevron_btn.on_hover_text("New tab from profile");
+                                        chevron_btn.on_hover_text("Open Profiles…");
                                     }
                                 }
                             });
@@ -252,6 +251,9 @@ impl TabBarUI {
                                         pane_badge: tab
                                             .pane_mode_badge()
                                             .map(|b| (b, tab.pane_mode_badge_tooltip())),
+                                        profile_tooltip: tab_rendering::tab_profile_tooltip(
+                                            tab, profiles,
+                                        ),
                                         custom_color: tab.custom_color,
                                         config,
                                         tab_size: tab_height,
@@ -287,12 +289,6 @@ impl TabBarUI {
             if menu_action != TabBarAction::None {
                 action = menu_action;
             }
-        }
-
-        // Render new-tab profile menu if open
-        let menu_action = self.render_new_tab_profile_menu(ctx, profiles, config);
-        if menu_action != TabBarAction::None {
-            action = menu_action;
         }
 
         action

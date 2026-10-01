@@ -212,6 +212,7 @@ impl WindowManager {
                 session_window.size,
                 &tab_cwds,
                 session_window.active_tab_index,
+                None,
             );
 
             if let Some(window_id) = created_window_id
@@ -312,7 +313,53 @@ impl WindowManager {
     /// Unlike `create_window()`, this skips `apply_window_positioning()` and
     /// places the window at the exact specified position and size.
     /// Additional tabs (beyond the first) are created with the given CWDs.
+    ///
+    /// `profile` (UX.md PR3 "Open in New Window"): the window's only tab
+    /// runs that profile instead of the default shell.
     pub fn create_window_with_overrides(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        position: (i32, i32),
+        size: (u32, u32),
+        tab_cwds: &[Option<String>],
+        active_tab_index: usize,
+        profile: Option<crate::profile::ProfileId>,
+    ) -> Option<WindowId> {
+        let created = self.create_window_with_overrides_inner(
+            event_loop,
+            position,
+            size,
+            tab_cwds,
+            active_tab_index,
+        )?;
+        if let Some(profile_id) = profile {
+            self.replace_first_tab_with_profile(created, profile_id);
+        }
+        Some(created)
+    }
+
+    /// Swap a fresh window's default tab for one running `profile_id`.
+    pub(super) fn replace_first_tab_with_profile(
+        &mut self,
+        window_id: WindowId,
+        profile_id: crate::profile::ProfileId,
+    ) {
+        let Some(ws) = self.windows.get_mut(&window_id) else {
+            return;
+        };
+        let default_tab = ws.tab_manager.active_tab_id();
+        let before = ws.tab_manager.tab_count();
+        ws.open_profile(profile_id);
+        // A profile that failed to spawn (or attaches a par-mux session,
+        // whose tab arrives later) leaves the default tab in place.
+        if ws.tab_manager.tab_count() > before
+            && let Some(id) = default_tab
+        {
+            let _ = ws.tab_manager.close_tab(id);
+        }
+    }
+
+    fn create_window_with_overrides_inner(
         &mut self,
         event_loop: &ActiveEventLoop,
         position: (i32, i32),

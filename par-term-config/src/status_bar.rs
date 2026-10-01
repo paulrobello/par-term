@@ -62,6 +62,8 @@ pub enum WidgetId {
     /// Broadcast input indicator (UX.md V5): how many panes of the active
     /// tab receive typing. Empty (self-hiding) while broadcast is off.
     BroadcastInput,
+    /// The active tab's profile name (UX.md PR5); "Default" for a plain tab.
+    Profile,
     /// Custom widget (user-defined via format string)
     Custom(String),
     /// Plugin-provided status bar widget (`plugin:<id>` key)
@@ -86,6 +88,7 @@ impl WidgetId {
             WidgetId::AgentUsage => "Agent Usage",
             WidgetId::AgentRoster => "Agent Roster",
             WidgetId::BroadcastInput => "Broadcast Input",
+            WidgetId::Profile => "Profile",
             WidgetId::Custom(name) => name.as_str(),
             WidgetId::Plugin(id) => id.as_str(),
         }
@@ -108,6 +111,7 @@ impl WidgetId {
             WidgetId::AgentUsage => "\u{25c6}",        // diamond (matches the summary glyph)
             WidgetId::AgentRoster => "\u{1f465}",      // busts in silhouette (a roster of agents)
             WidgetId::BroadcastInput => "\u{1f4e1}",   // satellite antenna (the tab badge)
+            WidgetId::Profile => "\u{1f464}",          // bust in silhouette
             WidgetId::Custom(_) => "\u{2699}",         // gear
             WidgetId::Plugin(_) => "\u{1f9e9}",        // puzzle piece
         }
@@ -144,6 +148,7 @@ impl WidgetId {
             WidgetId::AgentUsage => "agent_usage".to_string(),
             WidgetId::AgentRoster => "agent_roster".to_string(),
             WidgetId::BroadcastInput => "broadcast_input".to_string(),
+            WidgetId::Profile => "profile".to_string(),
             WidgetId::Custom(name) => format!("custom:{name}"),
             WidgetId::Plugin(id) => format!("plugin:{id}"),
         }
@@ -173,6 +178,7 @@ impl WidgetId {
             "agent_usage" => WidgetId::AgentUsage,
             "agent_roster" => WidgetId::AgentRoster,
             "broadcast_input" => WidgetId::BroadcastInput,
+            "profile" => WidgetId::Profile,
             _ => return None,
         })
     }
@@ -326,6 +332,15 @@ pub fn default_widgets() -> Vec<StatusBarWidgetConfig> {
             enabled: true,
             section: StatusBarSection::Left,
             order: 0,
+            format: None,
+        },
+        // Off by default (UX.md PR5): the default merge adds it to every
+        // existing config, so it must not change anyone's bar unasked.
+        StatusBarWidgetConfig {
+            id: WidgetId::Profile,
+            enabled: false,
+            section: StatusBarSection::Left,
+            order: 1,
             format: None,
         },
     ]

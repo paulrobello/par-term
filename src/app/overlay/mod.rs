@@ -126,7 +126,7 @@ pub(crate) enum OverlayId {
     TreePicker,
     SessionPicker,
     TabContextMenu,
-    NewTabProfileMenu,
+    ProfileLauncher,
     AppMenu,
     PaneRename,
     SshConnect,
@@ -165,7 +165,7 @@ impl OverlayId {
         OverlayId::TreePicker,
         OverlayId::SessionPicker,
         OverlayId::TabContextMenu,
-        OverlayId::NewTabProfileMenu,
+        OverlayId::ProfileLauncher,
         OverlayId::AppMenu,
         OverlayId::PaneRename,
         OverlayId::SshConnect,
@@ -189,7 +189,7 @@ impl OverlayId {
             | ResizeMode | DemotePick => OverlayKind::Mode,
             Help | ClipboardHistory | CommandHistory | PasteSpecial | Search | CommandPalette
             | AgentUsage | PaneContextMenu | TreePicker | SessionPicker | TabContextMenu
-            | NewTabProfileMenu | AppMenu | PaneRename | SshConnect => OverlayKind::Popup,
+            | ProfileLauncher | AppMenu | PaneRename | SshConnect => OverlayKind::Popup,
             ShaderInstall | Integrations | RemoteShellInstall | UpdateDialog | TriggerConfirm
             | AgentCommandConfirm | CloseConfirm | MuxLastTab | QuitConfirm => OverlayKind::Modal,
         }
@@ -220,7 +220,7 @@ impl OverlayId {
             TreePicker => "tree_picker_ui",
             SessionPicker => "tmux_session_picker_ui",
             TabContextMenu => "tab_context_menu",
-            NewTabProfileMenu => "new_tab_profile_menu",
+            ProfileLauncher => "profile_launcher",
             AppMenu => "app_menu",
             PaneRename => "pane_rename",
             SshConnect => "ssh_connect_ui",
@@ -277,7 +277,10 @@ impl OverlayId {
         use OverlayId::*;
         Some(match self {
             AiInspector => "toggle_ai_inspector",
-            ProfileDrawer => "toggle_profile_drawer",
+            // Open Profiles… (UX.md PR1) owns Cmd+O; the drawer is its
+            // pinned view (PR2).
+            ProfileLauncher => "toggle_profile_drawer",
+            ProfileDrawer => "toggle_profiles_panel",
             CopyMode => "toggle_copy_mode",
             Help => "toggle_help",
             ClipboardHistory => "toggle_clipboard_history",

@@ -8,6 +8,7 @@
 //!
 //! Profiles are stored in `~/.config/par-term/profiles.yaml`.
 
+pub(crate) mod actions;
 pub mod dynamic;
 pub mod storage;
 // types module is now in par-term-config, re-exported below

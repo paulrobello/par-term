@@ -13,18 +13,19 @@
 //! # What is not covered, and why
 //!
 //! - **Runtime-dynamic sources are excluded entirely**: the leader and the tmux
-//!   prefix that aliases it, the custom-action prefix, and `profile_shortcuts`
-//!   (which matches against the user's `profiles.yaml`). Any of them can shadow
+//!   prefix that aliases it, and the custom-action prefix. Any of them can shadow
 //!   a chord at runtime and this gate will not notice; the default leader chord
 //!   has its own gate (`leader::tests::no_advertised_chord_is_the_default_leader`).
+//!   Profile shortcuts are not one of them: they are registry bindings to
+//!   `open_profile:<id>` (UX MP3, B59).
 //! - **Open overlays are excluded**: while a dialog, picker, or panel is open
 //!   the overlay stack (UX.md OV2) consumes every key before `handle_key_event`
 //!   runs. That is modal behaviour, not a chord claim, and it is gated by the
 //!   routing tests in `app::overlay`.
-//! - **Layer claims are empty** — the one remaining uniform layer
-//!   (`profile_shortcuts`) is runtime-dynamic, so its slice is empty (K2: no
-//!   layer holds a chord; `uniform_layers_claim_no_chords` gates it), and the
-//!   macOS application menu lives in `menu/macos.rs`, outside this module.
+//! - **No uniform layers remain** — the last one, per-profile hotkeys, became
+//!   registry bindings (`paste_copy_is_the_only_hardcoded_source` gates it),
+//!   and the macOS application menu lives in `menu/macos.rs`, outside this
+//!   module.
 //! - **The menu and the config defaults are derived, not mirrored** — they read
 //!   `crate::menu::model::menu_model` and `Config::default().keybindings` live.
 //! - **One platform per run.** `AVAILABLE_ACTIONS` and `Config::default()` are
@@ -188,62 +189,46 @@ fn advertised_chord_agrees_with_the_shipped_default() {
     );
 }
 
-/// Tripwire: a new entry in `KEY_LAYERS` must come with a claim declaration, or
-/// the precedence answer silently omits a layer.
+/// Tripwire: the only hardcoded source left after the registry is the inline
+/// paste/copy branch. The utility and tab chord layers dissolved into
+/// registry defaults (UX K2) and the per-profile hotkey layer into
+/// `open_profile:<id>` bindings (UX MP3, B59); a new entry here means a
+/// hardcoded chord layer came back.
 #[test]
-fn every_key_layer_declares_its_claims() {
-    // Pin the split point to KEY_LAYERS itself. Without this, adding a 15th
-    // uniform layer plus a matching 15th claim entry would still compare
-    // 14-against-14 and pass, while `utility_shortcuts` silently slid to
-    // position 16 — leaving the model's precedence order wrong and the gate
-    // confidently answering from it.
+fn paste_copy_is_the_only_hardcoded_source() {
+    let sources: Vec<&str> = claims::LAYER_CLAIMS.iter().map(|(name, _)| *name).collect();
     assert_eq!(
-        claims::UNIFORM_LAYER_COUNT,
-        super::KEY_LAYERS.len(),
-        "UNIFORM_LAYER_COUNT must track KEY_LAYERS::len()"
-    );
-
-    let layers: Vec<&str> = super::KEY_LAYERS.iter().map(|(name, _)| *name).collect();
-    let declared: Vec<&str> = claims::LAYER_CLAIMS
-        .iter()
-        .take(claims::UNIFORM_LAYER_COUNT)
-        .map(|(name, _)| *name)
-        .collect();
-    assert_eq!(
-        layers, declared,
-        "LAYER_CLAIMS must mirror KEY_LAYERS one-for-one and in order"
-    );
-
-    let tail: Vec<&str> = claims::LAYER_CLAIMS
-        .iter()
-        .skip(claims::UNIFORM_LAYER_COUNT)
-        .map(|(name, _)| *name)
-        .collect();
-    assert_eq!(
-        tail,
+        sources,
         ["paste_copy"],
-        "the only source after KEY_LAYERS is the inline paste/copy branch, the \
-         one deliberate chord exemption — the utility and tab chord layers \
-         dissolved into registry defaults (UX K2), and a new entry here means \
-         a hardcoded chord layer came back"
+        "the only hardcoded chord source is the inline paste/copy branch, the \
+         one deliberate exemption from the registry-only rule"
     );
 }
 
-/// K2: the uniform shortcut layers are not chord sources — every shipped
-/// chord resolves through the registry. A non-empty claim here means a
-/// hardcoded chord came back from the dissolution.
+/// B59: the per-profile hotkey layer is gone, source and all — its
+/// `key.leak()` leaked a `String` on every unhandled key press reaching it,
+/// and its whole-string matcher could not fire most of the chords users
+/// wrote. Profile shortcuts are `open_profile:<id>` registry bindings now.
 #[test]
-fn uniform_layers_claim_no_chords() {
-    let claiming: Vec<&str> = claims::LAYER_CLAIMS
-        .iter()
-        .take(claims::UNIFORM_LAYER_COUNT)
-        .filter(|(_, cs)| !cs.is_empty())
-        .map(|(name, _)| *name)
-        .collect();
+fn the_profile_shortcut_layer_is_gone() {
+    let handler = include_str!("mod.rs");
+    for gone in [
+        "handle_profile_shortcuts",
+        "KEY_LAYERS:",
+        "build_shortcut_string",
+    ] {
+        assert!(
+            !handler.contains(gone),
+            "{gone} came back in key_handler/mod.rs"
+        );
+    }
     assert!(
-        claiming.is_empty(),
-        "KEY_LAYERS entries claiming hardcoded chords: {claiming:?} — every \
-         shipped chord must resolve through the registry (UX K2)"
+        !std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/app/input_events/key_handler/profiles.rs"
+        ))
+        .exists(),
+        "key_handler/profiles.rs (the B59 layer, with its key.leak()) came back"
     );
 }
 

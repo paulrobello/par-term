@@ -56,6 +56,9 @@ pub(crate) struct OverlayUiState {
     pub(crate) ai_inspector: AIInspectorPanel,
     /// Last known AI Inspector panel consumed width (logical pixels).
     pub(crate) last_inspector_width: f32,
+    /// The assistant panel's own width last frame (the persisted width;
+    /// `last_inspector_width` includes the Profiles drawer).
+    pub(crate) last_inspector_only_width: f32,
     pub(crate) shader_install_ui: ShaderInstallUI,
     /// Receiver for shader installation results (from background thread)
     pub(crate) shader_install_receiver: Option<std::sync::mpsc::Receiver<Result<usize, String>>>,
@@ -73,6 +76,9 @@ pub(crate) struct OverlayUiState {
     pub(crate) remote_shell_install_ui: RemoteShellInstallUI,
     pub(crate) ssh_connect_ui: SshConnectUI,
     pub(crate) profile_drawer_ui: ProfileDrawerUI,
+    /// Open Profiles… (UX.md PR1): the launcher popup; the drawer above is
+    /// its pinned view (PR2).
+    pub(crate) profile_launcher_ui: crate::profile_launcher_ui::ProfileLauncherUI,
     pub(crate) profile_manager: ProfileManager,
     /// Pending "Move Tab to New Window" / "Move Tab to Window" request,
     /// drained by `WindowManager::about_to_wait`.
@@ -122,6 +128,7 @@ impl OverlayUiState {
             agent_usage_panel: AgentUsagePanel::new(),
             ai_inspector: AIInspectorPanel::new(config),
             last_inspector_width: 0.0,
+            last_inspector_only_width: 0.0,
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
             integrations_ui: IntegrationsUI::new(),
@@ -132,6 +139,7 @@ impl OverlayUiState {
             remote_shell_install_ui: RemoteShellInstallUI::new(),
             ssh_connect_ui: SshConnectUI::new(),
             profile_drawer_ui: ProfileDrawerUI::new(),
+            profile_launcher_ui: Default::default(),
             profile_manager,
             pending_move_tab_request: None,
             move_tab_candidates: Vec::new(),

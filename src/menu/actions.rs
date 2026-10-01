@@ -33,8 +33,6 @@ pub enum MenuAction {
     /// Quit the application
     Quit,
 
-    /// Open the profile management modal
-    ManageProfiles,
     /// Open a specific profile in a new tab
     OpenProfile(ProfileId),
 
@@ -80,9 +78,8 @@ impl MenuAction {
     /// mapping (`registry_accel::apply_registry_accelerators`), so a menu
     /// item and its registry binding cannot drift apart. `None` covers the
     /// menu-only commands: Copy/Paste (dedicated clipboard paths, not
-    /// `ACTION_HANDLERS`), profile and arrangement entries, Manage Profiles,
-    /// the window-level Minimize/Zoom, About, the docs link, and remote shell
-    /// integration.
+    /// `ACTION_HANDLERS`), profile and arrangement entries, the window-level
+    /// Minimize/Zoom, About, the docs link, and remote shell integration.
     pub fn keybinding_action(&self) -> Option<std::borrow::Cow<'static, str>> {
         let id = match self {
             Self::NewWindow => "new_window",
@@ -100,7 +97,6 @@ impl MenuAction {
             Self::Action(id) => id,
             Self::OpenProfile(_)
             | Self::RestoreArrangement(_)
-            | Self::ManageProfiles
             | Self::Copy
             | Self::Paste
             | Self::Minimize

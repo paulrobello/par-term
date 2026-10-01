@@ -36,7 +36,8 @@ const WINDOW_ITEMS: [(&str, &str); 9] = [
     ("switch_to_window_9", "Window 9"),
 ];
 
-/// Session (iTerm2's per-pane menu): rename, restart, move, record output.
+/// Session (iTerm2's per-pane menu): rename, restart, move, record output,
+/// and the active tab's profile (UX.md PR5/PR6).
 pub(super) fn session() -> Vec<MenuEntry> {
     vec![
         MenuItemSpec::action("rename_pane", "Rename Pane...").into(),
@@ -50,24 +51,22 @@ pub(super) fn session() -> Vec<MenuEntry> {
         MenuItemSpec::action("toggle_session_logging", "Record Output to File")
             .toggle(Check::OutputRecording)
             .into(),
+        MenuEntry::Separator,
+        MenuItemSpec::action("edit_tab_profile", "Edit Tab's Profile...").into(),
+        MenuItemSpec::action("toggle_tab_profile_pin", "Pin Profile")
+            .toggle(Check::TabProfilePinned)
+            .into(),
     ]
 }
 
-/// Profiles: the drawer (iTerm2's Open Profiles), one item per profile,
-/// and profile management.
+/// Profiles: Open Profiles (iTerm2's launcher), one item per profile, and
+/// profile management.
 pub(super) fn profiles() -> Vec<MenuEntry> {
     vec![
-        MenuItemSpec::action("toggle_profile_drawer", "Open Profiles...")
-            .toggle(Check::ProfileDrawer)
-            .into(),
+        MenuItemSpec::action("toggle_profile_drawer", "Open Profiles...").into(),
         MenuEntry::Separator,
         MenuEntry::Profiles,
-        MenuItemSpec::new(
-            "manage_profiles",
-            "Manage Profiles...",
-            MenuAction::ManageProfiles,
-        )
-        .into(),
+        MenuItemSpec::action("manage_profiles", "Manage Profiles...").into(),
         MenuItemSpec::action("reload_dynamic_profiles", "Reload Dynamic Profiles").into(),
     ]
 }

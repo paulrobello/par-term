@@ -17,6 +17,13 @@ pub(crate) struct SplitRequest {
     pub(crate) dpi_scale: f32,
     pub(crate) initial_command: Option<(String, Vec<String>)>,
     pub(crate) split_percent: u8,
+    /// A profile split's resolved program (UX.md PR1 "Split with Profile"),
+    /// env included — a shell profile's `SHELL` survives, which
+    /// `initial_command` would drop. Wins over the inherited tab profile.
+    pub(crate) launch: Option<crate::pane::LaunchCommand>,
+    /// A profile split's working directory; `None` follows the focused
+    /// pane's directory as every split does.
+    pub(crate) cwd: Option<String>,
 }
 
 impl Tab {
@@ -59,6 +66,8 @@ impl Tab {
                 dpi_scale,
                 initial_command,
                 split_percent,
+                launch: None,
+                cwd: None,
             },
         )
     }
@@ -87,6 +96,8 @@ impl Tab {
                 dpi_scale,
                 initial_command,
                 split_percent,
+                launch: None,
+                cwd: None,
             },
         )
     }
@@ -159,11 +170,15 @@ impl Tab {
             }
         }
 
-        // A split's explicit command wins; otherwise the tab's profile
-        // program when splits inherit it (D5).
+        // A split's explicit command or chosen profile wins; otherwise the
+        // tab's profile program when splits inherit it (D5).
         let launch = request
-            .initial_command
-            .map(|(cmd, args)| crate::pane::LaunchCommand::new(cmd, args))
+            .launch
+            .or_else(|| {
+                request
+                    .initial_command
+                    .map(|(cmd, args)| crate::pane::LaunchCommand::new(cmd, args))
+            })
             .or_else(|| {
                 config
                     .panes
@@ -175,7 +190,7 @@ impl Tab {
         // Perform the split
         if let Some(ref mut pm) = self.pane_manager {
             let ratio = (request.split_percent.clamp(10, 90) as f32) / 100.0;
-            let new_pane_id = pm.split_placed(
+            let new_pane_id = pm.split_placed_in(
                 direction,
                 before,
                 request.focus_new,
@@ -183,6 +198,7 @@ impl Tab {
                 Arc::clone(&runtime),
                 launch,
                 ratio,
+                request.cwd,
             )?;
             if let Some(id) = new_pane_id {
                 log::info!("Split tab {} {:?}, new pane {}", self.id, direction, id);

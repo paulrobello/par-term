@@ -60,8 +60,6 @@ pub struct TabBarUI {
     /// Whether the horizontal tab bar needs scroll (more tabs than fit).
     /// Set each frame by `render_horizontal`.
     pub(super) needs_horizontal_scroll: bool,
-    /// Whether the new-tab profile popup is open
-    pub show_new_tab_profile_menu: bool,
     /// Set per-frame: candidate destination windows for the "Move Tab to Window →" submenu.
     /// Each entry is `(WindowId, display_label)` (e.g., `"Window 2 — vim"`).
     pub(crate) move_candidates: Vec<(winit::window::WindowId, String)>,
@@ -111,7 +109,6 @@ impl TabBarUI {
             scroll_offset: 0.0,
             scrolled_to_active: None,
             needs_horizontal_scroll: false,
-            show_new_tab_profile_menu: false,
             move_candidates: Vec::new(),
             move_gateway_active: false,
             move_source_tab_count: 0,

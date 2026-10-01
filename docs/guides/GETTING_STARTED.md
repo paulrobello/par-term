@@ -226,9 +226,9 @@ A few keys have no Settings control and are edited in `config.yaml` (use **Edit 
 
 Profiles save terminal configurations for quick access. Each profile can specify a working directory, shell, custom command, SSH connection, tab name, and icon.
 
-1. Press `Cmd + O` on macOS to open the **Profile Drawer** on the right edge of the window. On Linux and Windows, open it from the **Profiles** menu or the command palette
-2. Click **Manage** to create, edit, or reorder profiles in Settings
-3. Double-click a profile in the drawer to launch it in a new tab
+1. Press `Cmd + O` on macOS to open **Open Profiles**, a searchable list of your profiles. On Linux and Windows, open it from the **Profiles** menu or the command palette. **View › Profiles Panel** keeps the same list pinned to the right edge of the window
+2. Click **Manage** (or choose **Profiles › Manage Profiles...**) to create, edit, or reorder profiles in Settings
+3. Click a profile, or select it and press `Enter`, to launch it in a new tab
 
 Profiles also support **auto-switching** -- par-term can automatically apply a profile when you `cd` into a matching directory, connect to a specific SSH host, or attach to a tmux session. See [Profiles](../features/PROFILES.md) for details.
 

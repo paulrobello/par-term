@@ -83,32 +83,27 @@ impl WindowState {
         if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
         {
-            // Mark the auto-applied profile
-            tab.profile.auto_applied_profile_id = Some(profile_id);
-
             let mut pending_command: Option<(String, Option<Vec<String>>, bool)> = None;
             if let Some((tab_name, icon, badge_text, command, command_args, remote_origin)) =
                 profile_settings
             {
-                // Apply profile icon
-                tab.profile.profile_icon = icon;
-
-                // Save original title before overriding (only if not already saved)
-                if tab.profile.pre_profile_title.is_none() {
-                    tab.profile.pre_profile_title = Some(tab.title.clone());
-                }
-                // Apply profile tab name (fall back to profile name)
-                tab.set_title(&tab_name.unwrap_or_else(|| profile_name.to_string()));
-
-                // Apply badge text override if configured
-                if let Some(badge_text) = badge_text {
-                    tab.profile.badge_override = Some(badge_text.clone());
-                    crate::debug_info!(
-                        "TMUX",
-                        "Applied badge text '{}' from profile '{}'",
+                // Same state change as a host/directory switch: the tab's
+                // title, icon, and per-tab badge are saved for the revert
+                // and the tooltip names the rule (UX.md PR5).
+                let current_title = tab.title.clone();
+                let change = tab.profile.apply_auto(
+                    crate::tab::AutoRule::Host,
+                    crate::tab::AutoApply {
+                        profile_id,
+                        title: tab_name.unwrap_or_else(|| profile_name.to_string()),
+                        icon,
                         badge_text,
-                        profile_name
-                    );
+                        reason: "tmux session".to_string(),
+                    },
+                    &current_title,
+                );
+                if let crate::tab::TitleChange::Set(title) = change {
+                    tab.set_title(&title);
                 }
 
                 // Deferred rather than run here: the tmux session name that selected
