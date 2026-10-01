@@ -68,6 +68,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Automation](features/AUTOMATION.md) | Triggers, actions, coprocesses, and observer scripts for terminal automation |
 | [Assistant Panel](ASSISTANT_PANEL.md) | DevTools-style panel for terminal inspection and ACP agent chat (Claude, Ollama) |
 | [Notifications](features/NOTIFICATIONS.md) | Desktop notifications for the bell, tab activity/silence, and OSC 9/777/99 escape sequences |
+| [Settings Reference](features/SETTINGS.md) | Every Settings control by tab, page, and section with the config key it edits (generated) |
 | [Plugins](features/PLUGINS.md) | Status-bar widgets, custom actions, and Settings panels contributed by user scripts |
 | [Agent Usage](features/AGENT_USAGE.md) | Coding-agent token/cost usage panel driven by snapshot files in a watched directory |
 | [Crash Triage](features/CRASH_TRIAGE.md) | Captures crashed panes, plugin crash-caps, and the previous run's panic as palette rows that hand the context to an agent |

@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-terminology check-nomux coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-terminology check-nomux docs-settings coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -86,6 +86,7 @@ help:
 	@echo "  make doc-check   - Validate Markdown links and anchors (requires lychee)"
 	@echo "  make check-line-counts - Enforce the 800-line production file limit"
 	@echo "  make check-terminology - Enforce the UX.md T1-T8 vocabulary in UI text and docs"
+	@echo "  make docs-settings     - Regenerate SETTINGS.md and the CONFIG_REFERENCE.md Settings column"
 	@echo "  make check-nomux       - Type-check the workspace without default features (no par-mux)"
 	@echo "  make coverage    - Generate test coverage report"
 	@echo "  make deploy      - Trigger Release and Deploy GitHub Action"
@@ -326,6 +327,13 @@ check-line-counts:
 	}
 	@echo "Checking production file line counts..."
 	python3 scripts/check_line_counts.py
+
+# Regenerate docs/features/SETTINGS.md and the Settings column of
+# docs/CONFIG_REFERENCE.md from the Settings layout and search registry. The
+# docs_tests tests fail (in make test) when either file drifts. macOS only:
+# some controls draw on macOS only.
+docs-settings:
+	UPDATE_SETTINGS_DOCS=1 cargo test -p par-term-settings-ui --lib docs_tests
 
 # UX.md T1-T8: "session" means only a par-mux/tmux session in user-facing
 # text, and par-mux paths never say "tmux".

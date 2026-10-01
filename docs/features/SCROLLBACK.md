@@ -224,7 +224,7 @@ Without shell integration, the terminal cannot track command boundaries, timesta
 To install shell integration:
 
 1. Press `F12` to open Settings
-2. Navigate to the **Integrations** tab
+2. Open **General** and go to the **Integration & Files** page
 3. In the **Shell Integration** section, click **Install** (or **Reinstall** if already installed)
 
 Or via CLI:

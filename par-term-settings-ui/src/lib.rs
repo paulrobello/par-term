@@ -61,6 +61,8 @@ pub mod delete_confirm;
 pub mod dependent;
 #[cfg(test)]
 mod dependent_tests;
+#[cfg(test)]
+mod docs_tests;
 pub mod effects_tab;
 pub mod input_tab;
 pub mod integrations_tab;

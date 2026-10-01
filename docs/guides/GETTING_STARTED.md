@@ -176,7 +176,7 @@ par-term install-shell-integration
 **Install via Settings UI:**
 
 1. Press `F12` to open Settings
-2. Navigate to the **Integrations** tab
+2. Open **General** and go to the **Integration & Files** page
 3. Click **Install** in the Shell Integration section
 
 After installation, restart your shell or source your RC file (for example, `source ~/.zshrc`) for the integration to take effect.
@@ -196,10 +196,10 @@ par-term install-shaders
 **Install via Settings UI:**
 
 1. Press `F12` to open Settings
-2. Navigate to the **Integrations** tab
+2. Open **Effects & Shaders** and go to the **Background & Shader** page
 3. Click **Install** in the Custom Shaders section
 
-Once installed, enable a background shader in Settings under **Effects**, or toggle the active shader with `Cmd/Ctrl + Shift + B`.
+Once installed, enable a background shader in Settings under **Effects & Shaders**, or toggle the active shader with `Cmd/Ctrl + Shift + B`.
 
 > **✅ Tip:** The `custom_shader_brightness` setting controls shader intensity (default 0.15 for readability; raise it to 0.3-0.5 for more vivid effects). You can also install both shell integration and shaders at once with `par-term install-integrations`.
 
@@ -207,7 +207,20 @@ Once installed, enable a background shader in Settings under **Effects**, or tog
 
 ### Opening Settings
 
-Press `F12` (or `Cmd + ,` on macOS) to open the Settings window. Settings are organized into tabs with a searchable sidebar. Most changes preview live in every window; **Save** writes them (and any profile edits) to disk, and **Revert** puts every window back to the last saved state -- an `* Unsaved changes` marker tracks pending edits, and closing with unsaved edits asks first. Font changes wait for the **Apply font changes** button in the Fonts and Font Variants sections; Save also applies them.
+Press `F12` (or `Cmd + ,` on macOS) to open the Settings window. Settings has 12 tabs, each split into pages, plus a search field in the sidebar that finds any control by its label, tooltip, or `config.yaml` key. The [Settings Reference](../features/SETTINGS.md) lists every control by tab, page, and section.
+
+**How edits are saved:**
+
+- **Live preview.** Most edits take effect in every window as you make them. Nothing is written to `config.yaml` yet.
+- **Save and Revert.** **Save** in the footer writes the config and any profile edits together, in one step. **Revert** restores every window to how it was when Settings opened or last saved. An `* Unsaved changes` marker shows while edits are pending.
+- **Closing with edits.** Closing Settings with unsaved edits asks whether to **Save**, **Revert**, or **Cancel**. Closing never saves on its own.
+- **Font fields wait.** Font changes apply when you click **Apply font changes** in the Fonts and Font Variants sections. **Save** applies them too, and **Revert** drops them.
+- **Saved immediately.** The prompt library, agent commands, plugin install and removal, shader install, and shell integration write to their own files as you act. A line in each of those sections says where, and Save and Revert do not apply to them.
+- **Reset to default.** A small reset arrow appears next to a control that differs from its default. Clicking it is an ordinary edit, so Save keeps it and Revert undoes it. **Reset to Defaults** in the footer resets everything the same way, after a confirmation.
+- **Restart and new windows.** A few settings, such as the GPU power preference, apply only after a restart or to new windows. The control carries a badge, and the banner after Save lists them.
+- **Errors and disk changes.** A failed save shows an error banner and leaves the edit unsaved. If `config.yaml` changes on disk while you have unsaved edits, a banner offers **Load from disk**, or Save to write over it.
+
+A few keys have no Settings control and are edited in `config.yaml` (use **Edit Config File** in the footer). The [Configuration Reference](../CONFIG_REFERENCE.md) marks them `YAML only`.
 
 ### Profiles
 

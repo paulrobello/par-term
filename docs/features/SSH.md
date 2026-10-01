@@ -286,7 +286,7 @@ keybindings:
 
 ## Settings UI
 
-The **Integrations** tab in Settings (`F12`) includes an **SSH** section with three sub-sections:
+The **SSH** page of the **Profiles** tab in Settings (`F12`) has a section with three sub-sections:
 
 **Profile Auto-Switching:**
 - Toggle auto-switch on SSH connection

@@ -18,7 +18,7 @@ use crate::settings_ui::SettingsUI;
 use crate::sidebar::SettingsTab;
 
 /// Fields with no Settings control on purpose.
-const YAML_ONLY: &[(&str, &str)] = &[
+pub(crate) const YAML_ONLY: &[(&str, &str)] = &[
     (
         "pane_title_font",
         "no runtime reader (UX.md B7); a control would be a dead control",
@@ -60,7 +60,7 @@ const YAML_ONLY: &[(&str, &str)] = &[
 
 /// Fields par-term writes itself; showing them would invite edits that get
 /// overwritten.
-const INTERNAL: &[(&str, &str)] = &[
+pub(crate) const INTERNAL: &[(&str, &str)] = &[
     (
         "collapsed_settings_sections",
         "Settings' own collapse state",
@@ -116,7 +116,7 @@ const INTERNAL: &[(&str, &str)] = &[
 
 /// Summary pages may repeat an owned control (UX.md SC7); they are not
 /// homes.
-const SUMMARY_SECTIONS: &[&str] = &["general_common"];
+pub(crate) const SUMMARY_SECTIONS: &[&str] = &["general_common"];
 
 /// Optional fields omitted from a default config's YAML (skipped while
 /// empty), so the top-level key list below does not include them.
@@ -132,7 +132,7 @@ const OMITTED_AT_DEFAULT: &[&str] = &[
 ];
 
 /// Every top-level YAML key a config can carry.
-fn config_keys() -> BTreeSet<String> {
+pub(crate) fn config_keys() -> BTreeSet<String> {
     let value = serde_yaml_ng::to_value(Config::default()).expect("Config serialises");
     let serde_yaml_ng::Value::Mapping(map) = value else {
         panic!("Config must serialise as a mapping");
@@ -145,7 +145,7 @@ fn config_keys() -> BTreeSet<String> {
 
 /// Configs that between them draw every mode-dependent control, each with
 /// the tabs its mode changes (the default config draws every tab).
-fn variants() -> Vec<(Config, &'static [SettingsTab])> {
+pub(crate) fn variants() -> Vec<(Config, &'static [SettingsTab])> {
     use SettingsTab::*;
     let mut image = Config::default();
     image.image.background_mode = par_term_config::BackgroundMode::Image;
