@@ -667,7 +667,7 @@ actions:
   - type: sequence
     id: build-and-test
     title: Build and Test
-    keybinding: "Ctrl+Shift+B"
+    keybinding: "Ctrl+Alt+Shift+B"
     steps:
       - action_id: run-build        # runs the "run-build" action first
         delay_ms: 0

@@ -250,7 +250,13 @@ impl WindowState {
 
         // Prefix systems must run before normal keybindings so the follow-up key
         // is consumed by the two-stroke action instead of another shortcut.
-        if self.handle_tmux_prefix_key(&event) {
+        // The leader (UX.md K4) owns its chord, the tmux prefix in a gateway
+        // tab, and every key while armed — ahead of the registry, so a user
+        // binding on the leader chord cannot shadow it.
+        if self
+            .handle_leader_press(crate::app::leader::LeaderPress::from_event(&event))
+            .is_some()
+        {
             return;
         }
 

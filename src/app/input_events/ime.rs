@@ -7,7 +7,8 @@
 //! `handle_window_event`, dropping the input entirely.
 //!
 //! - `Commit`: routed to the focused pane through the same seam as keystrokes
-//!   (`send_input_via_tmux` first, then the focused pane's PTY).
+//!   (`send_typed_bytes`: `send_input_via_tmux` first, then the focused
+//!   pane's PTY).
 //! - `Preedit`/`Enabled`: position the OS candidate window at the terminal
 //!   cursor via `set_ime_cursor_area`; the preedit string is stored in
 //!   `overlay_state.ime_preedit` for the egui overlay to draw.
@@ -58,16 +59,20 @@ impl WindowState {
     }
 
     /// Send committed IME text to the focused pane as typed bytes.
-    ///
-    /// Same routing seam as keystrokes: mux/tmux gateway first via
-    /// `send_input_via_tmux`, then the focused pane's terminal. Bracketed
-    /// paste is deliberately NOT used — the text is typed input, not a paste.
+    /// Bracketed paste is deliberately NOT used — the text is typed input,
+    /// not a paste.
     fn commit_ime_text(&mut self, text: &str) {
         if text.is_empty() {
             return;
         }
-        let bytes = text.as_bytes().to_vec();
+        self.send_typed_bytes(text.as_bytes().to_vec());
+    }
 
+    /// Send bytes to the focused pane as typed input — IME commits and the
+    /// leader's literal chord (K8). Same routing seam as keystrokes:
+    /// mux/tmux gateway first via `send_input_via_tmux`, then the focused
+    /// pane's terminal.
+    pub(crate) fn send_typed_bytes(&mut self, bytes: Vec<u8>) {
         if self.send_input_via_tmux(&bytes) {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.activity.anti_idle_last_activity = std::time::Instant::now();
@@ -105,7 +110,7 @@ impl WindowState {
                 self.runtime.spawn(async move {
                     let term = terminal_clone.read().await;
                     if let Err(e) = term.write(&cmd_bytes) {
-                        crate::debug_error!("INPUT", "PTY write failed (IME send-keys): {e}");
+                        crate::debug_error!("INPUT", "PTY write failed (typed send-keys): {e}");
                     }
                 });
             }
@@ -132,7 +137,7 @@ impl WindowState {
             self.runtime.spawn(async move {
                 let term = terminal_clone.read().await;
                 if let Err(e) = term.write(&bytes) {
-                    crate::debug_error!("INPUT", "PTY write failed (IME commit): {e}");
+                    crate::debug_error!("INPUT", "PTY write failed (typed input): {e}");
                 }
             });
         }

@@ -42,6 +42,21 @@ impl WindowState {
                     std::sync::Arc::new(new)
                 });
 
+                // Leader settings (UX.md K7); a changed chord disarms.
+                let leader_changed =
+                    new_config.input.leader_key != self.config.load().input.leader_key;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.input.leader_key = new_config.input.leader_key.clone();
+                    new.input.leader_timeout_ms = new_config.input.leader_timeout_ms;
+                    new.input.leader_overlay_delay_ms = new_config.input.leader_overlay_delay_ms;
+                    new.input.leader_vim_keys = new_config.input.leader_vim_keys;
+                    std::sync::Arc::new(new)
+                });
+                if leader_changed {
+                    self.disarm_leader();
+                }
+
                 // Update auto_copy_selection
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();

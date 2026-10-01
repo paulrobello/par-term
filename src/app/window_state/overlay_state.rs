@@ -34,6 +34,9 @@ pub(crate) struct OverlayState {
     /// The armed keyboard mode's status line (action prefix, resize mode),
     /// drawn in its own layer, never as a toast (UX.md OV8).
     pub(crate) mode_banner: Option<&'static str>,
+    /// The leader's which-key overlay, once its delay has passed (UX.md
+    /// K4); `None` while disarmed or still within the delay.
+    pub(crate) which_key: Option<crate::app::leader::WhichKey>,
 
     /// Active IME preedit (composing) text, drawn at the terminal cursor
     pub(crate) ime_preedit: Option<String>,
@@ -58,6 +61,7 @@ impl Default for OverlayState {
             resize_dimensions: None,
             toasts: Default::default(),
             mode_banner: None,
+            which_key: None,
             ime_preedit: None,
             pane_identify_hide_time: None,
             closed_tabs: VecDeque::new(),

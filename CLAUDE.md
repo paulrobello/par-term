@@ -288,6 +288,7 @@ Everything below lives under `docs/` except where the path says otherwise.
 | Session logging | `docs/features/SESSION_LOGGING.md` |
 | Snippets & actions | `docs/features/SNIPPETS.md` |
 | Keyboard shortcuts | `docs/guides/KEYBOARD_SHORTCUTS.md` |
+| Leader key and which-key overlay | `docs/features/LEADER_KEY.md` |
 | Logging & debug | `docs/LOGGING.md` |
 | SSH support | `docs/features/SSH.md` |
 | Config reference | `docs/CONFIG_REFERENCE.md` |

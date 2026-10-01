@@ -342,7 +342,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     (
         "toggle_background_shader",
         "Toggle Background Shader",
-        Some("Ctrl+Shift+B"),
+        Some("Ctrl+Alt+B"),
     ),
     (
         "toggle_cursor_shader",

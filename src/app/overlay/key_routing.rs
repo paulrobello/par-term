@@ -123,6 +123,7 @@ impl WindowState {
             OverlayId::ProfileDrawer => o.profile_drawer_ui.expanded = false,
             OverlayId::CopyMode => self.exit_copy_mode(),
             OverlayId::CustomActionPrefix => self.custom_action_prefix_state.exit(),
+            OverlayId::Leader => self.disarm_leader(),
             OverlayId::PluginOverlayFocus => self.resolve_focused_overlay_key(true),
             OverlayId::PaneHints => {
                 self.resolve_pane_hint_select(None);

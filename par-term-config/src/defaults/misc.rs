@@ -217,8 +217,9 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
 
     #[cfg(not(target_os = "macos"))]
     let mut bindings = vec![
+        // Ctrl+Shift+B is the leader (UX.md D3); the shader toggle moved.
         crate::types::KeyBinding {
-            key: "Ctrl+Shift+B".to_string(),
+            key: "Ctrl+Alt+B".to_string(),
             action: "toggle_background_shader".to_string(),
         },
         crate::types::KeyBinding {
@@ -597,6 +598,27 @@ pub fn tmux_prefix_key() -> String {
 /// Default custom action prefix key (empty = disabled).
 pub fn custom_action_prefix_key() -> String {
     String::new() // Disabled by default
+}
+
+/// Default leader key (UX.md K7, D3): Cmd+B on macOS — Cmd chords never
+/// reach the shell — and Ctrl+Shift+B elsewhere, which displaced the
+/// background-shader toggle to Ctrl+Alt+B.
+pub fn leader_key() -> String {
+    if cfg!(target_os = "macos") {
+        "Cmd+B".to_string()
+    } else {
+        "Ctrl+Shift+B".to_string()
+    }
+}
+
+/// Default time the armed leader waits for its next key.
+pub fn leader_timeout_ms() -> u64 {
+    2000
+}
+
+/// Default delay before the leader's which-key overlay appears.
+pub fn leader_overlay_delay_ms() -> u64 {
+    400
 }
 
 /// Default tmux status bar refresh interval in milliseconds.

@@ -5,7 +5,7 @@
 
 use crate::pane::PaneId;
 use crate::tab::TabId;
-use crate::tmux::{PrefixKey, PrefixState, TmuxPaneId, TmuxSession, TmuxSync};
+use crate::tmux::{PrefixKey, TmuxPaneId, TmuxSession, TmuxSync};
 
 /// A control-mode transport: where notifications come from and where
 /// commands go.
@@ -107,10 +107,9 @@ pub(crate) struct TmuxState {
     pub(crate) tmux_session_name: Option<String>,
     /// Tab ID where the tmux gateway connection lives (where we write commands)
     pub(crate) tmux_gateway_tab_id: Option<TabId>,
-    /// Parsed prefix key from config (cached for performance)
+    /// Parsed prefix key from config (cached for performance). In a tmux
+    /// gateway tab it arms the leader (UX.md K4).
     pub(crate) tmux_prefix_key: Option<PrefixKey>,
-    /// Prefix key state (whether we're waiting for command key)
-    pub(crate) tmux_prefix_state: PrefixState,
     /// Focused tmux pane for par-mux input routing (the gateway session
     /// tracks its own; the transport has nowhere else to keep it)
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
@@ -227,7 +226,6 @@ impl TmuxState {
             tmux_session_name: None,
             tmux_gateway_tab_id: None,
             tmux_prefix_key,
-            tmux_prefix_state: PrefixState::new(),
             mux_focused_pane: None,
             mux_session_id: None,
             mux_screen_seeds: std::collections::HashMap::new(),

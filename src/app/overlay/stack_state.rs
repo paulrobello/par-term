@@ -14,6 +14,7 @@ impl WindowState {
             OverlayId::ProfileDrawer => o.profile_drawer_ui.expanded,
             OverlayId::CopyMode => self.copy_mode.active,
             OverlayId::CustomActionPrefix => self.custom_action_prefix_state.is_active(),
+            OverlayId::Leader => self.leader.is_armed(),
             OverlayId::PluginOverlayFocus => {
                 self.status_bar_ui.plugin_host().focused_overlay().is_some()
             }

@@ -63,6 +63,7 @@ impl WindowManager {
                     &config.custom_action_prefix_key,
                 );
             window_state.custom_action_prefix_state.exit();
+            window_state.disarm_leader();
 
             // Sync AI Inspector chat font size to the panel
             if changes.ai_inspector_chat_font_size {

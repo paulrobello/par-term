@@ -123,6 +123,6 @@ impl WindowState {
             || self.pane_hint_select.is_active()
             || self.pane_resize_mode.is_active()
             || self.custom_action_prefix_state.is_active()
-            || self.tmux_state.tmux_prefix_state.is_active()
+            || self.leader.armed_by().is_some()
     }
 }

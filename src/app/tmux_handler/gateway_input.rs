@@ -1,4 +1,4 @@
-//! tmux input routing: send/paste to tmux sessions and prefix key handling.
+//! tmux input routing: send/paste to tmux sessions and tmux prefix-table keys.
 
 use crate::app::window_state::WindowState;
 
@@ -460,106 +460,31 @@ impl WindowState {
         true
     }
 
-    /// Handle tmux prefix key mode
-    ///
-    /// In control mode, we intercept the prefix key (e.g., Ctrl+B or Ctrl+Space)
-    /// and wait for the next key to translate into a tmux command.
-    ///
-    /// Returns true if the key was handled by the prefix system.
-    pub fn handle_tmux_prefix_key(&mut self, event: &winit::event::KeyEvent) -> bool {
-        // Only handle on key press
-        if event.state != winit::event::ElementState::Pressed {
-            return false;
-        }
-
-        // Only handle if tmux is connected
-        if !self.config.load().tmux.tmux_enabled || !self.is_tmux_connected() {
-            return false;
-        }
-
-        let modifiers = self.input_handler.modifiers.state();
-
-        // Check if we're in prefix mode (waiting for command key)
-        if self.tmux_state.tmux_prefix_state.is_active() {
-            // Ignore modifier-only key presses (Shift, Ctrl, Alt, Super)
-            // These are needed to type shifted characters like " and %
-            use winit::keyboard::{Key, NamedKey};
-            let is_modifier_only = matches!(
-                event.logical_key,
-                Key::Named(
-                    NamedKey::Shift
-                        | NamedKey::Control
-                        | NamedKey::Alt
-                        | NamedKey::Super
-                        | NamedKey::Meta
-                )
-            );
-            if is_modifier_only {
-                crate::debug_trace!(
-                    "TMUX",
-                    "Ignoring modifier-only key in prefix mode: {:?}",
-                    event.logical_key
-                );
-                return false; // Don't consume - let the modifier key through
+    /// Run one key through tmux's prefix table (`translate_command_key`)
+    /// on the gateway. The leader calls this for the keys
+    /// `leader::table::tmux_key` hands to tmux in a gateway tab; the tmux
+    /// prefix itself is now a second way to arm the leader (UX.md K4).
+    pub(crate) fn run_tmux_prefix_key(&mut self, key: &winit::keyboard::Key) {
+        let focused_pane = self
+            .tmux_state
+            .tmux_session
+            .as_ref()
+            .and_then(|s| s.focused_pane());
+        let Some(cmd) = crate::tmux::translate_command_key(
+            key,
+            winit::keyboard::ModifiersState::empty(),
+            focused_pane,
+        ) else {
+            return;
+        };
+        crate::debug_info!("TMUX", "Prefix command: {:?} -> {}", key, cmd.trim());
+        if self.write_to_gateway(&cmd) {
+            let cmd_base = cmd.split(" -t").next().unwrap_or(&cmd).trim();
+            match cmd_base {
+                "detach-client" => self.show_toast("tmux: Detaching..."),
+                "new-window" => self.show_toast("tmux: New window"),
+                _ => {}
             }
-
-            // Exit prefix mode
-            self.tmux_state.tmux_prefix_state.exit();
-
-            // Get focused pane ID for targeted commands
-            let focused_pane = self
-                .tmux_state
-                .tmux_session
-                .as_ref()
-                .and_then(|s| s.focused_pane());
-
-            // Translate the command key to a tmux command
-            if let Some(cmd) =
-                crate::tmux::translate_command_key(&event.logical_key, modifiers, focused_pane)
-            {
-                crate::debug_info!(
-                    "TMUX",
-                    "Prefix command: {:?} -> {}",
-                    event.logical_key,
-                    cmd.trim()
-                );
-
-                // Send the command to tmux
-                if self.write_to_gateway(&cmd) {
-                    // Show toast for certain commands (check command base, ignoring target)
-                    let cmd_base = cmd.split(" -t").next().unwrap_or(&cmd).trim();
-                    match cmd_base {
-                        "detach-client" => self.show_toast("tmux: Detaching..."),
-                        "new-window" => self.show_toast("tmux: New window"),
-                        _ => {}
-                    }
-                    return true;
-                }
-            } else {
-                // Unknown command key - show feedback
-                crate::debug_info!(
-                    "TMUX",
-                    "Unknown prefix command key: {:?}",
-                    event.logical_key
-                );
-                self.show_toast(format!(
-                    "tmux: Unknown command key: {:?}",
-                    event.logical_key
-                ));
-            }
-            return true; // Consumed the key even if unknown
         }
-
-        // Check if this is the prefix key
-        if let Some(ref prefix_key) = self.tmux_state.tmux_prefix_key
-            && prefix_key.matches(&event.logical_key, modifiers)
-        {
-            crate::debug_info!("TMUX", "Prefix key pressed, entering prefix mode");
-            self.tmux_state.tmux_prefix_state.enter();
-            self.show_toast("tmux: prefix...");
-            return true;
-        }
-
-        false
     }
 }

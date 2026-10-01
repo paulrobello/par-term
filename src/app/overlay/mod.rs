@@ -81,7 +81,7 @@ pub(crate) enum OverlayKind {
     /// of its widgets holds keyboard focus.
     Panel,
     /// A keyboard mode over the terminal (copy mode, pane hints, resize,
-    /// demote pick, action prefix): consumes the keys it defines.
+    /// demote pick, action prefix, leader): consumes the keys it defines.
     Mode,
 }
 
@@ -109,6 +109,7 @@ pub(crate) enum OverlayId {
     // Modes
     CopyMode,
     CustomActionPrefix,
+    Leader,
     PluginOverlayFocus,
     PaneHints,
     ResizeMode,
@@ -148,6 +149,7 @@ impl OverlayId {
         OverlayId::ProfileDrawer,
         OverlayId::CopyMode,
         OverlayId::CustomActionPrefix,
+        OverlayId::Leader,
         OverlayId::PluginOverlayFocus,
         OverlayId::PaneHints,
         OverlayId::ResizeMode,
@@ -183,8 +185,8 @@ impl OverlayId {
         use OverlayId::*;
         match self {
             AiInspector | ProfileDrawer => OverlayKind::Panel,
-            CopyMode | CustomActionPrefix | PluginOverlayFocus | PaneHints | ResizeMode
-            | DemotePick => OverlayKind::Mode,
+            CopyMode | CustomActionPrefix | Leader | PluginOverlayFocus | PaneHints
+            | ResizeMode | DemotePick => OverlayKind::Mode,
             Help | ClipboardHistory | CommandHistory | PasteSpecial | Search | CommandPalette
             | AgentUsage | PaneContextMenu | TreePicker | SessionPicker | TabContextMenu
             | NewTabProfileMenu | AppMenu | PaneRename | SshConnect => OverlayKind::Popup,
@@ -202,6 +204,7 @@ impl OverlayId {
             ProfileDrawer => "profile_drawer",
             CopyMode => "copy_mode",
             CustomActionPrefix => "custom_action_prefix",
+            Leader => "leader",
             PluginOverlayFocus => "plugin_overlay_focus",
             PaneHints => "pane_hints",
             ResizeMode => "resize_mode",
@@ -242,9 +245,9 @@ impl OverlayId {
     /// guard set; as a Popup the stack still consumes every key it does not
     /// close on, and its `show()` reads them). Of the
     /// modes, only the demote pick is guarded: copy mode, pane hints,
-    /// resize, and the action prefix consume their keys through their own
-    /// handlers, and guarding them would re-route paste and IME to egui
-    /// while they run.
+    /// resize, the action prefix, and the leader consume their keys through
+    /// their own handlers, and guarding them would re-route paste and IME
+    /// to egui while they run.
     pub(crate) const fn guards_terminal(self) -> bool {
         match self.kind() {
             OverlayKind::Modal => true,

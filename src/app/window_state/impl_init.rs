@@ -110,6 +110,7 @@ impl WindowState {
             keybinding_registry,
             custom_action_prefix_combo,
             custom_action_prefix_state: crate::tmux::PrefixState::default(),
+            leader: Default::default(),
 
             smart_selection_cache: SmartSelectionCache::new(),
 

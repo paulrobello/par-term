@@ -28,6 +28,13 @@ pub const ACTION_RENAMES: &[(&str, &str)] = &[
     ("toggle_tmux_session_picker", "toggle_session_picker"),
 ];
 
+/// Linux/Windows default chords that moved, as `(action, previous chord, new
+/// chord)`. UX.md D3: Ctrl+Shift+B became the leader key, so the background
+/// shader toggle moved to Ctrl+Alt+B; a saved config still holding the old
+/// row would otherwise shadow the leader forever.
+const MOVED_DEFAULT_CHORDS: &[(&str, &str, &str)] =
+    &[("toggle_background_shader", "Ctrl+Shift+B", "Ctrl+Alt+B")];
+
 /// The current id for `action`, following [`ACTION_RENAMES`]; any other id is
 /// returned unchanged.
 pub fn current_action_id(action: &str) -> &str {
@@ -111,7 +118,41 @@ impl Config {
     /// chord is unclaimed by any other binding.
     pub(crate) fn merge_default_keybindings(&mut self) {
         self.migrate_renamed_keybinding_actions();
+        if !cfg!(target_os = "macos") {
+            self.migrate_moved_default_chords_from(MOVED_DEFAULT_CHORDS);
+        }
         self.merge_default_keybindings_from(&crate::defaults::keybindings());
+    }
+
+    /// Move a binding still on a previous default chord to its new default
+    /// (migration rule 2 for chords): only the exact `(action, old chord)`
+    /// row moves, and only while the new chord is unclaimed — a user who
+    /// rebound either side keeps their choice.
+    fn migrate_moved_default_chords_from(&mut self, moves: &[(&str, &str, &str)]) {
+        for (action, old, new) in moves {
+            let (Some(old), Some(new_canonical)) = (canonical_chord(old), canonical_chord(new))
+            else {
+                continue;
+            };
+            if self
+                .keybindings
+                .iter()
+                .any(|kb| canonical_chord(&kb.key).as_deref() == Some(new_canonical.as_str()))
+            {
+                continue;
+            }
+            if let Some(binding) = self.keybindings.iter_mut().find(|kb| {
+                kb.action == *action && canonical_chord(&kb.key).as_deref() == Some(old.as_str())
+            }) {
+                log::info!(
+                    "Moving '{}' from its previous default chord '{}' to '{}'",
+                    action,
+                    binding.key,
+                    new
+                );
+                binding.key = new.to_string();
+            }
+        }
     }
 
     /// Rewrite keybinding action ids through [`ACTION_RENAMES`], keeping each
@@ -741,6 +782,67 @@ keybindings:
         assert_eq!(
             bound_chord(&reloaded, "pass_to_terminal"),
             Some("Alt+1".to_string())
+        );
+    }
+
+    /// UX.md D3: an upgrading Linux/Windows config still holding the old
+    /// shader-toggle chord moves it to Ctrl+Alt+B, freeing Ctrl+Shift+B for
+    /// the leader; nothing else about the config changes.
+    #[test]
+    fn an_old_default_chord_moves_to_its_new_default() {
+        let mut config = config_with(&[
+            ("Ctrl+Shift+B", "toggle_background_shader"),
+            ("Ctrl+Shift+U", "toggle_cursor_shader"),
+        ]);
+        config.migrate_moved_default_chords_from(MOVED_DEFAULT_CHORDS);
+        assert_eq!(
+            bound_chord(&config, "toggle_background_shader").as_deref(),
+            Some("Ctrl+Alt+B")
+        );
+        assert_eq!(
+            bound_chord(&config, "toggle_cursor_shader").as_deref(),
+            Some("Ctrl+Shift+U")
+        );
+        assert!(no_duplicate_chords(&config));
+    }
+
+    /// A user who rebound the toggle, or who already uses the new chord for
+    /// something else, keeps their binding.
+    #[test]
+    fn a_moved_chord_never_overrides_a_user_choice() {
+        let mut rebound = config_with(&[("Ctrl+Alt+S", "toggle_background_shader")]);
+        rebound.migrate_moved_default_chords_from(MOVED_DEFAULT_CHORDS);
+        assert_eq!(
+            bound_chord(&rebound, "toggle_background_shader").as_deref(),
+            Some("Ctrl+Alt+S")
+        );
+
+        let mut taken = config_with(&[
+            ("Ctrl+Shift+B", "toggle_background_shader"),
+            ("Ctrl+Alt+B", "toggle_fps_overlay"),
+        ]);
+        taken.migrate_moved_default_chords_from(MOVED_DEFAULT_CHORDS);
+        assert_eq!(
+            bound_chord(&taken, "toggle_background_shader").as_deref(),
+            Some("Ctrl+Shift+B"),
+            "the new chord is claimed, so the row stays where it was"
+        );
+    }
+
+    /// The leader default is never also a registry default: a binding on
+    /// the leader chord would race the leader for the key.
+    #[test]
+    fn no_default_keybinding_claims_the_leader_chord() {
+        let leader = canonical_chord(&crate::defaults::leader_key()).expect("leader parses");
+        let config = Config::default();
+        let clash: Vec<&KeyBinding> = config
+            .keybindings
+            .iter()
+            .filter(|kb| canonical_chord(&kb.key).as_deref() == Some(leader.as_str()))
+            .collect();
+        assert!(
+            clash.is_empty(),
+            "defaults bind the leader chord: {clash:?}"
         );
     }
 }

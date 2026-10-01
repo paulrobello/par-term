@@ -30,6 +30,7 @@ pub(crate) mod copy_mode;
 mod file_transfers;
 pub mod handler;
 pub mod input_events;
+pub(crate) mod leader;
 pub mod mouse_events;
 pub(crate) mod overlay;
 pub(crate) mod pane_hint_select;

@@ -34,6 +34,11 @@ fn open_raw(ws: &mut WindowState, id: OverlayId) {
         OverlayId::ProfileDrawer => o.profile_drawer_ui.expanded = true,
         OverlayId::CopyMode => ws.copy_mode.active = true,
         OverlayId::CustomActionPrefix => ws.custom_action_prefix_state.enter(),
+        OverlayId::Leader => ws.leader.arm(
+            std::time::Instant::now(),
+            crate::app::leader::ArmedBy::Leader,
+            crate::app::leader::LeaderTiming::from_config(&ws.config.load().input),
+        ),
         // Focus needs a live plugin overlay (the host ignores a focus
         // request for an unknown plugin); covered by the plugin overlay
         // tests and the kind/guard table test.

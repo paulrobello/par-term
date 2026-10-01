@@ -2,7 +2,7 @@
 //!
 //! Covers:
 //! - Session lifecycle: initiate, attach, disconnect, status queries
-//! - Input routing: send_input_via_tmux, paste_via_tmux, prefix key handling
+//! - Input routing: send_input_via_tmux, paste_via_tmux, tmux prefix-table keys
 //! - Pane operations: split_pane_via_tmux, close_pane_via_tmux
 //! - Clipboard + resize synchronization
 //!
@@ -669,8 +669,4 @@ impl WindowState {
             crate::debug_info!("TMUX", "Gateway tab {} restored to tab bar", gateway_tab_id);
         }
     }
-
-    // =========================================================================
-    // Prefix Key Handling
-    // =========================================================================
 }

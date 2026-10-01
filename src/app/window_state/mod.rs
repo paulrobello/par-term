@@ -271,6 +271,8 @@ pub struct WindowState {
     pub(crate) keybinding_registry: KeybindingRegistry,
     pub(crate) custom_action_prefix_combo: Option<KeyCombo>,
     pub(crate) custom_action_prefix_state: crate::tmux::PrefixState,
+    /// The leader key (UX.md K4): armed state and timing.
+    pub(crate) leader: crate::app::leader::LeaderState,
     pub(crate) smart_selection_cache: SmartSelectionCache,
 
     // =========================================================================

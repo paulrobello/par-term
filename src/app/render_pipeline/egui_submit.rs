@@ -407,11 +407,11 @@ impl WindowState {
                         ime_cursor_logical,
                     );
 
-                    // Toast stack, mode banner, demote chooser (OV7/OV8)
+                    // Toasts, mode banner, leader which-key, demote (OV7/OV8)
                     super::egui_dialogs::render_notifications(
                         ctx,
-                        &self.overlay_state.toasts,
-                        pane_hint_banner.or(self.overlay_state.mode_banner),
+                        &self.overlay_state,
+                        pane_hint_banner,
                         toast_top_inset,
                         (demote_snapshot, demote_pane_bounds),
                         actions,

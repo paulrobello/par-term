@@ -33,6 +33,7 @@ Complete reference for all par-term keyboard shortcuts.
 - [UI Toggles & Display](#ui-toggles--display)
 - [Pane Management](#pane-management)
 - [Advanced Features](#advanced-features)
+- [Leader Key](#leader-key)
 - [Customizing Keybindings](#customizing-keybindings)
 - [Platform Shortcut Conflicts](#platform-shortcut-conflicts)
 - [Related Documentation](#related-documentation)
@@ -223,7 +224,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 |----------|--------|
 | `Cmd/Ctrl + Shift + P` | Open the command palette (`toggle_command_palette`) |
 | `Cmd + O` (macOS) / Profiles menu (Linux/Win) | Toggle the profile drawer (`toggle_profile_drawer`) |
-| `Cmd/Ctrl + Shift + B` | Toggle background shader |
+| `Cmd + Shift + B` (macOS) / `Ctrl + Alt + B` (Linux/Win) | Toggle background shader |
 | `Cmd/Ctrl + Shift + U` | Toggle cursor shader |
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
 | `Cmd + Ctrl + S` (macOS) / `Ctrl + Alt + T` or `Ctrl + Alt + S` (Linux/Win) | Toggle session picker (par-mux and tmux) |
@@ -237,6 +238,10 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 > **📝 Note:** Cursor style cycles on `Ctrl + ,` on **every** platform, macOS included — the cycler accepts either Ctrl or Cmd, and nothing higher in the dispatch chain claims `Ctrl + ,`. On macOS it is specifically **not** `Cmd + ,`: that is the `Settings...` key equivalent on the application menu and opens the Settings window instead.
 
 > **📝 Note:** The Assistant panel is toggled with `Cmd + I` (macOS) or `Ctrl + Shift + I` (Linux/Windows) when `ai_inspector_enabled` is `true`. It can also be bound via custom keybindings. See [Assistant Panel](../ASSISTANT_PANEL.md) for details.
+
+## Leader Key
+
+Press the leader, `Cmd + B` on macOS or `Ctrl + Shift + B` on Linux and Windows, then one key. The table mirrors tmux: `c` new tab, `n` / `p` next and previous tab, `%` / `"` split, arrows focus a pane, `z` zoom, `x` close the pane, `d` detach, `?` help, and more. It works the same in local, par-mux, and tmux gateway tabs. After 400 ms a which-key overlay lists every key with its action's current chord. Press the leader twice to send it to the shell, and `Escape` to cancel. The full table, vim keys, and tmux gateway behavior are in [Leader Key](../features/LEADER_KEY.md).
 
 ## Customizing Keybindings
 

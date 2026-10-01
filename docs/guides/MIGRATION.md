@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [Unreleased — Leader Key](#unreleased--leader-key)
 - [Unreleased — Session Picker, Window Actions, and Detach](#unreleased--session-picker-window-actions-and-detach)
 - [Unreleased — Pane Dimming, Splits, and Restart](#unreleased--pane-dimming-splits-and-restart)
 - [Unreleased — Default Shortcuts Aligned with iTerm2](#unreleased--default-shortcuts-aligned-with-iterm2)
@@ -27,6 +28,14 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## Unreleased — Leader Key
+
+- **`Cmd + B` (macOS) and `Ctrl + Shift + B` (Linux/Windows) are the leader key.** The leader is checked before keybindings, so a binding of yours on that chord stops running. Rebind it, or set `leader_key` to another chord (empty turns the leader off). See [Leader Key](../features/LEADER_KEY.md).
+- **The background-shader toggle moved to `Ctrl + Alt + B` on Linux and Windows.** A saved config that binds `toggle_background_shader` to `Ctrl + Shift + B` is moved to `Ctrl + Alt + B` on load when that chord is free; otherwise it is left alone and the leader takes the key. macOS keeps `Cmd + Shift + B`.
+- **The tmux prefix arms the leader in a tmux gateway tab.** The keys tmux's prefix table knows still go to tmux. The ones that open par-term overlays (`:`, `?`, `w`, `s`, `q`, `,`) now open par-term's palette, help, tree picker, session picker, pane letters, and tab rename instead of tmux's prompt or choose-tree. Tab navigation (`n`, `p`, `l`, `1`–`9`) switches par-term's tab, as the tab chords do, instead of tmux's current window, which par-term did not follow. In a local tab beside a gateway, the tmux prefix now reaches the shell.
 
 ---
 

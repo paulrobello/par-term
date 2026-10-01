@@ -21,18 +21,22 @@ use crate::app::tmux_handler::tmux_state::TmuxState;
 /// The notification layers (UX.md OV7/OV8): the toast stack top-right below
 /// the tab bar, and one mode banner top-center — the armed keyboard mode's
 /// status line, or the demote pick's instruction — in its own layer so a
-/// toast can neither collide with it nor push it out. Toast clicks leave
-/// through `actions.toast_events`.
+/// toast can neither collide with it nor push it out; and the leader's
+/// which-key overlay bottom-center (K4). `pane_hint_banner` outranks the
+/// overlay state's mode banner. Toast clicks leave through
+/// `actions.toast_events`.
 pub(super) fn render_notifications(
     ctx: &egui::Context,
-    toasts: &crate::app::overlay::toast::ToastQueue,
-    mode_banner: Option<&str>,
+    overlay_state: &crate::app::window_state::OverlayState,
+    pane_hint_banner: Option<&str>,
     top_inset: f32,
     demote: (DemoteSnapshot, Option<PaneBounds>),
     actions: &mut PostRenderActions,
 ) {
     use crate::app::overlay::toast;
-    actions.toast_events = toast::render_toasts(ctx, toasts, top_inset);
+    actions.toast_events = toast::render_toasts(ctx, &overlay_state.toasts, top_inset);
+    let mode_banner = pane_hint_banner.or(overlay_state.mode_banner);
+    crate::app::leader::which_key::render(ctx, overlay_state.which_key.as_ref());
     let demote_banner = match demote.0 {
         DemoteSnapshot::PickTab => Some("Click a tab to merge into · Esc cancels"),
         DemoteSnapshot::PickPane => Some("Click a pane to merge into · Esc cancels"),

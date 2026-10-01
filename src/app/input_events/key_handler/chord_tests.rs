@@ -12,10 +12,11 @@
 //!
 //! # What is not covered, and why
 //!
-//! - **Runtime-dynamic sources are excluded entirely**: the tmux prefix, the
-//!   custom-action prefix, and `profile_shortcuts` (which matches against the
-//!   user's `profiles.yaml`). Any of them can shadow a chord at runtime and this
-//!   gate will not notice.
+//! - **Runtime-dynamic sources are excluded entirely**: the leader and the tmux
+//!   prefix that aliases it, the custom-action prefix, and `profile_shortcuts`
+//!   (which matches against the user's `profiles.yaml`). Any of them can shadow
+//!   a chord at runtime and this gate will not notice; the default leader chord
+//!   has its own gate (`leader::tests::no_advertised_chord_is_the_default_leader`).
 //! - **Open overlays are excluded**: while a dialog, picker, or panel is open
 //!   the overlay stack (UX.md OV2) consumes every key before `handle_key_event`
 //!   runs. That is modal behaviour, not a chord claim, and it is gated by the

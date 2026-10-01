@@ -1,0 +1,59 @@
+{
+  "steps": [
+    { "wait_ms": 1500, "assert_not": "modal_guard" },
+    { "chord": "Enter", "wait_ms": 400 },
+    { "assert_eq": ["file_bytes", "/tmp/pt-k4-sink.bin:0a"] },
+    { "assert_eq": ["tab_count", "1"] },
+
+    { "chord": "Ctrl+Shift+B" },
+    { "wait_ms": 50, "assert": "leader_armed" },
+    { "wait_ms": 50, "assert": "overlay_open:leader" },
+    { "wait_ms": 50, "assert_not": "which_key_open" },
+    { "wait_ms": 50, "assert_not": "modal_guard" },
+    { "wait_ms": 600, "assert": "which_key_open" },
+    { "chord": "Escape" },
+    { "wait_ms": 100, "assert_not": "leader_armed" },
+    { "wait_ms": 50, "assert_not": "which_key_open" },
+
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "chord": "c", "wait_ms": 100 },
+    { "wait_ms": 1500, "assert_not": "leader_armed" },
+    { "assert_eq": ["tab_count", "2"] },
+    { "assert_eq": ["active_tab", "2"] },
+
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "chord": "p", "wait_ms": 100 },
+    { "assert_eq": ["active_tab", "1"] },
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "chord": "n", "wait_ms": 100 },
+    { "assert_eq": ["active_tab", "2"] },
+
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "chord": "%", "wait_ms": 100 },
+    { "wait_ms": 1200, "assert_eq": ["pane_count", "2"] },
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "chord": "z", "wait_ms": 100 },
+    { "assert": "pane_zoomed" },
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "chord": "z", "wait_ms": 100 },
+    { "assert_not": "pane_zoomed" },
+
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "chord": "x", "wait_ms": 100 },
+    { "wait_ms": 800, "assert_eq": ["pane_count", "1"] },
+    { "assert_eq": ["tab_count", "2"] },
+
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "chord": "p", "wait_ms": 100 },
+    { "assert_eq": ["active_tab", "1"] },
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "assert_not": "leader_armed" },
+    { "chord": "Enter", "wait_ms": 300 },
+    { "wait_ms": 1500, "assert_eq": ["file_bytes", "/tmp/pt-k4-sink.bin:0a020a"] },
+
+    { "chord": "Ctrl+Shift+B", "wait_ms": 100 },
+    { "wait_ms": 2600, "assert_not": "leader_armed" },
+    { "assert_eq": ["active_tab", "1"] }
+  ]
+}

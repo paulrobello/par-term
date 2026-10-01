@@ -11,7 +11,13 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Added
+
+- **Leader key** (UX.md K4–K9a). `Cmd + B` on macOS and `Ctrl + Shift + B` on Linux and Windows arm a one-key table of window, tab, pane, and par-mux session actions, keyed after tmux: `c` new tab, `n` / `p` next and previous tab, `%` / `"` split, arrows focus, `z` zoom, `x` close the pane, `d` detach, and more. It works the same in local, attached par-mux, and tmux gateway tabs. After `leader_overlay_delay_ms` (400 ms) a which-key overlay lists every key with its action's live chord. The leader pressed twice sends the chord to the pane, *repeat* keys (arrows, `o`) stay armed, and `Escape` or `leader_timeout_ms` (2 s) cancels. With a tmux gateway connected, the tmux prefix arms the same table and tmux's own prefix keys still run in tmux. `leader_vim_keys` adds `h j k l` / `H J K L`. See [Leader Key](docs/features/LEADER_KEY.md).
+
 ### Changed
+
+- **Background-shader toggle moved to `Ctrl + Alt + B` on Linux and Windows** (UX.md D3), freeing `Ctrl + Shift + B` for the leader. A saved config still binding the old chord is moved on load when the new one is free. See [Migration](docs/guides/MIGRATION.md#unreleased--leader-key).
 
 - **Default shortcuts aligned with iTerm2** (UX.md 3.3a). On macOS: `Cmd+D` splits right and `Cmd+Shift+D` splits down; `Cmd+W` closes the focused pane, then the tab, then the window, and `Cmd+Opt+W` closes the tab; `Cmd+Ctrl+Arrow` resizes and `Cmd+Opt+Shift+Arrow` swaps panes; `Cmd+Opt+Shift+[ / ]` moves tabs; `Cmd+Shift+T` reopens a closed tab; `Cmd+Shift+;` opens command history (`Cmd+R` goes back to the shell); `Cmd+Shift+P` opens the command palette and `Cmd+O` the profile drawer; `Cmd+Ctrl+S` opens the tmux session picker; `Cmd+Shift+Up/Down` jumps between marks; `Cmd+Ctrl+F` toggles fullscreen. Linux and Windows apply the same letters with `Ctrl+Shift` / `Ctrl+Alt`: `Ctrl+Shift+E` / `Ctrl+Shift+O` split right / down, `Ctrl+Shift+W` closes the pane (cascading), `Ctrl+Alt+W` closes the tab, and `Ctrl+Shift+P` opens the palette. Previous chords stay as aliases where nothing else took them. Saved configs keep every chord they already bind; see [Migration](docs/guides/MIGRATION.md#unreleased--default-shortcuts-aligned-with-iterm2).
 - **Split actions renamed `split_right` / `split_down`** (UX.md T7), named for where the new pane goes. `split_vertical` and `split_horizontal` in a saved config are migrated on load and still dispatch as aliases.

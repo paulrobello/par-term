@@ -7,7 +7,7 @@ Save and restore complete window layouts, including window positions, sizes, tab
 - [tmux Session Capture and Restore](#tmux-session-capture-and-restore)
 - [Saving Arrangements](#saving-arrangements)
   - [Via Settings UI](#via-settings-ui)
-  - [Via View Menu](#via-view-menu)
+  - [Via Window Menu](#via-window-menu)
   - [Via Keybinding](#via-keybinding)
   - [Duplicate Name Handling](#duplicate-name-handling)
 - [Restoring Arrangements](#restoring-arrangements)

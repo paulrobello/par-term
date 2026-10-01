@@ -390,6 +390,14 @@ impl WindowState {
                 next_wake = expiry;
             }
         }
+        // 5b-2. Leader (UX.md K4): show the which-key overlay once its
+        // delay passes and cancel at the timeout; wake for whichever is next.
+        if let Some(leader_wake) = self.tick_leader(now)
+            && leader_wake < next_wake
+        {
+            next_wake = leader_wake;
+        }
+
         // 5c. Pane Identification Overlay
         // Check if the pane index overlay should be hidden (timer expired).
         if let Some(hide_time) = self.overlay_state.pane_identify_hide_time {

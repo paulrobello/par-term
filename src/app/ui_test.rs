@@ -766,6 +766,19 @@ impl WindowManager {
         // key press is looked up.
         ws.input_handler.update_modifiers(modifiers);
 
+        // The leader runs ahead of the registry in handle_key_event (UX.md
+        // K4); same entry point here, so a script drives the real machine.
+        let press = crate::app::leader::LeaderPress {
+            logical: &logical,
+            physical,
+            pressed: true,
+            os_repeat: false,
+        };
+        if let Some(step) = ws.handle_leader_press(press) {
+            ws.request_redraw();
+            return StepOutcome::Performed(format!("chord {chord} -> leader {step:?}"));
+        }
+
         let config = ws.config.load();
         let action = ws.keybinding_registry.lookup_with_key_fields(
             &logical,
@@ -941,6 +954,14 @@ impl WindowManager {
                         ws.overlay_ui.command_palette.selected_row_is_visible()
                     }
                     "pane_hint_mode_active" => ws.pane_hint_select.is_active(),
+                    // The leader (UX.md K4): armed, and its which-key shown.
+                    "leader_armed" => ws.leader.is_armed(),
+                    "which_key_open" => ws.overlay_state.which_key.is_some(),
+                    "pane_zoomed" => ws
+                        .tab_manager
+                        .active_tab()
+                        .and_then(|t| t.pane_manager())
+                        .is_some_and(|pm| pm.is_zoomed()),
                     "egui_keyboard" => ws.is_egui_using_keyboard(),
                     "fullscreen" => ws.window.as_ref().is_some_and(|w| w.fullscreen().is_some()),
                     // `overlay_open:<name>` — any overlay-stack member by
@@ -1013,6 +1034,22 @@ impl WindowManager {
             // proof asserts on (TW2: quit must save every window).
             "window_count" => {
                 let actual = self.windows.len().to_string();
+                Ok((actual.clone(), actual == expected))
+            }
+            // Visible tab count, the 1-based active tab, and the active
+            // tab's pane count — the leader proofs (c, n, p, x).
+            "tab_count" | "active_tab" | "pane_count" => {
+                let Some(ws) = self.ui_test_window_state() else {
+                    return Err(format!("{what}: no terminal window"));
+                };
+                let tabs = &ws.tab_manager;
+                let actual = match what {
+                    "tab_count" => tabs.visible_tab_count().to_string(),
+                    "active_tab" => tabs
+                        .active_tab_index()
+                        .map_or("<none>".to_string(), |i| (i + 1).to_string()),
+                    _ => tabs.active_tab().map_or(0, |t| t.pane_count()).to_string(),
+                };
                 Ok((actual.clone(), actual == expected))
             }
             // The selected command's text — the B70 navigation proof pairs

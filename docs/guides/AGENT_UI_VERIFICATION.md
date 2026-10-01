@@ -80,6 +80,8 @@ A JSON object with a `steps` array. Each step is one object with an optional
 - `settings_window_open` — the standalone settings window is open
 - `modal_guard` — `any_modal_ui_visible()`: the guard that blocks keys from the PTY. Covers in-window overlays only: the standalone settings window is a separate OS window with its own focus, so `settings_window_open` with `modal_guard=false` is the expected reading (terminal-window keys keep flowing while it floats), not a leak.
 - `pane_hint_mode_active` — the built-in pane-hint selection mode is armed (`select_pane_hint` chord on a multi-pane tab)
+- `leader_armed` / `which_key_open` — the leader is armed / its which-key overlay is showing ([Leader Key](../features/LEADER_KEY.md))
+- `pane_zoomed` — the active tab's focused pane is zoomed
 - `egui_keyboard` — egui owns keyboard focus (a text field is focused)
 - `fullscreen` — window is fullscreen
 
@@ -91,6 +93,7 @@ A JSON object with a `steps` array. Each step is one object with an optional
 - `["font_size", "13.5"]` — live config font size (the B68 reset proof)
 - `["file_empty", "/path"]` — file is absent or zero bytes (a missing file counts as empty)
 - `["window_count", "N"]` — the app's open-window count (manager-level; works with zero terminal windows)
+- `["tab_count", "N"]` / `["active_tab", "N"]` / `["pane_count", "N"]` — visible tabs, the 1-based active tab, and the active tab's panes (the leader proof)
 
 Capture-capable operands (usable with `capture`/`assert_eq_captured`):
 
@@ -369,6 +372,33 @@ sink misses `echo b70-alpha`, and the trailing paste-special assert trips
 on the panel left open), so a failing run there is the missing seed, not a
 navigation regression. The seed is written before launch because the
 history loads once at startup.
+
+## Checked-in script: leader key (K4)
+
+`tests/ui/k4_leader_key.json` drives the leader through the real key path: a `chord` step reaches `handle_leader_press`, the same entry point `handle_key_event` calls, after the overlay-stack routing. The script proves the which-key overlay appears only after `leader_overlay_delay_ms` and that `Escape` cancels. It then runs leader `c` (tab count 1 → 2), `p` and `n` (active tab 2 → 1 → 2), `%` then `z` twice (zoom on and off), and `x` (pane count 2 → 1). Leader twice sends the chord to the pane, and the byte-exact sink assert expects `0a020a`: the primer, then `^B` (Ctrl+Shift+B, 0x02), then the flushing Enter. A final arm with no key proves the timeout cancels. The config pins `leader_key: "Ctrl+Shift+B"` so one script runs on every platform. The sink appends (`cat >>`) because leader `c` starts a second shell that would otherwise truncate it.
+
+```bash
+mkdir -p /tmp/pt-k4/cfg/par-term /tmp/pt-k4/home
+rm -f /tmp/pt-k4-sink.bin
+cat > /tmp/pt-k4/cfg/par-term/config.yaml <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - "-c"
+  - "stty -echo; cat >> /tmp/pt-k4-sink.bin"
+login_shell: false
+shader_install_prompt: never
+shell_integration_state: never
+agent_skill_state: never
+leader_key: "Ctrl+Shift+B"
+leader_overlay_delay_ms: 400
+leader_timeout_ms: 2000
+EOF
+HOME=/tmp/pt-k4/home XDG_CONFIG_HOME=/tmp/pt-k4/cfg PAR_TERM_NO_MIGRATE=1 \
+  target/dev-release/par-term --ui-test tests/ui/k4_leader_key.json \
+  --ui-test-report /tmp/pt-k4/report.json
+```
+
+The report must show `all_passed: true` (25 asserts), with each leader step recorded as `-> leader Run { action: "new_tab", .. }` and so on. Negative control (2026-09-30): the same run with `leader_key: ""` fails 10 asserts, because every follow-up key types into the shell instead.
 
 ## Checked-in script: Enter is the safe choice in destructive dialogs (B64/MD5)
 
