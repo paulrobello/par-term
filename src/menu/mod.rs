@@ -9,6 +9,19 @@
 //!   cannot attach anything because it needs a `gtk::Window` that winit never
 //!   creates (see `linux`).
 //!
+//! # Accelerators are display-only off macOS
+//!
+//! Only macOS dispatches from menu accelerators (AppKit matches key
+//! equivalents before winit sees the key). On Windows muda draws the
+//! accelerator text, but accelerators only fire when the Win32 message loop
+//! calls `TranslateAcceleratorW` with the menu's accelerator table, and
+//! par-term never does (winit owns the loop). On Linux the egui menu only
+//! draws labels. Everywhere except macOS the keybinding registry is the sole
+//! key dispatcher, and the menu's chord text is a hint that mirrors it.
+//! Verified at runtime on Windows 11 (card 01a0ef69fb). This applies equally
+//! to the fixed Copy and Paste chords: they are inert menu text on Windows,
+//! harmless because the key handler's own copy/paste branches run.
+//!
 //! Both renderers walk the same model and apply the same [`state::MenuState`],
 //! so neither platform can end up with commands, enabled items, or checkmarks
 //! the other lacks. Activations from either arrive as [`MenuAction`]s at

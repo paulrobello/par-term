@@ -108,7 +108,9 @@ pub(super) fn edit(has_native_app_menu: bool) -> Vec<MenuEntry> {
     let mut entries: Vec<MenuEntry> = vec![
         // Copy and Paste have no registry action: they run dedicated
         // clipboard paths that also serve egui text fields, so they keep
-        // the platform's fixed chord.
+        // the platform's fixed chord. The chord is display-only on Windows
+        // and Linux (see the module docs of `crate::menu`): the key
+        // handler's own copy/paste branches do the work there, not the menu.
         MenuItemSpec::new("copy", "Copy", MenuAction::Copy)
             .accel(primary(Code::KeyC))
             .into(),

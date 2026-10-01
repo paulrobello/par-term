@@ -52,7 +52,7 @@ A JSON object with a `steps` array. Each step is one object with an optional
 
 | Step | Meaning |
 |---|---|
-| `{"chord": "Ctrl+Alt+Cmd+P"}` | Inject a chord through the **real key path**: first the overlay-stack routing that `handle_window_event` runs for every key (UX.md OV2 — the same `route_overlay_key` call, not a mirror), then, if no overlay owns the key, the registry lookup → `execute_keybinding_action`. So while an overlay is open the chord does what a real key does: an overlay's own toggle chord closes it, another popup's chord replaces the top popup, Escape closes only the top overlay, and a dialog consumes everything else. The chord fires the action literally — `open_settings` opens (it is not a toggle), so closing the window again needs the window's own close path, not a second chord. |
+| `{"chord": "Ctrl+Alt+Cmd+P"}` (or `"Unidentified+Ctrl+Alt+S"`, see below) | Inject a chord through the **real key path**: first the overlay-stack routing that `handle_window_event` runs for every key (UX.md OV2 — the same `route_overlay_key` call, not a mirror), then, if no overlay owns the key, the registry lookup → `execute_keybinding_action`. So while an overlay is open the chord does what a real key does: an overlay's own toggle chord closes it, another popup's chord replaces the top popup, Escape closes only the top overlay, and a dialog consumes everything else. The chord fires the action literally — `open_settings` opens (it is not a toggle), so closing the window again needs the window's own close path, not a second chord. |
 | `{"type_text": "fullscr"}` | Deliver text to the focused egui widget (the same synthetic-input channel macOS menu accelerators use), then render one frame synchronously so the next step reads post-input state. |
 | `{"press": "Enter"}` | Press a named key on the egui side, then render one frame synchronously (the redraw round-trip is neither immediate nor guaranteed — an occluded window or a gate-rejected redraw left presses undelivered run-to-run before this). Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). `Shift+`, `Cmd+`, and `Ctrl+` prefixes, in any order (e.g. `Shift+Enter`, `Cmd+Shift+d`), carry the modifiers on the egui event — panels that distinguish modified keys read them via `consume_key` (`Cmd+` is egui's platform command modifier). |
 | PTY-delivery asserts | A `file_bytes` proof that a keypress reached the shell needs a **primer and a flush chord** around it (see `tests/ui/b64_enter_safe_choice.json`, `b70_panel_nav.json`): a `{"chord": "Enter"}` before the interaction proves the sink is live, and one after flushes the read — without the trailing chord an async paste can sit in the PTY buffer unread when the script ends, and the sink asserts empty even though the app wrote the bytes. |
@@ -112,6 +112,30 @@ SIGSEGV). Chord injection therefore enters through
 `KeybindingRegistry::lookup_with_key_fields`, which takes the public key
 fields a real event would carry. Character chords match logically (physical
 preference is irrelevant unless `input.use_physical_keys` is enabled).
+
+### Windows Ctrl+Alt chords: the `Unidentified+` prefix
+
+A plain `chord` step always injects `Key::Character` with no physical key.
+That is not what Windows delivers for Ctrl+Alt+letter: Ctrl+Alt is AltGr
+there, a US layout has no AltGr character, and winit reports the key as
+`Key::Unidentified` with only the physical key set. The matcher has a
+separate path for that case (fixed in `b76ab8be`), and a plain
+`Ctrl+Alt+S` chord step never reaches it. **A plain Ctrl+Alt chord passing
+under `--ui-test` therefore proves nothing about Windows.**
+
+Prefix the chord with `Unidentified+` to inject it the Windows way:
+
+```json
+{"chord": "Unidentified+Ctrl+Alt+S", "wait_ms": 400}
+```
+
+The step injects `Key::Unidentified` plus the physical key for the letter
+(US layout, letters and digits only), so the registry lookup exercises the
+physical-key fallback. Use it for every Ctrl+Alt chord in a script that must
+hold on Windows. Other key kinds (named keys, punctuation) are rejected with
+a failed step. The step is injection through the seam, not a real keyboard
+path: the final confirmation on Windows is still a real keystroke on the
+Windows VM (for example `prlctl send-key-event`) with `DEBUG_LEVEL=3`.
 
 ### Timing
 

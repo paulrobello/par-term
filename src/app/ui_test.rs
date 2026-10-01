@@ -31,7 +31,9 @@ use crate::app::window_state::WindowState;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use winit::event_loop::ActiveEventLoop;
-use winit::keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKeyCode, PhysicalKey};
+use winit::keyboard::{
+    Key, KeyCode, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
+};
 
 /// Default delay before each step, letting the event loop settle.
 fn default_wait_ms() -> u64 {
@@ -184,12 +186,67 @@ fn visible_modal_names(ws: &WindowState) -> Vec<String> {
     ws.overlay_stack().guard_names()
 }
 
+/// Prefix that makes a chord step inject the key the way Windows reports
+/// Ctrl+Alt+letter: logical key `Key::Unidentified`, physical key carrying the
+/// letter (`"Unidentified+Ctrl+Alt+S"`). Without it every character chord is
+/// injected as `Key::Character`, which never exercises that matcher path.
+const UNIDENTIFIED_PREFIX: &str = "Unidentified+";
+
+/// The physical key a letter or digit occupies on a US layout.
+fn physical_code_for_char(c: char) -> Option<KeyCode> {
+    Some(match c.to_ascii_uppercase() {
+        'A' => KeyCode::KeyA,
+        'B' => KeyCode::KeyB,
+        'C' => KeyCode::KeyC,
+        'D' => KeyCode::KeyD,
+        'E' => KeyCode::KeyE,
+        'F' => KeyCode::KeyF,
+        'G' => KeyCode::KeyG,
+        'H' => KeyCode::KeyH,
+        'I' => KeyCode::KeyI,
+        'J' => KeyCode::KeyJ,
+        'K' => KeyCode::KeyK,
+        'L' => KeyCode::KeyL,
+        'M' => KeyCode::KeyM,
+        'N' => KeyCode::KeyN,
+        'O' => KeyCode::KeyO,
+        'P' => KeyCode::KeyP,
+        'Q' => KeyCode::KeyQ,
+        'R' => KeyCode::KeyR,
+        'S' => KeyCode::KeyS,
+        'T' => KeyCode::KeyT,
+        'U' => KeyCode::KeyU,
+        'V' => KeyCode::KeyV,
+        'W' => KeyCode::KeyW,
+        'X' => KeyCode::KeyX,
+        'Y' => KeyCode::KeyY,
+        'Z' => KeyCode::KeyZ,
+        '0' => KeyCode::Digit0,
+        '1' => KeyCode::Digit1,
+        '2' => KeyCode::Digit2,
+        '3' => KeyCode::Digit3,
+        '4' => KeyCode::Digit4,
+        '5' => KeyCode::Digit5,
+        '6' => KeyCode::Digit6,
+        '7' => KeyCode::Digit7,
+        '8' => KeyCode::Digit8,
+        '9' => KeyCode::Digit9,
+        _ => return None,
+    })
+}
+
 /// Convert a chord string into the (logical key, physical key, modifiers)
 /// triple the keybinding seam consumes.
 fn chord_to_fields(chord: &str) -> Result<(Key, PhysicalKey, winit::event::Modifiers), String> {
     use par_term_keybindings::parser::{ParsedKey, parse_key_combo};
 
-    let combo = parse_key_combo(chord).map_err(|e| format!("cannot parse chord '{chord}': {e}"))?;
+    let (unidentified, spec) = match chord.get(..UNIDENTIFIED_PREFIX.len()) {
+        Some(head) if head.eq_ignore_ascii_case(UNIDENTIFIED_PREFIX) => {
+            (true, &chord[UNIDENTIFIED_PREFIX.len()..])
+        }
+        _ => (false, chord),
+    };
+    let combo = parse_key_combo(spec).map_err(|e| format!("cannot parse chord '{chord}': {e}"))?;
     let m = &combo.modifiers;
 
     let mut state = ModifiersState::empty();
@@ -213,6 +270,19 @@ fn chord_to_fields(chord: &str) -> Result<(Key, PhysicalKey, winit::event::Modif
     let modifiers = winit::event::Modifiers::from(state);
 
     match combo.key {
+        ParsedKey::Character(c) if unidentified => {
+            let code = physical_code_for_char(c).ok_or_else(|| {
+                format!("chord '{chord}': Unidentified+ needs a letter or digit key, got '{c}'")
+            })?;
+            Ok((
+                Key::Unidentified(NativeKey::Windows(c.to_ascii_uppercase() as u16)),
+                PhysicalKey::Code(code),
+                modifiers,
+            ))
+        }
+        _ if unidentified => Err(format!(
+            "chord '{chord}': Unidentified+ applies to letter or digit chords only"
+        )),
         ParsedKey::Character(c) => {
             let upper = c.to_ascii_uppercase().to_string();
             Ok((
@@ -1314,6 +1384,52 @@ mod tests {
         let state = modifiers.state();
         assert!(state.control_key() && state.alt_key() && state.super_key());
         assert!(!state.shift_key());
+    }
+
+    #[test]
+    fn unidentified_chord_reaches_the_matcher_by_physical_key() {
+        use par_term_config::ModifierRemapping;
+        use par_term_keybindings::KeybindingRegistry;
+
+        let (logical, physical, modifiers) =
+            chord_to_fields("Unidentified+Ctrl+Alt+S").expect("parses");
+        assert!(matches!(logical, Key::Unidentified(_)));
+        assert_eq!(physical, PhysicalKey::Code(KeyCode::KeyS));
+        let state = modifiers.state();
+        assert!(state.control_key() && state.alt_key() && !state.shift_key());
+
+        let registry = KeybindingRegistry::from_config(&[par_term_config::KeyBinding {
+            key: "Ctrl+Alt+S".into(),
+            action: "probe".into(),
+        }]);
+        let lookup = |l: &Key, p: PhysicalKey, m: &winit::event::Modifiers| {
+            registry
+                .lookup_with_key_fields(l, p, m, &ModifierRemapping::default(), false)
+                .map(str::to_string)
+        };
+        assert_eq!(
+            lookup(&logical, physical, &modifiers).as_deref(),
+            Some("probe")
+        );
+        // The plain spelling injects Key::Character with no physical key, the
+        // path Windows never takes; it must not be what this mode exercises.
+        let (plain_logical, plain_physical, plain_mods) =
+            chord_to_fields("Ctrl+Alt+S").expect("parses");
+        assert!(matches!(plain_logical, Key::Character(_)));
+        assert!(matches!(plain_physical, PhysicalKey::Unidentified(_)));
+        assert_eq!(
+            lookup(&plain_logical, plain_physical, &plain_mods).as_deref(),
+            Some("probe")
+        );
+        // A different physical key must not match.
+        let (l, p, m) = chord_to_fields("Unidentified+Ctrl+Alt+T").expect("parses");
+        assert_eq!(lookup(&l, p, &m), None);
+    }
+
+    #[test]
+    fn unidentified_chord_rejects_non_character_keys() {
+        assert!(chord_to_fields("Unidentified+Ctrl+Alt+F5").is_err());
+        assert!(chord_to_fields("Unidentified+Ctrl+Alt+Comma").is_err());
     }
 
     #[test]

@@ -149,11 +149,15 @@ impl Platform {
         matches!(self, Platform::MacOs)
     }
 
-    /// Whether muda attaches a real menu bar whose accelerators intercept keys
-    /// before winit ever delivers them. Linux/BSD get the in-app egui menu
-    /// instead, which only *draws* accelerator labels — see `crate::menu`.
-    pub(crate) const fn has_native_menu(self) -> bool {
-        matches!(self, Platform::MacOs | Platform::Windows)
+    /// Whether the menu's accelerators claim keys ahead of the registry. Only
+    /// macOS does, because AppKit matches key equivalents before winit sees
+    /// the event. On Windows muda attaches a menu and draws the accelerator
+    /// text, but par-term never calls `TranslateAcceleratorW`, so the
+    /// accelerators are display-only and the keybinding registry is the sole
+    /// dispatcher (verified at runtime, card 01a0ef69fb). Linux/BSD get the
+    /// in-app egui menu, which also only draws labels — see `crate::menu`.
+    pub(crate) const fn menu_accelerators_dispatch(self) -> bool {
+        matches!(self, Platform::MacOs)
     }
 }
 
@@ -213,9 +217,12 @@ impl Rule {
 /// Sources, highest precedence first:
 ///
 /// 1. `macos_app_menu` — NSApp menu key equivalents (macOS only).
-/// 2. `native_menu` — the rest of the muda menu bar (macOS and Windows only).
+/// 2. `native_menu` — the rest of the muda menu bar (macOS only). On Windows
+///    the menu's accelerators are display-only and claim nothing, so this
+///    source is absent there: the registry below takes those chords first.
 /// 3. `config_keybindings` — `Config::default().keybindings`, consulted by
-///    `handle_key_event` before any hardcoded layer.
+///    `handle_key_event` before any hardcoded layer. The first dispatcher on
+///    Windows and Linux.
 /// 4. Everything in [`LAYER_CLAIMS`], in its declared order.
 ///
 /// Excluded, because what they claim is only knowable at runtime: the tmux
@@ -229,7 +236,10 @@ pub(crate) fn claim_chain() -> Vec<Rule> {
         push_claims(&mut rules, p, "macos_app_menu", MACOS_APP_MENU);
     }
 
-    if p.has_native_menu() {
+    // Only macOS intercepts keys in the menu. On Windows the accelerators are
+    // display-only, so including them would invent a claim that shadows the
+    // registry — the opposite of what happens at runtime.
+    if p.menu_accelerators_dispatch() {
         rules.extend(menu_rules(p));
     }
 
