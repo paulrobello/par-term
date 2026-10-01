@@ -25,6 +25,10 @@ use par_term_config::Config;
 /// absent in the canonical location. Existing canonical files are never
 /// overwritten and failures never abort startup; see `migrate_between`.
 ///
+/// A target that already holds a `config.yaml` is not treated as a migration
+/// destination: both sides holding one means nothing moves (an existing
+/// install, or a scratch `XDG_CONFIG_HOME` dir with a config of its own).
+///
 /// `PAR_TERM_NO_MIGRATE` (any non-empty value) skips the migration entirely:
 /// the legacy-source design cannot tell a real migration from a run whose
 /// `XDG_CONFIG_HOME` merely points elsewhere (ui-test harnesses, wrappers), and
@@ -99,8 +103,22 @@ fn legacy_config_dirs(canonical: &Path) -> Vec<PathBuf> {
 /// Returns the number of entries moved. Best-effort and non-panicking: a missing
 /// or unreadable `legacy` returns `0`, existing `canonical` entries are preserved,
 /// and per-entry rename failures (e.g. cross-device) are logged and skipped so the
-/// source file is never lost.
+/// source file is never lost. When both directories hold a `config.yaml` nothing
+/// moves and `0` is returned.
 fn migrate_between(legacy: &Path, canonical: &Path) -> usize {
+    // Both sides holding a config.yaml is not a migration: the target has a
+    // config of its own (an existing install, or a scratch `XDG_CONFIG_HOME`
+    // dir), and sweeping legacy entries into it relocated real user data into
+    // a throwaway dir that was later deleted (incident 2026-09-30). Skip
+    // loudly; `PAR_TERM_NO_MIGRATE=1` skips this sweep entirely.
+    if legacy.join("config.yaml").is_file() && canonical.join("config.yaml").is_file() {
+        log::warn!(
+            "Config migration skipped: both {legacy:?} and {canonical:?} already contain \
+             config.yaml, so {canonical:?} is not an empty migration destination — legacy \
+             entries stay in place. Set PAR_TERM_NO_MIGRATE=1 to skip the sweep outright."
+        );
+        return 0;
+    }
     let entries = match std::fs::read_dir(legacy) {
         Ok(e) => e,
         Err(_) => return 0,
@@ -203,6 +221,26 @@ mod tests {
         // the stale profiles.yaml is left in legacy (canonical-wins policy)
         assert!(legacy.path().join("profiles.yaml").exists());
         assert!(!legacy.path().join("sounds").exists());
+    }
+
+    /// The 2026-09-30 data-loss incident: a scratch `XDG_CONFIG_HOME` dir that
+    /// already had its own config.yaml still received every legacy entry, and
+    /// the scratch was later deleted. Both sides holding a config.yaml is not
+    /// a migration — nothing may move, and the legacy files must survive.
+    #[test]
+    fn both_config_yaml_present_moves_nothing() {
+        let legacy = tempdir().unwrap();
+        let canonical = tempdir().unwrap();
+        fs::write(legacy.path().join("config.yaml"), "real user config").unwrap();
+        fs::write(legacy.path().join("profiles.yaml"), "real profiles").unwrap();
+        fs::write(canonical.path().join("config.yaml"), "scratch config").unwrap();
+
+        let moved = migrate_between(legacy.path(), canonical.path());
+
+        assert_eq!(moved, 0);
+        assert!(legacy.path().join("config.yaml").exists());
+        assert!(legacy.path().join("profiles.yaml").exists());
+        assert!(!canonical.path().join("profiles.yaml").exists());
     }
 
     #[test]

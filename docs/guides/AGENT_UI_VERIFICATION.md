@@ -162,17 +162,20 @@ keybindings:
   - key: "Ctrl+Alt+Cmd+P"
     action: "toggle_command_palette"
 EOF
-HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg par-term --ui-test script.json --ui-test-report report.json
+HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg PAR_TERM_NO_MIGRATE=1 par-term --ui-test script.json --ui-test-report report.json
 ```
 
-`HOME` must be isolated too: with only `XDG_CONFIG_HOME` redirected, the
-startup config migration treats the real `~/.config/par-term` as a legacy
-location and **moves its contents into the throwaway dir** (observed
-2026-09-28 — 11 entries relocated before the run was stopped and manually
-recovered). A scratch `HOME` removes both legacy-source candidates;
-`PAR_TERM_NO_MIGRATE=1` skips the migration outright and is the
-belt-and-braces fallback when `HOME` cannot be redirected (documented in
-the [Environment Variables Reference](ENVIRONMENT_VARIABLES.md)).
+Every recipe below sets `PAR_TERM_NO_MIGRATE=1` — this is **required**, not
+advisory: with only `XDG_CONFIG_HOME` redirected, the startup config
+migration treats the real `~/.config/par-term` as a legacy location and
+**moves its contents into the throwaway dir** (observed 2026-09-28 — 11
+entries relocated before the run was stopped and manually recovered; again
+2026-09-30 — 12 entries moved over a scratch config and the scratch was then
+deleted). Isolating `HOME` removes the legacy-source candidates, and the
+migration now also skips a target that already has its own `config.yaml`,
+but a scratch dir without one is still fair game, so the env var is the
+guarantee (documented in the
+[Environment Variables Reference](ENVIRONMENT_VARIABLES.md)).
 
 Three first-run prompts defeat a clean run otherwise — `integrations_ui`
 opens at startup and holds the modal guard — so all three suppression keys go
@@ -226,7 +229,7 @@ keybindings:
   - key: "CmdOrCtrl+Alt+W"
     action: "close_tab"
 EOF
-HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
+HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg PAR_TERM_NO_MIGRATE=1 \
   target/dev-release/par-term \
   --ui-test tests/ui/d6_reopen_preserves_shell.json \
   --ui-test-report /tmp/pt-ui-test/d6-report.json
@@ -265,11 +268,11 @@ keybindings:
   - key: "CmdOrCtrl+Alt+Shift+Q"
     action: "quit"
 EOF
-HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
+HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg PAR_TERM_NO_MIGRATE=1 \
   target/dev-release/par-term \
   --ui-test tests/ui/tw2_quit_saves_every_window.json \
   --ui-test-report /tmp/pt-ui-test/tw2-quit-report.json
-HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg \
+HOME=/tmp/pt-ui-test/home XDG_CONFIG_HOME=/tmp/pt-ui-test/cfg PAR_TERM_NO_MIGRATE=1 \
   target/dev-release/par-term \
   --ui-test tests/ui/tw2_restore_brings_back_three.json \
   --ui-test-report /tmp/pt-ui-test/tw2-restore-report.json
@@ -363,6 +366,7 @@ cat > /tmp/pt-k27/run.sh <<'EOF'
 rm -f /tmp/pt-k27-sink.bin
 export HOME=/tmp/pt-k27/home
 export XDG_CONFIG_HOME=/tmp/pt-k27/cfg
+export PAR_TERM_NO_MIGRATE=1
 exec "$1" --ui-test tests/ui/k27_pass_to_terminal_delivers.json --ui-test-report "$2"
 EOF
 chmod +x /tmp/pt-k27/run.sh
@@ -420,7 +424,7 @@ commands:
     duration_ms: null
 EOF
 rm -f /tmp/pt-b70-sink.bin
-HOME=/tmp/pt-b70/home XDG_CONFIG_HOME=/tmp/pt-b70/cfg \
+HOME=/tmp/pt-b70/home XDG_CONFIG_HOME=/tmp/pt-b70/cfg PAR_TERM_NO_MIGRATE=1 \
   target/dev-release/par-term \
   --ui-test tests/ui/b70_panel_nav.json \
   --ui-test-report /tmp/pt-b70/report.json
