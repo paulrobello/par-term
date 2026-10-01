@@ -3,11 +3,12 @@
 //! Covers: auto-log enable, log format, log directory, redact passwords.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::keyword_section;
 use par_term_config::SessionLogFormat;
 use std::collections::HashSet;
 
-pub(super) fn show_logging_section(
+pub(crate) fn show_logging_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -39,6 +40,7 @@ pub(super) fn show_logging_section(
             let mut auto_log = settings.config.session_log.auto_log_sessions;
             if ui
                 .checkbox(&mut auto_log, "Record every tab's output automatically")
+                .search_tag(&["auto_log_sessions"])
                 .on_hover_text("When enabled, all terminal output is logged to files")
                 .changed()
             {
@@ -55,7 +57,7 @@ pub(super) fn show_logging_section(
                 let current_format = settings.config.session_log.session_log_format;
                 let format_name = current_format.display_name();
 
-                egui::ComboBox::from_id_salt("advanced_session_log_format")
+                let format_combo = egui::ComboBox::from_id_salt("advanced_session_log_format")
                     .width(180.0)
                     .selected_text(format_name)
                     .show_ui(ui, |ui| {
@@ -71,6 +73,7 @@ pub(super) fn show_logging_section(
                             }
                         }
                     });
+                format_combo.response.search_tag(&["session_log_format"]);
             });
 
             ui.add_space(4.0);
@@ -93,11 +96,13 @@ pub(super) fn show_logging_section(
             ui.horizontal(|ui| {
                 ui.label("Log directory:");
                 let mut dir = settings.config.session_log.session_log_directory.clone();
-                let response = ui.add(
-                    egui::TextEdit::singleline(&mut dir)
-                        .desired_width(300.0)
-                        .hint_text("~/.local/share/par-term/logs/"),
-                );
+                let response = ui
+                    .add(
+                        egui::TextEdit::singleline(&mut dir)
+                            .desired_width(300.0)
+                            .hint_text("~/.local/share/par-term/logs/"),
+                    )
+                    .search_tag(&["session_log_directory"]);
                 if response.changed() {
                     settings.config.session_log.session_log_directory = dir;
                     settings.has_changes = true;
@@ -117,6 +122,7 @@ pub(super) fn show_logging_section(
             let mut redact = settings.config.session_log.session_log_redact_passwords;
             if ui
                 .checkbox(&mut redact, "Redact passwords in recordings")
+                .search_tag(&["session_log_redact_passwords"])
                 .on_hover_text(
                     "Detects password prompts (sudo, ssh, etc.) and replaces \
                      keyboard input with a redaction marker. Prevents passwords \

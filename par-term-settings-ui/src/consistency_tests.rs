@@ -439,3 +439,67 @@ fn no_scroll_area_inside_the_content_scroll_area() {
         hits.join("\n")
     );
 }
+
+/// Files that may draw an Edit, Delete, or Remove button themselves, each
+/// with the reason (UX.md SC4: every list's rows use `list_editor`).
+const ROW_BUTTONS_ALLOWED: &[(&str, &str)] = &[
+    ("list_editor.rs", "the shared row component itself"),
+    (
+        "delete_confirm.rs",
+        "the two-click confirm primitive the row component uses",
+    ),
+    (
+        "advanced_tab/import_export.rs",
+        "Import & Replace and Fetch & Replace: whole-config actions, not rows",
+    ),
+    (
+        "integrations_tab.rs",
+        "shader bundle Uninstall: a whole-bundle action, not a row",
+    ),
+    (
+        "background_tab/mod.rs",
+        "Delete for the selected shader file beside the picker, not a list row",
+    ),
+    (
+        "shader_dialogs.rs",
+        "the Delete button of the delete-shader confirmation dialog",
+    ),
+];
+
+/// UX.md SC4: list rows draw Edit and Delete only through
+/// `list_editor::row_actions`, so every list gets the same buttons,
+/// confirmation, reorder, and duplicate.
+#[test]
+fn every_list_row_uses_the_shared_row_component() {
+    let patterns = [
+        "small_button(\"Edit\")",
+        ".button(\"Edit\")",
+        "small_button(\"Delete\")",
+        ".button(\"Delete\")",
+        "small_button(\"Remove\")",
+        ".button(\"Remove\")",
+        "confirm_delete_button(",
+        "confirm_action_button(",
+    ];
+    let mut hits = Vec::new();
+    for path in source_files() {
+        let file = rel(&path);
+        if ROW_BUTTONS_ALLOWED.iter().any(|(f, _)| *f == file) {
+            continue;
+        }
+        let text = production_source(&path);
+        for pattern in patterns {
+            for (at, _) in text.match_indices(pattern) {
+                hits.push(format!(
+                    "{file}:{} {pattern}",
+                    text[..at].matches('\n').count() + 1
+                ));
+            }
+        }
+    }
+    assert!(
+        hits.is_empty(),
+        "list rows drawing their own Edit/Delete (SC4, use list_editor::row_actions):\n{}",
+        hits.join("\n")
+    );
+}

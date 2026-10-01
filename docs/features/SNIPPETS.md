@@ -54,7 +54,7 @@ Snippets are saved text blocks that can be quickly inserted into the terminal. T
 If you've assigned a keybinding to your snippet, simply press the key combination and the snippet will be inserted at the cursor position.
 
 **Via Settings:**
-1. Open Settings → Snippets & Actions tab
+1. Open Settings → Automation → Snippets
 2. Find your snippet in the list
 3. Click **Edit** to view/copy the content
 
@@ -159,7 +159,7 @@ Custom actions allow you to execute shell commands, open a new tab with an optio
 
 Custom actions can also use a two-stroke prefix trigger:
 
-- Set a global **Prefix key** in Settings -> **Snippets & Actions** -> **Custom Actions** (for example `Ctrl+B`)
+- Set a global **Prefix key** in Settings -> **Automation** -> **Custom Actions** (for example `Ctrl+B`)
 - Give an action a single-character **Prefix char** (for example `g` or `%`), or a single-character **Keybinding** with no modifiers (for example `1`)
 - Press the prefix key, release it, then press the action's prefix char to run it
 - A prefix toast stays visible while prefix mode is armed; press `Esc` to cancel it
@@ -315,14 +315,14 @@ To duplicate an existing action, click the **Clone** button next to the action i
 Actions are triggered via keyboard shortcuts. You can assign keybindings in two ways:
 
 **Via Action Editor (Recommended):**
-1. Open Settings → **Snippets & Actions** tab
+1. Open Settings → **Automation** → **Snippets**
 2. Scroll to the **Custom Actions** section and edit or create an action
 3. Click the **🎤 Record** button in the Keybinding field
 4. Press the desired key combination
 5. Save the action
 
 **Via Prefix Key:**
-1. Open Settings -> **Snippets & Actions** -> **Custom Actions**
+1. Open Settings -> **Automation** -> **Custom Actions**
 2. Set the section-level **Prefix key** once (for example `Ctrl+B`)
    Use the **🎤 Record** button if you want par-term to capture the combo for you
 3. Give one or more actions a **Prefix char**, or a single-character **Keybinding** with no modifiers
@@ -331,7 +331,7 @@ Actions are triggered via keyboard shortcuts. You can assign keybindings in two 
 5. If you change your mind, press `Esc` to cancel prefix mode before the follow-up key
 
 **Via Keybindings List:**
-1. Open Settings → **Input** tab
+1. Open Settings → **Keys** → **Key Bindings**
 2. Add a new keybinding:
    - **Key**: e.g., `Ctrl+Shift+T`
    - **Action**: `action:<action_id>` (e.g., `action:run_tests`)
@@ -614,13 +614,13 @@ Snippets can be exported to and imported from YAML files for backup or sharing.
 
 ### Exporting
 
-1. Open Settings > Snippets & Actions tab
+1. Open Settings > Automation > Snippets
 2. Click **Export** to save all snippets to a YAML file
 3. Choose a save location
 
 ### Importing
 
-1. Open Settings > Snippets & Actions tab
+1. Open Settings > Automation > Snippets
 2. Click **Import** and select a YAML file
 3. par-term automatically handles conflicts:
    - Snippets with duplicate IDs are skipped (not imported)
@@ -633,7 +633,7 @@ Each snippet can define custom variables that override built-in and shell variab
 
 ### Using the Variables Editor
 
-1. Edit a snippet in Settings > Snippets & Actions tab
+1. Edit a snippet in Settings > Automation > Snippets
 2. Expand the **Custom Variables** section (collapsible)
 3. Add variable name/value pairs in the grid
 4. Use the `+` button to add rows and the delete button to remove them

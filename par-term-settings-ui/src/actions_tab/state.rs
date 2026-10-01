@@ -84,8 +84,6 @@ pub struct ActionsTabState {
     pub temp_action_keybinding_enabled: bool,
     /// Agent command files snapshot (None = not loaded yet this session)
     pub agent_commands: Option<Vec<par_term_config::agent_commands::LoadedCommand>>,
-    /// Command id awaiting the second (confirm) click of a delete
-    pub agent_command_pending_delete: Option<String>,
     /// Last agent-command delete/save error, shown until the next attempt
     pub agent_command_error: Option<String>,
     /// Open command editor: (command id, YAML text being edited)
@@ -94,8 +92,6 @@ pub struct ActionsTabState {
     pub agent_launch_editing: Option<usize>,
     /// Whether the add-new-agent form is active
     pub agent_launch_adding: bool,
-    /// Agent id awaiting the second (confirm) click of a remove
-    pub agent_launch_pending_delete: Option<String>,
     /// Last agent-editor validation error, shown until the next attempt
     pub agent_launch_error: Option<String>,
     /// Temporary agent id for the add/edit form
@@ -152,12 +148,10 @@ impl Default for ActionsTabState {
             temp_action_capture_output: false,
             temp_action_keybinding_enabled: true,
             agent_commands: None,
-            agent_command_pending_delete: None,
             agent_command_error: None,
             agent_command_editing: None,
             agent_launch_editing: None,
             agent_launch_adding: false,
-            agent_launch_pending_delete: None,
             agent_launch_error: None,
             temp_agent_launch_id: String::new(),
             temp_agent_launch_name: String::new(),

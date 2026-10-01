@@ -1,8 +1,6 @@
-//! Integrations tab for settings UI.
-//!
-//! Shows installation status and controls for:
-//! - Shell Integration (bash, zsh, fish)
-//! - Custom Shaders bundle
+//! Shell integration (General › Integration & Files) and the custom shader
+//! bundle (Effects & Shaders › Background & Shader). Placement is set in
+//! [`crate::layout`].
 
 use arboard::Clipboard;
 use egui::{Color32, RichText, Ui};
@@ -32,24 +30,7 @@ pub enum ShaderAction {
 }
 
 impl SettingsUI {
-    /// Show the integrations tab content.
-    pub fn show_integrations_tab(
-        &mut self,
-        ui: &mut Ui,
-        _changes_this_frame: &mut bool,
-        collapsed: &mut HashSet<String>,
-    ) {
-        // Shell Integration section
-        self.show_shell_integration_section(ui, _changes_this_frame, collapsed);
-
-        // Custom Shaders section
-        self.show_shaders_section(ui, _changes_this_frame, collapsed);
-
-        // SSH section (absorbed from ssh_tab)
-        self.show_ssh_tab_as_section(ui, _changes_this_frame, collapsed);
-    }
-
-    fn show_shell_integration_section(
+    pub(crate) fn show_shell_integration_section(
         &mut self,
         ui: &mut Ui,
         _changes_this_frame: &mut bool,
@@ -179,7 +160,7 @@ impl SettingsUI {
         );
     }
 
-    fn show_shaders_section(
+    pub(crate) fn show_shaders_section(
         &mut self,
         ui: &mut Ui,
         _changes_this_frame: &mut bool,

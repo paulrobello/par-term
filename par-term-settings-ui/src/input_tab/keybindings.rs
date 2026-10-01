@@ -36,7 +36,7 @@ type BindingInfo<'a> = (
 // Keybindings Section
 // ============================================================================
 
-pub(super) fn show_keybindings_section(
+pub(crate) fn show_keybindings_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -46,7 +46,7 @@ pub(super) fn show_keybindings_section(
         ui,
         "Keybindings",
         "input_keybindings",
-        &["hotkey", "leader", "shortcut"],
+        &["hotkey", "leader", "shortcut", "keybindings"],
         true,
         collapsed,
         |ui| {

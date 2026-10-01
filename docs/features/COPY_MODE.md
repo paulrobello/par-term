@@ -72,7 +72,7 @@ stateDiagram-v2
 |--------|-------|---------------|
 | Toggle copy mode | `Cmd + Shift + C` | `Ctrl + Shift + Space` |
 
-The keybinding is configurable via Settings > Input > Keybindings using the `toggle_copy_mode` action.
+The keybinding is configurable via Settings > Keys > Key Bindings using the `toggle_copy_mode` action.
 
 **Exiting:**
 - `q` exits copy mode immediately
@@ -182,7 +182,7 @@ When copy mode is active, a status bar overlay appears at the bottom of the term
 - **Cursor position**: Screen row:column and absolute line number (e.g., `5:10 (abs 105)`)
 - **Search query**: When searching (prefixed with `/` or `?`)
 
-The status bar can be hidden via Settings > Input > Copy Mode.
+The status bar can be hidden via Settings > Pointer > Copy Mode.
 
 ## Configuration
 
@@ -201,7 +201,7 @@ copy_mode_show_status: true
 
 ### Settings UI
 
-All options are available in Settings > Input > Copy Mode section.
+All options are available in Settings > Pointer > Copy Mode.
 
 ### Custom Keybinding
 

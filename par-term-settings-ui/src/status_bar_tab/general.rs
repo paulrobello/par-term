@@ -66,7 +66,9 @@ pub fn show_general_section(
                                 settings.has_changes = true;
                                 *changes_this_frame = true;
                             }
-                        });
+                        })
+                        .response
+                        .search_tag(&["status_bar_position"]);
                 });
 
                 // Height slider

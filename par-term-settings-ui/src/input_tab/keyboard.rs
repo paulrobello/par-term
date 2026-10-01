@@ -10,7 +10,7 @@ use std::collections::HashSet;
 // Keyboard Section
 // ============================================================================
 
-pub(super) fn show_keyboard_section(
+pub(crate) fn show_keyboard_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -26,7 +26,7 @@ pub(super) fn show_keyboard_section(
         ui.horizontal(|ui| {
             ui.label(format!("Left {OPTION_KEY} sends:"));
             let current = settings.config.input.left_option_key_mode;
-            egui::ComboBox::from_id_salt("input_left_option_key_mode")
+            let combo = egui::ComboBox::from_id_salt("input_left_option_key_mode")
                 .selected_text(option_key_mode_label(current))
                 .show_ui(ui, |ui| {
                     for mode in [
@@ -47,6 +47,7 @@ pub(super) fn show_keyboard_section(
                         }
                     }
                 });
+            combo.response.search_tag(&["left_option_key_mode"]);
         });
 
         ui.indent("input_left_option_desc", |ui| {
@@ -65,7 +66,7 @@ pub(super) fn show_keyboard_section(
         ui.horizontal(|ui| {
             ui.label(format!("Right {OPTION_KEY} sends:"));
             let current = settings.config.input.right_option_key_mode;
-            egui::ComboBox::from_id_salt("input_right_option_key_mode")
+            let combo = egui::ComboBox::from_id_salt("input_right_option_key_mode")
                 .selected_text(option_key_mode_label(current))
                 .show_ui(ui, |ui| {
                     for mode in [
@@ -86,6 +87,7 @@ pub(super) fn show_keyboard_section(
                         }
                     }
                 });
+            combo.response.search_tag(&["right_option_key_mode"]);
         });
 
         ui.indent("input_right_option_desc", |ui| {
@@ -133,7 +135,7 @@ pub(super) fn show_keyboard_section(
 // Modifier Remapping Section
 // ============================================================================
 
-pub(super) fn show_modifier_remapping_section(
+pub(crate) fn show_modifier_remapping_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -143,7 +145,7 @@ pub(super) fn show_modifier_remapping_section(
         ui,
         "Modifier Remapping",
         "input_modifier_remapping",
-        &["swap"],
+        &["swap", "modifier_remapping"],
         false,
         collapsed,
         |ui| {

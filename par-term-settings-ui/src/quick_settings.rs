@@ -1,16 +1,66 @@
-//! Quick settings strip - horizontal bar with commonly adjusted settings.
+//! General › Common: the most frequently changed settings on one page
+//! (UX.md SD3, formerly the quick-settings strip above every tab).
 //!
-//! This component provides fast access to the most frequently changed settings
-//! without navigating through the full settings UI.
+//! Every control here is a deliberate summary (UX.md SC7): each one also
+//! lives on its owning page, which carries the reset button and YAML-key
+//! search tag. "Go to" links lead there.
 
 use super::SettingsUI;
+use crate::section::keyword_section;
 use par_term_config::Theme;
 use par_term_config::{BackgroundMode, CursorStyle, TabBarMode};
+use std::collections::HashSet;
 
-/// Render the quick settings strip at the top of the settings UI.
-///
-/// Returns true if any setting was changed this frame.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+/// Render the General › Common page.
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    keyword_section(
+        ui,
+        "Common",
+        "general_common",
+        &["quick settings"],
+        true,
+        collapsed,
+        |ui| {
+            ui.label(
+                egui::RichText::new(
+                    "The settings changed most often. Each also lives on its own page.",
+                )
+                .small()
+                .weak(),
+            );
+            ui.add_space(4.0);
+            show_controls(ui, settings, changes_this_frame);
+            ui.add_space(8.0);
+            show_links(ui, settings);
+        },
+    );
+}
+
+/// Links to the pages that own the controls above.
+fn show_links(ui: &mut egui::Ui, settings: &mut SettingsUI) {
+    ui.horizontal_wrapped(|ui| {
+        ui.label(egui::RichText::new("Go to:").small());
+        for (label, section) in [
+            ("Text & Fonts", "appearance_fonts"),
+            ("Theme", "appearance_theme"),
+            ("Cursor", "appearance_cursor"),
+            ("Window", "window_transparency"),
+            ("Tab Bar", "window_tab_bar"),
+            ("Background & Shader", "background_effects"),
+        ] {
+            if ui.link(label).clicked() {
+                settings.open_section(section);
+            }
+        }
+    });
+}
+
+fn show_controls(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 16.0;
 

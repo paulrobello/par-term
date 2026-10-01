@@ -29,6 +29,8 @@ impl ControlEntry {
 pub struct SectionEntry {
     /// Tab the section lives on.
     pub tab: SettingsTab,
+    /// Index of the tab's sub-page the section is drawn on.
+    pub page: usize,
     /// Stable id: the collapse-state key persisted in
     /// `collapsed_settings_sections`.
     pub id: String,

@@ -144,7 +144,7 @@ For slow terminals or remote connections that cannot handle rapid paste, a confi
 paste_delay_ms: 50  # Add 50ms delay between pasted lines
 ```
 
-**Settings UI:** Settings > Input > Selection & Clipboard > Paste Delay slider
+**Settings UI:** Settings > General > Selection & Clipboard > Paste Delay slider
 
 **When to use:**
 - Remote SSH sessions with slow connections

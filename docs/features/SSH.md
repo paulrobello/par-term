@@ -140,7 +140,7 @@ Scans shell history for previous `ssh` commands and extracts connection details 
 
 Discovers SSH hosts on the local network by browsing the `_ssh._tcp.local.` service type.
 
-**This feature is opt-in.** Enable it in Settings > Integrations > SSH > mDNS/Bonjour Discovery, or in config (top-level keys — `ssh` is a flattened sub-config):
+**This feature is opt-in.** Enable it in Settings > Profiles > SSH > mDNS/Bonjour Discovery, or in config (top-level keys — `ssh` is a flattened sub-config):
 
 ```yaml
 enable_mdns_discovery: true
@@ -232,7 +232,7 @@ remote_tab_title_format: user_at_host  # default
 remote_tab_title_osc_priority: true
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Remote Tab Title Format"
+**Settings UI:** Settings > Windows & Tabs > Tab Bar > "Remote Tab Title Format"
 
 > **Note:** `remote_tab_title_format` requires shell integration to be installed on the remote host so that OSC 7 sequences are emitted. See [Integrations](INTEGRATIONS.md) for installation instructions.
 
@@ -313,7 +313,7 @@ The **Integrations** tab in Settings (`F12`) includes an **SSH** section with th
 - Shell integration must be installed on the remote host for OSC 7 hostname reporting
 
 **mDNS hosts not appearing:**
-- Enable mDNS in Settings > Integrations > SSH > mDNS/Bonjour Discovery
+- Enable mDNS in Settings > Profiles > SSH > mDNS/Bonjour Discovery
 - Increase `mdns_scan_timeout_secs` for slower networks
 - Ensure the remote hosts advertise `_ssh._tcp` via Bonjour/Avahi
 

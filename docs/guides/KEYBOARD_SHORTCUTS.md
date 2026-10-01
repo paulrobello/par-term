@@ -212,7 +212,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 
 > **📝 Note:** Broadcast input is per tab: every pane that receives it gets an amber outline, the tab shows 📡, the status bar (when enabled) shows how many panes receive it, and pastes are broadcast along with keystrokes.
 
-> **📝 Note:** Promote and demote actions have no default keybinding. Bind them in Settings → Input → Keybindings or via config YAML using the `promote_pane_to_tab` and `demote_tab_to_pane` action names. See [Tabs](../features/TABS.md#promoting-and-demoting-panes) for details.
+> **📝 Note:** Promote and demote actions have no default keybinding. Bind them in Settings → Keys → Key Bindings or via config YAML using the `promote_pane_to_tab` and `demote_tab_to_pane` action names. See [Tabs](../features/TABS.md#promoting-and-demoting-panes) for details.
 
 > **📝 Note:** **Select pane by letter** (`select_pane_hint`, tmux `display-panes` style) draws a letter badge centered in every pane of the focused tab; type a pane's letter to focus it. Any other key, including `Escape`, cancels without changing focus. See [Tabs](../features/TABS.md#selecting-a-pane-by-letter) for details.
 
@@ -391,7 +391,7 @@ without a binding there is no way to open the in-app menu.
 
 ## Platform Shortcut Conflicts
 
-A static audit (UX.md RT2 and RT3, 2026-09-29) of par-term's shipped default chords against the shortcuts each desktop reserves out of the box. An OS-level shortcut is taken by the desktop before par-term sees the key, so an entry marked **conflict** will not reach par-term on that platform unless the desktop shortcut is removed. Rebind the par-term action in **Settings ▸ Input ▸ Keybindings** if you keep the desktop shortcut. This is a table-level check; whether each key actually reaches par-term on a running system is tracked separately as a runtime check.
+A static audit (UX.md RT2 and RT3, 2026-09-29) of par-term's shipped default chords against the shortcuts each desktop reserves out of the box. An OS-level shortcut is taken by the desktop before par-term sees the key, so an entry marked **conflict** will not reach par-term on that platform unless the desktop shortcut is removed. Rebind the par-term action in **Settings ▸ Keys ▸ Key Bindings** if you keep the desktop shortcut. This is a table-level check; whether each key actually reaches par-term on a running system is tracked separately as a runtime check.
 
 | par-term default | Action | Platform | Desktop default | Result |
 |------------------|--------|----------|-----------------|--------|

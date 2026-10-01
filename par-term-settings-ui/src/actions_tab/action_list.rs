@@ -2,6 +2,7 @@
 
 use crate::SettingsUI;
 use crate::input_tab::capture_key_combo;
+use crate::search::SearchTag;
 use par_term_config::snippets::CustomActionConfig;
 
 use super::action_editor::show_action_edit_form;
@@ -18,6 +19,7 @@ pub fn show_actions_section(
         "Custom Actions",
         "actions_list",
         &[
+            "actions",
             "macro",
             "shell command",
             "insert text",
@@ -58,6 +60,7 @@ pub fn show_actions_section(
                 } else {
                     if ui
                         .text_edit_singleline(&mut settings.config.custom_action_prefix_key)
+                        .search_tag(&["custom_action_prefix_key"])
                         .changed()
                     {
                         settings.has_changes = true;
@@ -112,7 +115,7 @@ pub fn show_actions_section(
 
             // Collect mutations to apply after iteration
             let mut delete_index: Option<usize> = None;
-            let mut clone_index: Option<usize> = None;
+            let mut row_action: Option<crate::list_editor::RowAction> = None;
             let mut start_edit_index: Option<usize> = None;
 
             let action_count = settings.config.actions.len();
@@ -189,7 +192,7 @@ pub fn show_actions_section(
                                 // Reserve a fixed area for action buttons so the text segment
                                 // can't push them outside the visible row.
                                 ui.horizontal(|ui| {
-                                    let button_area_width = 165.0;
+                                    let button_area_width = 280.0;
                                     let row_height = ui.spacing().interact_size.y;
                                     let text_area_width =
                                         (ui.available_width() - button_area_width).max(0.0);
@@ -233,26 +236,26 @@ pub fn show_actions_section(
                                         egui::vec2(button_area_width, row_height),
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            if crate::delete_confirm::confirm_delete_button(
+                                            match crate::list_editor::row_actions(
                                                 ui,
                                                 &mut settings.pending_list_delete,
-                                                "action",
-                                                action.id(),
-                                                "Delete",
+                                                crate::list_editor::Row {
+                                                    index: i,
+                                                    len: action_count,
+                                                    list: "action",
+                                                    key: action.id(),
+                                                    delete_label: "Delete",
+                                                },
+                                                crate::list_editor::RowButtons::ALL,
                                             ) {
-                                                delete_index = Some(i);
-                                            }
-
-                                            if ui
-                                                .small_button("Clone")
-                                                .on_hover_text("Duplicate this action")
-                                                .clicked()
-                                            {
-                                                clone_index = Some(i);
-                                            }
-
-                                            if ui.small_button("Edit").clicked() {
-                                                start_edit_index = Some(i);
+                                                Some(crate::list_editor::RowAction::Delete(i)) => {
+                                                    delete_index = Some(i);
+                                                }
+                                                Some(crate::list_editor::RowAction::Edit(i)) => {
+                                                    start_edit_index = Some(i);
+                                                }
+                                                Some(action) => row_action = Some(action),
+                                                None => {}
                                             }
                                         },
                                     );
@@ -275,11 +278,24 @@ pub fn show_actions_section(
                 }
             }
 
-            if let Some(i) = clone_index {
-                let cloned = clone_action(&settings.config.actions[i]);
-                settings.config.actions.insert(i + 1, cloned);
+            if let Some(action) = row_action
+                && crate::list_editor::apply_move_or_duplicate(
+                    &mut settings.config.actions,
+                    action,
+                    // clone_action gives the copy a fresh id and clears its
+                    // keybinding and prefix char so no chord is shared.
+                    |copy| *copy = clone_action(copy),
+                )
+            {
                 settings.has_changes = true;
                 *changes_this_frame = true;
+                // Rows below the copy shifted down by one.
+                if let Some(editing) = settings.actions_tab.editing_action_index
+                    && let crate::list_editor::RowAction::Duplicate(i) = action
+                    && editing > i
+                {
+                    settings.actions_tab.editing_action_index = Some(editing + 1);
+                }
             }
 
             if let Some(i) = start_edit_index {

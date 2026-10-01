@@ -10,6 +10,8 @@
 
 use super::ActionsTabState;
 use crate::SettingsUI;
+use crate::delete_confirm::PendingDelete;
+use crate::list_editor::{Row, RowAction, RowButtons, row_actions};
 use par_term_config::agent_commands::{
     CommandAuthor, command_to_yaml, commands_dir, delete_command_file_as_user, load_all_commands,
     update_command_yaml_as_user,
@@ -28,13 +30,25 @@ pub fn show_agent_commands_section(
         &["macro", "mcp", "delete command"],
         true,
         collapsed,
-        |ui| show_commands_body(ui, &mut settings.actions_tab, &commands_dir()),
+        |ui| {
+            show_commands_body(
+                ui,
+                &mut settings.actions_tab,
+                &mut settings.pending_list_delete,
+                &commands_dir(),
+            )
+        },
     );
 }
 
 /// The section body, against an explicit directory (tests point it at a
 /// tempdir rather than the real config).
-fn show_commands_body(ui: &mut egui::Ui, state: &mut ActionsTabState, dir: &std::path::Path) {
+fn show_commands_body(
+    ui: &mut egui::Ui,
+    state: &mut ActionsTabState,
+    pending: &mut PendingDelete,
+    dir: &std::path::Path,
+) {
     ui.label(format!(
         "Command files in {} — run them from the command palette \
          (agent-cmd:<id>), a keybinding, or `par-term <id>`.",
@@ -46,7 +60,6 @@ fn show_commands_body(ui: &mut egui::Ui, state: &mut ActionsTabState, dir: &std:
     let refresh = ui.button("Refresh").clicked();
     if refresh || state.agent_commands.is_none() {
         state.agent_commands = Some(load_all_commands(dir));
-        state.agent_command_pending_delete = None;
     }
     if let Some(err) = &state.agent_command_error {
         ui.colored_label(egui::Color32::from_rgb(255, 100, 100), err);
@@ -93,7 +106,7 @@ fn show_commands_body(ui: &mut egui::Ui, state: &mut ActionsTabState, dir: &std:
                 ui.label(egui::RichText::new(header).strong());
             }
             ui.end_row();
-            for cmd in commands {
+            for (index, cmd) in commands.iter().enumerate() {
                 let id = cmd.file.id();
                 ui.monospace(id);
                 ui.label(cmd.file.title());
@@ -109,28 +122,32 @@ fn show_commands_body(ui: &mut egui::Ui, state: &mut ActionsTabState, dir: &std:
                     ),
                     CommandAuthor::User => "user".to_string(),
                 });
-                if state.agent_command_pending_delete.as_deref() == Some(id) {
-                    ui.horizontal(|ui| {
-                        if ui.button("Confirm delete").clicked() {
-                            delete_now = Some(id.to_string());
-                        }
-                        if ui.button("Cancel").clicked() {
-                            state.agent_command_pending_delete = None;
-                        }
-                    });
-                } else {
-                    ui.horizontal(|ui| {
-                        if ui.button("Edit").clicked() {
+                // Files on disk in directory order: no reorder, no duplicate.
+                ui.horizontal(|ui| {
+                    let row = Row {
+                        index,
+                        len: commands.len(),
+                        list: "agent_command",
+                        key: id,
+                        delete_label: "Delete",
+                    };
+                    let buttons = RowButtons {
+                        reorder: false,
+                        duplicate: false,
+                        edit: true,
+                        delete: true,
+                    };
+                    match row_actions(ui, pending, row, buttons) {
+                        Some(RowAction::Edit(_)) => {
                             let text = command_to_yaml(&cmd.file)
                                 .map(|b| String::from_utf8_lossy(&b).into_owned())
                                 .unwrap_or_default();
                             edit_now = Some((id.to_string(), text));
                         }
-                        if ui.button("Delete").clicked() {
-                            state.agent_command_pending_delete = Some(id.to_string());
-                        }
-                    });
-                }
+                        Some(RowAction::Delete(_)) => delete_now = Some(id.to_string()),
+                        _ => {}
+                    }
+                });
                 ui.end_row();
             }
         });
@@ -159,13 +176,12 @@ fn save_edit(state: &mut ActionsTabState, dir: &std::path::Path) {
     }
 }
 
-/// The second click of a delete: remove the file, record any error, and
+/// A confirmed delete: remove the file, record any error, and
 /// reload so the list reflects the directory either way.
 fn confirm_delete(state: &mut ActionsTabState, dir: &std::path::Path, id: &str) {
     state.agent_command_error = delete_command_file_as_user(id, dir)
         .err()
         .map(|e| format!("Delete failed: {e:#}"));
-    state.agent_command_pending_delete = None;
     state.agent_commands = Some(load_all_commands(dir));
 }
 
@@ -175,8 +191,10 @@ mod tests {
 
     fn render(state: &mut ActionsTabState, dir: &std::path::Path) {
         let ctx = egui::Context::default();
+        let mut pending: PendingDelete = None;
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| show_commands_body(ui, state, dir));
+            egui::CentralPanel::default()
+                .show(ctx, |ui| show_commands_body(ui, state, &mut pending, dir));
         });
         output.textures_delta.clear();
     }
@@ -210,10 +228,8 @@ mod tests {
             .collect();
         assert_eq!(ids, ["deploy", "greet"]);
 
-        state.agent_command_pending_delete = Some("greet".to_string());
         state.agent_command_error = Some("Delete failed: example".to_string());
         render(&mut state, dir.path());
-        assert_eq!(state.agent_command_pending_delete.as_deref(), Some("greet"));
     }
 
     #[test]
@@ -227,7 +243,6 @@ mod tests {
         std::fs::write(dir.path().join(".confirmations.json"), r#"{"greet":"h"}"#).unwrap();
         let mut state = ActionsTabState {
             agent_commands: Some(load_all_commands(dir.path())),
-            agent_command_pending_delete: Some("greet".to_string()),
             ..ActionsTabState::default()
         };
 
@@ -238,7 +253,6 @@ mod tests {
                 .contains_key("greet")
         );
         assert_eq!(state.agent_command_error, None);
-        assert_eq!(state.agent_command_pending_delete, None);
         assert_eq!(state.agent_commands.as_deref().map(<[_]>::len), Some(0));
 
         confirm_delete(&mut state, dir.path(), "greet");

@@ -2,6 +2,7 @@
 //! interval, hidden agents).
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::keyword_section;
 use std::collections::HashSet;
 
@@ -15,7 +16,14 @@ pub fn show_agent_usage_section(
         ui,
         "Agent Usage",
         "status_bar_agent_usage",
-        &["subscription", "limits", "codex", "tokens"],
+        &[
+            "subscription",
+            "limits",
+            "codex",
+            "tokens",
+            "agent_usage_hidden_agents",
+            "agent_usage_extra_records_dirs",
+        ],
         false,
         collapsed,
         |ui| {
@@ -27,6 +35,7 @@ pub fn show_agent_usage_section(
                     &mut agent_usage.agent_usage_enabled,
                     "Enable agent usage panel",
                 )
+                .search_tag(&["agent_usage_enabled"])
                 .on_hover_text(
                     "Watch the usage records directory and show the Agent Usage \
                      status-bar widget and popup panel. The widget self-hides when \
@@ -51,6 +60,7 @@ pub fn show_agent_usage_section(
                             .hint_text("path/to/collector --update (empty = watch only)")
                             .desired_width(240.0),
                     )
+                    .search_tag(&["agent_usage_update_command"])
                     .on_hover_text(
                         "Optional command run through `sh -c` on the refresh interval and on \
                          manual refresh (panel `r`). It should rewrite the records directory. \
@@ -72,6 +82,7 @@ pub fn show_agent_usage_section(
                 ui.label("Refresh interval (s):");
                 if ui
                     .add(egui::Slider::new(&mut interval, 30.0..=3600.0).suffix(" s"))
+                    .search_tag(&["agent_usage_refresh_interval_sec"])
                     .on_hover_text(
                         "How often the records directory is rescanned when no file change \
                          arrives, and how often the update command runs when configured. \

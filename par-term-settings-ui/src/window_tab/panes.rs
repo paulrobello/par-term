@@ -10,7 +10,7 @@ use crate::section::{collapsing_section, keyword_section};
 use par_term_config::{DividerStyle, PaneTitlePosition};
 use std::collections::HashSet;
 
-pub(super) fn show_panes_section(
+pub(crate) fn show_panes_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -34,6 +34,7 @@ pub(super) fn show_panes_section(
                 let mut width = settings.config.panes.pane_divider_width.unwrap_or(2.0);
                 if ui
                     .add(egui::Slider::new(&mut width, 1.0..=10.0).suffix(" px"))
+                    .search_tag(&["pane_divider_width"])
                     .on_hover_text("Visual width of dividers between panes")
                     .changed()
                 {
@@ -105,7 +106,9 @@ pub(super) fn show_panes_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["pane_divider_style"]);
             });
 
             ui.add_space(8.0);
@@ -135,6 +138,7 @@ pub(super) fn show_panes_section(
                             ui,
                             &mut settings.config.panes.pane_focus_color,
                         )
+                        .search_tag(&["pane_focus_color"])
                         .changed()
                         {
                             settings.has_changes = true;
@@ -269,6 +273,7 @@ pub(super) fn show_panes_section(
                         }
                     })
                     .response
+                    .search_tag(&["split_balance"])
                     .on_hover_text(
                         "After a split from the keyboard or menu, resize panes so repeated \
                      splits don't shrink to 50/25/12.5%. Triggers and snippets keep \
@@ -314,7 +319,7 @@ fn pane_shortcut_lines(keybindings: &[par_term_config::KeyBinding]) -> Vec<Strin
         .collect()
 }
 
-pub(super) fn show_pane_appearance_section(
+pub(crate) fn show_pane_appearance_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -335,6 +340,7 @@ pub(super) fn show_pane_appearance_section(
                     ui,
                     &mut settings.config.panes.pane_divider_color,
                 )
+                .search_tag(&["pane_divider_color"])
                 .changed()
                 {
                     settings.has_changes = true;
@@ -348,6 +354,7 @@ pub(super) fn show_pane_appearance_section(
                     ui,
                     &mut settings.config.panes.pane_divider_hover_color,
                 )
+                .search_tag(&["pane_divider_hover_color"])
                 .on_hover_text("Color when hovering over a divider for resize")
                 .changed()
                 {
@@ -398,6 +405,7 @@ pub(super) fn show_pane_appearance_section(
                                 }
                             })
                             .response
+                            .search_tag(&["inactive_pane_dim_mode"])
                             .on_hover_text(
                                 "Darken: colors fade toward black and text stays solid. \
                                  Fade: the pane turns transparent, text included, so a \
@@ -512,13 +520,19 @@ pub(super) fn show_pane_appearance_section(
                                         *changes_this_frame = true;
                                     }
                                 }
-                            });
+                            })
+                            .response
+                            .search_tag(&["pane_title_position"]);
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Title text color:");
                         let mut color = settings.config.panes.pane_title_color;
-                        if ui.color_edit_button_srgb(&mut color).changed() {
+                        if ui
+                            .color_edit_button_srgb(&mut color)
+                            .search_tag(&["pane_title_color"])
+                            .changed()
+                        {
                             settings.config.panes.pane_title_color = color;
                             settings.has_changes = true;
                             *changes_this_frame = true;
@@ -528,7 +542,11 @@ pub(super) fn show_pane_appearance_section(
                     ui.horizontal(|ui| {
                         ui.label("Title background:");
                         let mut color = settings.config.panes.pane_title_bg_color;
-                        if ui.color_edit_button_srgb(&mut color).changed() {
+                        if ui
+                            .color_edit_button_srgb(&mut color)
+                            .search_tag(&["pane_title_bg_color"])
+                            .changed()
+                        {
                             settings.config.panes.pane_title_bg_color = color;
                             settings.has_changes = true;
                             *changes_this_frame = true;

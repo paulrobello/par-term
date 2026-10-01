@@ -765,7 +765,7 @@ Panels appear in the Scripts section of the Settings window and update in real t
 
 Scripts follow the same lifecycle patterns as coprocesses:
 
-- **Auto-start**: Scripts with `auto_start: true` and `enabled: true` are started when a new tab is created. Setting `enabled: false` disables the script entirely, including auto-start. Scripts with `auto_start: false` are started only from the Settings UI (**F12 → Automation → Scripts → Start**).
+- **Auto-start**: Scripts with `auto_start: true` and `enabled: true` are started when a new tab is created. Setting `enabled: false` disables the script entirely, including auto-start. Scripts with `auto_start: false` are started only from the Settings UI (**F12 → Automation → Observer Scripts → Start**).
 - **Per-tab isolation**: Each tab has its own set of running scripts
 - **Restart policies**: `restart_policy` (`never` / `always` / `on_failure`) and `restart_delay_ms` are honored. A script that exits is restarted per its policy after the configured delay. To prevent crash-loops, restarts are capped at 5 consecutive attempts within a 5-second grace window — a run that survives past grace resets the counter, so a slow leak (e.g. crashes once an hour) never exhausts the budget, only a tight loop does.
 - **Tab close**: All scripts in a tab are stopped when the tab is closed
@@ -851,7 +851,7 @@ If the specified file does not exist, a warning is logged and no sound is played
 
 ## Settings UI
 
-Triggers, coprocesses, and scripts are all managed through the **Settings > Automation** tab (Scripts is now a section within Automation).
+Triggers, coprocesses, and scripts are all managed through the **Settings > Automation** tab (Triggers, Coprocesses, Observer Scripts, and Plugins pages).
 
 ### Managing Triggers
 
@@ -906,7 +906,7 @@ Each coprocess has a collapsible output viewer that displays the coprocess's std
 - Click **"Clear"** to discard buffered output
 - Output accumulates in memory (capped at 200 lines) until cleared or the tab is closed
 
-> **📝 Note:** Settings search matches control labels and tooltips as well as keywords. For the **Automation** tab (which also includes Scripts) these find results: `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`, `script`, `observer`, `event`, `panel`, `subscriptions`.
+> **📝 Note:** Settings search matches control labels and tooltips as well as keywords. For the **Automation** tab (which also includes Observer Scripts) these find results: `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`, `script`, `observer`, `event`, `panel`, `subscriptions`.
 
 ## Complete Configuration Examples
 

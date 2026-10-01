@@ -141,7 +141,7 @@ fn an_empty_result_says_no_settings_match_and_every_tab_stays_clickable() {
     );
     for tab in [
         SettingsTab::Advanced,
-        SettingsTab::Window,
+        SettingsTab::WindowsAndTabs,
         SettingsTab::Appearance,
     ] {
         let row = format!("{} {}", tab.icon(), tab.display_name());
@@ -155,24 +155,30 @@ fn an_empty_result_says_no_settings_match_and_every_tab_stays_clickable() {
 }
 
 #[test]
-fn selecting_a_result_switches_tab_expands_scrolls_and_flashes() {
-    // Window › Scrollbar, the last Window section before the arrangements,
-    // sits far below the fold; "Tab Bar Appearance" above it starts
-    // collapsed, so the target's position depends on the jump.
-    const TARGET: &str = "Autohide delay (0 = never):";
+fn selecting_a_result_switches_tab_and_page_expands_scrolls_and_flashes() {
+    // Advanced › Status Bar › Widgets is the last section of a long page,
+    // far below the fold, so only the jump's scroll can bring its controls
+    // on screen; the jump also has to pick the right page.
+    const TARGET: &str = "+ Add Custom Text Widget";
+    let status_bar_page = 2;
     let mut window = Window::new(Config::default());
-    window.settings.selected_tab = SettingsTab::Window;
+    window
+        .settings
+        .select_page(SettingsTab::Advanced, status_bar_page);
     window.frames(3);
-    let before = window.content(TARGET).expect("target drawn on its tab");
+    let before = window.content(TARGET).expect("target drawn on its page");
     assert!(
         !on_screen(before),
         "test premise: target must start off screen, at {before:?}"
     );
 
-    window.settings.selected_tab = SettingsTab::Appearance;
-    window.type_query("autohide delay");
+    window.settings.select_page(SettingsTab::Appearance, 0);
+    window.settings.select_page(SettingsTab::Advanced, 0);
+    window.settings.set_selected_tab(SettingsTab::Appearance);
+    window.type_query("custom text widget");
     window.click_in_sidebar(TARGET);
-    assert_eq!(window.settings.selected_tab, SettingsTab::Window);
+    assert_eq!(window.settings.selected_tab, SettingsTab::Advanced);
+    assert_eq!(window.settings.selected_page(), status_bar_page);
     // Without the query every section is back, so only the jump's scroll
     // can bring the target on screen.
     window.settings.search_query.clear();
@@ -180,7 +186,7 @@ fn selecting_a_result_switches_tab_expands_scrolls_and_flashes() {
     let mut flashed = false;
     for _ in 0..40 {
         window.frame(Vec::new());
-        flashed |= super::live::flashing(&window.ctx).as_deref() == Some("window_scrollbar");
+        flashed |= super::live::flashing(&window.ctx).as_deref() == Some("status_bar_widgets");
     }
     assert!(flashed, "the control never flashed");
     let rect = window
@@ -196,7 +202,7 @@ fn selecting_a_result_opens_a_collapsed_section() {
     let mut window = Window::new(Config::default());
     window.type_query("hide on mouse inactivity");
     window.click_in_sidebar("Hide on mouse inactivity");
-    assert_eq!(window.settings.selected_tab, SettingsTab::StatusBar);
+    assert_eq!(window.settings.selected_tab, SettingsTab::Advanced);
     window.settings.search_query.clear();
     window.frames(40);
     assert!(
@@ -250,7 +256,7 @@ fn cmd_f_focuses_search_while_settings_has_focus() {
 #[test]
 fn a_search_opens_a_collapsed_matching_section_in_place() {
     let mut window = Window::new(Config::default());
-    window.settings.selected_tab = SettingsTab::StatusBar;
+    window.settings.select_page(SettingsTab::Advanced, 2);
     window.frames(2);
     assert!(window.content("Hide on mouse inactivity").is_none());
     window.type_query("mouse inactivity");

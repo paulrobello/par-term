@@ -217,7 +217,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 |------|-------------|
 | `AssistantPrompt` | A named prompt template for the AI assistant panel. |
 | `AssistantPromptDraft` | A prompt being edited (not yet saved). |
-| `AiInspectorConfig` | AI inspector panel configuration. |
+| `AiInspectorConfig` | Assistant panel configuration. |
 | `AssistantInputHistoryMode` | How assistant input history is persisted. |
 | `CustomAcpAgentConfig` | Configuration for a custom ACP agent binary. |
 | `CustomAcpAgentActionConfig` | Configuration for an action that launches an ACP agent. |
@@ -348,7 +348,7 @@ Terminal management, scrollback, and terminal state access.
 | `TerminalManager` | High-level wrapper around a PTY session. Manages I/O, resize, clipboard, inline graphics, scrollback, and coprocesses. |
 | `ShellLifecycleEvent` | Events emitted when the shell starts, changes CWD, or exits. |
 | `SearchMatch` | A single pattern match in the scrollback (line, column, length). |
-| `ScrollbackMetadata` | Tracks shell-integration markers and command history for timing overlays and the AI inspector. |
+| `ScrollbackMetadata` | Tracks shell-integration markers and command history for timing overlays and the Assistant panel. |
 | `CommandSnapshot` | Immutable record of a completed command (text, start time, exit code, duration). |
 | `LineMetadata` | Timing and command metadata for a specific scrollback line, used by separator rendering. |
 | `ScrollbackMark` | Re-export of `par_term_config::ScrollbackMark`. |

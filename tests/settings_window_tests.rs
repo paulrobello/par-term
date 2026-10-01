@@ -133,24 +133,26 @@ fn test_tab_matches_labels_and_section_titles() {
         (SettingsTab::Appearance, "THEME"),
         (SettingsTab::Appearance, " font "),
         (SettingsTab::Appearance, "font rendering"),
-        (SettingsTab::Window, "opacity"),
-        (SettingsTab::Window, "tab bar"),
-        (SettingsTab::Window, "split panes"),
-        (SettingsTab::Window, "saved arrangements"),
-        (SettingsTab::Input, "command palette"),
-        (SettingsTab::Input, "modifier remapping"),
-        (SettingsTab::Terminal, "command separators"),
+        (SettingsTab::WindowsAndTabs, "opacity"),
+        (SettingsTab::WindowsAndTabs, "tab bar"),
+        (SettingsTab::Panes, "split panes"),
+        (SettingsTab::Sessions, "saved arrangements"),
+        (SettingsTab::Keys, "command palette"),
+        (SettingsTab::Keys, "modifier remapping"),
+        (SettingsTab::Appearance, "command separators"),
         (SettingsTab::Effects, "inline images"),
-        (SettingsTab::StatusBar, "poll intervals"),
+        (SettingsTab::Advanced, "poll intervals"),
         (SettingsTab::Profiles, "dynamic profile sources"),
         (SettingsTab::Automation, "git url"),
-        (SettingsTab::Notifications, "alert sounds"),
-        (SettingsTab::Integrations, "custom shaders"),
+        (SettingsTab::Advanced, "alert sounds"),
+        (SettingsTab::Effects, "custom shaders"),
         (SettingsTab::Automation, "scripts"),
-        (SettingsTab::Snippets, "agent commands"),
-        (SettingsTab::AiInspector, "custom agents"),
-        (SettingsTab::Advanced, "file transfers"),
-        (SettingsTab::Advanced, "tmux"),
+        (SettingsTab::Assistant, "agent commands"),
+        (SettingsTab::Assistant, "custom agents"),
+        (SettingsTab::General, "file transfers"),
+        (SettingsTab::Sessions, "tmux"),
+        (SettingsTab::Sessions, "par-mux"),
+        (SettingsTab::General, "closing quitting"),
     ];
     for (tab, query) in cases {
         assert!(
@@ -173,7 +175,7 @@ fn test_tab_does_not_match_nonsense_or_another_tabs_setting() {
         SettingsTab::Appearance,
         "gateway"
     ));
-    assert!(tab_has_result(&registry, SettingsTab::Advanced, "gateway"));
+    assert!(tab_has_result(&registry, SettingsTab::Sessions, "gateway"));
 }
 
 // ============================================================================

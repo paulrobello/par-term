@@ -66,6 +66,24 @@ pub fn heal_hook_assets() {
     codex::heal_codex_hook_asset();
 }
 
+/// Read-only install state of each agent's session hook, for Settings ›
+/// Sessions › par-mux (UX.md SX1). Never writes anything.
+pub fn hook_status() -> Vec<par_term_settings_ui::sessions_tab::MuxHookStatus> {
+    [
+        ("claude", claude::claude_hook_installed()),
+        ("codex", codex::codex_hook_installed()),
+        ("grok", grok::grok_hook_installed()),
+    ]
+    .into_iter()
+    .map(
+        |(agent, installed)| par_term_settings_ui::sessions_tab::MuxHookStatus {
+            agent: agent.to_string(),
+            installed,
+        },
+    )
+    .collect()
+}
+
 use jsonc_parser::ast::{
     Array as AstArray, Object as AstObject, ObjectPropName, Value as AstValue,
 };

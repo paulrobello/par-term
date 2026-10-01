@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
-pub(super) fn show_bell_section(
+pub(crate) fn show_bell_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -44,6 +44,7 @@ pub(super) fn show_bell_section(
                             ui,
                             &mut settings.config.notifications.notification_visual_bell_color,
                         )
+                        .search_tag(&["notification_visual_bell_color"])
                         .changed()
                         {
                             settings.has_changes = true;

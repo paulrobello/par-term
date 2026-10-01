@@ -693,7 +693,7 @@ Around 470 controls sit on 13 tabs. The largest single section, Effects › "Bac
 
 ### 14.1 What happens today `[verified]`
 
-> **Status (2026-09-30, SP1):** this section describes search before SP1. SP1 replaced it with the registry in `par-term-settings-ui/src/search/` (section titles plus harvested control labels, tooltips, and combo options; token-AND matching); the per-tab `keywords()` lists, `section_matches`, and `CollapsibleSection` are gone. The 15 queries are reconstructed in `search/registry_tests.rs`, since the original list was not recorded; "leader" lands on Input › Keybindings until the leader key (K7) has a control, and "par-mux" on Profiles › Profile Management because its controls live inside the profile editor.
+> **Status (2026-09-30, SP1):** this section describes search before SP1. SP1 replaced it with the registry in `par-term-settings-ui/src/search/` (section titles plus harvested control labels, tooltips, and combo options; token-AND matching); the per-tab `keywords()` lists, `section_matches`, and `CollapsibleSection` are gone. The 15 queries are reconstructed in `search/registry_tests.rs`, since the original list was not recorded; "leader" lands on Input › Keybindings until the leader key (K7) has a control, and "par-mux" on Profiles › Profile Management because its controls live inside the profile editor. (Since SP3: "leader" lands on Keys › Key Bindings and "par-mux" on Sessions › par-mux.)
 
 - The sidebar lights a tab if the query is a substring of the tab name or one of its `keywords()` (`sidebar.rs:176-187`, dispatched by `search_keywords.rs:13-28`). Each section is filtered separately by `section_matches(query, title, &[inline keywords])` (`section.rs:131-139`). The two lists are maintained by hand and have drifted:
 
@@ -736,6 +736,8 @@ iTerm2's Settings toolbar (`sources/Settings/Base.lproj/PreferencePanel.xib`): *
 par-term's settings are global with per-profile overrides, which is the reverse of iTerm2 (profile-first), so the plan borrows iTerm2's names and groupings where the concepts match and does not move global settings into profiles.
 
 ### 15.2 Proposed sidebar (12 tabs, with sub-pages)
+
+> **Status (2026-09-30, SP3):** implemented. The layout is data in `par-term-settings-ui/src/layout.rs` (tab › page › section); `layout_tests.rs` maps the 86 pre-SP3 sections to their homes and is the authoritative table where it differs from 15.3 below. Differences from this plan: General has extra pages Search & Links and Integration & Files (shell integration, screenshots, file transfers); Keys has Key Bindings, Option/Alt, and Modifiers but no Leader page (K7 has no config field yet); Panes pages are Layout & Dividers, Appearance, and Pane Backgrounds; Effects & Shaders pages are Background & Shader (with shader install) and Inline Images; SSH defaults are Profiles › SSH; command separators are Appearance › Theme. Sessions › par-mux holds `mux_auto_attach` and hook status only: the leader key, a last-tab close policy, and a daemon restart have no config field or runtime hook yet.
 
 Each tab uses a second-level segmented control (like iTerm2's sub-tabs) instead of one long page of collapsibles. Every tab keeps collapsible sections inside a sub-page only when the sub-page is long.
 

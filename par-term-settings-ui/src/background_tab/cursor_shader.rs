@@ -56,7 +56,9 @@ pub fn show_cursor_shader(
                                 shader_changed = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["cursor_shader"]);
 
                 if shader_changed {
                     settings.has_changes = true;
@@ -222,6 +224,7 @@ pub fn show_cursor_shader(
                         let mut color = settings.config.shader.cursor_shader_color;
                         if ui
                             .color_edit_button_srgb(&mut color)
+                            .search_tag(&["cursor_shader_color"])
                             .on_hover_text(
                                 "Color passed to cursor shader via iCursorShaderColor uniform",
                             )
@@ -232,6 +235,8 @@ pub fn show_cursor_shader(
                             *changes_this_frame = true;
                         }
                     });
+
+                    show_trail_and_glow(ui, settings, changes_this_frame);
 
                     ui.add_space(8.0);
                 },
@@ -267,4 +272,77 @@ pub fn show_cursor_shader(
             });
         },
     );
+}
+
+/// Trail and glow values passed to every cursor shader as uniforms
+/// (`iCursorTrailDuration`, `iCursorGlowRadius`, `iCursorGlowIntensity`).
+/// A shader's own metadata defaults and per-shader overrides take
+/// precedence over these.
+fn show_trail_and_glow(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
+    ui.horizontal(|ui| {
+        ui.label("Trail duration:");
+        if ui
+            .add(
+                egui::Slider::new(
+                    &mut settings.config.shader.cursor_shader_trail_duration,
+                    0.0..=3.0,
+                )
+                .suffix(" s"),
+            )
+            .search_tag(&["cursor_shader_trail_duration"])
+            .on_hover_text("How long the cursor trail lasts (iCursorTrailDuration uniform)")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+            &mut c.shader.cursor_shader_trail_duration
+        });
+    });
+
+    ui.horizontal(|ui| {
+        ui.label("Glow radius:");
+        if ui
+            .add(
+                egui::Slider::new(
+                    &mut settings.config.shader.cursor_shader_glow_radius,
+                    0.0..=300.0,
+                )
+                .suffix(" px"),
+            )
+            .search_tag(&["cursor_shader_glow_radius"])
+            .on_hover_text("Radius of the cursor glow (iCursorGlowRadius uniform)")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+            &mut c.shader.cursor_shader_glow_radius
+        });
+    });
+
+    ui.horizontal(|ui| {
+        ui.label("Glow intensity:");
+        if ui
+            .add(crate::units::percent(egui::Slider::new(
+                &mut settings.config.shader.cursor_shader_glow_intensity,
+                0.0..=1.0,
+            )))
+            .search_tag(&["cursor_shader_glow_intensity"])
+            .on_hover_text("Strength of the cursor glow (iCursorGlowIntensity uniform)")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+        crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
+            &mut c.shader.cursor_shader_glow_intensity
+        });
+    });
 }

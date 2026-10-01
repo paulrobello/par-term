@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
-pub(super) fn show_scrollbar_section(
+pub(crate) fn show_scrollbar_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -42,6 +42,25 @@ pub(super) fn show_scrollbar_section(
                     *changes_this_frame = true;
                 }
             });
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Side:");
+            let mut position = settings.config.scrollbar.scrollbar_position.clone();
+            egui::ComboBox::from_id_salt("scrollbar_position")
+                .selected_text(if position == "left" { "Left" } else { "Right" })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut position, "left".to_string(), "Left");
+                    ui.selectable_value(&mut position, "right".to_string(), "Right");
+                })
+                .response
+                .search_tag(&["scrollbar_position"])
+                .on_hover_text("Which edge of the terminal the scrollbar is drawn on");
+            if position != settings.config.scrollbar.scrollbar_position {
+                settings.config.scrollbar.scrollbar_position = position;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
         });
 
         ui.horizontal(|ui| {
@@ -94,6 +113,7 @@ pub(super) fn show_scrollbar_section(
                 ui,
                 &mut settings.config.scrollbar.scrollbar_thumb_color,
             )
+            .search_tag(&["scrollbar_thumb_color"])
             .changed()
             {
                 settings.has_changes = true;
@@ -107,6 +127,7 @@ pub(super) fn show_scrollbar_section(
                 ui,
                 &mut settings.config.scrollbar.scrollbar_track_color,
             )
+            .search_tag(&["scrollbar_track_color"])
             .changed()
             {
                 settings.has_changes = true;

@@ -22,7 +22,7 @@ use std::collections::HashSet;
 use super::plugin_git_ui::{show_plugin_git_actions, show_plugin_git_bar};
 
 /// Show the Plugins section.
-pub(super) fn show_plugins_section(
+pub(crate) fn show_plugins_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -32,7 +32,7 @@ pub(super) fn show_plugins_section(
         ui,
         "Plugins",
         "automation_plugins",
-        &["manifest", "extensions", "forget plugin"],
+        &["manifest", "extensions", "forget plugin", "plugins"],
         true,
         collapsed,
         |ui| {

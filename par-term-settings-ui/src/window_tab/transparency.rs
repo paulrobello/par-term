@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
-pub(super) fn show_transparency_section(
+pub(crate) fn show_transparency_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -96,6 +96,7 @@ pub(super) fn show_transparency_section(
                             let mut radius_i32 = settings.config.window.blur_radius.min(64) as i32;
                             if ui
                                 .add(egui::Slider::new(&mut radius_i32, 1..=64).suffix(" px"))
+                                .search_tag(&["blur_radius"])
                                 .on_hover_text("Blur intensity (higher = more blur)")
                                 .changed()
                             {

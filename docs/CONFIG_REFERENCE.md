@@ -43,7 +43,7 @@ field uses its documented default value.
 - [Progress Bar](#progress-bar)
 - [Badge](#badge)
 - [Automation & Scripting](#automation--scripting)
-- [AI Inspector](#ai-inspector)
+- [Assistant Panel](#assistant-panel)
 - [Update Checking](#update-checking)
 - [Security](#security)
 - [Settings UI](#settings-ui)
@@ -561,7 +561,7 @@ directory written by external collectors — see
 ## Agents (Launcher)
 
 Top-level `agents:` list — CLI coding agents exposed as command-palette
-"Launch" rows. Managed under Settings → Snippets & Actions → Agents.
+"Launch" rows. Managed under Settings → Assistant & Agents → Agents.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -639,7 +639,7 @@ and types the command into the new daemon pane.
 
 ---
 
-## AI Inspector
+## Assistant Panel
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -754,5 +754,5 @@ dynamic_profile_sources:
 - [SSH Support](features/SSH.md) — SSH host discovery and profile switching
 - [Restoring Windows and Reopening Tabs](features/SESSION_MANAGEMENT.md) — Restore windows on launch and reopen closed tabs
 - [Automation](features/AUTOMATION.md) — Triggers, coprocesses, and observer scripts
-- [Assistant Panel](ASSISTANT_PANEL.md) — AI Inspector and ACP agent configuration
+- [Assistant Panel](ASSISTANT_PANEL.md) — Assistant panel and ACP agent configuration
 - [Logging](LOGGING.md) — Debug logging categories and DEBUG_LEVEL values

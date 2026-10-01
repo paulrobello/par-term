@@ -163,7 +163,7 @@ impl WindowState {
                         }
 
                         self.overlay_ui.ai_inspector.chat.add_system_message(format!(
-                                "Blocked screenshot request (`{description}`) because \"Allow Agent Screenshots\" is disabled in Settings > Assistant > Permissions."
+                                "Blocked screenshot request (`{description}`) because \"Allow Agent Screenshots\" is disabled in Settings > Assistant & Agents > Permissions."
                             ));
                         self.focus_state.needs_redraw = true;
                         continue;

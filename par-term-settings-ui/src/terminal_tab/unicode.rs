@@ -3,10 +3,11 @@
 //! Covers: unicode version, ambiguous width, normalization form, answerback string.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::collapsing_section;
 use std::collections::HashSet;
 
-pub(super) fn show_unicode_section(
+pub(crate) fn show_unicode_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -57,6 +58,7 @@ pub(super) fn show_unicode_section(
                     }
                 })
                 .response
+                .search_tag(&["unicode_version"])
                 .on_hover_text(
                     "Unicode version for character width calculations.\n\
                      Different versions have different width tables for emoji.\n\
@@ -97,6 +99,7 @@ pub(super) fn show_unicode_section(
                     }
                 })
                 .response
+                .search_tag(&["ambiguous_width"])
                 .on_hover_text(
                     "Treatment of East Asian Ambiguous width characters.\n\
                      - Narrow: 1 cell (Western default)\n\
@@ -138,6 +141,7 @@ pub(super) fn show_unicode_section(
                     }
                 })
                 .response
+                .search_tag(&["normalization_form"])
                 .on_hover_text(
                     "Unicode normalization form for text processing.\n\
                      - NFC: Canonical composition (default, most compatible)\n\
@@ -154,6 +158,7 @@ pub(super) fn show_unicode_section(
             ui.label("Answerback string:");
             if ui
                 .text_edit_singleline(&mut settings.config.shell.answerback_string)
+                .search_tag(&["answerback_string"])
                 .on_hover_text(
                     "String sent in response to ENQ (0x05) control character.\n\
                      Used for legacy terminal identification.\n\

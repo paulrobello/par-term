@@ -153,7 +153,7 @@ search_current_highlight_color: [255, 100, 0, 220]  # Orange
 
 ### Settings UI Options
 
-The Terminal tab in Settings provides:
+Settings > General > Search & Links provides:
 
 | Option | Description |
 |--------|-------------|

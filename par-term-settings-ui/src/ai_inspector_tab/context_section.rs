@@ -30,7 +30,7 @@ pub(super) fn combined_available_agents(settings: &SettingsUI) -> Vec<(String, S
     combined
 }
 
-pub(super) fn show_panel_section(
+pub(crate) fn show_panel_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -151,7 +151,9 @@ pub(super) fn show_panel_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["ai_inspector_input_history_mode"]);
             });
 
             ui.add_space(4.0);
@@ -180,7 +182,9 @@ pub(super) fn show_panel_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["ai_inspector_default_scope"]);
             });
 
             ui.add_space(4.0);
@@ -205,7 +209,9 @@ pub(super) fn show_panel_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["ai_inspector_view_mode"]);
             });
 
             ui.add_space(4.0);
@@ -241,7 +247,7 @@ pub(super) fn show_panel_section(
     );
 }
 
-pub(super) fn show_agent_section(
+pub(crate) fn show_agent_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -251,7 +257,12 @@ pub(super) fn show_agent_section(
         ui,
         "Agent",
         "ai_inspector_agent",
-        &["llm", "anthropic", "ollama"],
+        &[
+            "llm",
+            "anthropic",
+            "ollama",
+            "ai_inspector_extra_agent_roots",
+        ],
         true,
         collapsed,
         |ui| {
@@ -281,7 +292,9 @@ pub(super) fn show_agent_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["ai_inspector_agent"]);
             });
 
             ui.add_space(4.0);
@@ -344,13 +357,13 @@ pub(super) fn show_agent_section(
                  The par-term shader directory is always included automatically.",
             );
 
-            let mut remove_root_index: Option<usize> = None;
-            for i in 0..settings
+            let mut root_action: Option<crate::list_editor::RowAction> = None;
+            let root_count = settings
                 .config
                 .ai_inspector
                 .ai_inspector_extra_agent_roots
-                .len()
-            {
+                .len();
+            for i in 0..root_count {
                 ui.horizontal(|ui| {
                     let mut root =
                         settings.config.ai_inspector.ai_inspector_extra_agent_roots[i].clone();
@@ -367,29 +380,56 @@ pub(super) fn show_agent_section(
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
-                    if crate::delete_confirm::confirm_action_button(
-                        ui,
-                        &mut settings.pending_list_delete,
-                        "extra_root",
-                        &format!(
-                            "{i}:{}",
-                            settings.config.ai_inspector.ai_inspector_extra_agent_roots[i]
-                        ),
-                        "Remove",
-                    ) {
-                        remove_root_index = Some(i);
-                    }
+                    let key = format!(
+                        "{i}:{}",
+                        settings.config.ai_inspector.ai_inspector_extra_agent_roots[i]
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if let Some(a) = crate::list_editor::row_actions(
+                            ui,
+                            &mut settings.pending_list_delete,
+                            crate::list_editor::Row {
+                                index: i,
+                                len: root_count,
+                                list: "extra_root",
+                                key: &key,
+                                delete_label: "Remove",
+                            },
+                            // A path is its own identity and has no editor.
+                            crate::list_editor::RowButtons {
+                                reorder: true,
+                                duplicate: false,
+                                edit: false,
+                                delete: true,
+                            },
+                        ) {
+                            root_action = Some(a);
+                        }
+                    });
                 });
             }
 
-            if let Some(index) = remove_root_index {
-                settings
-                    .config
-                    .ai_inspector
-                    .ai_inspector_extra_agent_roots
-                    .remove(index);
-                settings.has_changes = true;
-                *changes_this_frame = true;
+            match root_action {
+                Some(crate::list_editor::RowAction::Delete(index)) => {
+                    settings
+                        .config
+                        .ai_inspector
+                        .ai_inspector_extra_agent_roots
+                        .remove(index);
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                Some(action)
+                    if crate::list_editor::apply_move_or_duplicate(
+                        &mut settings.config.ai_inspector.ai_inspector_extra_agent_roots,
+                        action,
+                        |_| {},
+                    ) =>
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                Some(_) | None => {}
             }
 
             if ui.button("Add Extra Root").clicked() {

@@ -8,7 +8,7 @@ use crate::section::{collapsing_section, subsection_label};
 use par_term_config::{CursorStyle, UnfocusedCursorStyle};
 use std::collections::HashSet;
 
-pub(super) fn show_cursor_section(
+pub(crate) fn show_cursor_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -34,7 +34,9 @@ pub(super) fn show_cursor_section(
                     ui.selectable_value(&mut selected, 0, "Block");
                     ui.selectable_value(&mut selected, 1, "Beam");
                     ui.selectable_value(&mut selected, 2, "Underline");
-                });
+                })
+                .response
+                .search_tag(&["cursor_style"]);
             if selected != current {
                 settings.config.cursor.cursor_style = match selected {
                     0 => CursorStyle::Block,
@@ -85,7 +87,11 @@ pub(super) fn show_cursor_section(
         ui.horizontal(|ui| {
             ui.label("Color:");
             let mut color = settings.config.cursor.cursor_color;
-            if ui.color_edit_button_srgb(&mut color).changed() {
+            if ui
+                .color_edit_button_srgb(&mut color)
+                .search_tag(&["cursor_color"])
+                .changed()
+            {
                 settings.config.cursor.cursor_color = color;
                 settings.has_changes = true;
                 *changes_this_frame = true;
@@ -97,6 +103,7 @@ pub(super) fn show_cursor_section(
             let mut use_custom_color = settings.config.cursor.cursor_text_color.is_some();
             if ui
                 .checkbox(&mut use_custom_color, "")
+                .search_tag(&["cursor_text_color"])
                 .on_hover_text("Enable custom text color under block cursor")
                 .changed()
             {
@@ -142,7 +149,9 @@ pub(super) fn show_cursor_section(
                     ui.selectable_value(&mut selected, 0, "Hollow (outline)");
                     ui.selectable_value(&mut selected, 1, "Same");
                     ui.selectable_value(&mut selected, 2, "Hidden");
-                });
+                })
+                .response
+                .search_tag(&["unfocused_cursor_style"]);
             if selected != current {
                 settings.config.cursor.unfocused_cursor_style = match selected {
                     0 => UnfocusedCursorStyle::Hollow,
@@ -157,7 +166,7 @@ pub(super) fn show_cursor_section(
     });
 }
 
-pub(super) fn show_cursor_locks_section(
+pub(crate) fn show_cursor_locks_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -221,7 +230,7 @@ pub(super) fn show_cursor_locks_section(
     );
 }
 
-pub(super) fn show_cursor_effects_section(
+pub(crate) fn show_cursor_effects_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -259,6 +268,7 @@ pub(super) fn show_cursor_effects_section(
                             ui,
                             &mut settings.config.cursor.cursor_guide_color,
                         )
+                        .search_tag(&["cursor_guide_color"])
                         .changed()
                         {
                             settings.has_changes = true;
@@ -295,6 +305,7 @@ pub(super) fn show_cursor_effects_section(
                             ui,
                             &mut settings.config.cursor.cursor_shadow_color,
                         )
+                        .search_tag(&["cursor_shadow_color"])
                         .changed()
                         {
                             settings.has_changes = true;
@@ -397,7 +408,11 @@ pub(super) fn show_cursor_effects_section(
                     ui.horizontal(|ui| {
                         ui.label("Boost color:");
                         let mut color = settings.config.cursor.cursor_boost_color;
-                        if ui.color_edit_button_srgb(&mut color).changed() {
+                        if ui
+                            .color_edit_button_srgb(&mut color)
+                            .search_tag(&["cursor_boost_color"])
+                            .changed()
+                        {
                             settings.config.cursor.cursor_boost_color = color;
                             settings.has_changes = true;
                             *changes_this_frame = true;

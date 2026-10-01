@@ -198,42 +198,52 @@ pub fn show_pane_backgrounds(
 
             ui.add_space(4.0);
 
-            // Clear pane background button
-            let clear_key = settings
-                .background_tab
-                .temp_pane_bg_index
-                .unwrap_or(0)
-                .to_string();
-            if crate::delete_confirm::confirm_action_button(
-                ui,
-                &mut settings.pending_list_delete,
-                "pane_background",
-                &clear_key,
-                "Clear pane background",
-            ) {
-                let index = settings.background_tab.temp_pane_bg_index.unwrap_or(0);
-                settings
-                    .config
-                    .image
-                    .pane_backgrounds
-                    .retain(|pb| pb.index != index);
-                settings.background_tab.temp_pane_bg_path.clear();
-                settings.background_tab.temp_pane_bg_mode = BackgroundImageMode::default();
-                settings.background_tab.temp_pane_bg_opacity = 1.0;
-                settings.background_tab.temp_pane_bg_darken = 0.0;
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-
             // Show configured pane backgrounds
             if !settings.config.image.pane_backgrounds.is_empty() {
                 ui.add_space(4.0);
                 ui.label("Configured pane backgrounds:");
-                for pb in &settings.config.image.pane_backgrounds {
-                    ui.label(format!(
-                        "  Pane {}: {} ({:?}, opacity: {:.1}, darken: {:.1})",
-                        pb.index, pb.image, pb.mode, pb.opacity, pb.darken
-                    ));
+                let len = settings.config.image.pane_backgrounds.len();
+                let mut row_action = None;
+                for (i, pb) in settings.config.image.pane_backgrounds.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!(
+                            "  Pane {}: {} ({:?}, opacity: {:.1}, darken: {:.1})",
+                            pb.index, pb.image, pb.mode, pb.opacity, pb.darken
+                        ));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            // Rows are keyed by pane index, so no reorder or duplicate.
+                            if let Some(a) = crate::list_editor::row_actions(
+                                ui,
+                                &mut settings.pending_list_delete,
+                                crate::list_editor::Row {
+                                    index: i,
+                                    len,
+                                    list: "pane_background",
+                                    key: &pb.index.to_string(),
+                                    delete_label: "Clear pane background",
+                                },
+                                crate::list_editor::RowButtons {
+                                    reorder: false,
+                                    duplicate: false,
+                                    edit: false,
+                                    delete: true,
+                                },
+                            ) {
+                                row_action = Some(a);
+                            }
+                        });
+                    });
+                }
+                if let Some(crate::list_editor::RowAction::Delete(i)) = row_action {
+                    let removed = settings.config.image.pane_backgrounds.remove(i);
+                    if settings.background_tab.temp_pane_bg_index.unwrap_or(0) == removed.index {
+                        settings.background_tab.temp_pane_bg_path.clear();
+                        settings.background_tab.temp_pane_bg_mode = BackgroundImageMode::default();
+                        settings.background_tab.temp_pane_bg_opacity = 1.0;
+                        settings.background_tab.temp_pane_bg_darken = 0.0;
+                    }
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
                 }
             }
         },

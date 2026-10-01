@@ -91,6 +91,9 @@ pub(crate) struct WindowManager {
     pending_window_count: usize,
     /// Separate settings window (if open)
     pub(crate) settings_window: Option<SettingsWindow>,
+    /// Tab, pages, and search the settings window last showed, restored
+    /// when it reopens (UX.md B54)
+    pub(crate) settings_nav: Option<par_term_settings_ui::SettingsNav>,
     /// Exact text of the last config.yaml this process wrote, so the file
     /// watcher's echo of our own write is not treated as an outside edit.
     pub(crate) last_written_config_yaml: Option<String>,
@@ -163,6 +166,7 @@ impl WindowManager {
             mux_auto_attach_done: false,
             pending_window_count: 0,
             settings_window: None,
+            settings_nav: None,
             last_written_config_yaml: None,
             runtime_options,
             start_time: None,

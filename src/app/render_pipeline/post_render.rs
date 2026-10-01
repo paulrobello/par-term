@@ -449,9 +449,10 @@ impl WindowState {
                 self.overlay_ui.profile_drawer_ui.expanded = false;
             }
             ProfileDrawerAction::ManageProfiles => {
-                // Open settings window to Profiles tab instead of terminal-embedded modal
+                // Open settings window at the profile list instead of terminal-embedded modal
                 self.overlay_state.open_settings_window_requested = true;
-                self.overlay_state.open_settings_profiles_tab = true;
+                self.overlay_state.open_settings_section =
+                    Some(par_term_settings_ui::layout::deep_link::PROFILES);
             }
             ProfileDrawerAction::None => {}
         }

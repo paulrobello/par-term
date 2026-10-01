@@ -49,7 +49,9 @@ pub(super) fn show_tab_bar_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["tab_style"]);
             });
 
             crate::dependent::dependent(
@@ -76,7 +78,9 @@ pub(super) fn show_tab_bar_section(
                                         *changes_this_frame = true;
                                     }
                                 }
-                            });
+                            })
+                            .response
+                            .search_tag(&["light_tab_style"]);
                     });
                     ui.horizontal(|ui| {
                         ui.label("Dark tab style:");
@@ -97,7 +101,9 @@ pub(super) fn show_tab_bar_section(
                                         *changes_this_frame = true;
                                     }
                                 }
-                            });
+                            })
+                            .response
+                            .search_tag(&["dark_tab_style"]);
                     });
                 },
             );
@@ -121,7 +127,9 @@ pub(super) fn show_tab_bar_section(
                         ui.selectable_value(&mut selected, 0, "Always");
                         ui.selectable_value(&mut selected, 1, "When multiple tabs");
                         ui.selectable_value(&mut selected, 2, "Never");
-                    });
+                    })
+                    .response
+                    .search_tag(&["tab_bar_mode"]);
                 if selected != current {
                     settings.config.tabs.tab_bar_mode = match selected {
                         0 => TabBarMode::Always,
@@ -152,7 +160,9 @@ pub(super) fn show_tab_bar_section(
                             .on_hover_text("Use OSC title, fall back to working directory");
                         ui.selectable_value(&mut selected, 1, "OSC only")
                             .on_hover_text("Only use titles set by OSC escape sequences");
-                    });
+                    })
+                    .response
+                    .search_tag(&["tab_title_mode"]);
                 if selected != current {
                     settings.config.tabs.tab_title_mode = match selected {
                         0 => TabTitleMode::Auto,
@@ -191,7 +201,9 @@ pub(super) fn show_tab_bar_section(
                             *changes_this_frame = true;
                         }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["remote_tab_title_format"]);
             });
 
             if ui
@@ -229,7 +241,9 @@ pub(super) fn show_tab_bar_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["tab_bar_position"]);
             });
 
             crate::dependent::dependent(
@@ -383,7 +397,9 @@ pub(super) fn show_tab_bar_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["new_tab_position"]);
             });
 
             if ui
@@ -424,6 +440,7 @@ pub(super) fn show_tab_bar_section(
                 let mut max_tabs = settings.config.tabs.max_tabs as u32;
                 if ui
                     .add(egui::Slider::new(&mut max_tabs, 0..=50).suffix(" tabs"))
+                    .search_tag(&["max_tabs"])
                     .on_hover_text("Maximum number of tabs allowed (0 = unlimited)")
                     .changed()
                 {

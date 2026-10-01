@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 use super::editor::show_script_edit_form;
 
-pub(super) fn show_scripts_section(
+pub(crate) fn show_scripts_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -18,6 +18,7 @@ pub(super) fn show_scripts_section(
         "Observer Scripts",
         "scripts_list",
         &[
+            "scripts",
             "scripting",
             "python",
             "subprocess",
@@ -180,20 +181,23 @@ fn show_script_row(
 
         // Right-align buttons
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // Delete button (rightmost)
-            if crate::delete_confirm::confirm_delete_button(
+            // Reorder/duplicate are off: the runtime side tables (running,
+            // errors, output, panels) are indexed by position.
+            match crate::list_editor::row_actions(
                 ui,
                 &mut settings.pending_list_delete,
-                "script",
-                &format!("{i}:{}", script.name),
-                "Delete",
+                crate::list_editor::Row {
+                    index: i,
+                    len: settings.config.automation.scripts.len(),
+                    list: "script",
+                    key: &format!("{i}:{}", script.name),
+                    delete_label: "Delete",
+                },
+                crate::list_editor::RowButtons::EDIT_DELETE,
             ) {
-                *delete_index = Some(i);
-            }
-
-            // Edit button
-            if ui.small_button("Edit").clicked() {
-                *start_edit_index = Some(i);
+                Some(crate::list_editor::RowAction::Edit(i)) => *start_edit_index = Some(i),
+                Some(crate::list_editor::RowAction::Delete(i)) => *delete_index = Some(i),
+                _ => {}
             }
 
             // Start/Stop button

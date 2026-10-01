@@ -1,6 +1,6 @@
-//! Badge settings tab.
+//! Badge sections (Appearance › Badge). Placement is set in
+//! [`crate::layout`].
 //!
-//! Contains:
 //! - Badge enable/disable
 //! - Badge format string with variable interpolation
 //! - Badge appearance (color, opacity, font)
@@ -13,31 +13,11 @@ use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
-/// Show the badge tab content.
-pub fn show(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-    collapsed: &mut HashSet<String>,
-) {
-    // General section
-    show_general_section(ui, settings, changes_this_frame, collapsed);
-
-    // Appearance section
-    show_appearance_section(ui, settings, changes_this_frame, collapsed);
-
-    // Position section
-    show_position_section(ui, settings, changes_this_frame, collapsed);
-
-    // Variables section (help/reference)
-    show_variables_section(ui, settings, changes_this_frame, collapsed);
-}
-
 // ============================================================================
 // General Section
 // ============================================================================
 
-fn show_general_section(
+pub(crate) fn show_general_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -77,6 +57,7 @@ fn show_general_section(
                                 .hint_text("\\(session.username)@\\(session.hostname)")
                                 .desired_width(ui.available_width() - 20.0),
                         )
+                        .search_tag(&["badge_format"])
                         .on_hover_text(
                             "Format string with variable placeholders like \\(session.hostname)",
                         )
@@ -102,7 +83,7 @@ fn show_general_section(
 // Appearance Section
 // ============================================================================
 
-fn show_appearance_section(
+pub(crate) fn show_appearance_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -128,6 +109,7 @@ fn show_appearance_section(
                             ui,
                             &mut settings.config.badge.badge_color,
                         )
+                        .search_tag(&["badge_color"])
                         .changed()
                         {
                             settings.has_changes = true;
@@ -169,6 +151,7 @@ fn show_appearance_section(
                                     .hint_text("Helvetica")
                                     .desired_width(150.0),
                             )
+                            .search_tag(&["badge_font"])
                             .on_hover_text(
                                 "Font family for badge text (uses system font if not found)",
                             )
@@ -198,7 +181,7 @@ fn show_appearance_section(
 // Position Section
 // ============================================================================
 
-fn show_position_section(
+pub(crate) fn show_position_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -321,7 +304,7 @@ fn show_position_section(
 // Variables Section (Reference)
 // ============================================================================
 
-fn show_variables_section(
+pub(crate) fn show_variables_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,

@@ -1,9 +1,6 @@
-//! Arrangements settings tab.
-//!
-//! Contains:
-//! - List of saved arrangements with restore/rename/delete/reorder controls
-//! - Save current layout button
-//! - Auto-restore on startup setting
+//! Arrangement sections: save and the saved list (Sessions › Arrangements),
+//! auto-restore (General › Startup & Restore). Placement is set in
+//! [`crate::layout`].
 
 mod state;
 
@@ -13,27 +10,15 @@ use super::SettingsUI;
 use super::section::keyword_section;
 use crate::SettingsWindowAction;
 use crate::arrangements::ArrangementManager;
+use crate::list_editor::RowAction;
+use crate::search::SearchTag;
 use std::collections::HashSet;
-
-/// Show the arrangements tab content.
-pub fn show(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-    collapsed: &mut HashSet<String>,
-) {
-    show_save_section(ui, settings, collapsed);
-
-    show_arrangements_list(ui, settings, collapsed);
-
-    show_auto_restore_section(ui, settings, changes_this_frame, collapsed);
-}
 
 // ============================================================================
 // Save Current Layout Section
 // ============================================================================
 
-fn show_save_section(
+pub(crate) fn show_save_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
@@ -87,7 +72,7 @@ fn show_save_section(
 // Saved Arrangements List
 // ============================================================================
 
-fn show_arrangements_list(
+pub(crate) fn show_arrangements_list(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
@@ -117,7 +102,6 @@ fn show_arrangements_list(
 
             // Show confirmation dialogs
             show_confirm_restore_dialog(ui, settings);
-            show_confirm_delete_dialog(ui, settings);
             show_confirm_replace_dialog(ui, settings);
             show_rename_dialog(ui, settings);
         },
@@ -165,20 +149,37 @@ pub fn show_arrangements_with_manager(
             );
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                // Reorder buttons
-                if i < arrangements.len() - 1 && ui.small_button("▼").clicked() {
-                    settings
-                        .pending_arrangement_actions
-                        .push(SettingsWindowAction::MoveArrangementDown(id));
-                }
-                if i > 0 && ui.small_button("▲").clicked() {
-                    settings
-                        .pending_arrangement_actions
-                        .push(SettingsWindowAction::MoveArrangementUp(id));
-                }
-
-                if ui.small_button("Delete").clicked() {
-                    settings.arrangements_tab.arrangement_confirm_delete = Some(id);
+                let key = id.to_string();
+                let action = crate::list_editor::row_actions(
+                    ui,
+                    &mut settings.pending_list_delete,
+                    crate::list_editor::Row {
+                        index: i,
+                        len: arrangements.len(),
+                        list: "arrangement",
+                        key: &key,
+                        delete_label: "Delete",
+                    },
+                    crate::list_editor::RowButtons {
+                        reorder: true,
+                        // The host has no duplicate-arrangement action.
+                        duplicate: false,
+                        // Rename, Replace and Restore stay as separate buttons.
+                        edit: false,
+                        delete: true,
+                    },
+                );
+                match action {
+                    Some(RowAction::MoveUp(idx)) => settings.pending_arrangement_actions.push(
+                        SettingsWindowAction::MoveArrangementUp(arrangements[idx].id),
+                    ),
+                    Some(RowAction::MoveDown(idx)) => settings.pending_arrangement_actions.push(
+                        SettingsWindowAction::MoveArrangementDown(arrangements[idx].id),
+                    ),
+                    Some(RowAction::Delete(idx)) => settings.pending_arrangement_actions.push(
+                        SettingsWindowAction::DeleteArrangement(arrangements[idx].id),
+                    ),
+                    _ => {}
                 }
                 if ui.small_button("Replace").clicked() {
                     settings.arrangements_tab.arrangement_confirm_replace = Some(id);
@@ -279,31 +280,6 @@ fn show_confirm_restore_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
     }
 }
 
-fn show_confirm_delete_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    if let Some(id) = settings.arrangements_tab.arrangement_confirm_delete {
-        ui.add_space(8.0);
-        ui.group(|ui| {
-            ui.label(
-                egui::RichText::new("⚠ Delete this arrangement?")
-                    .strong()
-                    .color(egui::Color32::from_rgb(244, 67, 54)),
-            );
-            ui.label("This cannot be undone.");
-            ui.horizontal(|ui| {
-                if ui.button("Delete").clicked() {
-                    settings
-                        .pending_arrangement_actions
-                        .push(SettingsWindowAction::DeleteArrangement(id));
-                    settings.arrangements_tab.arrangement_confirm_delete = None;
-                }
-                if ui.button("Cancel").clicked() {
-                    settings.arrangements_tab.arrangement_confirm_delete = None;
-                }
-            });
-        });
-    }
-}
-
 fn show_confirm_replace_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
     if let Some(id) = settings.arrangements_tab.arrangement_confirm_replace {
         let name = settings
@@ -377,7 +353,7 @@ fn show_rename_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 // Auto-Restore Section
 // ============================================================================
 
-fn show_auto_restore_section(
+pub(crate) fn show_auto_restore_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -436,7 +412,9 @@ fn show_auto_restore_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["auto_restore_arrangement"]);
             });
 
             if names.is_empty() {

@@ -18,6 +18,8 @@ pub(super) fn render_snippet_list(
     let mut delete_index: Option<usize> = None;
     let mut toggle_index: Option<usize> = None;
     let mut start_edit_index: Option<usize> = None;
+    let mut row_action: Option<crate::list_editor::RowAction> = None;
+    let snippet_count = settings.config.snippets.len();
 
     // Group snippets by folder
     let mut folders: HashMap<String, Vec<usize>> = HashMap::new();
@@ -85,20 +87,33 @@ pub(super) fn render_snippet_list(
 
                     // Right-aligned buttons + truncated preview for remaining space
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Delete button (rightmost)
-                        if crate::delete_confirm::confirm_delete_button(
+                        // Reorder is off: rows are displayed grouped by folder, so a
+                        // swap in `config.snippets` would not move a row visibly.
+                        match crate::list_editor::row_actions(
                             ui,
                             &mut settings.pending_list_delete,
-                            "snippet",
-                            &snippet.id,
-                            "Delete",
+                            crate::list_editor::Row {
+                                index: i,
+                                len: snippet_count,
+                                list: "snippet",
+                                key: &snippet.id,
+                                delete_label: "Delete",
+                            },
+                            crate::list_editor::RowButtons {
+                                reorder: false,
+                                duplicate: true,
+                                edit: true,
+                                delete: true,
+                            },
                         ) {
-                            delete_index = Some(i);
-                        }
-
-                        // Edit button
-                        if ui.small_button("Edit").clicked() {
-                            start_edit_index = Some(i);
+                            Some(crate::list_editor::RowAction::Delete(i)) => {
+                                delete_index = Some(i);
+                            }
+                            Some(crate::list_editor::RowAction::Edit(i)) => {
+                                start_edit_index = Some(i);
+                            }
+                            Some(action) => row_action = Some(action),
+                            None => {}
                         }
 
                         // Content preview (truncated to remaining space)
@@ -125,6 +140,29 @@ pub(super) fn render_snippet_list(
         if settings.snippets_tab.editing_snippet_index == Some(i) {
             settings.snippets_tab.editing_snippet_index = None;
             settings.snippets_tab.adding_new_snippet = false;
+        }
+    }
+
+    if let Some(action) = row_action
+        && crate::list_editor::apply_move_or_duplicate(
+            &mut settings.config.snippets,
+            action,
+            |copy| {
+                copy.id = format!("snippet_{}", uuid::Uuid::new_v4());
+                copy.title = format!("{} copy", copy.title);
+                // Two snippets must never share a chord.
+                copy.keybinding = None;
+            },
+        )
+    {
+        settings.has_changes = true;
+        *changes_this_frame = true;
+        // Rows below the copy shifted down by one.
+        if let Some(editing) = settings.snippets_tab.editing_snippet_index
+            && let crate::list_editor::RowAction::Duplicate(i) = action
+            && editing > i
+        {
+            settings.snippets_tab.editing_snippet_index = Some(editing + 1);
         }
     }
 

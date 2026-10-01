@@ -69,11 +69,11 @@ A par-term launched **from inside a par-mux pane** refuses to attach to the sess
 
 ## Setup
 
-No setup is needed to attach: the **session picker** (`toggle_session_picker`, `Cmd + Ctrl + S` on macOS, `Ctrl + Alt + S` elsewhere) lists every running par-mux session and attaches, switches, creates, renames, ends, or detaches without touching a profile. The command palette lists the same sessions as **Attach par-mux Session: <name>** rows, plus **New par-mux Session** and **Detach from par-mux Session**. From the command line, `par-term --attach <session>` attaches a window at launch (creating the session when it does not exist), and the `mux_auto_attach: <session>` config key does the same on every launch (Settings → Advanced → par-mux Auto-Attach). With windows restored on launch, it attaches the focused window unless that window is already reattaching its own session, in which case it takes the first window that is not; when every restored window is reattaching, nothing more is attached.
+No setup is needed to attach: the **session picker** (`toggle_session_picker`, `Cmd + Ctrl + S` on macOS, `Ctrl + Alt + S` elsewhere) lists every running par-mux session and attaches, switches, creates, renames, ends, or detaches without touching a profile. The command palette lists the same sessions as **Attach par-mux Session: <name>** rows, plus **New par-mux Session** and **Detach from par-mux Session**. From the command line, `par-term --attach <session>` attaches a window at launch (creating the session when it does not exist), and the `mux_auto_attach: <session>` config key does the same on every launch (Settings → Sessions → par-mux). With windows restored on launch, it attaches the focused window unless that window is already reattaching its own session, in which case it takes the first window that is not; when every restored window is reattaching, nothing more is attached.
 
 Sessions are grouped by daemon: par-term starts one daemon per session it creates, named after it. A session held by a differently named daemon (created by `par-mux` itself, say) still attaches through that daemon; the picker marks it with its daemon's name because such a session is not reattached on the next launch.
 
-par-mux attach can also be a **profile** property. In Settings → Profiles → the profile editor, the **par-mux Auto-Attach** section (separate from the tmux section) has one field, **Session Name** (empty = disabled):
+par-mux attach can also be a **profile** property. In Settings → Profiles → Profiles → the profile editor's **Session** sub-tab, the **par-mux Auto-Attach** section (separate from the tmux section) has one field, **Session Name** (empty = disabled):
 
 | Setting | Config key | Meaning |
 |---|---|---|

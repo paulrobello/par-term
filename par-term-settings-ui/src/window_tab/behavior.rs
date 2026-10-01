@@ -6,7 +6,7 @@ use crate::section::keyword_section;
 use par_term_config::WindowType;
 use std::collections::HashSet;
 
-pub(super) fn show_behavior_section(
+pub(crate) fn show_behavior_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -94,7 +94,9 @@ pub(super) fn show_behavior_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["window_type"]);
             });
 
             // Target monitor setting
@@ -106,6 +108,7 @@ pub(super) fn show_behavior_section(
 
                 if ui
                     .checkbox(&mut use_default, "Auto")
+                    .search_tag(&["target_monitor"])
                     .on_hover_text("Let the OS decide which monitor to open on")
                     .changed()
                 {

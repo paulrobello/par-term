@@ -150,7 +150,7 @@ cp "${TMPDIR:-/tmp}"/par_term_debug.log ~/Desktop/par-term-debug.log
 
 If par-term crashed and you have already restarted it, the panic report is in the rolled-aside log instead — copy `"${TMPDIR:-/tmp}"/par_term_debug.log.1`. (A run started with `make run-debug` or `make run-trace` produces no `.1` of its own: those targets pipe through `tee`, which truncates the log before par-term opens it.)
 
-The Settings UI also provides debug logging controls under **Settings > Advanced > Debug Logging**, including a log level dropdown, log file path display, and an Open Log File button. Changes take effect immediately without restarting.
+The Settings UI also provides debug logging controls under **Settings > Advanced > Logging**, including a log level dropdown, log file path display, and an Open Log File button. Changes take effect immediately without restarting.
 
 > **Note:** High-frequency components (rendering, input, shaders) use the custom `debug_*!()` macros, which are controlled by `DEBUG_LEVEL` (separate from `log_level`). Use `make run-trace` (or `DEBUG_LEVEL=4 par-term`) to capture them. See [LOGGING.md](../LOGGING.md) for the full category list and the two-system architecture.
 
@@ -265,7 +265,7 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 **Solution:**
 
 1. Ensure your configured font is installed on the system. par-term defaults to a built-in font if the configured one is not found.
-2. Toggle font hinting in **Settings > Appearance > Font Hinting** -- enabling hinting improves sharpness at common sizes.
+2. Toggle font hinting in **Settings > Appearance > Text & Fonts > Font Hinting** -- enabling hinting improves sharpness at common sizes.
 3. Install a Nerd Font for icon support in the tab bar and profile picker.
 4. Check font-related messages in the debug log:
 
@@ -283,7 +283,7 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 **Solution:**
 
 1. Ensure your operating system's display scaling is configured correctly.
-2. par-term auto-detects the display scale factor. If text or UI elements appear incorrect, try adjusting the font size in **Settings > Appearance**.
+2. par-term auto-detects the display scale factor. If text or UI elements appear incorrect, try adjusting the font size in **Settings > Appearance > Text & Fonts**.
 3. For multi-monitor setups with mixed DPI values, par-term stores window positions in logical pixels and applies per-monitor DPI conversion automatically. If positions seem off, save and restore a window arrangement to recalibrate.
 4. Scrollbar width and positioning scale with the display DPI factor and rescale dynamically when a window moves between monitors with different DPI values.
 
@@ -430,7 +430,7 @@ Enable `shader_hot_reload: true` in your config for faster iteration during shad
    par-term install-shell-integration
    ```
 
-   Or open **Settings > Integrations** and click **Install Shell Integration**.
+   Or open **Settings > General > Integration & Files** and click **Install Shell Integration**.
 
 2. Restart your shell or source the RC file:
 
@@ -476,7 +476,7 @@ Enable `shader_hot_reload: true` in your config for faster iteration during shad
 1. Check the correct modifier for your platform:
    - **macOS**: `Cmd` for most shortcuts
    - **Linux/Windows**: `Ctrl+Shift` for most shortcuts
-2. Review your keybindings in **Settings > Input > Keybindings**
+2. Review your keybindings in **Settings > Keys > Key Bindings**
 3. See [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) for the complete shortcut reference
 4. Custom keybindings in `config.yaml` override defaults -- check for conflicts
 
@@ -570,7 +570,7 @@ Update to par-term v0.30.1+ — `Selection` now records the scroll offset at cap
 
 1. To select text when an application has mouse tracking enabled, hold `Shift` while clicking or dragging to bypass the application's mouse capture
 2. par-term includes a drag dead-zone to suppress accidental micro-selections from trackpad jitter
-3. Check mouse-related settings in **Settings > Input > Mouse**
+3. Check mouse-related settings in **Settings > Pointer > Mouse**
 4. If clicks are intermittently ignored in TUI apps (htop, lazygit), update to v0.30.11+ where mouse event paths use shared read locks
 
 ### Keyboard Input Stalls
@@ -606,7 +606,7 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
 1. Verify `~/.ssh/config` exists and contains valid `Host` entries (not just `Host *` wildcards)
 2. Check that `~/.ssh/known_hosts` is readable
-3. For network-discovered hosts, enable mDNS in **Settings > Integrations > SSH > mDNS/Bonjour Discovery** or set `enable_mdns_discovery: true` in config
+3. For network-discovered hosts, enable mDNS in **Settings > Profiles > SSH > mDNS/Bonjour Discovery** or set `enable_mdns_discovery: true` in config
 
 ### Profile Not Auto-Switching on SSH
 
@@ -628,7 +628,7 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
 **Solution:**
 
-1. Enable mDNS in **Settings > Integrations > SSH > mDNS/Bonjour Discovery** or set `enable_mdns_discovery: true`
+1. Enable mDNS in **Settings > Profiles > SSH > mDNS/Bonjour Discovery** or set `enable_mdns_discovery: true`
 2. Increase `mdns_scan_timeout_secs` for slower networks (range: 1 to 10 seconds)
 3. Ensure remote hosts advertise `_ssh._tcp` via Bonjour (macOS) or Avahi (Linux)
 
@@ -703,7 +703,7 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
 **Solution:**
 
-1. Reduce the scrollback buffer size in **Settings > Terminal > Scrollback Lines**
+1. Reduce the scrollback buffer size in **Settings > Advanced > Terminal Emulation > Scrollback > Scrollback Lines**
 2. Close unused tabs
 3. Large inline images are cached in RGBA texture memory -- closing tabs with many inline images frees this memory
 
@@ -761,7 +761,7 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
 **Solution:**
 
-1. Check profile order in **Settings > Profiles** -- the first matching profile wins
+1. Check profile order in **Settings > Profiles > Profiles** -- the first matching profile wins
 2. For directory-based switching, verify patterns use correct glob syntax:
    - Patterns support `~` for home directory expansion
    - Pattern matching is case-insensitive

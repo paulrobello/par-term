@@ -8,7 +8,7 @@ use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
-pub(super) fn show_performance_section(
+pub(crate) fn show_performance_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -81,7 +81,9 @@ pub(super) fn show_performance_section(
                             2,
                             format_mode(VsyncMode::Fifo, "FIFO (VSync)"),
                         );
-                    });
+                    })
+                    .response
+                    .search_tag(&["vsync_mode"]);
                 if selected != current {
                     let new_mode = match selected {
                         0 => VsyncMode::Immediate,
@@ -133,7 +135,9 @@ pub(super) fn show_performance_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["power_preference"]);
                 crate::deferred_badge(ui, crate::Deferred::Restart);
             });
 

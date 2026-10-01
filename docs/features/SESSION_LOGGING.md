@@ -133,7 +133,7 @@ session_log_redact_passwords: true
 
 ### Settings UI Options
 
-The Advanced tab in Settings provides:
+The Advanced > Logging page in Settings provides:
 
 | Option | Description |
 |--------|-------------|

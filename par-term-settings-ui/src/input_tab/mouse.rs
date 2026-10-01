@@ -11,7 +11,7 @@ const SLIDER_HEIGHT: f32 = 18.0;
 // Mouse Section
 // ============================================================================
 
-pub(super) fn show_mouse_section(
+pub(crate) fn show_mouse_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,

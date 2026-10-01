@@ -38,7 +38,7 @@ fn cursor_blink_lands_in_appearance_cursor() {
 
 #[test]
 fn a_tooltip_is_attached_to_its_own_control() {
-    let sections = harvest(SettingsTab::Window);
+    let sections = harvest(SettingsTab::WindowsAndTabs);
     let display = find(&sections, "Display");
     let allow = display
         .controls
@@ -56,7 +56,7 @@ fn a_tooltip_is_attached_to_its_own_control() {
 
 #[test]
 fn a_slider_value_and_unit_are_never_indexed() {
-    let sections = harvest(SettingsTab::Window);
+    let sections = harvest(SettingsTab::WindowsAndTabs);
     let display = find(&sections, "Display");
     for control in &display.controls {
         for text in std::iter::once(&control.label).chain(&control.extra) {
@@ -70,7 +70,7 @@ fn a_slider_value_and_unit_are_never_indexed() {
 
 #[test]
 fn option_key_combo_carries_meta_from_its_popup() {
-    let sections = harvest(SettingsTab::Input);
+    let sections = harvest(SettingsTab::Keys);
     let keyboard = find(&sections, "Keyboard");
     let meta = keyboard
         .controls
@@ -94,4 +94,57 @@ fn every_tab_harvests_in_reasonable_time() {
     for (tab, sections, controls) in &counts {
         assert!(*sections > 0 && *controls > 0, "{tab:?} harvested nothing");
     }
+}
+
+/// A nested section takes its ancestor's page even though it is recorded
+/// before that ancestor (the order the harvest produces).
+#[test]
+fn a_nested_section_gets_its_ancestors_page() {
+    let entry = |id: &str, parent: Option<usize>| SectionEntry {
+        id: id.to_string(),
+        parent,
+        ..Default::default()
+    };
+    // Each section is listed before the one that encloses it.
+    let mut sections = vec![
+        entry("grandchild", Some(1)),
+        entry("child", Some(2)),
+        entry("outer", None),
+    ];
+    super::harvest::assign_pages(&mut sections, |id| (id == "outer").then_some(2));
+    assert_eq!(
+        sections.iter().map(|s| s.page).collect::<Vec<_>>(),
+        [2, 2, 2]
+    );
+}
+
+/// With shaders selected, per-shader settings nest inside their shader
+/// section; every nested section shares its parent's tab and page, so a
+/// result jumps to the page that draws it.
+#[test]
+fn nested_sections_share_their_parents_page() {
+    let mut config = Config::default();
+    config.shader.custom_shader = Some("variant.glsl".to_string());
+    config.shader.cursor_shader = Some("variant_cursor.glsl".to_string());
+    let mut settings = SettingsUI::new_for_tests(config);
+    settings.temp_custom_shader = "variant.glsl".to_string();
+    settings.temp_cursor_shader = "variant_cursor.glsl".to_string();
+    settings.collapsed_sections.clear();
+    let mut nested = 0;
+    for tab in SettingsTab::all() {
+        let sections = harvest_tab(&mut settings, *tab);
+        for section in &sections {
+            if let Some(p) = section.parent {
+                nested += 1;
+                assert_eq!(
+                    (section.tab, section.page),
+                    (sections[p].tab, sections[p].page),
+                    "{} is not on its parent {}'s page",
+                    section.id,
+                    sections[p].id
+                );
+            }
+        }
+    }
+    assert!(nested > 0, "no nested section was harvested");
 }

@@ -225,7 +225,7 @@ par-term supports iTerm2-style color schemes. Change themes in **Settings > Appe
 
 ### Fonts
 
-Configure fonts in **Settings > Appearance > Fonts**. par-term supports:
+Configure fonts in **Settings > Appearance > Text & Fonts**. par-term supports:
 
 - Separate font families for regular, bold, italic, and bold-italic text
 - Unicode range mapping for CJK, emoji, or symbol fonts

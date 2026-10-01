@@ -3,6 +3,7 @@
 //! Rendered as a collapsing section inside the Integrations tab.
 
 use crate::SettingsUI;
+use crate::search::SearchTag;
 use crate::section::collapsing_section;
 use std::collections::HashSet;
 
@@ -24,6 +25,7 @@ impl SettingsUI {
                         &mut self.config.ssh.ssh_auto_profile_switch,
                         "Auto-switch profile on SSH connection",
                     )
+                    .search_tag(&["ssh_auto_profile_switch"])
                     .changed()
                 {
                     self.has_changes = true;
@@ -46,6 +48,7 @@ impl SettingsUI {
                         &mut self.config.ssh.ssh_revert_profile_on_disconnect,
                         "Revert profile on SSH disconnect",
                     )
+                    .search_tag(&["ssh_revert_profile_on_disconnect"])
                     .changed()
                 {
                     self.has_changes = true;
@@ -71,6 +74,7 @@ impl SettingsUI {
                         &mut self.config.ssh.enable_mdns_discovery,
                         "Enable mDNS host discovery",
                     )
+                    .search_tag(&["enable_mdns_discovery"])
                     .changed()
                 {
                     self.has_changes = true;
@@ -95,6 +99,7 @@ impl SettingsUI {
                                 .suffix(" s")
                                 .integer(),
                         )
+                        .search_tag(&["mdns_scan_timeout_secs"])
                         .changed()
                     {
                         self.config.ssh.mdns_scan_timeout_secs = timeout as u32;
@@ -112,7 +117,7 @@ impl SettingsUI {
                 ui.label(
                     match crate::live_binding::binding_for(&self.config, "ssh_quick_connect") {
                         Some(chord) => format!("Press {chord} to open the SSH Quick Connect dialog."),
-                        None => "Bind the \"SSH Quick Connect\" action in Input › Keybindings \
+                        None => "Bind the \"SSH Quick Connect\" action in Keys › Key Bindings \
                                  to open the SSH Quick Connect dialog."
                             .to_string(),
                     },

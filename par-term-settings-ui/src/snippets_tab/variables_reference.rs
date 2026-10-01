@@ -4,7 +4,7 @@ use crate::SettingsUI;
 use crate::section::keyword_section;
 use std::collections::HashSet;
 
-pub(super) fn show_variables_reference_section(
+pub(crate) fn show_variables_reference_section(
     ui: &mut egui::Ui,
     _settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,

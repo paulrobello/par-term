@@ -90,7 +90,7 @@ The exported file contains all configuration values.
 
 ## Settings UI
 
-All import/export controls are located in **Settings > Advanced > Import/Export Preferences**.
+All import/export controls are located in **Settings > Advanced > Import/Export**.
 
 ## Related Documentation
 

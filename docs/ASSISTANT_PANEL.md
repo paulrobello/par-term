@@ -193,13 +193,13 @@ The chat input field supports multi-line editing:
 
 The input field grows automatically as you type, expanding up to 10 rows before showing a scrollbar. This is useful for pasting multi-line prompts or composing longer instructions without sending prematurely.
 
-Submitted prompts are kept in Assistant input history. Press `Up` / `Down` to recall earlier or newer prompts; for multi-line drafts, history recall only activates when the caret is on the first line (`Up`) or last line (`Down`) so normal in-editor navigation still works. The unsent draft is restored when you navigate back past the newest history entry. By default this history lasts only for the current Assistant panel/window session, but **Settings > Assistant > Panel > Input history** can switch it to persistent storage in `assistant_input_history.yaml` under the par-term config directory.
+Submitted prompts are kept in Assistant input history. Press `Up` / `Down` to recall earlier or newer prompts; for multi-line drafts, history recall only activates when the caret is on the first line (`Up`) or last line (`Down`) so normal in-editor navigation still works. The unsent draft is restored when you navigate back past the newest history entry. By default this history lasts only for the current Assistant panel/window session, but **Settings > Assistant & Agents > Panel > Input history** can switch it to persistent storage in `assistant_input_history.yaml` under the par-term config directory.
 
 ### Prompt Library
 
 Saved assistant prompts live in `~/.config/par-term/assistant-prompts/` (or the platform-equivalent par-term config directory). Each prompt is a Markdown file with YAML frontmatter for metadata followed by the Markdown prompt body.
 
-Use `auto_submit: false` to load the prompt into the chat input for review or editing before sending. Use `auto_submit: true` to send the prompt immediately when selected from the panel. Prompts can be created, edited, and deleted in **Settings > Assistant > Prompt Library**; the chat **Prompts** menu refreshes after those changes and uses a wider menu to keep typical prompt titles on one line.
+Use `auto_submit: false` to load the prompt into the chat input for review or editing before sending. Use `auto_submit: true` to send the prompt immediately when selected from the panel. Prompts can be created, edited, and deleted in **Settings > Assistant & Agents > Prompt Library**; the chat **Prompts** menu refreshes after those changes and uses a wider menu to keep typical prompt titles on one line.
 
 ### Clear Conversation
 
@@ -281,7 +281,7 @@ The **Terminal access** checkbox controls whether the agent is allowed to write 
 
 ### Screenshot Access Toggle
 
-The **Allow Agent Screenshots** setting (Settings -> Assistant -> Permissions) controls whether the agent may request terminal screenshots through the `terminal_screenshot` MCP tool.
+The **Allow Agent Screenshots** setting (Settings -> Assistant & Agents -> Permissions) controls whether the agent may request terminal screenshots through the `terminal_screenshot` MCP tool.
 
 - **Enabled**: Screenshot requests appear as normal permission prompts and can be approved/denied per request
 - **Disabled**: Screenshot requests are automatically denied, and the panel adds a system message explaining why
@@ -395,7 +395,7 @@ Each `.toml` file defines a single agent. User-defined agents with the same `ide
 
 You can manage these from either:
 
-- **Settings UI**: Assistant tab custom agent editor (recommended for most users)
+- **Settings UI**: Assistant & Agents > Agents custom agent editor (recommended for most users)
 - **Files on disk**: TOML files in `~/.config/par-term/agents/` or `ai_inspector_custom_agents` in `config.yaml`
 
 ### Agent TOML Format
@@ -476,7 +476,7 @@ ai_inspector_custom_agents:
 
 ### Settings UI Management
 
-The **Settings > Assistant** tab includes a custom ACP agent manager for adding, editing, and removing entries in `ai_inspector_custom_agents`.
+The **Settings > Assistant & Agents > Agents** page includes a custom ACP agent manager for adding, editing, and removing entries in `ai_inspector_custom_agents`.
 
 - **Protocol**: par-term currently supports `acp` only; the UI shows this as a read-only field
 - **Type**: typically `coding` for terminal/code agents
@@ -504,7 +504,7 @@ npm install -g @agentclientprotocol/claude-agent-acp
 ollama launch claude --model qwen3-coder:latest
 ```
 
-3. Add a custom ACP agent in `config.yaml` (or via Settings > Assistant):
+3. Add a custom ACP agent in `config.yaml` (or via Settings > Assistant & Agents > Agents):
 
 ```yaml
 ai_inspector_custom_agents:

@@ -174,7 +174,7 @@ command_separator_color: [100, 149, 237]  # Cornflower blue
 
 ## Settings UI
 
-Command separator settings are located in **Settings > Terminal > Command Separators**:
+Command separator settings are located in **Settings > Appearance > Theme > Command Separators**:
 
 - **Show separator lines between commands** -- Checkbox to enable or disable the feature. The label notes that shell integration is required.
 - **Thickness (px)** -- Slider ranging from 0.5 to 5.0 pixels
@@ -209,7 +209,7 @@ Command separators work in both single-pane and split-pane modes. In split-pane 
 ### Separators not appearing
 
 1. **Verify shell integration is installed**: Run `par-term install-shell-integration` and restart your shell
-2. **Check the feature is enabled**: Confirm `command_separator_enabled: true` in your config or enable it in Settings > Terminal > Command Separators
+2. **Check the feature is enabled**: Confirm `command_separator_enabled: true` in your config or enable it in Settings > Appearance > Theme > Command Separators
 3. **Run a command first**: Separators appear at prompt boundaries, so you need at least one completed command for a line to appear
 4. **Check opacity**: If `command_separator_opacity` is set very low (near 0.0), the lines may be invisible
 

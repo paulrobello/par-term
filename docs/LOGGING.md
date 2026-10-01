@@ -153,7 +153,7 @@ par-term log session started at 1738864215.123456 (debug_level=Off, rust_log=inf
 
 ## Settings UI
 
-Debug logging is configured in **Settings > Advanced > Debug Logging**:
+Debug logging is configured in **Settings > Advanced > Logging**:
 
 - **Log level dropdown** - Select from Off, Error, Warn, Info, Debug, Trace
 - **Log file path** - Displays the current log file location
@@ -235,7 +235,7 @@ Custom debug macros use category tags for selective filtering. The following cat
 
 | Category | Description |
 |----------|-------------|
-| `AI_INSPECTOR` | AI inspector panel operations |
+| `AI_INSPECTOR` | Assistant panel operations |
 | `APP` | Application-level render pipeline operations |
 | `ARRANGEMENT` | Window arrangement save/restore |
 | `CAT` | General-purpose catch-all |

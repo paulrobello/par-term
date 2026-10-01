@@ -12,7 +12,7 @@ const SLIDER_HEIGHT: f32 = 18.0;
 // Selection & Clipboard Section
 // ============================================================================
 
-pub(super) fn show_selection_section(
+pub(crate) fn show_selection_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -56,6 +56,22 @@ pub(super) fn show_selection_section(
                     "Middle-click paste",
                 )
                 .search_tag(&["middle_click_paste"])
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if ui
+                .checkbox(
+                    &mut settings.config.selection.warn_paste_control_chars,
+                    "Warn before pasting control characters",
+                )
+                .search_tag(&["warn_paste_control_chars"])
+                .on_hover_text(
+                    "Ask before pasting text that holds control characters (escape \
+                     sequences, carriage returns) that a program could act on.",
+                )
                 .changed()
             {
                 settings.has_changes = true;
@@ -108,7 +124,7 @@ pub(super) fn show_selection_section(
 
             ui.horizontal(|ui| {
                 ui.label("Quote style:");
-                egui::ComboBox::from_id_salt("input_dropped_file_quote_style")
+                let quote_combo = egui::ComboBox::from_id_salt("input_dropped_file_quote_style")
                     .selected_text(
                         settings
                             .config
@@ -131,6 +147,9 @@ pub(super) fn show_selection_section(
                             }
                         }
                     });
+                quote_combo
+                    .response
+                    .search_tag(&["dropped_file_quote_style"]);
             })
             .response
             .on_hover_text("How to quote file paths when dropped into the terminal");
@@ -142,7 +161,7 @@ pub(super) fn show_selection_section(
 // Clipboard Limits Section
 // ============================================================================
 
-pub(super) fn show_clipboard_limits_section(
+pub(crate) fn show_clipboard_limits_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,

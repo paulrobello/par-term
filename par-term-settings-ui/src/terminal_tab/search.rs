@@ -13,7 +13,7 @@ const SLIDER_HEIGHT: f32 = 18.0;
 // Search Section
 // ============================================================================
 
-pub(super) fn show_search_section(
+pub(crate) fn show_search_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -29,6 +29,7 @@ pub(super) fn show_search_section(
                 ui,
                 &mut settings.config.search.search_highlight_color,
             )
+            .search_tag(&["search_highlight_color"])
             .changed()
             {
                 settings.has_changes = true;
@@ -43,6 +44,7 @@ pub(super) fn show_search_section(
                 ui,
                 &mut settings.config.search.search_current_highlight_color,
             )
+            .search_tag(&["search_current_highlight_color"])
             .changed()
             {
                 settings.has_changes = true;
@@ -116,7 +118,7 @@ pub(super) fn show_search_section(
 // Command History Section
 // ============================================================================
 
-pub(super) fn show_command_history_section(
+pub(crate) fn show_command_history_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -165,7 +167,7 @@ pub(super) fn show_command_history_section(
 // Command Separator Section
 // ============================================================================
 
-pub(super) fn show_command_separator_section(
+pub(crate) fn show_command_separator_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -271,6 +273,7 @@ pub(super) fn show_command_separator_section(
                                     ui,
                                     &mut settings.config.command_separator.command_separator_color,
                                 )
+                                .search_tag(&["command_separator_color"])
                                 .changed()
                                 {
                                     settings.has_changes = true;

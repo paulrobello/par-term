@@ -323,8 +323,8 @@ impl ProfileModalUI {
                 if !self.global_tmux_enabled {
                     ui.label(
                         egui::RichText::new(
-                            "⚠ Has no effect while \"Enable tmux integration\" (Advanced › \
-                             tmux Integration) is off, in either connection mode.",
+                            "⚠ Has no effect while \"Enable tmux integration\" (Sessions › \
+                             tmux) is off, in either connection mode.",
                         )
                         .small()
                         .color(egui::Color32::from_rgb(255, 193, 7)),

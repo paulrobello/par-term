@@ -75,7 +75,7 @@ fn default_action_for_type(type_index: usize) -> TriggerActionConfig {
     }
 }
 
-pub(super) fn show_triggers_section(
+pub(crate) fn show_triggers_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -95,6 +95,7 @@ fn show_triggers_collapsing(
         "Triggers",
         "automation_triggers",
         &[
+            "triggers",
             "highlight",
             "notify",
             "badge",
@@ -158,9 +159,8 @@ fn show_triggers_collapsing(
             }
 
             // Collect mutations to apply after iteration
-            let mut delete_index: Option<usize> = None;
             let mut toggle_index: Option<usize> = None;
-            let mut start_edit_index: Option<usize> = None;
+            let mut row_action: Option<crate::list_editor::RowAction> = None;
 
             // List existing triggers
             let trigger_count = settings.config.automation.triggers.len();
@@ -177,13 +177,20 @@ fn show_triggers_collapsing(
                     show_trigger_row(
                         ui,
                         trigger,
-                        i,
+                        (i, trigger_count),
                         &mut toggle_index,
-                        &mut start_edit_index,
-                        &mut delete_index,
+                        &mut row_action,
                         &mut settings.pending_list_delete,
                     );
                 }
+            }
+            let (mut delete_index, mut start_edit_index, mut move_or_duplicate) =
+                (None, None, None);
+            match row_action {
+                Some(crate::list_editor::RowAction::Delete(i)) => delete_index = Some(i),
+                Some(crate::list_editor::RowAction::Edit(i)) => start_edit_index = Some(i),
+                Some(action) => move_or_duplicate = Some(action),
+                None => {}
             }
 
             // Apply mutations after iteration
@@ -192,6 +199,20 @@ fn show_triggers_collapsing(
                     !settings.config.automation.triggers[i].enabled;
                 settings.has_changes = true;
                 *changes_this_frame = true;
+            }
+            if let Some(action) = move_or_duplicate
+                && crate::list_editor::apply_move_or_duplicate(
+                    &mut settings.config.automation.triggers,
+                    action,
+                    |copy| copy.name.push_str(" copy"),
+                )
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+                // The edit form is index-bound; close it rather than let it
+                // point at a different trigger.
+                settings.automation_tab.editing_trigger_index = None;
+                settings.automation_tab.adding_new_trigger = false;
             }
             if let Some(i) = delete_index {
                 settings.config.automation.triggers.remove(i);
@@ -242,12 +263,12 @@ fn show_triggers_collapsing(
 fn show_trigger_row(
     ui: &mut egui::Ui,
     trigger: &par_term_config::automation::TriggerConfig,
-    i: usize,
+    position: (usize, usize),
     toggle_index: &mut Option<usize>,
-    start_edit_index: &mut Option<usize>,
-    delete_index: &mut Option<usize>,
+    row_action: &mut Option<crate::list_editor::RowAction>,
     pending_delete: &mut crate::delete_confirm::PendingDelete,
 ) {
+    let (i, len) = position;
     ui.horizontal(|ui| {
         // Enabled checkbox
         let mut enabled = trigger.enabled;
@@ -290,20 +311,22 @@ fn show_trigger_row(
             );
         }
 
-        // Edit button
-        if ui.small_button("Edit").clicked() {
-            *start_edit_index = Some(i);
-        }
-
-        // Delete button (asks before deleting)
-        if crate::delete_confirm::confirm_delete_button(
-            ui,
-            pending_delete,
-            "trigger",
-            &format!("{i}:{}", trigger.name),
-            "Delete",
-        ) {
-            *delete_index = Some(i);
-        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let key = format!("{i}:{}", trigger.name);
+            if let Some(action) = crate::list_editor::row_actions(
+                ui,
+                pending_delete,
+                crate::list_editor::Row {
+                    index: i,
+                    len,
+                    list: "trigger",
+                    key: &key,
+                    delete_label: "Delete",
+                },
+                crate::list_editor::RowButtons::ALL,
+            ) {
+                *row_action = Some(action);
+            }
+        });
     });
 }

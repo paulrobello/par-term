@@ -12,8 +12,6 @@ pub struct ArrangementsTabState {
     pub arrangement_save_name: String,
     /// Arrangement ID pending restore confirmation
     pub arrangement_confirm_restore: Option<ArrangementId>,
-    /// Arrangement ID pending delete confirmation
-    pub arrangement_confirm_delete: Option<ArrangementId>,
     /// Name pending overwrite confirmation (when saving with duplicate name)
     pub arrangement_confirm_overwrite: Option<String>,
     /// Arrangement ID pending replace confirmation

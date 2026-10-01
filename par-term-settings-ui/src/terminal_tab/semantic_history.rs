@@ -8,7 +8,7 @@ use crate::search::SearchTag;
 use crate::section::{INPUT_WIDTH, keyword_section};
 use std::collections::HashSet;
 
-pub(super) fn show_semantic_history_section(
+pub(crate) fn show_semantic_history_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -49,6 +49,7 @@ pub(super) fn show_semantic_history_section(
                         .desired_width(INPUT_WIDTH)
                         .hint_text("System default"),
                     )
+                    .search_tag(&["link_handler_command"])
                     .on_hover_text(
                         "Custom command to open URLs.\n\n\
                      Use {url} as placeholder for the URL.\n\n\
@@ -135,7 +136,11 @@ pub(super) fn show_semantic_history_section(
                     .semantic_history
                     .link_highlight_color_enabled;
                 ui.add_enabled_ui(color_enabled, |ui| {
-                    if ui.color_edit_button_srgb(&mut color).changed() {
+                    if ui
+                        .color_edit_button_srgb(&mut color)
+                        .search_tag(&["link_highlight_color"])
+                        .changed()
+                    {
                         settings.config.semantic_history.link_highlight_color = color;
                         settings.has_changes = true;
                         *changes_this_frame = true;
@@ -174,7 +179,7 @@ pub(super) fn show_semantic_history_section(
                 |ui| {
                     ui.horizontal(|ui| {
                         ui.label("Underline style:");
-                        egui::ComboBox::from_id_salt("link_underline_style")
+                        let style_combo = egui::ComboBox::from_id_salt("link_underline_style")
                             .selected_text(
                                 settings
                                     .config
@@ -200,6 +205,7 @@ pub(super) fn show_semantic_history_section(
                                     }
                                 }
                             });
+                        style_combo.response.search_tag(&["link_underline_style"]);
                     });
                 },
             );
@@ -208,7 +214,7 @@ pub(super) fn show_semantic_history_section(
 
             ui.horizontal(|ui| {
                 ui.label("Editor mode:");
-                egui::ComboBox::from_id_salt("semantic_history_editor_mode")
+                let mode_combo = egui::ComboBox::from_id_salt("semantic_history_editor_mode")
                     .selected_text(
                         settings
                             .config
@@ -234,6 +240,9 @@ pub(super) fn show_semantic_history_section(
                             }
                         }
                     });
+                mode_combo
+                    .response
+                    .search_tag(&["semantic_history_editor_mode"]);
             });
 
             // Show description based on selected mode
@@ -272,6 +281,7 @@ pub(super) fn show_semantic_history_section(
                             )
                             .desired_width(INPUT_WIDTH),
                         )
+                        .search_tag(&["semantic_history_editor"])
                         .on_hover_text(
                             "Command to open files.\n\n\
                          Placeholders:\n\

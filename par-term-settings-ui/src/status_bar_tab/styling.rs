@@ -33,6 +33,7 @@ pub fn show_styling_section(
                             ui,
                             &mut settings.config.status_bar.status_bar_bg_color,
                         )
+                        .search_tag(&["status_bar_bg_color"])
                         .changed()
                         {
                             settings.has_changes = true;
@@ -72,6 +73,7 @@ pub fn show_styling_section(
                             ui,
                             &mut settings.config.status_bar.status_bar_fg_color,
                         )
+                        .search_tag(&["status_bar_fg_color"])
                         .changed()
                         {
                             settings.has_changes = true;
@@ -119,6 +121,7 @@ pub fn show_styling_section(
                                 .hint_text(" | ")
                                 .desired_width(80.0),
                             )
+                            .search_tag(&["status_bar_separator"])
                             .on_hover_text("Text displayed between widgets in the same section")
                             .changed()
                         {

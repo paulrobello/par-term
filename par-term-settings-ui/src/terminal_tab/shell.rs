@@ -7,7 +7,7 @@ use crate::search::SearchTag;
 use crate::section::{INPUT_WIDTH, collapsing_section};
 use std::collections::HashSet;
 
-pub(super) fn show_shell_section(
+pub(crate) fn show_shell_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -21,6 +21,7 @@ pub(super) fn show_shell_section(
                     egui::TextEdit::singleline(&mut settings.temp_custom_shell)
                         .desired_width(INPUT_WIDTH),
                 )
+                .search_tag(&["custom_shell"])
                 .changed()
             {
                 settings.config.shell.custom_shell = if settings.temp_custom_shell.is_empty() {
@@ -49,6 +50,7 @@ pub(super) fn show_shell_section(
                     egui::TextEdit::singleline(&mut settings.temp_shell_args)
                         .desired_width(INPUT_WIDTH),
                 )
+                .search_tag(&["shell_args"])
                 .changed()
             {
                 settings.config.shell.shell_args = if settings.temp_shell_args.is_empty() {
@@ -104,6 +106,7 @@ pub(super) fn show_shell_section(
                     }
                 })
                 .response
+                .search_tag(&["startup_directory_mode"])
                 .on_hover_text(
                     "Controls where new shells start:\n\
                      • Home: Start in your home directory\n\
@@ -125,6 +128,7 @@ pub(super) fn show_shell_section(
                             egui::TextEdit::singleline(&mut settings.temp_startup_directory)
                                 .desired_width(INPUT_WIDTH),
                         )
+                        .search_tag(&["startup_directory"])
                         .changed()
                     {
                         settings.config.shell.startup_directory =

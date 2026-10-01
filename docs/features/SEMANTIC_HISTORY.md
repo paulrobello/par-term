@@ -181,13 +181,13 @@ link_handler_command: "firefox --private-window {url}"
 
 When `link_handler_command` is empty (the default), par-term falls back to the operating system's default browser.
 
-**Settings UI:** Settings > Terminal > Semantic History > "Link handler"
+**Settings UI:** Settings > General > Search & Links > Semantic History > "Link handler"
 
 > **⚠️ Warning:** The Settings UI validates that the `{url}` placeholder is present in the command. A warning appears if the placeholder is missing, since the URL would not be passed to the handler.
 
 ## Settings UI
 
-Semantic history is configured in **Settings > Terminal > Semantic History**:
+Semantic history is configured in **Settings > General > Search & Links > Semantic History**:
 
 - **Link handler** - Custom command to open URLs (empty uses system default browser)
 - **Allow opening file:// links** - Toggle to let Cmd/Ctrl+Click open `file://` hyperlinks via the OS handler (off by default; see [Mouse Features](MOUSE_FEATURES.md) for the URL scheme allowlist)

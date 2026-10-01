@@ -119,7 +119,7 @@ par-term polls the active tab's OSC 52 content each frame and, when it changes, 
 osc52_clipboard: true  # Apply OSC 52 clipboard-set sequences to the system clipboard (default)
 ```
 
-Disable it if you don't want programs — including those running over SSH — overwriting your clipboard. The toggle also lives under Settings → Input → Selection & Clipboard ("OSC 52 clipboard sync (programs set clipboard over SSH)").
+Disable it if you don't want programs — including those running over SSH — overwriting your clipboard. The toggle also lives under Settings → General → Selection & Clipboard ("OSC 52 clipboard sync (programs set clipboard over SSH)").
 
 ### Click Timing
 
@@ -295,7 +295,7 @@ pane_focus_follows_mouse: false
 
 ### Settings UI
 
-The Input tab in Settings provides:
+The Pointer > Mouse page in Settings (Settings > Pointer > Mouse) provides the options below. The first three live under Settings > General > Selection & Clipboard:
 
 | Option | Description |
 |--------|-------------|

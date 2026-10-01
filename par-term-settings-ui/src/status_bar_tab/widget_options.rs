@@ -35,6 +35,7 @@ pub fn show_widget_options_section(
                         .hint_text("%H:%M:%S")
                         .desired_width(120.0),
                     )
+                    .search_tag(&["status_bar_time_format"])
                     .on_hover_text(
                         "strftime format string for the Clock widget (e.g. %H:%M:%S, %I:%M %p, %H:%M)",
                     )

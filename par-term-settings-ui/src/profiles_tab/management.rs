@@ -6,7 +6,7 @@ use crate::settings_ui::SettingsUI;
 use std::collections::HashSet;
 
 /// Show the profile management section (inline profile list and editor).
-pub(super) fn show_management_section(
+pub(crate) fn show_management_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
@@ -69,7 +69,7 @@ pub(super) fn show_management_section(
 }
 
 /// Show the display options section (profile drawer toggle button).
-pub(super) fn show_display_options_section(
+pub(crate) fn show_display_options_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
@@ -83,7 +83,7 @@ pub(super) fn show_display_options_section(
         collapsed,
         |ui| {
             // UX.md SC7: the profile drawer button has one control, on
-            // Window › Tab Bar. This section points there instead of
+            // Windows & Tabs › Tab Bar. This section points there instead of
             // repeating it.
             ui.horizontal(|ui| {
                 let state = if settings.config.tabs.show_profile_drawer_button {
@@ -93,11 +93,11 @@ pub(super) fn show_display_options_section(
                 };
                 ui.label(format!("Profile drawer button: {state}."));
                 if ui
-                    .link("Change in Window › Tab Bar")
-                    .on_hover_text("show_profile_drawer_button")
+                    .link("Change in Windows & Tabs › Tab Bar")
+                    .on_hover_text("The show/hide control lives on the Tab Bar page")
                     .clicked()
                 {
-                    settings.selected_tab = crate::sidebar::SettingsTab::Window;
+                    settings.open_section("window_tab_bar");
                 }
             });
             ui.add_space(4.0);

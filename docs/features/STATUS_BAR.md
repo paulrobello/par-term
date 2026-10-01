@@ -49,7 +49,7 @@ The status bar is disabled by default. Enable it in Settings or config:
 status_bar_enabled: true
 ```
 
-**Settings UI:** Settings > Status Bar > General > "Enable status bar"
+**Settings UI:** Settings > Advanced > Status Bar > General > "Enable status bar"
 
 ## Built-in Widgets
 
@@ -89,7 +89,7 @@ Displays the current time using a configurable strftime format string.
 | `%a %H:%M` | `Mon 14:30` |
 | `%Y-%m-%d %H:%M` | `2026-02-13 14:30` |
 
-**Settings UI:** Settings > Status Bar > Widget Options > "Time format"
+**Settings UI:** Settings > Advanced > Status Bar > Widget Options > "Time format"
 
 ### Git Branch
 
@@ -147,7 +147,7 @@ Widgets can be moved between sections and reordered via the Settings UI.
 ## Custom Widgets
 **Creating a Custom Widget:**
 
-1. Open Settings > Status Bar.
+1. Open Settings > Advanced > Status Bar.
 2. Scroll to the **Widgets** section.
 3. Click **+ Add Custom Text Widget**. This adds a `Custom N` widget to the **Left** section with the default `custom text` format.
 4. Edit the inline **Format:** field under the widget using `\(variable)` placeholders.
@@ -406,7 +406,7 @@ status_bar_widgets:
 
 ## Settings UI
 
-The Status Bar tab in Settings (`F12`) provides six sections:
+The Status Bar page (Settings > Advanced > Status Bar) (`F12`) provides six sections:
 
 **General:**
 - Enable/disable toggle

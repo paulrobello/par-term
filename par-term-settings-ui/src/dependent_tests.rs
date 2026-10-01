@@ -11,40 +11,37 @@ use crate::sidebar::SettingsTab;
 /// The UX.md SC1 spot-test list: `(tab, parent label)`. Each parent is
 /// turned off by [`config_with_parents_off`].
 const SPOT_TESTS: &[(SettingsTab, &str)] = &[
-    (SettingsTab::StatusBar, "Enable status bar"),
-    (SettingsTab::StatusBar, "Hide on mouse inactivity"),
+    (SettingsTab::Advanced, "Enable status bar"),
+    (SettingsTab::Advanced, "Hide on mouse inactivity"),
     (SettingsTab::Appearance, "Enable badge"),
     (SettingsTab::Appearance, "Cursor blink"),
     (SettingsTab::Appearance, "Cursor guide (horizontal line)"),
     (SettingsTab::Appearance, "Cursor shadow"),
     (SettingsTab::Appearance, "Cursor boost (glow)"),
-    (SettingsTab::Notifications, "Visual bell"),
+    (SettingsTab::Advanced, "Visual bell"),
+    (SettingsTab::Advanced, "Notify on activity after inactivity"),
+    (SettingsTab::Advanced, "Notify after prolonged silence"),
+    (SettingsTab::Advanced, "Send code when idle"),
+    (SettingsTab::Panes, "Show focus indicator"),
+    (SettingsTab::Panes, "Dim inactive panes"),
+    (SettingsTab::Panes, "Show pane titles"),
+    (SettingsTab::WindowsAndTabs, "Dim inactive tabs"),
+    (SettingsTab::Pointer, "Enable smart selection"),
+    (SettingsTab::General, "Underline highlighted links"),
     (
-        SettingsTab::Notifications,
-        "Notify on activity after inactivity",
-    ),
-    (SettingsTab::Notifications, "Notify after prolonged silence"),
-    (SettingsTab::Notifications, "Send code when idle"),
-    (SettingsTab::Window, "Show focus indicator"),
-    (SettingsTab::Window, "Dim inactive panes"),
-    (SettingsTab::Window, "Show pane titles"),
-    (SettingsTab::Window, "Dim inactive tabs"),
-    (SettingsTab::Input, "Enable smart selection"),
-    (SettingsTab::Terminal, "Underline highlighted links"),
-    (
-        SettingsTab::Terminal,
+        SettingsTab::General,
         "Confirm before closing tabs with running jobs",
     ),
-    (SettingsTab::Terminal, "Mode: Custom"),
-    (SettingsTab::Advanced, "Enable tmux integration"),
-    (SettingsTab::Advanced, "Auto-attach on startup"),
-    (SettingsTab::Advanced, "Show tmux status bar"),
+    (SettingsTab::General, "Mode: Custom"),
+    (SettingsTab::Sessions, "Enable tmux integration"),
+    (SettingsTab::Sessions, "Auto-attach on startup"),
+    (SettingsTab::Sessions, "Show tmux status bar"),
     (SettingsTab::Effects, "Shader: a background shader selected"),
-    (SettingsTab::Effects, "Shader: a cursor shader selected"),
-    (SettingsTab::Notifications, "Bell"),
-    (SettingsTab::Notifications, "Command Complete"),
-    (SettingsTab::Window, "Tab style: Automatic"),
-    (SettingsTab::Window, "Position: Left"),
+    (SettingsTab::Appearance, "Shader: a cursor shader selected"),
+    (SettingsTab::Advanced, "Bell"),
+    (SettingsTab::Advanced, "Command Complete"),
+    (SettingsTab::WindowsAndTabs, "Tab style: Automatic"),
+    (SettingsTab::WindowsAndTabs, "Position: Left"),
 ];
 
 fn config_with_parents_off() -> Config {
@@ -99,17 +96,22 @@ fn expand_every_section(settings: &mut SettingsUI) {
     settings.collapsed_sections = ids;
 }
 
+/// Dependent groups drawn on every page of `tab`.
 fn drawn_on(tab: SettingsTab, settings: &mut SettingsUI) -> Vec<(String, bool)> {
-    settings.selected_tab = tab;
-    crate::dependent::take_drawn();
-    let ctx = egui::Context::default();
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            settings.show_as_panel(ui);
+    let mut drawn = Vec::new();
+    for page in 0..crate::layout::pages(tab).len() {
+        settings.select_page(tab, page);
+        crate::dependent::take_drawn();
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                settings.show_as_panel(ui);
+            });
         });
-    });
-    output.textures_delta.clear();
-    crate::dependent::take_drawn()
+        output.textures_delta.clear();
+        drawn.extend(crate::dependent::take_drawn());
+    }
+    drawn
 }
 
 #[test]
@@ -147,7 +149,7 @@ fn dependents_are_enabled_when_their_parent_is_on() {
     expand_every_section(&mut settings);
 
     for (tab, parent) in [
-        (SettingsTab::StatusBar, "Enable status bar"),
+        (SettingsTab::Advanced, "Enable status bar"),
         (SettingsTab::Appearance, "Enable badge"),
     ] {
         let drawn = drawn_on(tab, &mut settings);

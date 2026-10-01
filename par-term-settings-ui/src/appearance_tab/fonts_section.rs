@@ -13,7 +13,7 @@ use par_term_config::Theme;
 use par_term_config::ThinStrokesMode;
 use std::collections::HashSet;
 
-pub(super) fn show_theme_section(
+pub(crate) fn show_theme_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -39,7 +39,9 @@ pub(super) fn show_theme_section(
                         for theme in &available {
                             ui.selectable_value(&mut selected, theme.to_string(), *theme);
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["theme"]);
             });
 
             if selected != settings.config.theme_colors.theme {
@@ -51,7 +53,7 @@ pub(super) fn show_theme_section(
     );
 }
 
-pub(super) fn show_auto_dark_mode_section(
+pub(crate) fn show_auto_dark_mode_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -91,7 +93,9 @@ pub(super) fn show_auto_dark_mode_section(
                             for theme in &available {
                                 ui.selectable_value(&mut selected, theme.to_string(), *theme);
                             }
-                        });
+                        })
+                        .response
+                        .search_tag(&["light_theme"]);
                     if selected != settings.config.theme_colors.light_theme {
                         settings.config.theme_colors.light_theme = selected;
                         settings.has_changes = true;
@@ -109,7 +113,9 @@ pub(super) fn show_auto_dark_mode_section(
                             for theme in &available {
                                 ui.selectable_value(&mut selected, theme.to_string(), *theme);
                             }
-                        });
+                        })
+                        .response
+                        .search_tag(&["dark_theme"]);
                     if selected != settings.config.theme_colors.dark_theme {
                         settings.config.theme_colors.dark_theme = selected;
                         settings.has_changes = true;
@@ -121,7 +127,7 @@ pub(super) fn show_auto_dark_mode_section(
     );
 }
 
-pub(super) fn show_fonts_section(
+pub(crate) fn show_fonts_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -142,6 +148,7 @@ pub(super) fn show_fonts_section(
                         egui::TextEdit::singleline(&mut settings.temp_font_family)
                             .desired_width(INPUT_WIDTH),
                     )
+                    .search_tag(&["font_family"])
                     .changed()
                 {
                     settings.font_pending_changes = true;
@@ -155,6 +162,7 @@ pub(super) fn show_fonts_section(
                         [SLIDER_WIDTH, 18.0],
                         egui::Slider::new(&mut settings.temp_font_size, 6.0..=48.0).suffix(" pt"),
                     )
+                    .search_tag(&["font_size"])
                     .changed()
                 {
                     settings.font_pending_changes = true;
@@ -168,6 +176,7 @@ pub(super) fn show_fonts_section(
                         [SLIDER_WIDTH, 18.0],
                         egui::Slider::new(&mut settings.temp_line_spacing, 0.8..=2.0).suffix("×"),
                     )
+                    .search_tag(&["line_spacing"])
                     .changed()
                 {
                     settings.font_pending_changes = true;
@@ -181,6 +190,7 @@ pub(super) fn show_fonts_section(
                         [SLIDER_WIDTH, 18.0],
                         egui::Slider::new(&mut settings.temp_char_spacing, 0.5..=1.0).suffix("×"),
                     )
+                    .search_tag(&["char_spacing"])
                     .changed()
                 {
                     settings.font_pending_changes = true;
@@ -227,7 +237,7 @@ thread_local! {
     static APPLY_ROWS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
-pub(super) fn show_font_variants_section(
+pub(crate) fn show_font_variants_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -248,6 +258,7 @@ pub(super) fn show_font_variants_section(
                         egui::TextEdit::singleline(&mut settings.temp_font_bold)
                             .desired_width(INPUT_WIDTH),
                     )
+                    .search_tag(&["font_family_bold"])
                     .changed()
                 {
                     settings.font_pending_changes = true;
@@ -261,6 +272,7 @@ pub(super) fn show_font_variants_section(
                         egui::TextEdit::singleline(&mut settings.temp_font_italic)
                             .desired_width(INPUT_WIDTH),
                     )
+                    .search_tag(&["font_family_italic"])
                     .changed()
                 {
                     settings.font_pending_changes = true;
@@ -274,6 +286,7 @@ pub(super) fn show_font_variants_section(
                         egui::TextEdit::singleline(&mut settings.temp_font_bold_italic)
                             .desired_width(INPUT_WIDTH),
                     )
+                    .search_tag(&["font_family_bold_italic"])
                     .changed()
                 {
                     settings.font_pending_changes = true;
@@ -285,7 +298,7 @@ pub(super) fn show_font_variants_section(
     );
 }
 
-pub(super) fn show_font_rendering_section(
+pub(crate) fn show_font_rendering_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -355,7 +368,9 @@ pub(super) fn show_font_rendering_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["font_thin_strokes"]);
             });
             ui.label("  Lighter font strokes for improved readability on HiDPI displays.")
                 .on_hover_text(
@@ -371,7 +386,7 @@ pub(super) fn show_font_rendering_section(
                 let slider = crate::units::percent(egui::Slider::new(&mut contrast, 0.0..=0.99))
                     .text("")
                     .clamping(egui::SliderClamping::Always);
-                if ui.add(slider).changed() {
+                if ui.add(slider).search_tag(&["minimum_contrast"]).changed() {
                     settings.config.font_rendering.minimum_contrast = contrast;
                     settings.has_changes = true;
                     *changes_this_frame = true;

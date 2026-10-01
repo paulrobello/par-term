@@ -1,8 +1,8 @@
 //! Private form field helpers for `ProfileModalUI`.
 //!
 //! Covers: clear_form, load_profile_to_form, form_to_profile, validate_form,
-//! start_edit, start_create, save_form, cancel_edit, request_delete,
-//! confirm_delete, cancel_delete, move_up, move_down.
+//! start_edit, start_create, save_form, cancel_edit, delete_profile,
+//! apply_row_action, move_up, move_down.
 
 use super::{ModalMode, ProfileModalUI};
 use par_term_config::{Profile, ProfileId};
@@ -242,6 +242,7 @@ impl ProfileModalUI {
             self.load_profile_to_form(&profile);
             self.editing_id = Some(id);
             self.mode = ModalMode::Edit(id);
+            self.edit_tab = Default::default();
         }
     }
 
@@ -252,6 +253,7 @@ impl ProfileModalUI {
         let new_id = uuid::Uuid::new_v4();
         self.editing_id = Some(new_id);
         self.mode = ModalMode::Create;
+        self.edit_tab = Default::default();
     }
 
     /// Save the current form (either update existing or create new)
@@ -296,26 +298,54 @@ impl ProfileModalUI {
         self.clear_form();
     }
 
-    /// Request deletion of a profile (shows confirmation)
-    pub(super) fn request_delete(&mut self, id: ProfileId, name: String) {
-        self.pending_delete = Some((id, name));
-    }
-
-    /// Confirm and execute profile deletion
-    pub(super) fn confirm_delete(&mut self) {
-        if let Some((id, name)) = self.pending_delete.take() {
-            self.working_profiles.retain(|p| p.id != id);
-            self.has_changes = true;
-            if self.selected_id == Some(id) {
-                self.selected_id = None;
-            }
-            log::info!("Deleted profile: {}", name);
+    /// Delete a profile; the list row's second Delete click is the
+    /// confirmation (UX.md SC4).
+    pub(super) fn delete_profile(&mut self, id: ProfileId) {
+        self.working_profiles.retain(|p| p.id != id);
+        self.has_changes = true;
+        if self.selected_id == Some(id) {
+            self.selected_id = None;
         }
+        log::info!("Deleted profile {id}");
     }
 
-    /// Cancel pending deletion
-    pub(super) fn cancel_delete(&mut self) {
-        self.pending_delete = None;
+    /// Apply a list-row button (UX.md SC4): reorder, duplicate (a copy with
+    /// a new id, below the original), edit, or a delete already confirmed
+    /// by the row's second click.
+    pub(super) fn apply_row_action(&mut self, action: crate::list_editor::RowAction) {
+        use crate::list_editor::RowAction;
+        let Some(id) = (match action {
+            RowAction::MoveUp(i)
+            | RowAction::MoveDown(i)
+            | RowAction::Duplicate(i)
+            | RowAction::Edit(i)
+            | RowAction::Delete(i) => self.working_profiles.get(i).map(|p| p.id),
+        }) else {
+            return;
+        };
+        match action {
+            RowAction::MoveUp(_) => self.move_up(id),
+            RowAction::MoveDown(_) => self.move_down(id),
+            RowAction::Edit(_) => self.start_edit(id),
+            RowAction::Delete(_) => self.delete_profile(id),
+            RowAction::Duplicate(_) => {
+                crate::list_editor::apply_move_or_duplicate(
+                    &mut self.working_profiles,
+                    action,
+                    |copy| {
+                        copy.id = uuid::Uuid::new_v4();
+                        copy.name = format!("{} copy", copy.name);
+                        copy.source = Default::default();
+                        // Two profiles must never share a chord.
+                        copy.keyboard_shortcut = None;
+                    },
+                );
+                for (i, p) in self.working_profiles.iter_mut().enumerate() {
+                    p.order = i;
+                }
+                self.has_changes = true;
+            }
+        }
     }
 
     /// Move a profile up in the list

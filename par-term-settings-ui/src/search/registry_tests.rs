@@ -45,52 +45,52 @@ const fn to_section(query: &'static str, tab: SettingsTab, section: &'static str
 /// unclickable tab ("notify" … "prompt library").
 ///
 /// "leader" has no control yet (the leader key, K7, is not in Settings),
-/// so it lands on the Keybindings section, where it will live. "par-mux"
-/// is configured only inside the profile editor, which the harvest cannot
-/// open, so it lands on the Profile Management section.
+/// so it lands on the Key Bindings section, where it will live. "par-mux"
+/// lands on Sessions › par-mux (SX1) and quit/close confirmation on General
+/// › Closing & Quitting (SX2), their SP3 homes.
 fn audit_queries() -> Vec<Expect> {
     use SettingsTab::*;
     vec![
         to("cursor blink", Appearance, "Cursor", "Cursor blink"),
-        to("option as meta", Input, "Keyboard", OPTION_SENDS),
+        to("option as meta", Keys, "Keyboard", OPTION_SENDS),
         to(
             "copy on select",
-            Input,
+            General,
             "Selection & Clipboard",
             "Auto-copy selection",
         ),
         to(
             "close confirmation",
-            Terminal,
-            "Behavior",
+            General,
+            "Closing & Quitting",
             "Close Confirmation",
         ),
         to(
             "prompt on quit",
-            Terminal,
-            "Behavior",
+            General,
+            "Closing & Quitting",
             "Confirm before quitting with open tabs",
         ),
-        to_section("leader", Input, "Keybindings"),
-        to("detach", Input, "Keybindings", "Move Tab to New Window"),
-        to_section("par-mux", Profiles, "Profile Management"),
+        to_section("leader", Keys, "Keybindings"),
+        to("detach", Keys, "Keybindings", "Move Tab to New Window"),
+        to_section("par-mux", Sessions, "par-mux"),
         to(
             "notify",
-            Notifications,
+            Advanced,
             "Activity",
             "Notify on activity after inactivity",
         ),
         to(
             "command complete",
-            Notifications,
+            Advanced,
             "Alert Sounds",
             "Command Complete",
         ),
-        to("mouse", StatusBar, "Auto-Hide", "Hide on mouse inactivity"),
+        to("mouse", Advanced, "Auto-Hide", "Hide on mouse inactivity"),
         to_section("general", Appearance, "General"),
-        to_section("custom actions", Snippets, "Custom Actions"),
+        to_section("custom actions", Automation, "Custom Actions"),
         to_section("observer scripts", Automation, "Observer Scripts"),
-        to_section("prompt library", AiInspector, "Prompt Library"),
+        to_section("prompt library", Assistant, "Prompt Library"),
     ]
 }
 
@@ -237,7 +237,7 @@ fn documented_search_terms_find_their_tab() {
             ],
         ),
         (
-            Advanced,
+            General,
             &["download", "upload", "transfer", "save location"],
         ),
     ];
@@ -262,19 +262,20 @@ fn yaml_keys_find_their_controls() {
     use SettingsTab::*;
     let registry = test_registry();
     for (key, tab, label) in [
-        ("window_padding", Window, "Padding:"),
+        ("window_padding", WindowsAndTabs, "Padding:"),
         ("cursor_blink", Appearance, "Cursor blink"),
-        ("scrollback_lines", Terminal, "Scrollback lines:"),
+        ("scrollback_lines", Advanced, "Scrollback lines:"),
         (
             "prompt_on_quit",
-            Terminal,
+            General,
             "Confirm before quitting with open tabs",
         ),
         (
             "status_bar_auto_hide_mouse_inactive",
-            StatusBar,
+            Advanced,
             "Hide on mouse inactivity",
         ),
+        ("mux_auto_attach", Sessions, "Attach on launch:"),
     ] {
         let hits = registry.search(&Query::parse(key));
         assert!(
@@ -292,9 +293,9 @@ fn yaml_keys_find_their_controls() {
 fn platform_gated_controls_register_only_on_their_platform() {
     for query in ["mission control", "window blur", "target space"] {
         assert_eq!(
-            super::tab_has_result(SettingsTab::Window, query),
+            super::tab_has_result(SettingsTab::WindowsAndTabs, query),
             cfg!(target_os = "macos"),
-            "{query:?} on the Window tab"
+            "{query:?} on the Windows & Tabs tab"
         );
     }
 }

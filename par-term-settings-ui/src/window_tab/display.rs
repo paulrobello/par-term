@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
-pub(super) fn show_display_section(
+pub(crate) fn show_display_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -18,6 +18,7 @@ pub(super) fn show_display_section(
             ui.label("Title:");
             if ui
                 .text_edit_singleline(&mut settings.config.window_title)
+                .search_tag(&["window_title"])
                 .changed()
             {
                 settings.has_changes = true;

@@ -194,6 +194,18 @@ pub fn uninstall_claude_hook_into(
     })
 }
 
+/// Whether claude's settings carry par-term's SessionStart entry (read-only).
+pub(crate) fn claude_hook_installed() -> bool {
+    let Ok(settings_path) = claude_settings_path() else {
+        return false;
+    };
+    let Ok(content) = fs::read_to_string(&settings_path) else {
+        return false;
+    };
+    let command = hook_command_for(&hook_asset_path());
+    has_command(&content, &settings_path, &command, "SessionStart").unwrap_or(false)
+}
+
 /// Startup self-heal: rewrite the script asset when the settings file still
 /// carries our entry but the script is gone — the hooks directory has
 /// repeatedly been deleted out from under live registrations while the

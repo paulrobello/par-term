@@ -1,12 +1,13 @@
 //! Assistant prompt-library settings section.
 
 use crate::SettingsUI;
+use crate::list_editor::{Row, RowAction, RowButtons, row_actions};
 use crate::section::keyword_section;
 use par_term_config::{AssistantPrompt, AssistantPromptDraft};
 use std::collections::HashSet;
 
 /// Show the Assistant Prompt Library settings section.
-pub(super) fn show_prompt_library_section(
+pub(crate) fn show_prompt_library_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
@@ -38,6 +39,7 @@ pub(super) fn show_prompt_library_section(
             if settings.ai_inspector_tab.assistant_prompts.is_empty() {
                 ui.label(egui::RichText::new("No prompts saved.").italics());
             } else {
+                let prompts_len = settings.ai_inspector_tab.assistant_prompts.len();
                 for (index, prompt) in settings
                     .ai_inspector_tab
                     .assistant_prompts
@@ -51,19 +53,29 @@ pub(super) fn show_prompt_library_section(
                         } else {
                             "Auto-submit: off"
                         });
-                        if ui.button("Edit").clicked() {
-                            edit_index = Some(index);
-                        }
-                        // Deletes the prompt file immediately, so it asks first.
-                        if crate::delete_confirm::confirm_action_button(
-                            ui,
-                            &mut settings.pending_list_delete,
-                            "prompt",
-                            &prompt.path.display().to_string(),
-                            "Delete",
-                        ) {
-                            delete_index = Some(index);
-                        }
+                        // Files on disk: no reorder, no duplicate. Delete removes
+                        // the prompt file immediately, so it asks first.
+                        let key = prompt.path.display().to_string();
+                        let row = Row {
+                            index,
+                            len: prompts_len,
+                            list: "prompt",
+                            key: &key,
+                            delete_label: "Delete",
+                        };
+                        let buttons = RowButtons {
+                            reorder: false,
+                            duplicate: false,
+                            edit: true,
+                            delete: true,
+                        };
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            match row_actions(ui, &mut settings.pending_list_delete, row, buttons) {
+                                Some(RowAction::Edit(i)) => edit_index = Some(i),
+                                Some(RowAction::Delete(i)) => delete_index = Some(i),
+                                _ => {}
+                            }
+                        });
                     });
                 }
             }

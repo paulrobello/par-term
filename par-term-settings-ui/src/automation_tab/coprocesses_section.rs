@@ -5,7 +5,7 @@ use crate::section::keyword_section;
 use par_term_config::automation::{CoprocessDefConfig, RestartPolicy};
 use std::collections::HashSet;
 
-pub(super) fn show_coprocesses_section(
+pub(crate) fn show_coprocesses_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -25,6 +25,7 @@ fn show_coprocesses_collapsing(
         "Coprocesses",
         "automation_coprocesses",
         &[
+            "coprocesses",
             "pipe",
             "subprocess",
             "auto-start",
@@ -82,20 +83,27 @@ fn show_coprocesses_collapsing(
 
                         // Right-align buttons
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            // Delete button (rightmost)
-                            if crate::delete_confirm::confirm_delete_button(
+                            // Reorder/duplicate are off: the runtime side tables
+                            // (running, errors, output) are indexed by position.
+                            match crate::list_editor::row_actions(
                                 ui,
                                 &mut settings.pending_list_delete,
-                                "coprocess",
-                                &format!("{i}:{}", coproc.name),
-                                "Delete",
+                                crate::list_editor::Row {
+                                    index: i,
+                                    len: coproc_count,
+                                    list: "coprocess",
+                                    key: &format!("{i}:{}", coproc.name),
+                                    delete_label: "Delete",
+                                },
+                                crate::list_editor::RowButtons::EDIT_DELETE,
                             ) {
-                                delete_index = Some(i);
-                            }
-
-                            // Edit button
-                            if ui.small_button("Edit").clicked() {
-                                start_edit_index = Some(i);
+                                Some(crate::list_editor::RowAction::Edit(i)) => {
+                                    start_edit_index = Some(i)
+                                }
+                                Some(crate::list_editor::RowAction::Delete(i)) => {
+                                    delete_index = Some(i)
+                                }
+                                _ => {}
                             }
 
                             // Start/Stop button

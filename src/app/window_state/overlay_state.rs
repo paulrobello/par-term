@@ -15,8 +15,9 @@ pub(crate) struct OverlayState {
     /// Whether a request to reload dynamic profiles is pending
     pub(crate) reload_dynamic_profiles_requested: bool,
 
-    /// Whether to open the settings window directly to the profiles tab
-    pub(crate) open_settings_profiles_tab: bool,
+    /// Settings section to open the settings window at (UX.md B51), by its
+    /// section id (`profiles_management`, `arrangements_save`, ...)
+    pub(crate) open_settings_section: Option<&'static str>,
     /// Whether the profiles menu needs to be rebuilt
     pub(crate) profiles_menu_needs_update: bool,
 
@@ -50,7 +51,7 @@ impl Default for OverlayState {
             open_settings_window_requested: false,
             pending_arrangement_restore: None,
             reload_dynamic_profiles_requested: false,
-            open_settings_profiles_tab: false,
+            open_settings_section: None,
             profiles_menu_needs_update: true,
             resize_overlay_visible: false,
             resize_overlay_hide_time: None,

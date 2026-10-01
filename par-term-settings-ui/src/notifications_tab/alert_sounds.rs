@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
-pub(super) fn show_alert_sounds_section(
+pub(crate) fn show_alert_sounds_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -17,7 +17,7 @@ pub(super) fn show_alert_sounds_section(
         ui,
         "Alert Sounds",
         "notifications_alert_sounds",
-        &["wav", "ogg", "custom sound", "flac"],
+        &["wav", "ogg", "custom sound", "flac", "alert_sounds"],
         false,
         collapsed,
         |ui| {

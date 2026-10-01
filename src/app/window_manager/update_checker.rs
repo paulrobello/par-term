@@ -10,10 +10,7 @@ pub(super) fn notify_update_available(info: &UpdateInfo) {
     let version_str = info.version.strip_prefix('v').unwrap_or(&info.version);
     let current = env!("CARGO_PKG_VERSION");
     let summary = format!("par-term v{} Available", version_str);
-    let body = format!(
-        "You have v{}. Check Settings > Advanced > Updates.",
-        current
-    );
+    let body = format!("You have v{}. Check Settings > General > Updates.", current);
     crate::platform::deliver_desktop_notification(
         &summary,
         &body,

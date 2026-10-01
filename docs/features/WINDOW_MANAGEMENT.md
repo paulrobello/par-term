@@ -119,7 +119,7 @@ target_monitor: null   # Auto (OS decides)
 
 ### Settings UI
 
-The Window tab provides:
+The Windows & Tabs > Window page provides:
 - **Auto** checkbox for automatic monitor selection
 - Slider for monitor index (0-7)
 
@@ -212,7 +212,7 @@ A confirmation dialog can be shown before closing the window when tabs are open:
 prompt_on_quit: true  # Show confirmation before closing (default: false)
 ```
 
-**Settings UI:** Settings > Terminal > Behavior > "Confirm before quitting with open tabs"
+**Settings UI:** Settings > General > Closing & Quitting > "Confirm before quitting with open tabs"
 
 The dialog shows the number of open tabs and requires explicit confirmation.
 
@@ -235,7 +235,7 @@ show_pane_numbers: false                  # Start each title with the pane's num
 - Focused pane title renders at full opacity; unfocused panes are slightly dimmed
 - Configurable height (14-30px) via Settings UI
 
-**Settings UI:** Settings > Window > Pane Appearance > "Show pane titles"
+**Settings UI:** Settings > Panes > Appearance > "Show pane titles"
 
 ### Renaming Panes
 
@@ -254,7 +254,7 @@ A user-named pane keeps its name when the program changes its OSC title or the d
 
 `inactive_pane_opacity` (0.3 to 1.0, default 0.7) is the brightness in `darken` mode and the opacity in `fade` mode. Inline images and per-pane background images are not dimmed.
 
-**Settings UI:** Settings > Window > Pane Appearance > "Dim inactive panes", then "Dim Style"
+**Settings UI:** Settings > Panes > Appearance > "Dim inactive panes", then "Dim Style"
 
 ## Pane Divider Styles
 
@@ -271,7 +271,7 @@ Four visual styles for split pane dividers:
 pane_divider_style: solid  # solid, double, dashed, shadow
 ```
 
-**Settings UI:** Settings > Window > Split Panes > "Divider Style"
+**Settings UI:** Settings > Panes > Layout & Dividers > "Divider Style"
 
 > **📝 Note:** The Double style renders proper double lines when divider width >= 4px. At smaller widths, it renders a centered thin line to visually differentiate from Solid.
 
@@ -295,7 +295,7 @@ hide_window_padding_on_split: true  # default: enabled
 
 When the last split is closed and only a single pane remains, the configured window padding is restored.
 
-**Settings UI:** Settings > Window > Display > "Hide padding on split"
+**Settings UI:** Settings > Windows & Tabs > Window > "Hide padding on split"
 
 ## Transparency
 
@@ -393,7 +393,7 @@ par-term can automatically save your open windows on clean exit and restore it w
 restore_session: false
 ```
 
-**Settings UI:** Settings > Terminal > Startup > "Restore windows on launch"
+**Settings UI:** Settings > General > Startup & Restore > "Restore windows on launch"
 
 **What gets saved:** Open windows with positions and sizes, all tabs with working directories, split pane trees with ratios, and active tab indices.
 
@@ -416,7 +416,7 @@ status_bar_auto_hide_fullscreen: true
 status_bar_auto_hide_mouse_inactive: false
 ```
 
-**Settings UI:** Settings > Status Bar
+**Settings UI:** Settings > Advanced > Status Bar
 
 ## Auto Dark Mode
 
@@ -438,7 +438,7 @@ light_theme: "Solarized Light"
 dark_theme: "dark-background"
 ```
 
-**Settings UI:** Settings > Appearance > "Auto Dark Mode"
+**Settings UI:** Settings > Appearance > Theme > "Auto Dark Mode"
 
 When `auto_dark_mode` is enabled, the `light_theme` and `dark_theme` dropdowns appear for selecting the theme to use in each mode. When disabled, the global `theme` setting controls the active theme.
 
@@ -459,7 +459,7 @@ dark_tab_style: dark
 
 When `tab_style` is set to `"automatic"`, par-term uses `light_tab_style` when the OS is in light mode and `dark_tab_style` when the OS is in dark mode. This pairs with [Auto Dark Mode](#auto-dark-mode) for a fully theme-aware interface.
 
-**Settings UI:** Settings > Window > Tab Bar > "Tab Style" (select "Automatic" from the dropdown)
+**Settings UI:** Settings > Windows & Tabs > Tab Bar > "Tab Style" (select "Automatic" from the dropdown)
 
 ## macOS Target Space
 
@@ -475,7 +475,7 @@ target_space: null
 - Set to `null` (default) to let macOS place windows according to its standard rules
 - If the specified Space is unavailable (e.g., fewer Spaces configured than the target), par-term falls back gracefully to the current Space
 
-**Settings UI:** Settings > Window > Window Behavior (macOS only)
+**Settings UI:** Settings > Windows & Tabs > Window (macOS only)
 
 > **📝 Note:** This setting only appears on macOS. It has no effect on Linux or Windows.
 
@@ -515,7 +515,7 @@ rows: 24
 
 ### Settings UI
 
-The Window tab in Settings provides sections for:
+The Windows & Tabs > Window page in Settings provides sections for:
 
 **Display:**
 - Window title
@@ -527,7 +527,7 @@ The Window tab in Settings provides sections for:
 - Selective transparency options
 - Blur settings (macOS)
 
-**Performance:**
+**Performance** (now under Settings > Advanced > Performance & Power):
 - Max FPS
 - VSync mode
 - Power saving options

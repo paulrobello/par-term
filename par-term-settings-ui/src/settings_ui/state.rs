@@ -212,6 +212,7 @@ impl SettingsUI {
             keybinding_conflict: None,
             test_notification_requested: false,
             selected_tab: SettingsTab::default(),
+            selected_pages: [0; 12],
             collapsed_sections: initial_collapsed,
             shell_integration_action: None,
             profile_modal_ui: ProfileModalUI::new(),
@@ -264,6 +265,8 @@ impl SettingsUI {
             shader_count_files_fn: None,
             shell_integration_is_installed_fn: None,
             shell_integration_detected_shell_fn: None,
+            mux_hook_status_fn: None,
+            mux_hook_status: None,
             baseline_config,
             show_close_prompt: false,
             close_pending: false,
@@ -274,6 +277,7 @@ impl SettingsUI {
             global_save_requested: false,
             pending_list_delete: None,
             search: Default::default(),
+            pending_section: None,
         }
     }
 

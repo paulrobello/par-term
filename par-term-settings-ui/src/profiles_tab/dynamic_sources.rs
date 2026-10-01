@@ -10,7 +10,7 @@ use par_term_config::text::truncate_chars;
 use std::collections::HashSet;
 
 /// Show the dynamic profile sources section.
-pub(super) fn show_dynamic_sources_section(
+pub(crate) fn show_dynamic_sources_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -21,6 +21,7 @@ pub(super) fn show_dynamic_sources_section(
         "Dynamic Profile Sources",
         "profiles_dynamic_sources",
         &[
+            "dynamic_profile_sources",
             "download",
             "sync",
             "http headers",
@@ -44,6 +45,7 @@ pub(super) fn show_dynamic_sources_section(
             let mut delete_index: Option<usize> = None;
             let mut toggle_index: Option<usize> = None;
             let mut start_edit_index: Option<usize> = None;
+            let mut row_action: Option<crate::list_editor::RowAction> = None;
 
             let source_count = settings.config.dynamic_profile_sources.len();
 
@@ -94,20 +96,32 @@ pub(super) fn show_dynamic_sources_section(
 
                         // Right-aligned buttons
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            // Delete button (rightmost)
-                            if crate::delete_confirm::confirm_delete_button(
+                            // No Duplicate: a source's identity is its URL.
+                            match crate::list_editor::row_actions(
                                 ui,
                                 &mut settings.pending_list_delete,
-                                "dynamic_source",
-                                &format!("{i}:{}", source.url),
-                                "Remove",
+                                crate::list_editor::Row {
+                                    index: i,
+                                    len: source_count,
+                                    list: "dynamic_source",
+                                    key: &format!("{i}:{}", source.url),
+                                    delete_label: "Remove",
+                                },
+                                crate::list_editor::RowButtons {
+                                    reorder: true,
+                                    duplicate: false,
+                                    edit: true,
+                                    delete: true,
+                                },
                             ) {
-                                delete_index = Some(i);
-                            }
-
-                            // Edit button
-                            if ui.small_button("Edit").clicked() {
-                                start_edit_index = Some(i);
+                                Some(crate::list_editor::RowAction::Delete(i)) => {
+                                    delete_index = Some(i);
+                                }
+                                Some(crate::list_editor::RowAction::Edit(i)) => {
+                                    start_edit_index = Some(i);
+                                }
+                                Some(action) => row_action = Some(action),
+                                None => {}
                             }
 
                             // Status info
@@ -136,6 +150,28 @@ pub(super) fn show_dynamic_sources_section(
                     if editing > i {
                         settings.profiles_tab.dynamic_source_editing = Some(editing - 1);
                     }
+                }
+            }
+
+            if let Some(action) = row_action
+                && crate::list_editor::apply_move_or_duplicate(
+                    &mut settings.config.dynamic_profile_sources,
+                    action,
+                    |_| {},
+                )
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+                // The edit index is positional: follow the row that moved.
+                if let Some(editing) = settings.profiles_tab.dynamic_source_editing {
+                    use crate::list_editor::RowAction;
+                    settings.profiles_tab.dynamic_source_editing = Some(match action {
+                        RowAction::MoveUp(i) if editing == i => i - 1,
+                        RowAction::MoveUp(i) if editing + 1 == i => i,
+                        RowAction::MoveDown(i) if editing == i => i + 1,
+                        RowAction::MoveDown(i) if editing == i + 1 => i,
+                        _ => editing,
+                    });
                 }
             }
 

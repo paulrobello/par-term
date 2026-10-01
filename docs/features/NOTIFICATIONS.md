@@ -74,7 +74,7 @@ Every tab and pane is polled each frame for pending OSC 9/777/99 notifications, 
 
 ## Payload size cap
 
-`max_osc_data_length` (default `134217728`, i.e. 128 MiB — matching the core) caps the total payload size of an OSC sequence before it is rejected as a memory-exhaustion guard. It is applied at terminal creation and on live config reload, and is exposed under **Settings → Advanced** (MiB units). See [Configuration Reference](../CONFIG_REFERENCE.md#security).
+`max_osc_data_length` (default `134217728`, i.e. 128 MiB — matching the core) caps the total payload size of an OSC sequence before it is rejected as a memory-exhaustion guard. It is applied at terminal creation and on live config reload, and is exposed under **Settings → Advanced → Security** (MiB units). See [Configuration Reference](../CONFIG_REFERENCE.md#security).
 
 ## Related docs
 

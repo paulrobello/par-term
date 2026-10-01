@@ -15,7 +15,13 @@ pub fn show_widgets_section(
         ui,
         "Widgets",
         "status_bar_widgets",
-        &["hostname", "storage", "par-mux", "mux"],
+        &[
+            "hostname",
+            "storage",
+            "par-mux",
+            "mux",
+            "status_bar_widgets",
+        ],
         true,
         collapsed,
         |ui| {
@@ -141,44 +147,37 @@ pub fn show_widgets_section(
                                     swap_pair = Some((widget_idx, section_indices[pos + 1]));
                                     ui.close();
                                 }
-
-                                // Delete custom widgets
-                                if is_custom {
-                                    ui.separator();
-                                    // Arms an inline confirmation below the widget; the
-                                    // menu closes on click, so it cannot hold the confirm.
-                                    if ui
-                                        .button(
-                                            egui::RichText::new("Delete…")
-                                                .color(egui::Color32::from_rgb(220, 80, 80)),
-                                        )
-                                        .clicked()
-                                    {
-                                        settings.pending_list_delete =
-                                            Some(("status_widget", widget_key.clone()));
-                                        ui.close();
-                                    }
-                                }
                             });
 
-                            if is_custom
-                                && settings
-                                    .pending_list_delete
-                                    .as_ref()
-                                    .is_some_and(|(l, k)| *l == "status_widget" && *k == widget_key)
-                            {
-                                ui.horizontal(|ui| {
-                                    ui.label(format!("Delete custom widget \"{label}\"?"));
-                                    if crate::delete_confirm::confirm_action_button(
-                                        ui,
-                                        &mut settings.pending_list_delete,
-                                        "status_widget",
-                                        &widget_key,
-                                        "Delete",
-                                    ) {
-                                        delete_index = Some(widget_idx);
-                                    }
-                                });
+                            // Order is set by the section move controls above, so only Delete.
+                            if is_custom {
+                                let len = settings.config.status_bar.status_bar_widgets.len();
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if let Some(crate::list_editor::RowAction::Delete(i)) =
+                                            crate::list_editor::row_actions(
+                                                ui,
+                                                &mut settings.pending_list_delete,
+                                                crate::list_editor::Row {
+                                                    index: widget_idx,
+                                                    len,
+                                                    list: "status_widget",
+                                                    key: &widget_key,
+                                                    delete_label: "Delete",
+                                                },
+                                                crate::list_editor::RowButtons {
+                                                    reorder: false,
+                                                    duplicate: false,
+                                                    edit: false,
+                                                    delete: true,
+                                                },
+                                            )
+                                        {
+                                            delete_index = Some(i);
+                                        }
+                                    },
+                                );
                             }
 
                             // Show format editor for custom widgets inline

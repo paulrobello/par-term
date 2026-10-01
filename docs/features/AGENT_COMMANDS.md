@@ -44,7 +44,7 @@ fields. Validation on load: id charset (`[a-z0-9-]+`, ≤64 bytes) and
 - **CLI** — `par-term <id> [args...]` (external-subcommand fallthrough; real
   subcommands always win). Extra args append to a script's stored args;
   macros refuse with a pointer at the palette.
-- **Settings → Snippets & Actions → Agent Commands** — lists every valid command file
+- **Settings → Assistant & Agents → Agent Commands** — lists every valid command file
   (id, title, script/macro, author), edits one as YAML, and deletes one
   behind a two-step confirm. Both act with the user's authority, so they
   touch user-authored files too. An edit keeps the file's id and its

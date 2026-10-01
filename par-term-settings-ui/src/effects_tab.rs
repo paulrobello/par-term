@@ -1,14 +1,5 @@
-//! Effects settings tab.
-//!
-//! Consolidates: background_tab (refactored)
-//!
-//! Contains:
-//! - Background mode (default/color/image)
-//! - Background image settings
-//! - Background shader settings
-//! - Shader channel textures
-//! - Inline image settings (Sixel, iTerm2, Kitty)
-//! - Cursor shader settings
+//! Inline images (Effects & Shaders › Inline Images). Background and shader
+//! sections are in `background_tab`; placement is set in [`crate::layout`].
 
 use par_term_config::ImageScalingMode;
 use std::collections::HashSet;
@@ -17,21 +8,8 @@ use super::SettingsUI;
 use super::section::keyword_section;
 use crate::search::SearchTag;
 
-/// Show the effects tab content.
-pub fn show(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-    collapsed: &mut HashSet<String>,
-) {
-    super::background_tab::show_background(ui, settings, changes_this_frame, collapsed);
-    super::background_tab::show_pane_backgrounds(ui, settings, changes_this_frame, collapsed);
-    show_inline_images(ui, settings, changes_this_frame, collapsed);
-    super::background_tab::show_cursor_shader(ui, settings, changes_this_frame, collapsed);
-}
-
 /// Show inline image settings (Sixel, iTerm2, Kitty protocols).
-fn show_inline_images(
+pub(crate) fn show_inline_images(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -65,7 +43,9 @@ fn show_inline_images(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["image_scaling_mode"]);
             });
 
             // Preserve aspect ratio
@@ -91,7 +71,7 @@ mod tests {
     use crate::sidebar::SettingsTab;
 
     #[test]
-    fn shader_texture_terms_find_the_effects_tab() {
+    fn shader_texture_terms_find_the_effects_and_shaders_tab() {
         for keyword in [
             "noise",
             "built-in noise",

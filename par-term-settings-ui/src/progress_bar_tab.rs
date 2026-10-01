@@ -1,6 +1,6 @@
-//! Progress bar settings tab.
+//! Progress bar sections (Appearance › Progress Bar). Placement is set in
+//! [`crate::layout`].
 //!
-//! Contains:
 //! - Progress bar enable/disable
 //! - Style and position selection
 //! - Bar height and opacity
@@ -13,23 +13,11 @@ use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
-/// Show the progress bar tab content.
-pub fn show(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-    collapsed: &mut HashSet<String>,
-) {
-    show_general_section(ui, settings, changes_this_frame, collapsed);
-
-    show_colors_section(ui, settings, changes_this_frame, collapsed);
-}
-
 // ============================================================================
 // General Section
 // ============================================================================
 
-fn show_general_section(
+pub(crate) fn show_general_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -86,7 +74,9 @@ fn show_general_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["progress_bar_style"]);
             });
 
             // Position selection
@@ -114,7 +104,9 @@ fn show_general_section(
                                 *changes_this_frame = true;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .search_tag(&["progress_bar_position"]);
             });
 
             ui.add_space(8.0);
@@ -175,7 +167,7 @@ fn show_general_section(
 // Colors Section
 // ============================================================================
 
-fn show_colors_section(
+pub(crate) fn show_colors_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -205,6 +197,7 @@ fn show_colors_section(
                     ui,
                     &mut settings.config.progress_bar.progress_bar_normal_color,
                 )
+                .search_tag(&["progress_bar_normal_color"])
                 .changed()
                 {
                     settings.has_changes = true;
@@ -224,6 +217,7 @@ fn show_colors_section(
                     ui,
                     &mut settings.config.progress_bar.progress_bar_warning_color,
                 )
+                .search_tag(&["progress_bar_warning_color"])
                 .changed()
                 {
                     settings.has_changes = true;
@@ -243,6 +237,7 @@ fn show_colors_section(
                     ui,
                     &mut settings.config.progress_bar.progress_bar_error_color,
                 )
+                .search_tag(&["progress_bar_error_color"])
                 .changed()
                 {
                     settings.has_changes = true;
@@ -265,6 +260,7 @@ fn show_colors_section(
                         .progress_bar
                         .progress_bar_indeterminate_color,
                 )
+                .search_tag(&["progress_bar_indeterminate_color"])
                 .changed()
                 {
                     settings.has_changes = true;

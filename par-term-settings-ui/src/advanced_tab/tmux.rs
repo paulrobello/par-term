@@ -8,7 +8,7 @@ use crate::search::SearchTag;
 use crate::section::{INPUT_WIDTH, collapsing_section};
 use std::collections::HashSet;
 
-pub(super) fn show_tmux_section(
+pub(crate) fn show_tmux_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -21,11 +21,6 @@ pub(super) fn show_tmux_section(
         true,
         collapsed,
         |ui| {
-            // par-mux is not tmux: this key works with tmux integration off,
-            // so it sits outside the tmux-dependent block below.
-            show_mux_auto_attach(ui, settings, changes_this_frame);
-            ui.add_space(12.0);
-
             ui.label("Configure tmux control mode integration");
             ui.add_space(8.0);
 
@@ -58,6 +53,7 @@ pub(super) fn show_tmux_section(
                                 egui::TextEdit::singleline(&mut settings.config.tmux.tmux_path)
                                     .desired_width(INPUT_WIDTH),
                             )
+                            .search_tag(&["tmux_path"])
                             .on_hover_text("Path to tmux executable (default: 'tmux' uses PATH)")
                             .changed()
                         {
@@ -83,6 +79,7 @@ pub(super) fn show_tmux_section(
                                 egui::TextEdit::singleline(&mut session_name)
                                     .desired_width(INPUT_WIDTH),
                             )
+                            .search_tag(&["tmux_default_session"])
                             .on_hover_text(
                                 "Session used when tmux starts without a name; attached if it \
                          exists, created otherwise (leave empty to let tmux pick a name)",
@@ -136,6 +133,7 @@ pub(super) fn show_tmux_section(
                                         egui::TextEdit::singleline(&mut attach_session)
                                             .desired_width(INPUT_WIDTH),
                                     )
+                                    .search_tag(&["tmux_auto_attach_session"])
                                     .on_hover_text(
                                         "Session name to auto-attach (leave empty for most recent)",
                                     )
@@ -172,6 +170,10 @@ pub(super) fn show_tmux_section(
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
+
+                    ui.add_space(8.0);
+                    ui.label(egui::RichText::new("Profile").strong());
+                    show_tmux_profile(ui, settings, changes_this_frame);
 
                     ui.add_space(8.0);
 
@@ -223,6 +225,7 @@ pub(super) fn show_tmux_section(
                                         egui::Slider::new(&mut refresh_secs, 0.5..=10.0)
                                             .suffix(" s"),
                                     )
+                                    .search_tag(&["tmux_status_bar_refresh_ms"])
                                     .on_hover_text("How often to update the status bar content")
                                     .changed()
                                 {
@@ -243,6 +246,7 @@ pub(super) fn show_tmux_section(
                             egui::TextEdit::singleline(&mut settings.config.tmux.tmux_status_bar_left)
                                 .desired_width(INPUT_WIDTH),
                         )
+                        .search_tag(&["tmux_status_bar_left"])
                         .on_hover_text(
                             "Format string for left side. Variables: {session}, {windows}, {pane}, {time:FORMAT}, {hostname}, {user}",
                         )
@@ -261,6 +265,7 @@ pub(super) fn show_tmux_section(
                             egui::TextEdit::singleline(&mut settings.config.tmux.tmux_status_bar_right)
                                 .desired_width(INPUT_WIDTH),
                         )
+                        .search_tag(&["tmux_status_bar_right"])
                         .on_hover_text(
                             "Format string for right side. Variables: {session}, {windows}, {pane}, {time:FORMAT}, {hostname}, {user}",
                         )
@@ -296,6 +301,7 @@ pub(super) fn show_tmux_section(
                                 )
                                 .desired_width(INPUT_WIDTH),
                             )
+                            .search_tag(&["tmux_prefix_key"])
                             .on_hover_text("Key combination for tmux commands (e.g., C-b, C-Space)")
                             .changed()
                         {
@@ -309,32 +315,34 @@ pub(super) fn show_tmux_section(
     );
 }
 
-/// The par-mux auto-attach field (UX.md M15): the session the first window
-/// attaches to on launch, created when missing. Empty turns it off.
-fn show_mux_auto_attach(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-) {
-    ui.label(egui::RichText::new("par-mux Auto-Attach").strong());
+/// Profile applied to tmux gateway tabs (`tmux_profile`); "None" keeps the
+/// tab's own profile.
+fn show_tmux_profile(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.horizontal(|ui| {
-        ui.label("Session name:");
-        let mut name = settings
-            .config
-            .tmux
-            .mux_auto_attach
-            .clone()
-            .unwrap_or_default();
-        if ui
-            .add(egui::TextEdit::singleline(&mut name).desired_width(INPUT_WIDTH))
+        ui.label("Profile for tmux tabs:");
+        let mut selected = settings.config.tmux.tmux_profile.clone();
+        let names: Vec<String> = settings
+            .profile_modal_ui
+            .get_working_profiles()
+            .iter()
+            .map(|p| p.name.clone())
+            .collect();
+        egui::ComboBox::from_id_salt("tmux_profile")
+            .selected_text(selected.as_deref().unwrap_or("None"))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut selected, None, "None");
+                for name in names {
+                    ui.selectable_value(&mut selected, Some(name.clone()), name);
+                }
+            })
+            .response
+            .search_tag(&["tmux_profile"])
             .on_hover_text(
-                "The first window attaches to this par-mux session on launch, creating it \
-                 when it does not exist. Leave empty to start with local tabs.",
-            )
-            .changed()
-        {
-            let name = name.trim().to_string();
-            settings.config.tmux.mux_auto_attach = (!name.is_empty()).then_some(name);
+                "Profile switched to when a tab connects to tmux. None keeps the tab's own \
+                 profile; a profile's own tmux settings still apply.",
+            );
+        if selected != settings.config.tmux.tmux_profile {
+            settings.config.tmux.tmux_profile = selected;
             settings.has_changes = true;
             *changes_this_frame = true;
         }

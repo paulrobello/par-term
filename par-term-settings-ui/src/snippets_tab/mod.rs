@@ -1,17 +1,15 @@
-//! Snippets & Actions settings tab.
+//! Snippets (Automation › Snippets). Placement is set in [`crate::layout`].
 //!
-//! Contains:
 //! - `list`: Snippet list rendering grouped by folder, with edit/delete/toggle actions
 //! - `editor`: Snippet edit form with variable substitution support
 //! - `io`: Import/export functionality (YAML)
 //! - `variables_reference`: Built-in variable documentation panel
-//! - Custom actions (shell commands, text insertion, key sequences) — absorbed from actions_tab
 
 mod editor;
 mod io;
 mod list;
 mod state;
-mod variables_reference;
+pub(crate) mod variables_reference;
 
 pub use state::SnippetsTabState;
 
@@ -19,28 +17,11 @@ use super::SettingsUI;
 use super::section::keyword_section_with_state;
 use std::collections::HashSet;
 
-/// Show the snippets tab content.
-pub fn show(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-    collapsed: &mut HashSet<String>,
-) {
-    // Snippets section
-    show_snippets_section(ui, settings, changes_this_frame, collapsed);
-
-    // Variables reference section (collapsed by default)
-    variables_reference::show_variables_reference_section(ui, settings, collapsed);
-
-    // Actions section (absorbed from actions_tab)
-    crate::actions_tab::show(ui, settings, changes_this_frame, collapsed);
-}
-
 // ============================================================================
 // Snippets Section
 // ============================================================================
 
-fn show_snippets_section(
+pub(crate) fn show_snippets_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -51,6 +32,7 @@ fn show_snippets_section(
         "Snippets",
         "snippets_list",
         &[
+            "snippets",
             "template",
             "folder",
             "auto-execute",

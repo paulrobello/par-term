@@ -197,6 +197,9 @@ pub struct SettingsUI {
     // New UI state for reorganized settings
     /// Currently selected settings tab (new sidebar navigation)
     pub selected_tab: SettingsTab,
+    /// Selected sub-page per tab, indexed by [`SettingsTab::index`]; a tab
+    /// reopens on the page last shown for it.
+    pub(crate) selected_pages: [usize; 12],
     /// Set of collapsed section IDs (sections start open by default, collapsed when user collapses them)
     pub collapsed_sections: HashSet<String>,
 
@@ -332,6 +335,13 @@ pub struct SettingsUI {
     /// Callback: get detected shell type
     pub shell_integration_detected_shell_fn: Option<fn() -> par_term_config::ShellType>,
 
+    /// Callback: par-mux session hook install state per agent (Sessions ›
+    /// par-mux, UX.md SX1)
+    pub mux_hook_status_fn: Option<fn() -> Vec<crate::sessions_tab::MuxHookStatus>>,
+    /// Last result of `mux_hook_status_fn`; `None` until first drawn or
+    /// after Refresh.
+    pub(crate) mux_hook_status: Option<Vec<crate::sessions_tab::MuxHookStatus>>,
+
     /// Config as it was when Settings opened or last saved; Revert restores it.
     pub(crate) baseline_config: Config,
     /// Whether the close-with-unsaved-changes prompt is showing.
@@ -358,6 +368,9 @@ pub struct SettingsUI {
     pub pending_list_delete: crate::delete_confirm::PendingDelete,
     /// Settings search: registry, current results, and view (UX.md SQ).
     pub(crate) search: search_state::SearchState,
+    /// Section a deep link asked to show (UX.md B51); the next frame
+    /// expands, scrolls to, and flashes it.
+    pub(crate) pending_section: Option<String>,
 }
 
 mod async_ops;
@@ -372,5 +385,5 @@ mod search_state;
 #[cfg(test)]
 pub(crate) use search_state::search_field_id;
 mod sections;
-pub(crate) use sections::{chord_matches_tmux_prefix, show_tab_body};
+pub(crate) use sections::chord_matches_tmux_prefix;
 mod state;

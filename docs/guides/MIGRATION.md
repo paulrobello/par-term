@@ -49,7 +49,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 The default keybindings follow iTerm2 on macOS, and the same letters through the `Ctrl+Shift` / `Ctrl+Alt` family on Linux and Windows. See [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) for the full table.
 
-**Existing configs keep their chords.** When a config loads, a default is added only if its action has no binding *and* its chord is not already bound to another action. A chord your saved config already binds keeps its old action. You get a new default only where the chord and the action were both free. To take a new default, delete (or rebind) the saved row that holds its chord in **Settings ▸ Input ▸ Keybindings** or in the `keybindings:` list of `config.yaml`; the default is merged in on the next load.
+**Existing configs keep their chords.** When a config loads, a default is added only if its action has no binding *and* its chord is not already bound to another action. A chord your saved config already binds keeps its old action. You get a new default only where the chord and the action were both free. To take a new default, delete (or rebind) the saved row that holds its chord in **Settings ▸ Keys ▸ Key Bindings** or in the `keybindings:` list of `config.yaml`; the default is merged in on the next load.
 
 **Renamed actions.** `split_horizontal` is now `split_down` and `split_vertical` is now `split_right`, named for where the new pane goes. Saved bindings are migrated in place on load with the chord unchanged, and the old ids still dispatch if they appear anywhere else.
 
@@ -308,7 +308,7 @@ triggers:
     action: ...
 ```
 
-A warning banner appears in Settings → Automation when any trigger has this configuration.
+A warning banner appears in Settings → Automation → Triggers when any trigger has this configuration.
 
 ---
 
@@ -336,7 +336,7 @@ Profiles fetched from remote URLs must use HTTPS. HTTP URLs are rejected at fetc
 
 A saved value of `1.0` is automatically migrated to `0.0` (disabled) on load. All other values are not auto-migrated — review your setting after upgrading.
 
-The slider in Settings → Appearance is capped at `0.99`; values of `1.0` are treated as disabled.
+The slider in Settings → Appearance → Theme is capped at `0.99`; values of `1.0` are treated as disabled.
 
 ---
 

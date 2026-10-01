@@ -68,7 +68,9 @@ pub fn show_background(
                         ui.selectable_value(&mut selected, 0, "Default (Theme)");
                         ui.selectable_value(&mut selected, 1, "Solid Color");
                         ui.selectable_value(&mut selected, 2, "Image");
-                    });
+                    })
+                    .response
+                    .search_tag(&["background_mode"]);
                 if selected != current {
                     settings.config.image.background_mode = match selected {
                         0 => BackgroundMode::Default,
@@ -96,6 +98,7 @@ pub fn show_background(
                             ui,
                             &mut settings.temp_background_color,
                         )
+                        .search_tag(&["background_color"])
                         .changed()
                         {
                             settings.config.image.background_color = settings.temp_background_color;
@@ -119,6 +122,7 @@ pub fn show_background(
                         ui.label("Background image path:");
                         if ui
                             .text_edit_singleline(&mut settings.temp_background_image)
+                            .search_tag(&["background_image"])
                             .changed()
                         {
                             settings.config.background.background_image =
@@ -176,7 +180,9 @@ pub fn show_background(
                                 ui.selectable_value(&mut selected, 2, "Stretch");
                                 ui.selectable_value(&mut selected, 3, "Tile");
                                 ui.selectable_value(&mut selected, 4, "Center");
-                            });
+                            })
+                            .response
+                            .search_tag(&["background_image_mode"]);
                         if selected != current {
                             settings.config.background.background_image_mode = match selected {
                                 0 => BackgroundImageMode::Fit,
@@ -259,7 +265,9 @@ fn show_background_shader_controls(
                         shader_changed = true;
                     }
                 }
-            });
+            })
+            .response
+            .search_tag(&["custom_shader"]);
 
         if shader_changed {
             settings.has_changes = true;
@@ -424,6 +432,7 @@ fn show_background_shader_controls(
                     egui::Slider::new(&mut delay, 50..=1000)
                         .suffix(" ms"),
                 )
+                .search_tag(&["shader_hot_reload_delay"])
                 .on_hover_text("Debounce delay before reloading shader after file change (helps avoid multiple reloads)")
                 .changed()
             {

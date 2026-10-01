@@ -1,57 +1,9 @@
-//! Profile list view and delete confirmation dialog for `ProfileModalUI`.
-//!
-//! Covers: `render_list_view` and `render_delete_confirmation`.
+//! Profile list view for `ProfileModalUI`. Rows use the shared list-editor
+//! buttons (UX.md SC4); a delete is confirmed by the row's second click.
 
 use super::{ProfileModalAction, ProfileModalUI};
 
 impl ProfileModalUI {
-    // =========================================================================
-    // Dialog Renderers (modal overlays)
-    // =========================================================================
-
-    /// Render delete confirmation dialog
-    pub(super) fn render_delete_confirmation(&mut self, ctx: &egui::Context) {
-        let (_, profile_name) = self
-            .pending_delete
-            .as_ref()
-            .expect("render_delete_confirmation called only when pending_delete is Some");
-        let name = profile_name.clone();
-
-        egui::Window::new("Confirm Delete")
-            .collapsible(false)
-            .resizable(false)
-            .order(egui::Order::Foreground)
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-            .frame(
-                egui::Frame::window(&ctx.global_style())
-                    .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 40, 255))
-                    .inner_margin(egui::Margin::same(20)),
-            )
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(format!("Delete profile \"{}\"?", name));
-                    ui.add_space(8.0);
-                    ui.label(
-                        egui::RichText::new("This action cannot be undone.")
-                            .color(egui::Color32::YELLOW),
-                    );
-                    ui.add_space(16.0);
-                    ui.horizontal(|ui| {
-                        if ui.button("Delete").clicked() {
-                            self.confirm_delete();
-                        }
-                        if ui.button("Cancel").clicked() {
-                            self.cancel_delete();
-                        }
-                    });
-                });
-            });
-    }
-
-    // =========================================================================
-    // View Renderers
-    // =========================================================================
-
     /// Render the list view
     pub(crate) fn render_list_view(&mut self, ui: &mut egui::Ui) -> ProfileModalAction {
         let mut action = ProfileModalAction::None;
@@ -82,6 +34,8 @@ impl ProfileModalUI {
                     ui.label("Click '+ New Profile' to create one");
                 });
             } else {
+                let len = self.working_profiles.len();
+                let mut row_action = None;
                 for (idx, profile) in self.working_profiles.clone().iter().enumerate() {
                     let is_selected = self.selected_id == Some(profile.id);
 
@@ -100,18 +54,6 @@ impl ProfileModalUI {
 
                         frame.show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                // Reorder buttons
-                                ui.add_enabled_ui(idx > 0, |ui| {
-                                    if ui.small_button("Up").clicked() {
-                                        self.move_up(profile.id);
-                                    }
-                                });
-                                ui.add_enabled_ui(idx < self.working_profiles.len() - 1, |ui| {
-                                    if ui.small_button("Dn").clicked() {
-                                        self.move_down(profile.id);
-                                    }
-                                });
-
                                 // Icon and name
                                 if let Some(icon) = &profile.icon {
                                     ui.label(icon);
@@ -133,30 +75,41 @@ impl ProfileModalUI {
                                     );
                                 }
 
-                                // Spacer
+                                // Dynamic profiles are read-only: View, no
+                                // delete or duplicate (UX.md SC4 row).
                                 let is_dynamic = profile.source.is_dynamic();
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        // Delete button (disabled for dynamic profiles)
-                                        ui.add_enabled_ui(!is_dynamic, |ui| {
-                                            if ui.small_button("🗑").clicked() {
-                                                self.request_delete(
-                                                    profile.id,
-                                                    profile.name.clone(),
-                                                );
+                                        if is_dynamic {
+                                            if ui.small_button("View").clicked() {
+                                                self.start_edit(profile.id);
                                             }
-                                        });
-                                        // Edit/View button
-                                        let edit_label = if is_dynamic { "👁" } else { "✏" };
-                                        if ui.small_button(edit_label).clicked() {
-                                            self.start_edit(profile.id);
+                                            return;
+                                        }
+                                        let key = profile.id.to_string();
+                                        if let Some(a) = crate::list_editor::row_actions(
+                                            ui,
+                                            &mut self.pending_row_delete,
+                                            crate::list_editor::Row {
+                                                index: idx,
+                                                len,
+                                                list: "profile",
+                                                key: &key,
+                                                delete_label: "Delete",
+                                            },
+                                            crate::list_editor::RowButtons::ALL,
+                                        ) {
+                                            row_action = Some(a);
                                         }
                                     },
                                 );
                             });
                         });
                     });
+                }
+                if let Some(a) = row_action {
+                    self.apply_row_action(a);
                 }
             }
         });

@@ -107,10 +107,10 @@ impl SearchTag for egui::Response {
     }
 }
 
-/// Render one tab on a fresh harvest context and return its sections, with
-/// `parent` indices local to the returned list.
+/// Render every page of one tab, stacked on one fresh harvest context, and
+/// return its sections with `parent` indices local to the returned list.
+/// Each section's page is the layout page that lists it, or its parent's.
 pub(crate) fn harvest_tab(settings: &mut SettingsUI, tab: SettingsTab) -> Vec<SectionEntry> {
-    settings.selected_tab = tab;
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     ctx.options_mut(|o| o.max_passes = std::num::NonZeroUsize::MIN);
@@ -127,7 +127,10 @@ pub(crate) fn harvest_tab(settings: &mut SettingsUI, tab: SettingsTab) -> Vec<Se
     let mut output = ctx.run_ui(input, |ui| {
         egui::CentralPanel::default().show(ui, |ui| {
             let mut collapsed = std::mem::take(&mut settings.collapsed_sections);
-            crate::settings_ui::show_tab_body(ui, settings, tab, &mut changes, &mut collapsed);
+            for page in 0..crate::layout::pages(tab).len() {
+                settings.select_page(tab, page);
+                crate::layout::show_page(ui, settings, tab, page, &mut changes, &mut collapsed);
+            }
             settings.collapsed_sections = collapsed;
         });
     });
@@ -147,7 +150,34 @@ pub(crate) fn harvest_tab(settings: &mut SettingsUI, tab: SettingsTab) -> Vec<Se
             .collect()
     });
     let tree = Tree::new(update.nodes);
-    collect(tab, &tree, &pending, &egui_ids)
+    let mut sections = collect(tab, &tree, &pending, &egui_ids);
+    assign_pages(&mut sections, |id| {
+        crate::layout::locate(id).map(|(_, p)| p)
+    });
+    sections
+}
+
+/// Set each section's page: its own layout page, or for a section nested
+/// inside another's body, the page of its nearest ancestor the layout
+/// lists. A nested section is recorded before its parent (the parent's
+/// header finishes after its body), so ancestors are walked by index
+/// rather than read from an earlier pass.
+pub(crate) fn assign_pages(sections: &mut [SectionEntry], page_of: impl Fn(&str) -> Option<usize>) {
+    let pages: Vec<usize> = (0..sections.len())
+        .map(|i| {
+            let mut at = Some(i);
+            while let Some(s) = at {
+                if let Some(page) = page_of(&sections[s].id) {
+                    return page;
+                }
+                at = sections[s].parent;
+            }
+            0
+        })
+        .collect();
+    for (section, page) in sections.iter_mut().zip(pages) {
+        section.page = page;
+    }
 }
 
 fn collect(

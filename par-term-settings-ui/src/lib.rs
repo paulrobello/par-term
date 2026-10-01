@@ -55,6 +55,8 @@ pub mod automation_tab;
 pub mod color_helpers;
 #[cfg(test)]
 mod consistency_tests;
+#[cfg(test)]
+mod coverage_tests;
 pub mod delete_confirm;
 pub mod dependent;
 #[cfg(test)]
@@ -62,7 +64,13 @@ mod dependent_tests;
 pub mod effects_tab;
 pub mod input_tab;
 pub mod integrations_tab;
+pub mod layout;
+#[cfg(test)]
+mod layout_tests;
+pub mod list_editor;
 pub mod live_binding;
+#[cfg(test)]
+mod nav_tests;
 pub mod notifications_tab;
 pub mod profiles_tab;
 pub mod quick_settings;
@@ -71,6 +79,7 @@ pub mod saved_immediately;
 pub mod scripts_tab;
 pub mod search;
 pub mod section;
+pub mod sessions_tab;
 pub mod sidebar;
 pub mod snippets_tab;
 pub mod ssh_tab;
@@ -80,10 +89,10 @@ pub mod units;
 pub mod window_tab;
 
 // Internal implementation modules (no longer exposed as standalone tabs)
-mod arrangements_tab;
+pub(crate) mod arrangements_tab;
 pub use arrangements_tab::ArrangementsTabState;
-mod badge_tab;
-mod progress_bar_tab;
+pub(crate) mod badge_tab;
+pub(crate) mod progress_bar_tab;
 
 // Background tab is still needed by effects_tab for delegation
 pub mod background_tab;
@@ -101,7 +110,7 @@ pub use settings_ui::{
     configs_equal, deferred_badge,
 };
 
-pub use sidebar::SettingsTab;
+pub use sidebar::{SettingsNav, SettingsTab};
 
 // Re-export types that settings consumers need
 pub use par_term_config::{

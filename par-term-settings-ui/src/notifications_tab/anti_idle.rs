@@ -5,7 +5,7 @@ use crate::search::SearchTag;
 use crate::section::keyword_section;
 use std::collections::HashSet;
 
-pub(super) fn show_anti_idle_section(
+pub(crate) fn show_anti_idle_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -93,7 +93,7 @@ fn show_anti_idle_code(
     let mut changed = false;
     ui.horizontal(|ui| {
         ui.label("Character to send:");
-        egui::ComboBox::from_id_salt("notifications_anti_idle_code")
+        let code_combo = egui::ComboBox::from_id_salt("notifications_anti_idle_code")
             .selected_text(match (custom, named) {
                 (false, Some((_, name, _))) => (*name).to_string(),
                 _ => format!("Custom (0x{code:02X})"),
@@ -114,6 +114,7 @@ fn show_anti_idle_code(
                     custom = true;
                 }
             });
+        code_combo.response.search_tag(&["anti_idle_code"]);
         if custom
             && ui
                 .add(egui::DragValue::new(code).range(0..=127).speed(1.0))

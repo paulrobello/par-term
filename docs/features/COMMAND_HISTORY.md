@@ -111,7 +111,7 @@ Commands are captured from two sources:
 command_history_max_entries: 1000
 ```
 
-**Settings UI:** Settings > Terminal > Command History
+**Settings UI:** Settings > General > Search & Links
 
 **Persistence:** History is saved across restarts to `~/.config/par-term/command_history.yaml`.
 

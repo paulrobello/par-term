@@ -144,8 +144,10 @@ pub(crate) static DISPLAY_ACTION_HANDLERS: &[(&str, DisplayActionHandler)] = &[
         true
     }),
     ("save_arrangement", |s: &mut WindowState| {
-        // Open settings to Arrangements tab
+        // Open settings at Sessions › Arrangements › Save Current Layout (B51)
         s.overlay_state.open_settings_window_requested = true;
+        s.overlay_state.open_settings_section =
+            Some(par_term_settings_ui::layout::deep_link::SAVE_ARRANGEMENT);
         s.request_redraw();
         log::info!("Save arrangement requested via keybinding");
         true

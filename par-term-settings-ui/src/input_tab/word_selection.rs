@@ -2,23 +2,24 @@
 
 use crate::SettingsUI;
 use crate::search::SearchTag;
-use crate::section::{collapsing_section, keyword_section};
+use crate::section::keyword_section;
 use std::collections::HashSet;
 
 // ============================================================================
 // Word Selection Section
 // ============================================================================
 
-pub(super) fn show_word_selection_section(
+pub(crate) fn show_word_selection_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    keyword_section(
         ui,
         "Word Selection",
         "input_word_selection",
+        &["smart_selection_rules"],
         false,
         collapsed,
         |ui| {
@@ -32,6 +33,7 @@ pub(super) fn show_word_selection_section(
                         .hint_text("/-+\\~_.")
                         .desired_width(150.0),
                     )
+                    .search_tag(&["word_characters"])
                     .on_hover_text(
                         "Characters considered part of a word (in addition to alphanumeric)",
                     )
@@ -109,7 +111,7 @@ pub(super) fn show_word_selection_section(
 // Copy Mode Section
 // ============================================================================
 
-pub(super) fn show_copy_mode_section(
+pub(crate) fn show_copy_mode_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,

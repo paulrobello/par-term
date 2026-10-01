@@ -129,14 +129,14 @@ impl SettingsUI {
     pub fn request_save(&mut self) -> Option<Config> {
         if self.profile_modal_ui.has_unsaved_changes() {
             if self.profile_modal_ui.finish_open_edit().is_err() {
-                self.selected_tab = crate::sidebar::SettingsTab::Profiles;
+                self.open_section("profiles_management");
                 return None;
             }
             if self.profile_modal_ui.has_unsaved_changes() {
                 if self.profile_modal_ui.request_list_save()
                     != crate::profile_modal_ui::ProfileModalAction::Save
                 {
-                    self.selected_tab = crate::sidebar::SettingsTab::Profiles;
+                    self.open_section("profiles_management");
                     return None;
                 }
                 self.profile_save_requested = true;
@@ -171,7 +171,6 @@ impl SettingsUI {
         self.actions_tab.recording_action_keybinding = false;
         self.actions_tab.agent_launch_editing = None;
         self.actions_tab.agent_launch_adding = false;
-        self.actions_tab.agent_launch_pending_delete = None;
 
         self.automation_tab.editing_trigger_index = None;
         self.automation_tab.adding_new_trigger = false;
@@ -323,13 +322,15 @@ mod tests {
     #[test]
     fn rendering_any_tab_leaves_no_unsaved_changes() {
         for tab in crate::sidebar::SettingsTab::all() {
-            let mut settings = SettingsUI::new_for_tests(Config::default());
-            settings.selected_tab = *tab;
-            live_config_after_frame(&mut settings);
-            assert!(
-                !settings.has_unsaved_changes(),
-                "rendering {tab:?} marked the settings as changed"
-            );
+            for page in 0..crate::layout::pages(*tab).len() {
+                let mut settings = SettingsUI::new_for_tests(Config::default());
+                settings.select_page(*tab, page);
+                live_config_after_frame(&mut settings);
+                assert!(
+                    !settings.has_unsaved_changes(),
+                    "rendering {tab:?} page {page} marked the settings as changed"
+                );
+            }
         }
     }
 

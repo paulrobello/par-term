@@ -90,7 +90,7 @@ session_undo_max_entries: 10
 session_undo_preserve_shell: false
 ```
 
-**Settings UI:** Settings > Terminal > Startup
+**Settings UI:** Settings > General > Closing & Quitting
 
 ## Restore Windows on Launch
 
@@ -169,7 +169,7 @@ If the attach fails, the placeholder stays and the window works as a normal loca
 restore_session: false
 ```
 
-**Settings UI:** Settings > Terminal > Startup > "Restore windows on launch"
+**Settings UI:** Settings > General > Startup & Restore > "Restore windows on launch"
 
 ## Restore Windows on Launch vs Window Arrangements
 

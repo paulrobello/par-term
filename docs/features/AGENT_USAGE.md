@@ -101,7 +101,7 @@ Each extra directory is watched like the primary one, and every record in
 it merges into the panel under the widest-value rules above. A missing
 extra directory is tolerated (simply empty); one that appears later is
 picked up on the next refresh. A leading `~/` expands to your home
-directory. The same list is editable in Settings → Status Bar → Agent
+directory. The same list is editable in Settings → Assistant & Agents → Agent
 Usage ("Extra records dirs").
 
 ## Self-hiding

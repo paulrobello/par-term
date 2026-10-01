@@ -1,8 +1,9 @@
-//! Settings section layout: sidebar navigation, tab content dispatch, keybinding check.
+//! Settings section layout: sidebar navigation, page selector, page content,
+//! deep links, keybinding check.
 //!
-//! Contains: show_settings_sections(), show_tab_content(), check_keybinding_conflict().
+//! Contains: show_settings_sections(), show_tab_content(), open_section(),
+//! check_keybinding_conflict().
 
-use crate::sidebar::SettingsTab;
 use par_term_config::snippets::normalize_action_prefix_char;
 
 use super::SettingsUI;
@@ -14,9 +15,8 @@ impl SettingsUI {
         ui: &mut egui::Ui,
         changes_this_frame: &mut bool,
     ) {
+        self.take_pending_section(ui.ctx());
         self.publish_search_view(ui.ctx());
-        crate::quick_settings::show(ui, self, changes_this_frame);
-        ui.separator();
 
         let available_width = ui.available_width();
         // Reserve space for the footer (separator + button row)
@@ -46,14 +46,17 @@ impl SettingsUI {
 
                 ui.separator();
 
-                // Content area with its own scroll area
+                // Content area: page selector, then the page in its own
+                // scroll area
                 ui.allocate_ui_with_layout(
                     egui::vec2(content_width, available_height),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
+                        self.show_page_selector(ui);
+                        let height = ui.available_height().max(100.0);
                         egui::ScrollArea::vertical()
-                            .id_salt("settings_tab_content")
-                            .max_height(available_height)
+                            .id_salt(("settings_tab_content", self.selected_tab.index()))
+                            .max_height(height)
                             .show(ui, |ui| {
                                 ui.set_min_width(content_width - 20.0);
                                 self.show_tab_content(ui, changes_this_frame);
@@ -64,12 +67,79 @@ impl SettingsUI {
         );
     }
 
-    /// Show the content for the currently selected tab.
+    /// The sub-page selector above the content (iTerm2-style segmented
+    /// control). While a search is active every page with a match is shown,
+    /// so the selector names that instead.
+    fn show_page_selector(&mut self, ui: &mut egui::Ui) {
+        let tab = self.selected_tab;
+        if self.searching() {
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} \u{2014} matches from every page",
+                    tab.display_name()
+                ))
+                .strong(),
+            );
+        } else {
+            let selected = self.selected_page();
+            ui.horizontal_wrapped(|ui| {
+                for (i, page) in crate::layout::pages(tab).iter().enumerate() {
+                    if ui.selectable_label(i == selected, page.title).clicked() && i != selected {
+                        self.select_page(tab, i);
+                    }
+                }
+            });
+        }
+        ui.separator();
+    }
+
+    /// Show the content for the currently selected tab: its selected page,
+    /// or every page with a match while a search is active.
     pub(super) fn show_tab_content(&mut self, ui: &mut egui::Ui, changes_this_frame: &mut bool) {
         let mut collapsed = std::mem::take(&mut self.collapsed_sections);
         let tab = self.selected_tab;
-        show_tab_body(ui, self, tab, changes_this_frame, &mut collapsed);
+        if self.searching() {
+            let view = crate::search::live_view(ui.ctx());
+            for (i, page) in crate::layout::pages(tab).iter().enumerate() {
+                let shown = page
+                    .sections
+                    .iter()
+                    .any(|s| !view.as_ref().is_some_and(|v| v.hides(s.id)));
+                if shown {
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new(page.title).heading());
+                }
+                crate::layout::show_page(ui, self, tab, i, changes_this_frame, &mut collapsed);
+            }
+        } else {
+            let page = self.selected_page();
+            crate::layout::show_page(ui, self, tab, page, changes_this_frame, &mut collapsed);
+        }
         self.collapsed_sections = collapsed;
+    }
+
+    fn searching(&self) -> bool {
+        !self.search_query.trim().is_empty()
+    }
+
+    /// Open Settings at a section (UX.md B51): select its tab and page,
+    /// clear any search that would hide it, and on the next frame expand,
+    /// scroll to, and flash it. Unknown ids are ignored.
+    pub fn open_section(&mut self, section_id: &str) {
+        let Some((tab, page)) = crate::layout::locate(section_id) else {
+            log::warn!("Settings deep link to unknown section {section_id:?}");
+            return;
+        };
+        self.select_page(tab, page);
+        self.search_query.clear();
+        self.pending_section = Some(section_id.to_string());
+    }
+
+    /// Start the jump a deep link queued (needs the frame's context).
+    fn take_pending_section(&mut self, ctx: &egui::Context) {
+        if let Some(id) = self.pending_section.take() {
+            crate::search::start_jump(ctx, crate::search::Jump::new(vec![id], None));
+        }
     }
 
     /// Check if a keybinding conflicts with existing keybindings.
@@ -169,36 +239,6 @@ impl SettingsUI {
         }
 
         None
-    }
-}
-
-/// Draw one tab's sections. Shared by the content area and the search
-/// harvest, which renders every tab through the same code.
-pub(crate) fn show_tab_body(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    tab: SettingsTab,
-    changes: &mut bool,
-    collapsed: &mut std::collections::HashSet<String>,
-) {
-    match tab {
-        SettingsTab::Appearance => crate::appearance_tab::show(ui, settings, changes, collapsed),
-        SettingsTab::Window => crate::window_tab::show(ui, settings, changes, collapsed),
-        SettingsTab::Input => crate::input_tab::show(ui, settings, changes, collapsed),
-        SettingsTab::Terminal => crate::terminal_tab::show(ui, settings, changes, collapsed),
-        SettingsTab::Effects => crate::effects_tab::show(ui, settings, changes, collapsed),
-        SettingsTab::StatusBar => crate::status_bar_tab::show(ui, settings, changes, collapsed),
-        SettingsTab::Profiles => crate::profiles_tab::show(ui, settings, changes, collapsed),
-        SettingsTab::Notifications => {
-            crate::notifications_tab::show(ui, settings, changes, collapsed);
-        }
-        SettingsTab::Integrations => settings.show_integrations_tab(ui, changes, collapsed),
-        SettingsTab::Automation => crate::automation_tab::show(ui, settings, changes, collapsed),
-        SettingsTab::Snippets => crate::snippets_tab::show(ui, settings, changes, collapsed),
-        SettingsTab::AiInspector => {
-            crate::ai_inspector_tab::show(ui, settings, changes, collapsed);
-        }
-        SettingsTab::Advanced => crate::advanced_tab::show(ui, settings, changes, collapsed),
     }
 }
 

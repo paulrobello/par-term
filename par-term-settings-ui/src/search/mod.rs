@@ -21,8 +21,12 @@ mod registry;
 #[cfg(test)]
 mod registry_tests;
 
+#[cfg(test)]
+pub(crate) use harvest::caption;
 pub(crate) use harvest::harvest_tab;
 pub use harvest::{SearchTag, tag};
+#[cfg(test)]
+pub(crate) use live::flashing;
 pub(crate) use live::{
     DrawnSection, Jump, LiveView, forces_open, live_view, note_section, set_live_view, start_jump,
 };

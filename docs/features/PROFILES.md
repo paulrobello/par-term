@@ -218,7 +218,7 @@ Click any icon to set it as the profile icon, or type a custom value directly in
 - Tab name updates if specified
 
 **Splits and restarts keep the profile's program:**
-- Splitting a profile tab runs the same program in the new pane: the profile's SSH connection, command, or shell. The new pane starts in the focused pane's directory. Turn this off with `split_inherits_profile: false` (Settings > Window > Split Panes > "Splits run the tab's profile program") to get the default shell instead.
+- Splitting a profile tab runs the same program in the new pane: the profile's SSH connection, command, or shell. The new pane starts in the focused pane's directory. Turn this off with `split_inherits_profile: false` (Settings > Panes > Layout & Dividers > "Splits run the tab's profile program") to get the default shell instead.
 - A profile that attaches a tmux or par-mux session is not inherited, since its program would attach again. Splits of those tabs, and of par-mux tabs, work as usual.
 - **Restart Pane** (`restart_pane`) reruns the program the pane was started with, so a profile tab's first pane restarts its SSH connection or command rather than a local shell. So do the `shell_exit_action` restart options.
 - An SSH connection typed by hand, or opened with SSH Quick Connect (which types `ssh` into the current shell), is not a profile program: a split of that tab starts a local shell.
@@ -410,7 +410,7 @@ profiles:
 
 ### UI
 
-In the profile editor (Settings → Profiles), the **Tmux Auto-Connect** collapsible section appears below the badge settings:
+In the profile editor (Settings → Profiles → Profiles), the **Tmux Auto-Connect** collapsible section appears on the **Session** sub-tab:
 
 - **Session Name** — leave empty to disable auto-connect
 - **Connection Mode** — radio buttons for Control Mode vs Normal
@@ -540,7 +540,7 @@ pane_backgrounds:
 
 ### Settings UI
 
-Access per-pane background settings in **Settings > Effects > Per-Pane Background**:
+Access per-pane background settings in **Settings > Panes > Pane Backgrounds**:
 
 1. Click on a split pane in the preview (if using split panes)
 2. Configure the following for the selected pane:
@@ -668,7 +668,7 @@ keybindings:
 
 ### Dynamic Profiles Settings UI
 
-Dynamic profile sources can be managed in **Settings > Profiles > Dynamic Profile Sources**:
+Dynamic profile sources can be managed in **Settings > Profiles > Dynamic Sources**:
 
 - Add, edit, and remove remote source URLs
 - Configure per-source headers, refresh interval, and size limits

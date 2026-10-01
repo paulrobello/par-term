@@ -93,6 +93,15 @@ pub fn install_grok_hook_into(dir: &Path) -> io::Result<GrokHookInstall> {
     })
 }
 
+/// Whether par-term's grok hook config file is present (read-only).
+pub(crate) fn grok_hook_installed() -> bool {
+    grok_config_dir().is_ok_and(|dir| {
+        dir.join("hooks")
+            .join(GROK_HOOK_CONFIG_INSTALL_NAME)
+            .is_file()
+    })
+}
+
 /// Uninstall the grok session hook: straight delete of the two files we own.
 pub fn uninstall_grok_hook() -> io::Result<GrokHookUninstall> {
     uninstall_grok_hook_into(&grok_config_dir()?)

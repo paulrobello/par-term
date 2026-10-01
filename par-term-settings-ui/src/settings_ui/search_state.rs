@@ -46,6 +46,8 @@ impl SettingsUI {
         // Every section draws open, whatever the user collapsed.
         copy.collapsed_sections.clear();
         let mut registry = Registry::default();
+        // Every page of every tab: a section on a page that is not selected
+        // is still a result (harvest_tab renders each page in turn).
         for tab in SettingsTab::all() {
             let base = registry.sections.len();
             for mut section in crate::search::harvest_tab(&mut copy, *tab) {
@@ -109,7 +111,7 @@ impl SettingsUI {
         let Some(section) = registry.sections.get(hit.section) else {
             return;
         };
-        self.selected_tab = section.tab;
+        self.select_page(section.tab, section.page);
         let path = registry
             .path(hit.section)
             .into_iter()

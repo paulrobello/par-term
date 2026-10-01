@@ -124,7 +124,9 @@ pub(super) fn show_background_channel0_controls(
                         *changes_this_frame = true;
                     }
                 }
-            });
+            })
+            .response
+            .search_tag(&["custom_shader_background_channel0_blend_mode"]);
     });
     ui.label("Shaders can read this hint via iBackgroundBlendMode.");
 }
@@ -174,7 +176,9 @@ pub(super) fn show_cubemap_controls(
                         cubemap_changed = true;
                     }
                 }
-            });
+            })
+            .response
+            .search_tag(&["custom_shader_cubemap"]);
 
         if cubemap_changed {
             log::info!(
@@ -249,6 +253,7 @@ pub(super) fn show_global_channel_textures(
             ui.label("iChannel0:");
             if ui
                 .text_edit_singleline(&mut settings.temp_shader_channel0)
+                .search_tag(&["custom_shader_channel0"])
                 .changed()
             {
                 settings.config.shader.custom_shader_channel0 =
@@ -286,6 +291,7 @@ pub(super) fn show_global_channel_textures(
             ui.label("iChannel1:");
             if ui
                 .text_edit_singleline(&mut settings.temp_shader_channel1)
+                .search_tag(&["custom_shader_channel1"])
                 .changed()
             {
                 settings.config.shader.custom_shader_channel1 =
@@ -323,6 +329,7 @@ pub(super) fn show_global_channel_textures(
             ui.label("iChannel2:");
             if ui
                 .text_edit_singleline(&mut settings.temp_shader_channel2)
+                .search_tag(&["custom_shader_channel2"])
                 .changed()
             {
                 settings.config.shader.custom_shader_channel2 =
@@ -360,6 +367,7 @@ pub(super) fn show_global_channel_textures(
             ui.label("iChannel3:");
             if ui
                 .text_edit_singleline(&mut settings.temp_shader_channel3)
+                .search_tag(&["custom_shader_channel3"])
                 .changed()
             {
                 settings.config.shader.custom_shader_channel3 =

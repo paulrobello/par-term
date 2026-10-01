@@ -289,7 +289,7 @@ impl ApplicationHandler<AppEvent> for WindowManager {
         // Check if any window requested opening the settings window
         // Also collect shader reload results for propagation to standalone settings window
         let mut open_settings = false;
-        let mut open_settings_profiles_tab = false;
+        let mut open_settings_section: Option<&'static str> = None;
         let mut background_shader_result: Option<Option<String>> = None;
         let mut cursor_shader_result: Option<Option<String>> = None;
         let mut profiles_to_update: Option<Vec<crate::profile::Profile>> = None;
@@ -307,9 +307,8 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                 window_state.overlay_state.open_settings_window_requested = false;
                 open_settings = true;
             }
-            if window_state.overlay_state.open_settings_profiles_tab {
-                window_state.overlay_state.open_settings_profiles_tab = false;
-                open_settings_profiles_tab = true;
+            if let Some(section) = window_state.overlay_state.open_settings_section.take() {
+                open_settings_section = Some(section);
             }
 
             // Check for arrangement restore request from keybinding
@@ -469,10 +468,11 @@ impl ApplicationHandler<AppEvent> for WindowManager {
             self.open_settings_window(event_loop);
         }
 
-        // Navigate to Profiles tab if requested (from drawer "Manage" button)
-        if open_settings_profiles_tab && let Some(sw) = &mut self.settings_window {
-            sw.settings_ui
-                .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Profiles);
+        // Deep link to a section (drawer "Manage", save_arrangement keybinding)
+        if let Some(section) = open_settings_section
+            && let Some(sw) = &mut self.settings_window
+        {
+            sw.settings_ui.open_section(section);
         }
 
         // Restore arrangement if requested via keybinding

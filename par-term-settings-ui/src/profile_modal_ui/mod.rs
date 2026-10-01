@@ -9,14 +9,18 @@
 //! | `mod.rs` (this file) | Type definitions, lifecycle methods, public entry points (`show`, `show_inline`) |
 //! | `form_helpers.rs` | Private form field helpers (clear, load, save, validate, move up/down) |
 //! | `list_view.rs` | Profile list view renderer and delete confirmation dialog |
-//! | `edit_view.rs` | Profile edit/create view renderer, parent selector, badge/SSH sections |
+//! | `edit_view.rs` | Profile edit/create view: header, sub-tab bar, footer, icon and shell pickers |
+//! | `edit_tabs.rs` | Editor sub-tabs (General, Session, Text & Badge, Shader, SSH, Auto-Switch) |
+//! | `badge_section.rs` | Badge, shader, tmux, par-mux, and SSH sections the sub-tabs draw |
 
 mod badge_section;
+mod edit_tabs;
 mod edit_view;
 mod form_helpers;
 mod list_view;
 mod parent_selector;
 
+pub use edit_tabs::ProfileEditTab;
 use par_term_config::{Profile, ProfileId, ProfileManager};
 use std::collections::HashSet;
 
@@ -114,8 +118,6 @@ pub struct ProfileModalUI {
     pub(super) has_changes: bool,
     /// Validation error message
     pub(super) validation_error: Option<String>,
-    /// Profile pending deletion (for confirmation)
-    pub(super) pending_delete: Option<(ProfileId, String)>,
     /// Profiles as last loaded or saved. List Cancel restores this; a Save
     /// that would empty a non-empty baseline needs explicit confirmation.
     pub(super) baseline_profiles: Vec<Profile>,
@@ -127,6 +129,10 @@ pub struct ProfileModalUI {
     /// Global `tmux_enabled`, set by the Settings window each frame; the
     /// per-profile tmux section warns when it is off (UX.md B57).
     pub global_tmux_enabled: bool,
+    /// Selected sub-tab of the profile editor (UX.md 15.2).
+    pub edit_tab: ProfileEditTab,
+    /// Row armed for delete by the list's first Delete click (UX.md SC4).
+    pub(super) pending_row_delete: crate::delete_confirm::PendingDelete,
 }
 
 impl ProfileModalUI {
@@ -180,11 +186,12 @@ impl ProfileModalUI {
             selected_id: None,
             has_changes: false,
             validation_error: None,
-            pending_delete: None,
             baseline_profiles: Vec::new(),
             confirm_empty_save: false,
             empty_save_confirmed: false,
             global_tmux_enabled: true,
+            edit_tab: ProfileEditTab::default(),
+            pending_row_delete: None,
         }
     }
 
@@ -199,7 +206,7 @@ impl ProfileModalUI {
         self.selected_id = None;
         self.has_changes = false;
         self.validation_error = None;
-        self.pending_delete = None;
+        self.pending_row_delete = None;
         self.clear_form();
         log::info!(
             "Profile modal opened with {} profiles",
@@ -213,7 +220,7 @@ impl ProfileModalUI {
         self.mode = ModalMode::List;
         self.working_profiles.clear();
         self.editing_id = None;
-        self.pending_delete = None;
+        self.pending_row_delete = None;
         self.clear_form();
     }
 
@@ -230,7 +237,7 @@ impl ProfileModalUI {
         self.selected_id = None;
         self.has_changes = false;
         self.validation_error = None;
-        self.pending_delete = None;
+        self.pending_row_delete = None;
         self.clear_form();
     }
 
@@ -288,7 +295,7 @@ impl ProfileModalUI {
         self.selected_id = None;
         self.has_changes = false;
         self.validation_error = None;
-        self.pending_delete = None;
+        self.pending_row_delete = None;
         self.confirm_empty_save = false;
         self.clear_form();
     }
@@ -371,20 +378,13 @@ impl ProfileModalUI {
         ui: &mut egui::Ui,
         collapsed: &mut HashSet<String>,
     ) -> ProfileModalAction {
-        let action = match &self.mode.clone() {
+        match &self.mode.clone() {
             ModalMode::List => self.render_list_view(ui),
             ModalMode::Edit(_) | ModalMode::Create => {
                 self.render_edit_view(ui, collapsed);
                 ProfileModalAction::None
             }
-        };
-
-        // Render delete confirmation dialog on top
-        if self.pending_delete.is_some() {
-            self.render_delete_confirmation(ui.ctx());
         }
-
-        action
     }
 
     /// Render the modal and return any action triggered
@@ -431,11 +431,6 @@ impl ProfileModalUI {
                 }
             });
 
-        // Render delete confirmation dialog on top
-        if self.pending_delete.is_some() {
-            self.render_delete_confirmation(ctx);
-        }
-
         action
     }
 }
@@ -445,3 +440,6 @@ impl Default for ProfileModalUI {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod edit_tabs_tests;

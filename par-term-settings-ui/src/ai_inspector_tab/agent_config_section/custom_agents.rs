@@ -47,6 +47,7 @@ pub(super) fn show_custom_agents_section(
             "install command",
             "connector",
             "short name",
+            "ai_inspector_custom_agents",
         ],
         false,
         collapsed,
@@ -58,7 +59,12 @@ pub(super) fn show_custom_agents_section(
             );
             ui.add_space(6.0);
 
-            let mut remove_index: Option<usize> = None;
+            let mut row_action: Option<crate::list_editor::RowAction> = None;
+            let agent_count = settings
+                .config
+                .ai_inspector
+                .ai_inspector_custom_agents
+                .len();
             for i in 0..settings
                 .config
                 .ai_inspector
@@ -66,19 +72,20 @@ pub(super) fn show_custom_agents_section(
                 .len()
             {
                 let mut changed = false;
-                let mut request_remove = false;
 
                 ui.group(|ui| {
                     ui.push_id(format!("custom_agent_{i}"), |ui| {
                         let agent = &mut settings.config.ai_inspector.ai_inspector_custom_agents[i];
 
-                        show_agent_header(
+                        if let Some(a) = show_agent_header(
                             ui,
                             agent,
                             i,
+                            agent_count,
                             &mut settings.pending_list_delete,
-                            &mut request_remove,
-                        );
+                        ) {
+                            row_action = Some(a);
+                        }
                         changed |= show_agent_identity_fields(ui, agent);
                         changed |= show_agent_run_commands(ui, agent);
                         changed |= show_agent_env_vars(ui, agent);
@@ -89,21 +96,38 @@ pub(super) fn show_custom_agents_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
-                if request_remove {
-                    remove_index = Some(i);
-                }
 
                 ui.add_space(6.0);
             }
 
-            if let Some(idx) = remove_index {
-                settings
-                    .config
-                    .ai_inspector
-                    .ai_inspector_custom_agents
-                    .remove(idx);
-                settings.has_changes = true;
-                *changes_this_frame = true;
+            match row_action {
+                Some(crate::list_editor::RowAction::Delete(idx)) => {
+                    settings
+                        .config
+                        .ai_inspector
+                        .ai_inspector_custom_agents
+                        .remove(idx);
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                Some(action)
+                    if crate::list_editor::apply_move_or_duplicate(
+                        &mut settings.config.ai_inspector.ai_inspector_custom_agents,
+                        action,
+                        |copy| {
+                            copy.identity = format!(
+                                "{}-copy-{}",
+                                copy.identity,
+                                &uuid::Uuid::new_v4().simple().to_string()[..6]
+                            );
+                            copy.name.push_str(" copy");
+                        },
+                    ) =>
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                Some(_) | None => {}
             }
 
             if settings
@@ -151,31 +175,42 @@ pub(super) fn show_custom_agents_section(
     );
 }
 
-/// Show the agent group header (title + remove button).
+/// Show the agent group header (title + shared row buttons).
 fn show_agent_header(
     ui: &mut egui::Ui,
     agent: &CustomAcpAgentConfig,
     index: usize,
+    len: usize,
     pending_delete: &mut crate::delete_confirm::PendingDelete,
-    request_remove: &mut bool,
-) {
+) -> Option<crate::list_editor::RowAction> {
+    let mut action = None;
     ui.horizontal(|ui| {
         ui.strong("Agent".to_string());
         if !agent.identity.trim().is_empty() {
             ui.label(format!("({})", agent.identity));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if crate::delete_confirm::confirm_action_button(
+            // No Edit button: the agent's form is always expanded below.
+            action = crate::list_editor::row_actions(
                 ui,
                 pending_delete,
-                "custom_agent",
-                &format!("{index}:{}", agent.identity),
-                "Remove",
-            ) {
-                *request_remove = true;
-            }
+                crate::list_editor::Row {
+                    index,
+                    len,
+                    list: "custom_agent",
+                    key: &format!("{index}:{}", agent.identity),
+                    delete_label: "Remove",
+                },
+                crate::list_editor::RowButtons {
+                    reorder: true,
+                    duplicate: true,
+                    edit: false,
+                    delete: true,
+                },
+            );
         });
     });
+    action
 }
 
 /// Show identity, name, short name, active, protocol, type fields.
@@ -417,7 +452,11 @@ fn show_agent_env_vars(ui: &mut egui::Ui, agent: &mut CustomAcpAgentConfig) -> b
             {
                 changed = true;
             }
-            if ui.small_button("Remove").clicked() {
+            if ui
+                .small_button("\u{2715}")
+                .on_hover_text("Remove this variable")
+                .clicked()
+            {
                 remove_env_index = Some(idx);
                 changed = true;
             }

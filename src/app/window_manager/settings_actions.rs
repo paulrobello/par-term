@@ -95,6 +95,9 @@ impl WindowManager {
                 log::info!("Opened settings window {:?}", settings_window.window_id());
                 // Set app version from main crate (env! expands to the correct version here)
                 settings_window.settings_ui.app_version = env!("CARGO_PKG_VERSION");
+                if let Some(nav) = self.settings_nav.clone() {
+                    settings_window.settings_ui.restore_nav(nav);
+                }
                 // Wire up shell integration fn pointers
                 settings_window
                     .settings_ui
@@ -104,6 +107,8 @@ impl WindowManager {
                     .settings_ui
                     .shell_integration_is_installed_fn =
                     Some(crate::shell_integration_installer::is_installed);
+                settings_window.settings_ui.mux_hook_status_fn =
+                    Some(crate::mux_hook_installer::hook_status);
                 // Wire up shader fn pointers
                 settings_window.settings_ui.shader_has_files_fn =
                     Some(crate::shader_installer::has_shader_files);
@@ -153,6 +158,7 @@ impl WindowManager {
     /// close (last terminal window gone) cannot leak live-preview edits.
     pub fn close_settings_window(&mut self) {
         if let Some(settings_window) = self.settings_window.take() {
+            self.settings_nav = Some(settings_window.settings_ui.nav_state());
             // Windows hold whatever the last live-preview frame sent them. If
             // that is not the last saved config, put the saved config back.
             let baseline = settings_window.settings_ui.baseline_config().clone();

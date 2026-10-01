@@ -455,7 +455,7 @@ impl WindowManager {
                 self.open_settings_window(event_loop);
                 if let Some(sw) = &mut self.settings_window {
                     sw.settings_ui
-                        .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Profiles);
+                        .open_section(par_term_settings_ui::layout::deep_link::PROFILES);
                 }
             }
             MenuAction::ToggleProfileDrawer => {
@@ -473,11 +473,11 @@ impl WindowManager {
                 }
             }
             MenuAction::SaveArrangement => {
-                // Open settings window to the Window tab (Arrangements is now a section there)
+                // Open settings at Sessions › Arrangements › Save Current Layout (B51)
                 self.open_settings_window(event_loop);
                 if let Some(sw) = &mut self.settings_window {
                     sw.settings_ui
-                        .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Window);
+                        .open_section(par_term_settings_ui::layout::deep_link::SAVE_ARRANGEMENT);
                 }
             }
             MenuAction::InstallShellIntegrationRemote => {

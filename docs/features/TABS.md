@@ -98,7 +98,7 @@ The dropdown appears anchored to the top-right corner of the window and shows:
 
 Click a profile to open a new tab with that profile's settings (working directory, shell, command, tab name, etc.). Press `Escape` or click outside the dropdown to dismiss it.
 
-> **Note:** The chevron appears when one or more profiles exist or when the AI inspector is enabled. Works in both horizontal and vertical tab bar layouts.
+> **Note:** The chevron appears when one or more profiles exist or when the Assistant panel is enabled. Works in both horizontal and vertical tab bar layouts.
 
 **Configuration:**
 
@@ -108,7 +108,7 @@ To make the new tab shortcut (`Cmd+T` / `Ctrl+Shift+T`) show the profile picker 
 new_tab_shortcut_shows_profiles: true  # default: false
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "New tab shortcut shows profile picker"
+**Settings UI:** Settings > Windows & Tabs > Tab Bar > "New tab shortcut shows profile picker"
 
 ### New Tab Position
 
@@ -121,7 +121,7 @@ new_tab_position: after_active # insert immediately to the right of the active t
 
 `after_active` applies to all user-initiated new-tab actions: `Cmd+T` / `+` button / profile picker / custom `NewTab` actions. Reopen closed tab and arrangement restore always restore tabs to their original positions regardless of this setting.
 
-**Settings UI:** Settings > Window > Tab Bar > "New tab position"
+**Settings UI:** Settings > Windows & Tabs > Tab Bar > "New tab position"
 
 ## Reopening Closed Tabs
 
@@ -189,7 +189,7 @@ Any tab can be duplicated via the context menu:
 
 1. **Right-click** on any tab in the tab bar to open the context menu and select **Duplicate Tab**
 
-Bound to `Cmd+Shift+J` (`Ctrl+Shift+J` on Linux and Windows) by default, and rebindable as the `duplicate_tab` action in Settings > Input > Keybindings.
+Bound to `Cmd+Shift+J` (`Ctrl+Shift+J` on Linux and Windows) by default, and rebindable as the `duplicate_tab` action in Settings > Keys > Key Bindings.
 
 **Behavior:**
 - The duplicated tab inherits the working directory of the source tab
@@ -222,7 +222,7 @@ restarted.
   other par-term windows exist.
 
 **Keybinding:** Bind the `move_tab_to_new_window` action in
-Settings → Input → Keybindings. There is no default chord. The keybinding only covers
+Settings → Keys → Key Bindings. There is no default chord. The keybinding only covers
 the "new window" case; the "move to existing window" case is menu-only because
 keybindings cannot parameterize on a specific target window.
 
@@ -257,7 +257,7 @@ A tab holds one or more **panes**, split regions that each run their own shell. 
 - **Broadcast input** sends every keystroke to all panes of the active tab until toggled off. The on/off switch belongs to the window, so it stays on when you switch tabs and then applies to the new active tab. A toast confirms each toggle.
 - **Close** follows the cascade described in [Creating and Closing Tabs](#creating-and-closing-tabs).
 
-Pane title bars, divider styles, and dimming of inactive panes are configured under **Settings ▸ Window ▸ Panes**; see [Window Management](WINDOW_MANAGEMENT.md#pane-title-bars).
+Pane title bars, divider styles, and dimming of inactive panes are configured under **Settings ▸ Panes ▸ Layout & Dividers** and **Appearance**; see [Window Management](WINDOW_MANAGEMENT.md#pane-title-bars).
 
 ## Promoting and Demoting Panes
 
@@ -269,7 +269,7 @@ The focused pane in the current tab is extracted and wrapped in a new tab. The n
 
 **Context menu:** Right-click a tab → **Promote Pane to Tab** (enabled only when the tab has multiple panes).
 
-**Keybinding:** Bind the `promote_pane_to_tab` action in Settings → Input → Keybindings. There is no default shortcut.
+**Keybinding:** Bind the `promote_pane_to_tab` action in Settings → Keys → Key Bindings. There is no default shortcut.
 
 **Behavior:**
 - If the source tab has multiple panes, the focused pane is extracted and the remaining panes stay in the source tab
@@ -289,7 +289,7 @@ Press **Escape** or right-click at any step to cancel.
 
 **Context menu:** Right-click a tab → **Demote Tab to Pane** (enabled only when the window has 2+ tabs).
 
-**Keybinding:** Bind the `demote_tab_to_pane` action in Settings → Input → Keybindings. There is no default shortcut.
+**Keybinding:** Bind the `demote_tab_to_pane` action in Settings → Keys → Key Bindings. There is no default shortcut.
 
 **Behavior:**
 - The source tab's pane tree (including all splits and running processes) is grafted into the target tab at the chosen split point
@@ -308,7 +308,7 @@ A tmux `display-panes` style pick mode for quickly focusing a pane in a split ta
 - Invoking the binding draws a letter badge (a letter on a circle background) centered in every pane of the focused tab; the letters come from a home-row set assigned in pane-tree order, so the same layout always yields the same letters
 - Typing a pane's letter focuses that pane and exits the mode; letters match case-insensitively
 - A tab with more than 26 panes (`max_panes` allows 32, or unlimited) gets a two-letter label on every pane instead. The first letter keeps the mode armed and leaves only the badges it starts on screen; the second picks the pane
-- To see pane numbers all the time, turn on `show_pane_numbers` with `show_pane_titles`: each title bar then starts with the pane's number in layout order (Settings > Window > Pane Appearance > "Show pane numbers in titles")
+- To see pane numbers all the time, turn on `show_pane_numbers` with `show_pane_titles`: each title bar then starts with the pane's number in layout order (Settings > Panes > Appearance > "Show pane numbers in titles")
 - Any other key, including `Escape`, cancels the mode without changing focus
 - Switching tabs or closing the pane-hint tab cancels the mode
 - Tabs with a single pane do not arm the mode — there is nothing to choose
@@ -380,7 +380,7 @@ tab_bar_position: top
 tab_bar_width: 160.0
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Position"
+**Settings UI:** Settings > Windows & Tabs > Tab Bar > "Position"
 
 Switching between positions takes effect immediately without restart.
 
@@ -416,7 +416,7 @@ par-term includes 6 built-in tab style presets that apply coordinated color, siz
 tab_style: dark  # dark, light, compact, minimal, high_contrast, automatic
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Tab style"
+**Settings UI:** Settings > Windows & Tabs > Tab Bar > "Tab style"
 
 Each preset adjusts the tab bar background, active/inactive colors, height, and spacing as a coordinated set. Individual settings can still be overridden after selecting a preset.
 
@@ -476,7 +476,7 @@ The `tab_inactive_outline_only` option renders inactive tabs with just a border 
 tab_inactive_outline_only: true  # default: true
 ```
 
-**Settings UI:** Settings > Window > Tab Bar Appearance > "Inactive tabs outline only"
+**Settings UI:** Settings > Windows & Tabs > Tab Bar Colors > "Inactive tabs outline only"
 
 ```mermaid
 graph LR
@@ -509,7 +509,7 @@ Control how tab titles are automatically updated:
 tab_title_mode: auto
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Tab title mode:"
+**Settings UI:** Settings > Windows & Tabs > Tab Bar > "Tab title mode:"
 
 ### Per-Pane Title Tracking
 
@@ -539,7 +539,7 @@ remote_tab_title_format: user_at_host  # user_at_host | host | host_and_cwd
 remote_tab_title_osc_priority: true
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Remote tab title format:"
+**Settings UI:** Settings > Windows & Tabs > Tab Bar > "Remote tab title format:"
 
 > **📝 Note:** Requires shell integration on the remote host to emit OSC 7 or OSC 1337 RemoteHost sequences. See [Integrations](INTEGRATIONS.md).
 

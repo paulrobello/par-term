@@ -17,7 +17,7 @@ use std::collections::HashSet;
 mod custom_agents;
 mod permissions;
 
-pub(super) fn show_custom_agents_section(
+pub(crate) fn show_custom_agents_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -26,7 +26,7 @@ pub(super) fn show_custom_agents_section(
     custom_agents::show_custom_agents_section(ui, settings, changes_this_frame, collapsed);
 }
 
-pub(super) fn show_permissions_section(
+pub(crate) fn show_permissions_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,

@@ -1,13 +1,14 @@
-//! Startup section for the terminal settings tab.
+//! Startup section (General › Startup & Restore).
 //!
-//! Covers: restore windows on launch, reopen closed tab, initial text, delay, newline.
+//! Covers: restore windows on launch, initial text, delay, newline. Reopen
+//! closed tab lives on General › Closing & Quitting.
 
 use crate::SettingsUI;
 use crate::search::SearchTag;
 use crate::section::keyword_section;
 use std::collections::HashSet;
 
-pub(super) fn show_startup_section(
+pub(crate) fn show_startup_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -17,8 +18,8 @@ pub(super) fn show_startup_section(
         ui,
         "Startup",
         "terminal_startup",
-        &["preserve shell", "undo timeout"],
-        false,
+        &["launch"],
+        true,
         collapsed,
         |ui| {
             if ui
@@ -29,71 +30,8 @@ pub(super) fn show_startup_section(
                 .search_tag(&["restore_session"])
                 .on_hover_text(
                     "When enabled, par-term will save your open tabs, pane layouts, and working\n\
-                 directories when closing and restore them on next launch.",
-                )
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-
-            ui.add_space(8.0);
-
-            ui.horizontal(|ui| {
-                ui.label("Reopen closed tab for:");
-                if ui
-                    .add(
-                        egui::DragValue::new(
-                            &mut settings.config.session_restore.session_undo_timeout_secs,
-                        )
-                        .range(0..=60)
-                        .suffix(" s"),
-                    )
-                    .search_tag(&["session_undo_timeout_secs"])
-                    .on_hover_text(
-                        "How long closed tab metadata is kept for undo (reopen).\n\
-                     Set to 0 to disable the feature entirely.",
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                    &mut c.session_restore.session_undo_timeout_secs
-                });
-
-                ui.label("Max entries:");
-                if ui
-                    .add(
-                        egui::DragValue::new(
-                            &mut settings.config.session_restore.session_undo_max_entries,
-                        )
-                        .suffix(" tabs")
-                        .range(1..=50),
-                    )
-                    .search_tag(&["session_undo_max_entries"])
-                    .on_hover_text("Maximum number of closed tabs to remember for undo.")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-                crate::reset::reset_button(ui, settings, changes_this_frame, |c| {
-                    &mut c.session_restore.session_undo_max_entries
-                });
-            });
-
-            if ui
-                .checkbox(
-                    &mut settings.config.session_restore.session_undo_preserve_shell,
-                    "Keep the shell running while a closed tab can be reopened",
-                )
-                .search_tag(&["session_undo_preserve_shell"])
-                .on_hover_text(
-                    "When enabled, closing a tab hides the shell instead of killing it.\n\
-                 Reopening restores the tab with its scrollback and running processes.\n\
-                 Uses more memory while hidden tabs are kept alive.",
+                 directories when closing and restore them on next launch.\n\
+                 An arrangement set to auto-restore below takes precedence.",
                 )
                 .changed()
             {
@@ -105,6 +43,7 @@ pub(super) fn show_startup_section(
             ui.label("Initial text to send when a new shell starts:");
             if ui
                 .text_edit_multiline(&mut settings.temp_initial_text)
+                .search_tag(&["initial_text"])
                 .changed()
             {
                 settings.config.shell.initial_text = settings.temp_initial_text.clone();

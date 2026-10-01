@@ -8,6 +8,8 @@
 
 use super::ActionsTabState;
 use crate::SettingsUI;
+use crate::delete_confirm::PendingDelete;
+use crate::list_editor::{Row, RowAction, RowButtons, apply_move_or_duplicate, row_actions};
 use par_term_config::agent_launcher::AgentLaunchConfig;
 
 /// Show the Agents (Launcher) section.
@@ -21,7 +23,7 @@ pub fn show_agents_section(
         ui,
         "Agents",
         "agents_list",
-        &["launcher", "default agent"],
+        &["launcher", "default agent", "agents"],
         true,
         collapsed,
         |ui| {
@@ -29,6 +31,7 @@ pub fn show_agents_section(
             show_agents_body(
                 ui,
                 &mut settings.actions_tab,
+                &mut settings.pending_list_delete,
                 &mut settings.config.agents,
                 &mut changed,
             );
@@ -45,6 +48,7 @@ pub fn show_agents_section(
 fn show_agents_body(
     ui: &mut egui::Ui,
     state: &mut ActionsTabState,
+    pending: &mut PendingDelete,
     agents: &mut Vec<AgentLaunchConfig>,
     changes_this_frame: &mut bool,
 ) {
@@ -67,10 +71,10 @@ fn show_agents_body(
         ui.label(egui::RichText::new("No agents configured.").italics());
     }
 
-    // Clicks are collected during the row loop and applied after it —
+    // The row's action is collected during the loop and applied after it —
     // acting mid-loop would mutate `agents` while it is being iterated.
-    let mut edit_clicked: Option<usize> = None;
-    let mut remove_clicked: Option<String> = None;
+    let mut row_action: Option<RowAction> = None;
+    let len = agents.len();
     for (i, agent) in agents.iter().enumerate() {
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(format!("{} ({})", agent.name, agent.id)).strong());
@@ -81,36 +85,55 @@ fn show_agents_body(
             if !agent.autonomy_args.is_empty() {
                 ui.label(format!("+ {}", agent.autonomy_args));
             }
-            if ui.button("Edit").clicked() {
-                edit_clicked = Some(i);
-            }
-            let pending = state.agent_launch_pending_delete.as_deref() == Some(agent.id.as_str());
-            let remove_label = if pending { "Confirm Remove" } else { "Remove" };
-            if ui.button(remove_label).clicked() {
-                if pending {
-                    remove_clicked = Some(agent.id.clone());
-                } else {
-                    state.agent_launch_pending_delete = Some(agent.id.clone());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let row = Row {
+                    index: i,
+                    len,
+                    list: "agent",
+                    key: &agent.id,
+                    delete_label: "Remove",
+                };
+                let buttons = RowButtons {
+                    reorder: true,
+                    duplicate: true,
+                    edit: true,
+                    delete: true,
+                };
+                if let Some(action) = row_actions(ui, pending, row, buttons) {
+                    row_action = Some(action);
                 }
-            }
-            if pending && ui.button("Keep").clicked() {
-                state.agent_launch_pending_delete = None;
-            }
+            });
         });
     }
-    if let Some(i) = edit_clicked {
-        state.agent_launch_editing = Some(i);
-        state.agent_launch_adding = false;
-        let agent = &agents[i];
-        state.temp_agent_launch_id = agent.id.clone();
-        state.temp_agent_launch_name = agent.name.clone();
-        state.temp_agent_launch_command = agent.command.clone();
-        state.temp_agent_launch_autonomy_args = agent.autonomy_args.clone();
-        state.temp_agent_launch_default = agent.default;
-        state.agent_launch_error = None;
-    }
-    if let Some(id) = remove_clicked {
-        confirm_agent_removal(state, agents, &id, changes_this_frame);
+    match row_action {
+        Some(RowAction::Edit(i)) => {
+            state.agent_launch_editing = Some(i);
+            state.agent_launch_adding = false;
+            let agent = &agents[i];
+            state.temp_agent_launch_id = agent.id.clone();
+            state.temp_agent_launch_name = agent.name.clone();
+            state.temp_agent_launch_command = agent.command.clone();
+            state.temp_agent_launch_autonomy_args = agent.autonomy_args.clone();
+            state.temp_agent_launch_default = agent.default;
+            state.agent_launch_error = None;
+        }
+        Some(RowAction::Delete(i)) => {
+            if let Some(id) = agents.get(i).map(|agent| agent.id.clone()) {
+                confirm_agent_removal(state, agents, &id, changes_this_frame);
+            }
+        }
+        // The id is the `launch-agent:<id>` action name, so a copy needs a
+        // fresh one; only one agent may be the default.
+        Some(action)
+            if apply_move_or_duplicate(agents, action, |copy| {
+                copy.id = uuid::Uuid::new_v4().to_string();
+                copy.name.push_str(" copy");
+                copy.default = false;
+            }) =>
+        {
+            *changes_this_frame = true;
+        }
+        Some(_) | None => {}
     }
 
     ui.add_space(4.0);
@@ -177,7 +200,7 @@ fn show_agent_form(
     }
 }
 
-/// Remove the agent whose id is awaiting its confirm click. An id that no
+/// Remove the agent whose removal was just confirmed. An id that no
 /// longer exists (already removed through another path) is a no-op.
 fn confirm_agent_removal(
     state: &mut ActionsTabState,
@@ -187,7 +210,6 @@ fn confirm_agent_removal(
 ) {
     let before = agents.len();
     agents.retain(|agent| agent.id != id);
-    state.agent_launch_pending_delete = None;
     state.agent_launch_error = None;
     if agents.len() != before {
         *changes_this_frame = true;
@@ -234,7 +256,6 @@ fn save_agent(
         state.agent_launch_editing = None;
     }
     state.agent_launch_error = None;
-    state.agent_launch_pending_delete = None;
     *changes_this_frame = true;
 }
 
@@ -245,9 +266,11 @@ mod tests {
     fn render(state: &mut ActionsTabState, agents: &mut Vec<AgentLaunchConfig>) -> bool {
         let ctx = egui::Context::default();
         let mut changed = false;
+        let mut pending: PendingDelete = None;
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
-            egui::CentralPanel::default()
-                .show(ctx, |ui| show_agents_body(ui, state, agents, &mut changed));
+            egui::CentralPanel::default().show(ctx, |ui| {
+                show_agents_body(ui, state, &mut pending, agents, &mut changed)
+            });
         });
         output.textures_delta.clear();
         changed
@@ -272,10 +295,6 @@ mod tests {
         let mut state = ActionsTabState::default();
         let mut agents = vec![agent("claude", true), agent("codex", false)];
         assert!(!render(&mut state, &mut agents));
-        assert_eq!(
-            state.agent_launch_pending_delete, None,
-            "no delete is pending without clicks"
-        );
         assert_eq!(agents.len(), 2);
 
         // The edit form renders against the same list without touching it.
@@ -348,12 +367,10 @@ mod tests {
         let mut state = ActionsTabState::default();
         let mut agents = vec![agent("claude", true), agent("codex", false)];
 
-        state.agent_launch_pending_delete = Some("codex".to_string());
         confirm_agent_removal(&mut state, &mut agents, "codex", &mut changed);
         assert!(changed, "a removal must mark changes");
         assert_eq!(agents.len(), 1);
         assert_eq!(agents[0].id, "claude");
-        assert_eq!(state.agent_launch_pending_delete, None);
 
         // An id that vanished through another path is a no-op.
         let mut changed_again = false;

@@ -567,7 +567,7 @@ If the level has been lowered, raise it to see plugin diagnostics:
 par-term --log-level warn        # CLI flag beats the config setting
 ```
 
-or restore `log_level: warn` in the config (Settings → Advanced → System).
+or restore `log_level: warn` in the config (Settings → Advanced → Logging).
 Note the config setting overrides `RUST_LOG`; only the CLI flag beats it.
 The Settings → Automation → Plugins section also shows not-discovered
 plugins as rows regardless of the log level.

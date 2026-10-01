@@ -12,7 +12,7 @@ use std::collections::HashSet;
 // Import/Export Section
 // ============================================================================
 
-pub(super) fn show_import_export_section(
+pub(crate) fn show_import_export_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,

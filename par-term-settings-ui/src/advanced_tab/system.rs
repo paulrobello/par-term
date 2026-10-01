@@ -4,6 +4,7 @@
 
 use crate::SettingsUI;
 use crate::format_timestamp;
+use crate::search::SearchTag;
 use crate::section::{INPUT_WIDTH, keyword_section};
 use par_term_config::{DownloadSaveLocation, LogLevel, UpdateCheckFrequency};
 use std::collections::HashSet;
@@ -12,7 +13,7 @@ use std::collections::HashSet;
 // Screenshots Section
 // ============================================================================
 
-pub(super) fn show_screenshot_section(
+pub(crate) fn show_screenshot_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -32,7 +33,7 @@ pub(super) fn show_screenshot_section(
                 let options = ["png", "jpeg", "svg", "html"];
                 let mut selected = settings.config.screenshot_format.clone();
 
-                egui::ComboBox::from_id_salt("advanced_screenshot_format")
+                let format_combo = egui::ComboBox::from_id_salt("advanced_screenshot_format")
                     .width(140.0)
                     .selected_text(selected.as_str())
                     .show_ui(ui, |ui| {
@@ -40,6 +41,7 @@ pub(super) fn show_screenshot_section(
                             ui.selectable_value(&mut selected, opt.to_string(), opt);
                         }
                     });
+                format_combo.response.search_tag(&["screenshot_format"]);
 
                 if selected != settings.config.screenshot_format {
                     settings.config.screenshot_format = selected;
@@ -56,7 +58,7 @@ pub(super) fn show_screenshot_section(
 // Updates Section
 // ============================================================================
 
-pub(super) fn show_updates_section(
+pub(crate) fn show_updates_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -88,7 +90,7 @@ pub(super) fn show_updates_section(
                 ui.label("Check for updates:");
 
                 let current = settings.config.updates.update_check_frequency;
-                egui::ComboBox::from_id_salt("advanced_update_check_frequency")
+                let freq_combo = egui::ComboBox::from_id_salt("advanced_update_check_frequency")
                     .selected_text(current.display_name())
                     .show_ui(ui, |ui| {
                         for freq in [
@@ -111,6 +113,7 @@ pub(super) fn show_updates_section(
                             }
                         }
                     });
+                freq_combo.response.search_tag(&["update_check_frequency"]);
             });
 
             if let Some(ref last_check) = settings.config.updates.last_update_check {
@@ -250,7 +253,7 @@ pub(super) fn show_updates_section(
 // File Transfers Section
 // ============================================================================
 
-pub(super) fn show_file_transfers_section(
+pub(crate) fn show_file_transfers_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -277,36 +280,40 @@ pub(super) fn show_file_transfers_section(
                 );
                 let selected_text = settings.config.download_save_location.display_name();
 
-                egui::ComboBox::from_id_salt("advanced_download_save_location")
-                    .width(200.0)
-                    .selected_text(selected_text)
-                    .show_ui(ui, |ui| {
-                        // Non-custom variants
-                        for variant in DownloadSaveLocation::variants() {
-                            if ui
-                                .selectable_label(
-                                    !is_custom
-                                        && settings.config.download_save_location == *variant,
-                                    variant.display_name(),
-                                )
-                                .clicked()
-                                && settings.config.download_save_location != *variant
+                let location_combo =
+                    egui::ComboBox::from_id_salt("advanced_download_save_location")
+                        .width(200.0)
+                        .selected_text(selected_text)
+                        .show_ui(ui, |ui| {
+                            // Non-custom variants
+                            for variant in DownloadSaveLocation::variants() {
+                                if ui
+                                    .selectable_label(
+                                        !is_custom
+                                            && settings.config.download_save_location == *variant,
+                                        variant.display_name(),
+                                    )
+                                    .clicked()
+                                    && settings.config.download_save_location != *variant
+                                {
+                                    settings.config.download_save_location = variant.clone();
+                                    settings.has_changes = true;
+                                    *changes_this_frame = true;
+                                }
+                            }
+                            // Custom variant
+                            if ui.selectable_label(is_custom, "Custom directory").clicked()
+                                && !is_custom
                             {
-                                settings.config.download_save_location = variant.clone();
+                                settings.config.download_save_location =
+                                    DownloadSaveLocation::Custom(String::new());
                                 settings.has_changes = true;
                                 *changes_this_frame = true;
                             }
-                        }
-                        // Custom variant
-                        if ui.selectable_label(is_custom, "Custom directory").clicked()
-                            && !is_custom
-                        {
-                            settings.config.download_save_location =
-                                DownloadSaveLocation::Custom(String::new());
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                    });
+                        });
+                location_combo
+                    .response
+                    .search_tag(&["download_save_location"]);
             });
 
             // Show custom path picker when Custom is selected
@@ -352,7 +359,7 @@ pub(super) fn show_file_transfers_section(
 // Debug Logging Section
 // ============================================================================
 
-pub(super) fn show_debug_logging_section(
+pub(crate) fn show_debug_logging_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -373,7 +380,7 @@ pub(super) fn show_debug_logging_section(
                 ui.label("Log level:");
 
                 let current = settings.config.log_level;
-                egui::ComboBox::from_id_salt("advanced_log_level")
+                let level_combo = egui::ComboBox::from_id_salt("advanced_log_level")
                     .width(120.0)
                     .selected_text(current.display_name())
                     .show_ui(ui, |ui| {
@@ -389,6 +396,7 @@ pub(super) fn show_debug_logging_section(
                             }
                         }
                     });
+                level_combo.response.search_tag(&["log_level"]);
             });
 
             ui.add_space(4.0);
@@ -424,7 +432,7 @@ pub(super) fn show_debug_logging_section(
 // Security Section
 // ============================================================================
 
-pub(super) fn show_security_section(
+pub(crate) fn show_security_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -447,6 +455,7 @@ pub(super) fn show_security_section(
                     &mut allow_all,
                     "Allow all environment variables in config substitution",
                 )
+                .search_tag(&["allow_all_env_vars"])
                 .changed()
             {
                 settings.config.security.allow_all_env_vars = allow_all;
@@ -467,6 +476,24 @@ pub(super) fn show_security_section(
             );
 
             ui.add_space(8.0);
+            if ui
+                .checkbox(
+                    &mut settings.config.security.allow_http_profiles,
+                    "Allow dynamic profile sources over plain HTTP",
+                )
+                .search_tag(&["allow_http_profiles"])
+                .on_hover_text(
+                    "Off (default): dynamic profile sources must use HTTPS. Turn on only for a \
+                     trusted server without TLS; anyone on the network path can then change \
+                     the profiles it serves.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.label("Max OSC data length:");
                 let mut mib = (settings.config.max_osc_data_length / (1024 * 1024)).max(1);
@@ -477,6 +504,7 @@ pub(super) fn show_security_section(
                             .range(1..=1024)
                             .suffix(" MiB"),
                     )
+                    .search_tag(&["max_osc_data_length"])
                     .changed()
                 {
                     settings.config.max_osc_data_length = mib * 1024 * 1024;

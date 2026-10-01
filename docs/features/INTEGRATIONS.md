@@ -76,7 +76,7 @@ Shell integration enhances the terminal experience by enabling communication bet
 **Method 1: Settings UI (Recommended)**
 
 1. Press `F12` to open Settings
-2. Navigate to the **Integrations** tab
+2. Navigate to **General > Integration & Files**
 3. In the **Shell Integration** section, click **Install** (or **Reinstall** if already installed)
 
 **Method 2: CLI Command**
@@ -234,7 +234,7 @@ On first launch, par-term offers to install optional integrations. Select **Cust
 **Method 2: Settings UI**
 
 1. Press `F12` to open Settings
-2. Navigate to the **Integrations** tab
+2. Navigate to **Effects & Shaders > Background & Shader**
 3. In the **Custom Shaders** section, click **Install**
 
 **Method 3: CLI Command**
@@ -325,7 +325,7 @@ par-term uninstall-shaders --force
 
 ## Settings UI
 
-The Integrations tab in Settings (`F12`) provides a graphical interface for managing integrations.
+Settings (`F12`) provides a graphical interface for managing integrations: shell integration under **General > Integration & Files**, and custom shaders under **Effects & Shaders > Background & Shader**.
 
 **Shell Integration Section:**
 - Installation status indicator
