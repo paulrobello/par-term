@@ -438,106 +438,120 @@ pub fn set_buffer_command(content: &str) -> String {
 /// `Space` key, high bytes become `0xNN` tokens, and printable runs are
 /// quoted literals.
 ///
-/// Send-keys runs should format their arguments through
-/// [`send_keys_arguments`], which wraps this output with `-l` when the
-/// payload is pure literal text — quoted text that spells a key name
-/// ("Enter", "C-c") is still resolved as a key after quote-stripping
-/// unless the run passes `-l`.
+/// Quoting alone does not literalize: tmux and the par-mux daemon strip
+/// quotes and then resolve key names, so a quoted run that spells a key
+/// name or `0xNN` byte — typed text like "C-c" or "Enter" — would be
+/// pressed as a key. [`flush_literal_run`] splits such runs into adjacent
+/// quoted chunks no receiver resolves as a key. Send-keys runs should
+/// format their arguments through [`send_keys_arguments`].
 pub fn escape_keys_for_tmux(data: &[u8]) -> String {
-    // For simple ASCII, we can use literal strings with proper escaping
-    // For complex sequences (control chars, etc.), use hex keys
-
     let mut result = String::new();
-    let mut in_literal = false;
+    // The current printable run's bytes, empty when no run is open.
+    let mut run: Vec<u8> = Vec::new();
 
     for &byte in data {
+        // Printable ASCII (the single quote included — flush re-quotes it
+        // with the `'\''` idiom) buffers into a literal run.
+        if (0x21..=0x7e).contains(&byte) {
+            run.push(byte);
+            continue;
+        }
+        flush_literal_run(&mut result, &mut run);
         match byte {
             // Control characters need to be sent as special keys
-            0x00 => {
-                close_literal(&mut result, &mut in_literal);
-                result.push_str("C-Space ");
-            }
+            0x00 => result.push_str("C-Space "),
             0x01..=0x1a => {
-                close_literal(&mut result, &mut in_literal);
                 // Ctrl+A through Ctrl+Z
                 result.push_str(&format!("C-{} ", (b'a' + byte - 1) as char));
             }
-            0x1b => {
-                close_literal(&mut result, &mut in_literal);
-                result.push_str("Escape ");
-            }
-            0x7f => {
-                close_literal(&mut result, &mut in_literal);
-                result.push_str("BSpace ");
-            }
-            // Special characters that need quoting
-            b'\'' => {
-                if !in_literal {
-                    result.push('\'');
-                    in_literal = true;
-                }
-                result.push_str("'\\''");
-            }
-            b' ' => {
-                close_literal(&mut result, &mut in_literal);
-                result.push_str("Space ");
-            }
-            // Printable ASCII can be sent literally (0x21..=0x7e, excluding space 0x20)
-            0x21..=0x7e => {
-                if !in_literal {
-                    result.push('\'');
-                    in_literal = true;
-                }
-                result.push(byte as char);
-            }
+            0x1b => result.push_str("Escape "),
+            0x7f => result.push_str("BSpace "),
+            b' ' => result.push_str("Space "),
             // High bytes (UTF-8 continuation, etc.) - send as hex
-            _ => {
-                close_literal(&mut result, &mut in_literal);
-                result.push_str(&format!("0x{:02x} ", byte));
-            }
+            _ => result.push_str(&format!("0x{:02x} ", byte)),
         }
     }
-
-    close_literal(&mut result, &mut in_literal);
+    flush_literal_run(&mut result, &mut run);
     result.trim().to_string()
 }
 
-fn close_literal(result: &mut String, in_literal: &mut bool) {
-    if *in_literal {
-        result.push_str("' ");
-        *in_literal = false;
+/// Emit one printable run as quoted literal token(s), splitting it while
+/// the whole remainder would resolve as a key press or `0xNN` byte.
+///
+/// tmux and the par-mux daemon resolve key names AFTER stripping quotes,
+/// so quoting cannot protect a run that spells one. Tokens join with
+/// nothing between them, so adjacent chunks deliver the run's bytes
+/// verbatim. The split table mirrors the pinned core's `key_part` +
+/// `hex_byte_token`; a chunk a future key table resolved would be
+/// pressed, not typed. Single bytes are never resolvable, so the loop
+/// always leaves a non-empty literal remainder.
+fn flush_literal_run(result: &mut String, run: &mut Vec<u8>) {
+    if run.is_empty() {
+        return;
     }
+    let mut rest: &[u8] = run;
+    while is_resolvable_key_token(rest) {
+        push_quoted_chunk(result, &rest[..1]);
+        rest = &rest[1..];
+    }
+    push_quoted_chunk(result, rest);
+    run.clear();
 }
 
-/// True when every byte of `data` is printable ASCII or a single quote —
-/// the byte class [`escape_keys_for_tmux`] renders as one quoted literal
-/// run with no key-name or hex tokens.
-fn escaped_payload_is_pure_literal(data: &[u8]) -> bool {
-    !data.is_empty()
-        && data
-            .iter()
-            .all(|&b| b == b'\'' || (0x21..=0x7e).contains(&b))
+fn push_quoted_chunk(result: &mut String, chunk: &[u8]) {
+    result.push('\'');
+    for &b in chunk {
+        if b == b'\'' {
+            result.push_str("'\\''");
+        } else {
+            result.push(b as char);
+        }
+    }
+    result.push_str("' ");
+}
+
+/// The key-name tokens a send-keys receiver resolves in default mode — the
+/// mirror of the pinned core's `key_part` table (also real tmux's
+/// `key-string.c` names).
+const RESOLVABLE_KEY_NAMES: &[&str] = &[
+    "C-Space", "Enter", "Tab", "Escape", "Esc", "BSpace", "Space", "Up", "Down", "Right", "Left",
+    "Home", "End", "PageUp", "PgUp", "PPage", "PageDown", "PgDn", "NPage", "IC", "Insert", "DC",
+    "Delete", "BTab", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+];
+
+/// True when a send-keys receiver (pinned core `key_part` +
+/// [`RESOLVABLE_KEY_NAMES`] + `hex_byte_token`) resolves this exact token
+/// as a key press or raw byte rather than literal text.
+fn is_resolvable_key_token(token: &[u8]) -> bool {
+    let Some(text) = std::str::from_utf8(token).ok() else {
+        return false;
+    };
+    if RESOLVABLE_KEY_NAMES.contains(&text) {
+        return true;
+    }
+    if let Some(letter) = text.strip_prefix("C-") {
+        let bytes = letter.as_bytes();
+        return bytes.len() == 1 && bytes[0].is_ascii_alphabetic();
+    }
+    match text.strip_prefix("0x") {
+        Some(digits) => digits.len() == 2 && digits.bytes().all(|b| b.is_ascii_hexdigit()),
+        None => false,
+    }
 }
 
 /// Format the full argument list of a `send-keys` run from raw payload
-/// bytes: the [`escape_keys_for_tmux`] tokens, prefixed with `-l` when the
-/// payload is pure literal text.
+/// bytes: the [`escape_keys_for_tmux`] tokens, with literal runs split so
+/// key-name-like text is typed, never pressed.
 ///
-/// tmux and the par-mux daemon resolve key names after stripping quotes,
-/// so a quoted run that spells a key name — literal text like "Enter",
-/// "Space", or "C-c" — is pressed as a key unless the run passes `-l`.
-/// A payload with no control bytes, no space, and no high bytes is literal
-/// text by construction and always takes `-l`. Payloads with deliberate
-/// key notation keep the bare name form with no `-l`: the notation exists
-/// so the receiving application's input modes decide what each key does
-/// (ARC-093 mode-following), which `-l` would suppress.
+/// Control bytes stay bare key names (`C-j`), space stays the `Space` key,
+/// and high bytes stay `0xNN` tokens: the notation exists so the receiving
+/// application's input modes decide what each key does (ARC-093
+/// mode-following), which no blanket literal flag may suppress. Typed
+/// text — printable runs, the spaces between words — is spelled so no
+/// token resolves as a key: "say C-c now" arrives as the characters, not
+/// a SIGINT.
 pub fn send_keys_arguments(data: &[u8]) -> String {
-    let mut args = String::new();
-    if escaped_payload_is_pure_literal(data) {
-        args.push_str("-l ");
-    }
-    args.push_str(&escape_keys_for_tmux(data));
-    args
+    escape_keys_for_tmux(data)
 }
 
 #[cfg(test)]
@@ -613,21 +627,37 @@ mod tests {
     }
 
     #[test]
-    fn test_send_keys_arguments_key_name_text_takes_l_flag() {
-        // Literal text that spells tmux key names: -l makes the daemon type
-        // it instead of pressing the key ("Enter" without -l inserts a
-        // newline, "C-c" sends SIGINT).
-        assert_eq!(send_keys_arguments(b"Enter"), "-l 'Enter'");
-        assert_eq!(send_keys_arguments(b"Space"), "-l 'Space'");
-        assert_eq!(send_keys_arguments(b"C-c"), "-l 'C-c'");
-        assert_eq!(send_keys_arguments(b"hello"), "-l 'hello'");
+    fn test_send_keys_arguments_key_name_text_splits() {
+        // Typed text that spells tmux key names is split into adjacent
+        // chunks no receiver resolves as a key — quoting alone cannot
+        // protect it (receivers strip quotes, then resolve key names).
+        // Tokens join with nothing between them, so the bytes survive.
+        assert_eq!(send_keys_arguments(b"Enter"), "'E' 'nter'");
+        assert_eq!(send_keys_arguments(b"Space"), "'S' 'pace'");
+        assert_eq!(send_keys_arguments(b"C-c"), "'C' '-c'");
+        assert_eq!(send_keys_arguments(b"hello"), "'hello'");
+        assert_eq!(send_keys_arguments(b"0x41"), "'0' 'x41'");
+        assert_eq!(send_keys_arguments(b"F12"), "'F' '12'");
+        // Resolvable remainders split too ("BSpace" → B + Space + pace).
+        assert_eq!(send_keys_arguments(b"BSpace"), "'B' 'S' 'pace'");
+    }
+
+    #[test]
+    fn test_send_keys_arguments_mixed_payload_types_key_name_runs() {
+        // The card's regression case: a batched write of typed text. The
+        // escaper renders C-c as part of a literal run — split so the pane
+        // receives the characters, never the SIGINT.
+        assert_eq!(
+            send_keys_arguments(b"say C-c now"),
+            "'say' Space 'C' '-c' Space 'now'"
+        );
     }
 
     #[test]
     fn test_send_keys_arguments_key_notation_stays_bare() {
-        // Deliberate key notation keeps the bare key-name form: no -l, so
-        // the receiving app's input modes decide the key's effect
-        // (ARC-093 mode-following).
+        // Deliberate key notation keeps the bare key-name form: the
+        // receiving app's input modes decide the key's effect (ARC-093
+        // mode-following) — a literal flag would suppress it.
         assert_eq!(send_keys_arguments(&[0x03]), "C-c");
         assert_eq!(send_keys_arguments(&[0x1b]), "Escape");
         assert_eq!(send_keys_arguments(&[0x7f]), "BSpace");
@@ -637,13 +667,25 @@ mod tests {
     }
 
     #[test]
-    fn test_format_send_keys_appends_l_for_literal_text() {
+    fn test_send_keys_arguments_mixed_notation_stays_key_names() {
+        // Text AND deliberate notation in one payload: the typed runs are
+        // literalized, the notation stays bare key names the daemon
+        // resolves.
+        assert_eq!(send_keys_arguments(b"one\x0atwo"), "'one' C-j 'two'");
+        assert_eq!(
+            send_keys_arguments(b"say \x03 now"),
+            "'say' Space C-c Space 'now'"
+        );
+    }
+
+    #[test]
+    fn test_format_send_keys_types_key_name_text() {
         let mut session = TmuxSession::new();
         session.set_gateway_connected("dev".to_string());
         session.set_focused_pane(Some(5));
         assert_eq!(
             session.format_send_keys(b"Enter"),
-            Some("send-keys -t %5 -l 'Enter'\n".to_string())
+            Some("send-keys -t %5 'E' 'nter'\n".to_string())
         );
         assert_eq!(
             session.format_send_keys(&[0x03]),

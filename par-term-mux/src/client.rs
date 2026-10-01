@@ -129,10 +129,11 @@ impl MuxSessionClient {
     /// Route raw input bytes to a pane as tmux key names.
     ///
     /// This is the form the tmux gateway sends: `send_keys_arguments`
-    /// passes `-l` for pure-literal payloads (so text that merely spells a
-    /// tmux key name — "Enter", "C-c" — is typed, not pressed) and emits
-    /// bare key names otherwise (`C-a`… `C-z`, `Escape`, `BSpace`, `Space`,
-    /// quoted literals, `0xNN`), with no implicit newline appended.
+    /// spells literal runs so no token resolves as a key (typed text that
+    /// spells a key name — "Enter", "C-c" — is typed, not pressed) and
+    /// emits bare key names for deliberate notation (`C-a`… `C-z`,
+    /// `Escape`, `BSpace`, `Space`, quoted literals, `0xNN`), with no
+    /// implicit newline appended.
     pub fn send_keys(&mut self, pane: TmuxPaneId, data: &[u8]) -> io::Result<Vec<String>> {
         self.send(&format!(
             "send-keys -t %{pane} {}",
@@ -335,6 +336,51 @@ mod tests {
                 client: "0.50.0+def5678".into()
             }
         );
+    }
+
+    #[test]
+    fn send_keys_arguments_round_trips_through_the_daemon_parser() {
+        // The pinned daemon's own parser is the ground truth for what the
+        // send-keys command MuxSessionClient::send_keys builds: typed
+        // text — including runs that spell key names — must flatten to
+        // literal bytes with no Key part, while deliberate key notation
+        // resolves to its control byte.
+        use par_term_emu_core_rust::mux::command::{MuxCommand, SendKeysPart, parse_command};
+
+        fn delivered(data: &[u8]) -> Vec<u8> {
+            let command = parse_command(&format!("send-keys -t %3 {}", send_keys_arguments(data)))
+                .expect("command parses");
+            let MuxCommand::SendKeys { keys, .. } = command else {
+                panic!("not a send-keys command");
+            };
+            let mut out = Vec::new();
+            for part in keys.0 {
+                match part {
+                    SendKeysPart::Bytes(bytes) => out.extend_from_slice(&bytes),
+                    SendKeysPart::Key(_) => panic!("escaper never emits navigation keys"),
+                }
+            }
+            out
+        }
+
+        // Typed text, including key-name-like runs and the card's case.
+        assert_eq!(delivered(b"say C-c now"), b"say C-c now");
+        assert_eq!(delivered(b"Enter"), b"Enter");
+        assert_eq!(delivered(b"Space"), b"Space");
+        assert_eq!(delivered(b"BSpace"), b"BSpace");
+        assert_eq!(delivered(b"0x41"), b"0x41");
+        assert_eq!(delivered(b"F12 Esc Home End"), b"F12 Esc Home End");
+        assert_eq!(delivered(b"it's C-j Tab 0xNN"), b"it's C-j Tab 0xNN");
+        // Ordinary text and spaces unchanged.
+        assert_eq!(delivered(b"hello world"), b"hello world");
+        // Deliberate key notation resolves to the control byte.
+        assert_eq!(delivered(b"one\x0atwo"), b"one\x0atwo");
+        assert_eq!(delivered(b"say \x03 now"), b"say \x03 now");
+        assert_eq!(delivered(&[0x03]), &[0x03]);
+        assert_eq!(delivered(&[0x1b]), &[0x1b]);
+        assert_eq!(delivered(&[0x7f]), &[0x7f]);
+        // High bytes ride 0xNN tokens and round-trip.
+        assert_eq!(delivered(b"hi \xe2\x82\xac"), b"hi \xe2\x82\xac");
     }
 
     #[test]

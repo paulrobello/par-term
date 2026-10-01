@@ -165,6 +165,36 @@ fn sync_layer_round_trips_a_live_daemon() {
     let _ = std::fs::remove_file(&path);
 }
 
+/// The card's regression case (send-keys key-name-like runs in mixed
+/// text): a batched write of typed text whose middle run spells `C-c`
+/// must reach the pane as characters. When the run resolved as a key
+/// press, the pane's shell took SIGINT and the echoed line showed `^C`
+/// instead of the text.
+#[test]
+fn mixed_payload_with_key_name_text_reaches_the_pane_literally() {
+    let path = socket_path("mixed-literal");
+    spawn_daemon(&path);
+    let mut client = connect(&path);
+
+    let outcome = client.create_or_attach("mixed").expect("create_or_attach");
+    assert!(
+        matches!(outcome, AttachOutcome::Created(_)),
+        "fresh daemon has no session to attach to: {outcome:?}"
+    );
+    wait_for(&mut client, |a| matches!(a, SyncAction::CreateTab { .. }));
+    adopt_panes(&mut client);
+
+    client.send_keys(0, b"say C-c now").expect("send-keys");
+    wait_for(&mut client, |a| match a {
+        SyncAction::PaneOutput { pane_id, data } => {
+            *pane_id == 1000 && String::from_utf8_lossy(data).contains("say C-c now")
+        }
+        _ => false,
+    });
+
+    let _ = std::fs::remove_file(&path);
+}
+
 #[test]
 fn create_or_attach_reattaches_to_a_persisted_session() {
     let path = socket_path("reattach");
