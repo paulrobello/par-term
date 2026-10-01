@@ -92,7 +92,9 @@ impl ParserBridge {
                 name,
             } => Some(TmuxNotification::SessionRenamed(name)),
 
-            CoreNotification::WindowAdd { window_id } => ParsedId::parse(&window_id)
+            // `..` ignores fields newer core versions add to `WindowAdd`, so the
+            // vendored (local-core) gate keeps compiling when the core grows it.
+            CoreNotification::WindowAdd { window_id, .. } => ParsedId::parse(&window_id)
                 .as_window()
                 .map(TmuxNotification::WindowAdd),
 
