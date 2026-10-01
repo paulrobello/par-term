@@ -46,7 +46,7 @@ pub(crate) fn show_keybindings_section(
         ui,
         "Keybindings",
         "input_keybindings",
-        &["hotkey", "leader", "shortcut", "keybindings"],
+        &["hotkey", "shortcut", "keybindings"],
         true,
         collapsed,
         |ui| {

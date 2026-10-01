@@ -91,7 +91,7 @@ With a tmux gateway connected, the tmux prefix (`tmux_prefix_key`, `C-b` by defa
 
 ## Configuration
 
-These keys are top-level in `config.yaml`. Settings › Keys › Leader Key edits all four: **Record** captures the leader chord and **Turn off** clears it.
+These keys are top-level in `config.yaml`, and are edited in **Settings › Keys › Leader Key**: a recorder for the chord (with a conflict check and **Turn off**), the two timing sliders, and the vim-keys checkbox. The sliders and checkbox are disabled while the chord is empty.
 
 | Key | Default | Meaning |
 |---|---|---|

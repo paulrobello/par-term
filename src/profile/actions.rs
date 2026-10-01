@@ -223,7 +223,7 @@ pub(crate) fn migrate_profile_shortcuts_on_disk(config: &mut Config) {
     for (name, chord, why) in &report.skipped {
         log::warn!(
             "Profile '{name}' keeps its keyboard_shortcut {chord:?}: not migrated to a \
-             keybinding ({why:?}). Bind open_profile:<id> in Settings › Input instead."
+             keybinding ({why:?}). Bind open_profile:<id> in Settings › Keys instead."
         );
     }
     if !report.changed() {
