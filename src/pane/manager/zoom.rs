@@ -3,12 +3,14 @@
 //! Zoom is state, not a one-off bounds override: the render path calls
 //! `set_bounds` every frame, so the zoomed pane's full-tab bounds are
 //! re-applied inside [`PaneManager::recalculate_bounds`]. The split tree is
-//! never edited while zoomed, which is what makes unzoom restore the exact
-//! prior layout. Hidden panes keep their tree bounds (and so their terminal
+//! never structurally edited while zoomed, which is what makes unzoom
+//! restore the prior layout; an arrow resize while zoomed moves a divider
+//! in that hidden tree instead, and unzoom restores the layout with the
+//! edit applied. Hidden panes keep their tree bounds (and so their terminal
 //! size): they get no SIGWINCH while the zoom lasts.
 
 use super::PaneManager;
-use crate::pane::types::{Pane, PaneId};
+use crate::pane::types::{Pane, PaneBounds, PaneId};
 
 impl PaneManager {
     /// The zoomed pane, if any.
@@ -19,6 +21,13 @@ impl PaneManager {
     /// Whether a pane currently fills the tab.
     pub fn is_zoomed(&self) -> bool {
         self.zoomed_pane_id.is_some()
+    }
+
+    /// The zoomed pane's tree extent — the cell it occupies beneath the
+    /// zoom (`None` while unzoomed). Layout syncs must size this cell, not
+    /// the full-tab bounds the zoom displays.
+    pub fn zoomed_pane_tree_bounds(&self) -> Option<PaneBounds> {
+        self.zoomed_pane_id.and(self.zoomed_tree_bounds)
     }
 
     /// Zoom the focused pane, or unzoom when already zoomed. A single pane
@@ -256,6 +265,44 @@ mod tests {
             "split while zoomed"
         );
         assert!(!pm.is_zoomed(), "split unzooms");
+    }
+
+    /// A keyboard resize while zoomed moves the divider in the hidden tree
+    /// instead of unzooming: the zoom survives, the hidden panes re-layout,
+    /// and unzoom restores the layout with the edit applied.
+    #[test]
+    fn a_resize_while_zoomed_edits_the_tree_beneath_and_keeps_the_zoom() {
+        let mut pm = three_panes();
+        pm.toggle_zoom();
+        let pane2_before = pm.get_pane(2).expect("pane 2").bounds.width;
+
+        assert!(
+            pm.resize_toward(1, NavigationDirection::Right, 0.05),
+            "the divider moved"
+        );
+        assert!(pm.is_zoomed(), "the resize kept the zoom");
+        assert_eq!(
+            pm.get_pane(1).expect("pane 1").bounds,
+            pm.total_bounds,
+            "the zoomed pane still covers the tab"
+        );
+        assert!(
+            pm.get_pane(2).expect("pane 2").bounds.width < pane2_before,
+            "the divider moved in the hidden tree: pane 2 gave way"
+        );
+        let tree = pm
+            .zoomed_pane_tree_bounds()
+            .expect("the zoomed pane's tree extent");
+        assert!(
+            tree.width < pm.total_bounds.width,
+            "the tree cell is not the displayed whole tab"
+        );
+
+        pm.unzoom();
+        assert!(
+            pm.get_pane(2).expect("pane 2").bounds.width < pane2_before,
+            "unzoom restores the layout with the edit applied"
+        );
     }
 
     #[test]

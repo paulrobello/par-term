@@ -213,13 +213,16 @@ impl PaneManager {
 
     /// [`Self::resize_toward`] with the step as a fraction of the split or
     /// as pixels (resize mode's Shift+arrow moves one cell, A6).
+    ///
+    /// Keeps a zoom: the divider moves in the tree beneath the zoomed pane
+    /// (a ratio-only edit), which unzoom then restores with the edit
+    /// applied.
     pub fn resize_toward_by(
         &mut self,
         pane: PaneId,
         direction: NavigationDirection,
         step: ResizeStep,
     ) -> bool {
-        self.unzoom();
         let (axis, sign) = match direction {
             NavigationDirection::Left => (SplitDirection::Vertical, -1.0),
             NavigationDirection::Right => (SplitDirection::Vertical, 1.0),

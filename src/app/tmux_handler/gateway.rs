@@ -567,9 +567,18 @@ impl WindowState {
                     // Get the tmux pane ID for this native pane (tab-scoped:
                     // pane ids restart at 1 in every tab)
                     let tmux_pane_id = self.tmux_state.tmux_pane_in_tab(tab.id, pane.id)?;
+                    // While zoomed, the zoomed pane's bounds are the whole
+                    // tab; the daemon owns the tree cell beneath, and a
+                    // full-tab extent would be rejected as spanning the
+                    // axis — size that cell, not the zoom display.
+                    let bounds = if pm.zoomed_pane_id() == Some(pane.id) {
+                        pm.zoomed_pane_tree_bounds().unwrap_or(pane.bounds)
+                    } else {
+                        pane.bounds
+                    };
                     // Calculate size in columns/rows
-                    let cols = (pane.bounds.width / cell_width).floor() as usize;
-                    let rows = (pane.bounds.height / cell_height).floor() as usize;
+                    let cols = (bounds.width / cell_width).floor() as usize;
+                    let rows = (bounds.height / cell_height).floor() as usize;
                     Some((tmux_pane_id, cols.max(1), rows.max(1)))
                 })
                 .collect()
