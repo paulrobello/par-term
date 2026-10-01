@@ -2,13 +2,13 @@
 //!
 //! par-term cannot attach a native menu bar on Linux/BSD: muda attaches one
 //! through `Menu::init_for_gtk_window`, and winit's X11 and Wayland backends
-//! create no `gtk::Window` to hand it (see [`super::linux`]). Without a menu,
-//! `new_window`, `close_window`, `quit` and `select_all` have no route at all —
-//! they are menu-only commands. This module gives those platforms a menu drawn
-//! the same way par-term already draws its tab bar and settings window.
+//! create no `gtk::Window` to hand it (see [`super::linux`]). This module
+//! gives those platforms a menu drawn the same way par-term already draws its
+//! tab bar and settings window.
 //!
 //! It renders [`super::model`] — the same description the native menu is built
-//! from — so the two cannot offer different commands. Activations go to
+//! from — with the same [`MenuState`], so the two cannot offer different
+//! commands, enabled items, or checkmarks. Activations go to
 //! [`super::bridge`], which `WindowManager::process_menu_events` drains
 //! alongside muda's own event channel.
 //!
@@ -17,9 +17,12 @@
 //! rows. The drop-down itself is an egui popup floating above everything.
 
 use super::bridge;
-use super::model::{self, MenuEntry, MenuSection};
+use super::model::{self, MenuEntry, MenuItemSpec, MenuSection};
+use super::state::MenuState;
+use super::sync::MenuSync;
 use crate::profile::ProfileManager;
 use egui::containers::menu::{MenuButton, SubMenuButton};
+use par_term_config::KeyBinding;
 
 /// Glyph on the trigger button.
 const TRIGGER_GLYPH: &str = "\u{2630}";
@@ -31,7 +34,7 @@ const TRIGGER_GLYPH_SIZE: f32 = 13.0;
 const MENU_MIN_WIDTH: f32 = 120.0;
 
 /// Minimum width of a section's submenu, in logical pixels.
-const SUBMENU_MIN_WIDTH: f32 = 210.0;
+const SUBMENU_MIN_WIDTH: f32 = 230.0;
 
 /// Environment variable that overrides whether the in-app menu is drawn.
 ///
@@ -45,9 +48,12 @@ const HAS_NATIVE_MENU_BAR: bool = cfg!(any(target_os = "macos", target_os = "win
 
 /// The in-app menu's per-window state.
 pub struct AppMenuUi {
-    /// The menu to draw. Built once per window; the contents are static apart
-    /// from the profile list, which is read from the live `ProfileManager`.
+    /// The menu to draw, rebuilt by [`Self::sync`] when the bindings change.
     sections: Vec<MenuSection>,
+    /// What `sections` was built from (UX.md MN3).
+    built: MenuSync,
+    /// The window's state, applied when drawing (UX.md MN2).
+    state: MenuState,
     /// Whether the drop-down was open during the last frame that drew it.
     open: bool,
 }
@@ -64,11 +70,15 @@ impl AppMenuUi {
 
     /// Build the menu for one window, sourcing accelerators from the live
     /// config's keybindings so a rebind shows here too.
-    pub fn new_with(keybindings: &[par_term_config::KeyBinding]) -> Self {
+    pub fn new_with(keybindings: &[KeyBinding]) -> Self {
+        let mut built = MenuSync::new();
+        built.record(keybindings, None);
         Self {
             // The in-app menu is the only menu wherever it is drawn, so it must
             // carry the commands a native application menu would otherwise own.
             sections: model::menu_model_with(false, keybindings),
+            built,
+            state: MenuState::default(),
             open: false,
         }
     }
@@ -76,6 +86,26 @@ impl AppMenuUi {
     /// Build the menu for one window from the default bindings.
     pub fn new() -> Self {
         Self::new_with(&par_term_config::Config::default().keybindings)
+    }
+
+    /// Rebuild from `keybindings` when they differ from the ones the menu was
+    /// built from (UX.md MN3), and take the window's current `state`.
+    /// Returns whether a rebuild happened.
+    pub fn sync(&mut self, keybindings: &[KeyBinding], state: MenuState) -> bool {
+        // The in-app menu registers no key equivalents (its chords are
+        // labels; the registry dispatches them), so it never releases any.
+        let rebuilt = self.built.rebuild_reason(keybindings, &None).is_some();
+        if rebuilt {
+            self.sections = model::menu_model_with(false, keybindings);
+            self.built.record(keybindings, None);
+        }
+        self.state = state;
+        rebuilt
+    }
+
+    /// The sections this menu draws.
+    pub fn sections(&self) -> &[MenuSection] {
+        &self.sections
     }
 
     /// Whether the in-app menu should be drawn in this process.
@@ -130,7 +160,7 @@ impl AppMenuUi {
             for section in &self.sections {
                 SubMenuButton::new(section.title).ui(ui, |ui| {
                     ui.set_min_width(SUBMENU_MIN_WIDTH);
-                    section_entries(ui, section, profiles);
+                    draw_entries(ui, &section.entries, &self.state, profiles);
                 });
             }
         });
@@ -150,29 +180,71 @@ impl AppMenuUi {
     }
 }
 
-/// Draw one section's entries into an open submenu.
-fn section_entries(ui: &mut egui::Ui, section: &MenuSection, profiles: &ProfileManager) {
-    for entry in &section.entries {
+/// Draw entries into an open (sub)menu, applying `state`.
+fn draw_entries(
+    ui: &mut egui::Ui,
+    entries: &[MenuEntry],
+    state: &MenuState,
+    profiles: &ProfileManager,
+) {
+    for entry in entries {
         match entry {
             MenuEntry::Separator => {
                 ui.separator();
             }
-            MenuEntry::Item(spec) => {
-                let mut button = egui::Button::new(spec.label);
-                if let Some(accelerator) = &spec.accelerator {
-                    button = button.right_text(model::accelerator_label(accelerator));
-                }
-                if ui.add(button).clicked() {
-                    bridge::dispatch(spec.action);
-                }
+            MenuEntry::Item(spec) => draw_item(ui, spec, state),
+            MenuEntry::Submenu(sub) => {
+                ui.add_enabled_ui(state.satisfies(sub.requires), |ui| {
+                    SubMenuButton::new(sub.title).ui(ui, |ui| {
+                        ui.set_min_width(SUBMENU_MIN_WIDTH);
+                        draw_entries(ui, &sub.entries, state, profiles);
+                    });
+                });
             }
             MenuEntry::Profiles => {
-                for entry in model::profile_entries(profiles.profiles_ordered()) {
-                    if ui.button(entry.label).clicked() {
-                        bridge::dispatch(entry.action);
-                    }
+                let entries = model::profile_entries(profiles.profiles_ordered());
+                draw_dynamic(ui, &entries, state);
+                if !entries.is_empty() {
+                    ui.separator();
                 }
             }
+            MenuEntry::Arrangements => {
+                draw_dynamic(
+                    ui,
+                    &model::arrangement_entries_from(&state.arrangements),
+                    state,
+                );
+            }
+            // AppKit-only predefined item.
+            MenuEntry::BringAllToFront => {}
+        }
+    }
+}
+
+/// One command: disabled when its rule fails, checkmarked when its toggle
+/// is on, labelled with the live title for tab/window items.
+fn draw_item(ui: &mut egui::Ui, spec: &MenuItemSpec, state: &MenuState) {
+    let label = state.label(spec);
+    let mut button = match spec.check {
+        Some(check) => egui::Button::selectable(state.checked(check), label.as_ref()),
+        None => egui::Button::new(label.as_ref()),
+    };
+    if let Some(accelerator) = &spec.accelerator {
+        button = button.shortcut_text(model::accelerator_label(accelerator));
+    }
+    if ui.add_enabled(state.enabled(spec), button).clicked() {
+        bridge::dispatch(spec.action);
+    }
+}
+
+/// Generated entries (profiles, arrangements).
+fn draw_dynamic(ui: &mut egui::Ui, entries: &[model::DynamicEntry], state: &MenuState) {
+    for entry in entries {
+        if ui
+            .add_enabled(state.dynamic_enabled(), egui::Button::new(&entry.label))
+            .clicked()
+        {
+            bridge::dispatch(entry.action);
         }
     }
 }
@@ -190,181 +262,5 @@ fn enabled_with_override(value: Option<&str>) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn env_override_forces_the_menu_on_or_off() {
-        assert!(enabled_with_override(Some("1")));
-        assert!(enabled_with_override(Some("true")));
-        assert!(!enabled_with_override(Some("0")));
-        assert!(!enabled_with_override(Some("off")));
-    }
-
-    /// Unset, or set to nonsense, the platform decides.
-    #[test]
-    fn default_follows_the_platform() {
-        let expected = !HAS_NATIVE_MENU_BAR;
-        assert_eq!(enabled_with_override(None), expected);
-        assert_eq!(enabled_with_override(Some("maybe")), expected);
-        assert_eq!(enabled_with_override(Some("")), expected);
-    }
-
-    /// The menu is drawn exactly where par-term cannot attach a native one.
-    #[test]
-    fn platform_default_matches_native_menu_availability() {
-        if cfg!(any(target_os = "macos", target_os = "windows")) {
-            assert!(!enabled_with_override(None));
-        } else {
-            assert!(enabled_with_override(None));
-        }
-    }
-
-    /// Every section of the model the in-app menu draws must be reachable as a
-    /// submenu, and the model must be the no-native-app-menu variant.
-    #[test]
-    fn menu_carries_the_full_command_set() {
-        let menu = AppMenuUi::new();
-        let titles: Vec<&str> = menu.sections.iter().map(|s| s.title).collect();
-        assert!(titles.contains(&"File"));
-        assert!(titles.contains(&"Edit"));
-        assert!(titles.contains(&model::HELP_SECTION_TITLE));
-
-        let actions: Vec<crate::menu::MenuAction> = menu
-            .sections
-            .iter()
-            .flat_map(|section| &section.entries)
-            .filter_map(|entry| match entry {
-                MenuEntry::Item(spec) => Some(spec.action),
-                _ => None,
-            })
-            .collect();
-        for required in [
-            crate::menu::MenuAction::NewWindow,
-            crate::menu::MenuAction::ClosePane,
-            crate::menu::MenuAction::Quit,
-            crate::menu::MenuAction::SelectAll,
-            crate::menu::MenuAction::MaximizeVertically,
-        ] {
-            assert!(
-                actions.contains(&required),
-                "in-app menu is missing {required:?}, which has no keybinding on Linux"
-            );
-        }
-    }
-
-    /// A freshly built menu must not claim to be capturing input.
-    #[test]
-    fn menu_starts_closed() {
-        assert!(!AppMenuUi::new().is_open());
-    }
-
-    /// Every section's entries must render — separators, items with and
-    /// without an accelerator, and the profiles insertion point.
-    ///
-    /// Submenu bodies only open on hover, which
-    /// `opens_and_closes_through_the_toggle_request` cannot drive, so they are
-    /// exercised directly here.
-    #[test]
-    fn every_section_renders_its_entries() {
-        let menu = AppMenuUi::new();
-        let profiles = crate::profile::ProfileManager::new();
-        egui::__run_test_ui(|ui| {
-            for section in &menu.sections {
-                section_entries(ui, section, &profiles);
-            }
-        });
-    }
-
-    /// Drive the real egui code path headlessly: closed, then opened through
-    /// the same toggle request a `toggle_menu` keybinding would leave behind,
-    /// then closed again. Covers the trigger button and the drop-down's
-    /// top level.
-    #[test]
-    fn opens_and_closes_through_the_toggle_request() {
-        let _guard = super::bridge::TEST_LOCK.lock();
-        let _ = bridge::take_toggle_request();
-        let _ = bridge::drain_pending_actions();
-
-        let ctx = egui::Context::default();
-        let profiles = crate::profile::ProfileManager::new();
-        let mut menu = AppMenuUi::new();
-
-        let frame = |menu: &mut AppMenuUi| {
-            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-                egui::Panel::top("test_bar").show(ui, |ui| {
-                    menu.show(ui, &profiles, 24.0);
-                });
-            });
-            // Headless test: no renderer applies the font-atlas delta, and egui
-            // 0.36 panics on drop of unapplied deltas.
-            out.textures_delta.clear();
-        };
-
-        frame(&mut menu);
-        assert!(!menu.is_open(), "the menu must start closed");
-
-        // The request is consumed after this frame reads the popup state, so
-        // the drop-down appears on the frame after that.
-        bridge::request_toggle();
-        frame(&mut menu);
-        frame(&mut menu);
-        assert!(menu.is_open(), "toggle request did not open the menu");
-
-        bridge::request_toggle();
-        frame(&mut menu);
-        frame(&mut menu);
-        assert!(!menu.is_open(), "toggle request did not close the menu");
-
-        // Drawing the menu must not dispatch anything on its own.
-        assert!(bridge::drain_pending_actions().is_empty());
-    }
-
-    /// Hiding the bar must leave nothing behind that re-opens the menu later.
-    ///
-    /// Both halves of this regressed once: egui's popup memory kept the
-    /// drop-down open across the hidden frames, and a toggle request raised
-    /// while the bar was hidden latched until the bar came back.
-    #[test]
-    fn hiding_the_bar_discards_open_state_and_toggle_requests() {
-        let _guard = super::bridge::TEST_LOCK.lock();
-        let _ = bridge::take_toggle_request();
-
-        let ctx = egui::Context::default();
-        let profiles = crate::profile::ProfileManager::new();
-        let mut menu = AppMenuUi::new();
-
-        let frame = |menu: &mut AppMenuUi| {
-            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-                egui::Panel::top("test_bar").show(ui, |ui| {
-                    menu.show(ui, &profiles, 24.0);
-                });
-            });
-            // Headless test: no renderer applies the font-atlas delta, and egui
-            // 0.36 panics on drop of unapplied deltas.
-            out.textures_delta.clear();
-        };
-
-        bridge::request_toggle();
-        frame(&mut menu);
-        frame(&mut menu);
-        assert!(menu.is_open());
-
-        // The bar is hidden while the drop-down is open.
-        menu.hide(&ctx);
-        assert!(!menu.is_open());
-
-        // And a keybinding fires while there is no menu to toggle.
-        bridge::request_toggle();
-        menu.hide(&ctx);
-        assert!(!bridge::take_toggle_request(), "toggle request latched");
-
-        // The bar comes back: the menu must still be closed.
-        frame(&mut menu);
-        frame(&mut menu);
-        assert!(
-            !menu.is_open(),
-            "the menu re-opened itself after being hidden"
-        );
-    }
-}
+#[path = "egui_menu_tests.rs"]
+mod tests;

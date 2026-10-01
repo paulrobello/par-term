@@ -128,6 +128,22 @@ impl TabBarUI {
         bar.app_menu = crate::menu::AppMenuUi::new_with(keybindings);
         bar
     }
+
+    /// Keep the in-app menu in step with the window: rebuilt when the
+    /// bindings change, drawn with the window's state (UX.md MN2/MN3).
+    pub fn sync_app_menu(
+        &mut self,
+        keybindings: &[par_term_config::KeyBinding],
+        state: crate::menu::state::MenuState,
+    ) {
+        self.app_menu.sync(keybindings, state);
+    }
+
+    /// The in-app menu, for inspection.
+    #[cfg(test)]
+    pub(crate) fn app_menu(&self) -> &crate::menu::AppMenuUi {
+        &self.app_menu
+    }
 }
 
 impl Default for TabBarUI {

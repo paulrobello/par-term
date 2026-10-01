@@ -175,12 +175,18 @@ A new window takes the lowest number no open window holds. Closing window 2 of t
 
 ### Switching Windows
 
-- **Next / previous window** (`next_window`, `prev_window`) cycle windows in number order; `switch_to_window_1` … `switch_to_window_9` focus a window by its number. None has a default chord; the palette and the **Session** menu reach them.
+- **Next / previous window** (`next_window`, `prev_window`) cycle windows in number order; `switch_to_window_1` … `switch_to_window_9` focus a window by its number. None has a default chord; the palette and **Window > Select Window** reach them, and each Window N item shows that window's active tab title.
 - **Open Quickly** (`toggle_tree_picker`, `Cmd + Shift + O` / `Ctrl + Alt + O`) lists every window, tab, and pane in one fuzzy list and jumps to the one you pick.
 - On macOS the **Window** menu lists open windows (the system window list) and offers Bring All to Front.
-- **Close Window** (`close_window`, Session menu) closes the whole window with all its tabs, asking first when it holds more than one; `close_tab_or_window` is the old smart close.
+- **Close Window** (`close_window`, Shell menu) closes the whole window with all its tabs, asking first when it holds more than one; `close_tab_or_window` is the old smart close.
 
-The menu bar has **Pane** (split, zoom, equalize, pane focus, rename, restart, move to a new tab, broadcast) and **Session** (sessions, new par-mux session, detach, next agent needing attention, Open Quickly, tab rename and moves, window cycling) menus. Each item runs a bindable action and shows that action's current chord.
+### Menu bar
+
+The menu bar follows iTerm2: **Shell** (windows, tabs, splits, closing, broadcast input, par-mux/tmux sessions, SSH), **Edit** (clipboard, copy mode, find, marks, clearing, histories), **View** (pickers, full screen, pane zoom, panels, font size, shaders), **Session** (rename, restart, move the pane, record output), **Profiles**, **Window** (minimize, arrangements, Tab and Pane navigation, always on top, window list), and **Help**. On Linux the same menus are in the in-app `☰` menu.
+
+- Every item runs a bindable action and shows that action's **current** chord. Rebinding or unbinding a chord (in Settings, with F5, or by editing `config.yaml`) updates the menu at once, and an unbound chord is released for the shell.
+- Toggles show a checkmark. Items that cannot apply are disabled: pane items with one pane, **Shell > Session** until the window is attached to a par-mux or tmux session, and moving a tab that is attached to a par-mux session (the item says "(attached tab)"). **Window > Tab > Tab 1–9** show each tab's title.
+- While a dialog or text field owns the keyboard, the menu's shortcuts step aside for it: only Copy, Paste, Select All, Quit, F1–F3, and the open panel's own shortcut stay active, matching the dialog key guard.
 
 ### Maximize Vertically
 

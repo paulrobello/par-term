@@ -10,7 +10,8 @@
 //! - `window_lifecycle`      — window creation and monitor positioning
 //! - `window_session`        — session save/restore and arranged-window creation
 //! - `menu_actions`          — native menu event dispatch
-//! - `settings_actions`      — settings window open/close, event routing, and live config propagation (R-27)
+//! - `menu_sync`             — menu rebuild on binding changes and live menu state (UX.md MN2/MN3)
+//! - `settings_actions`     — settings window open/close, event routing, and live config propagation (R-27)
 //! - `coprocess`             — coprocess start/stop and state sync to settings UI
 //! - `scripting`             — script start/stop and state sync to settings UI
 //! - `arrangements`          — save/restore/manage window arrangements
@@ -23,6 +24,9 @@ mod config_propagation;
 mod config_renderer_apply;
 mod coprocess;
 mod menu_actions;
+mod menu_sync;
+#[cfg(test)]
+mod menu_sync_tests;
 mod scripting;
 mod settings_actions;
 mod settings_persistence;

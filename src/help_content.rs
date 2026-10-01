@@ -22,7 +22,7 @@
 //! them and are rendered from there; see [`MODAL_SECTIONS`].
 
 use crate::command_palette::catalog::{build_catalog, chord_display};
-use crate::menu::model::{MenuEntry, menu_model_with};
+use crate::menu::model::{all_items, menu_model_with};
 use par_term_config::KeyBinding;
 use par_term_keybindings::KeybindingRegistry;
 
@@ -72,7 +72,11 @@ pub(crate) fn section_for(action_id: &str) -> &'static str {
         "Pane"
     } else if has("tab") {
         "Tab"
-    } else if has("window") || matches!(id, "quit" | "toggle_always_on_top" | "toggle_tree_picker")
+    } else if has("window")
+        || matches!(
+            id,
+            "quit" | "toggle_always_on_top" | "toggle_tree_picker" | "menu:minimize" | "menu:zoom"
+        )
     {
         "Window"
     } else if has("session_picker")
@@ -152,22 +156,19 @@ fn spelled_out(accel: &muda::accelerator::Accelerator) -> String {
 /// Menu commands that carry a chord but no registry action (Copy, Paste),
 /// read from the menu model built with `keybindings`.
 fn menu_only_rows(keybindings: &[KeyBinding]) -> Vec<HelpRow> {
-    let mut rows = Vec::new();
-    for section in menu_model_with(cfg!(target_os = "macos"), keybindings) {
-        for entry in section.entries {
-            if let MenuEntry::Item(item) = entry
-                && item.action.keybinding_action().is_none()
-                && let Some(accel) = item.accelerator
-            {
-                rows.push(HelpRow {
-                    action_id: format!("menu:{}", item.id),
-                    label: item.label.to_string(),
-                    chord: spelled_out(&accel),
-                });
-            }
-        }
-    }
-    rows
+    let model = menu_model_with(cfg!(target_os = "macos"), keybindings);
+    all_items(&model)
+        .into_iter()
+        .filter(|item| item.action.keybinding_action().is_none())
+        .filter_map(|item| {
+            let accel = item.accelerator?;
+            Some(HelpRow {
+                action_id: format!("menu:{}", item.id),
+                label: item.label.to_string(),
+                chord: spelled_out(&accel),
+            })
+        })
+        .collect()
 }
 
 /// Build the help panel's shortcut sections from the live registry and the

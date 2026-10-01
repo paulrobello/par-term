@@ -150,7 +150,7 @@ When working on a remote host via SSH, you can install shell integration directl
 **Method 1: Application Menu (Recommended)**
 
 1. Establish an SSH connection to the remote host in a terminal tab
-2. From the menu bar: **Shell > Install Shell Integration on Remote Host...**
+2. From the menu bar: **Shell > SSH > Install Shell Integration on Remote Host...**
    (on Linux, open the in-app menu with the `☰` button in the tab bar)
 3. A confirmation dialog appears showing the exact command that will be sent
 4. Click **Install** to send the command, or **Cancel** to dismiss

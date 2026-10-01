@@ -9,16 +9,24 @@
 //!   cannot attach anything because it needs a `gtk::Window` that winit never
 //!   creates (see `linux`).
 //!
-//! Both renderers walk the same model, so neither platform can end up with
-//! commands the other lacks. Activations from either arrive as [`MenuAction`]s
-//! at `WindowManager::process_menu_events`.
+//! Both renderers walk the same model and apply the same [`state::MenuState`],
+//! so neither platform can end up with commands, enabled items, or checkmarks
+//! the other lacks. Activations from either arrive as [`MenuAction`]s at
+//! `WindowManager::process_menu_events`.
+//!
+//! Both are rebuilt from the live keybinding registry whenever the bindings
+//! change (UX.md MN3); [`sync::MenuSync`] decides when.
 
 mod actions;
 mod bridge;
 pub mod egui_menu;
 pub mod model;
-mod model_pane_session;
-mod registry_accel;
+mod model_sections;
+mod model_window;
+mod native;
+pub(crate) mod registry_accel;
+pub mod state;
+pub mod sync;
 
 /// macOS-specific menu building and NSApp initialization.
 #[cfg(target_os = "macos")]
@@ -38,108 +46,116 @@ pub use actions::MenuAction;
 pub use bridge::{dispatch, drain_pending_actions, request_toggle};
 pub use egui_menu::AppMenuUi;
 
+/// Serialise a test that touches the menu bridge's process-global queues.
+#[cfg(test)]
+pub(crate) fn bridge_test_lock() -> std::sync::MutexGuard<'static, ()> {
+    bridge::TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 use crate::profile::Profile;
-use anyhow::{Result, anyhow};
-use model::MenuEntry;
-use muda::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
-use std::collections::HashMap;
+use anyhow::Result;
+use muda::MenuEvent;
+use native::NativeMenu;
+use par_term_config::KeyBinding;
+use par_term_keybindings::KeybindingRegistry;
+use state::MenuState;
 use std::sync::Arc;
 use winit::window::Window;
 
 /// Manages the native menu system
 pub struct MenuManager {
-    /// The root menu
-    ///
-    /// Only attached on macOS and Windows. Linux never reads it: muda needs a
-    /// `gtk::Window` to attach a menubar and winit's X11/Wayland backends do
-    /// not create one. Linux gets [`egui_menu::AppMenuUi`] instead; see
-    /// `linux.rs`.
-    #[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
-    menu: Menu,
-    /// Mapping from menu item IDs to actions
-    action_map: HashMap<MenuId, MenuAction>,
-    /// Profiles submenu for dynamic profile items
-    profiles_submenu: Submenu,
-    /// Track profile menu items for cleanup
-    profile_menu_items: Vec<MenuItem>,
+    /// The current build. Replaced whole by [`Self::rebuild`].
+    native: NativeMenu,
+    /// What `native` was built from (UX.md MN3).
+    sync: sync::MenuSync,
+    /// The profile list last handed to [`Self::update_profiles`], re-applied
+    /// after a rebuild.
+    profiles: Vec<Profile>,
 }
 
 impl MenuManager {
-    /// Create a new menu manager sourcing accelerators from `keybindings`
-    ///
-    /// The structure comes from [`model::platform_menu_model_with`]; this
-    /// function only turns it into muda objects and records the id → action
-    /// mapping. Pass the live config's keybindings so the menu bar shows the
-    /// user's chords, not the defaults.
-    pub fn new_with(keybindings: &[par_term_config::KeyBinding]) -> Result<Self> {
-        let menu = Menu::new();
-        let mut action_map = HashMap::new();
-        let mut profiles_submenu = None;
-
-        // macOS: Application menu (must be first submenu — becomes the macOS app menu).
-        // It is built separately because it uses predefined items (Services,
-        // Hide, Show All) that the cross-platform model cannot express.
-        #[cfg(target_os = "macos")]
-        macos::build_app_menu(&menu, &mut action_map)?;
-
-        for section in model::platform_menu_model_with(keybindings) {
-            // macOS convention: the native Window menu sits just before Help.
-            #[cfg(target_os = "macos")]
-            if section.title == model::HELP_SECTION_TITLE {
-                macos::build_window_menu(&menu, &mut action_map)?;
-            }
-
-            let submenu = Submenu::new(section.title, true);
-            for entry in &section.entries {
-                match entry {
-                    MenuEntry::Separator => {
-                        submenu.append(&PredefinedMenuItem::separator())?;
-                    }
-                    MenuEntry::Item(spec) => {
-                        let item = MenuItem::with_id(spec.id, spec.label, true, spec.accelerator);
-                        action_map.insert(item.id().clone(), spec.action);
-                        submenu.append(&item)?;
-                    }
-                    MenuEntry::Profiles => {
-                        // Filled in by `update_profiles`, which appends to the
-                        // end of this submenu — so the model must not place
-                        // entries after the insertion point.
-                        profiles_submenu = Some(submenu.clone());
-                    }
-                }
-            }
-            menu.append(&submenu)?;
-        }
-
-        let profiles_submenu = profiles_submenu
-            .ok_or_else(|| anyhow!("menu model has no profiles insertion point"))?;
-
+    /// Build the menu with accelerators from `keybindings` (the live config's
+    /// bindings, so the menu bar shows the user's chords).
+    pub fn new_with(keybindings: &[KeyBinding]) -> Result<Self> {
+        let mut sync = sync::MenuSync::new();
+        sync.record(keybindings, None);
         Ok(Self {
-            menu,
-            action_map,
-            profiles_submenu,
-            profile_menu_items: Vec::new(),
+            native: build_native(keybindings, &None)?,
+            sync,
+            profiles: Vec::new(),
         })
+    }
+
+    /// Why the menu must be rebuilt for `keybindings` and `capture`, or
+    /// `None` when it is current.
+    pub fn rebuild_reason(
+        &self,
+        keybindings: &[KeyBinding],
+        capture: &state::Capture,
+    ) -> Option<sync::RebuildReason> {
+        self.sync.rebuild_reason(keybindings, capture)
+    }
+
+    /// Rebuild the whole menu from `keybindings` and attach it to `windows`
+    /// (UX.md MN3): a rebound chord moves, an unbound one is released.
+    /// `capture` drops the accelerators a focused dialog or text field must
+    /// receive (see [`state::release_captured_accelerators`]).
+    ///
+    /// The old menu is dropped before the new one is attached: on Windows
+    /// dropping a menu detaches it from every window it was set on, which
+    /// would blank the replacement if it ran second.
+    pub fn rebuild(
+        &mut self,
+        keybindings: &[KeyBinding],
+        capture: state::Capture,
+        windows: &[Arc<Window>],
+    ) -> Result<()> {
+        let fresh = build_native(keybindings, &capture)?;
+        let old = std::mem::replace(&mut self.native, fresh);
+        drop(old);
+        let release = capture.is_some();
+        self.sync.record(keybindings, capture);
+        let profiles: Vec<Profile> = std::mem::take(&mut self.profiles);
+        self.update_profiles(&profiles.iter().collect::<Vec<_>>());
+        self.init_global()?;
+        #[cfg(not(target_os = "macos"))]
+        for window in windows {
+            self.init_for_window(window)?;
+        }
+        #[cfg(target_os = "macos")]
+        let _ = windows;
+        log::info!(
+            "Menu rebuilt from {} keybindings{}",
+            keybindings.len(),
+            if release {
+                " (captured-key accelerators released)"
+            } else {
+                ""
+            }
+        );
+        Ok(())
     }
 
     /// Initialize the global menu system (macOS only).
     ///
     /// On macOS this attaches the menu to NSApp (the global application object),
-    /// replacing winit's default menu. This should be called as early as possible
-    /// — before any blocking GPU initialization — so that our custom accelerators
-    /// (Cmd+, for Settings, Cmd+Q for graceful Quit) are active immediately.
+    /// replacing winit's default menu, and registers the Window and Help menus.
+    /// This should be called as early as possible — before any blocking GPU
+    /// initialization — so that our accelerators (Cmd+, for Settings, Cmd+Q
+    /// for graceful Quit) are active immediately.
     ///
     /// On other platforms this is a no-op; use [`Self::init_for_window`] to attach
     /// per-window menu bars.
     pub fn init_global(&self) -> Result<()> {
         #[cfg(target_os = "macos")]
-        {
-            macos::init_for_nsapp(&self.menu)
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            Ok(())
-        }
+        macos::init_for_nsapp(
+            &self.native.menu,
+            self.native.window_menu.as_ref(),
+            self.native.help_menu.as_ref(),
+        );
+        Ok(())
     }
 
     /// Initialize the menu for a window
@@ -150,7 +166,7 @@ impl MenuManager {
     pub fn init_for_window(&self, window: &Arc<Window>) -> Result<()> {
         #[cfg(target_os = "macos")]
         {
-            macos::init_for_nsapp(&self.menu)
+            self.init_global()
         }
 
         #[cfg(target_os = "windows")]
@@ -161,7 +177,9 @@ impl MenuManager {
             {
                 // SAFETY: We have a valid Win32 window handle from winit
                 unsafe {
-                    self.menu.init_for_hwnd(win32_handle.hwnd.get() as _)?;
+                    self.native
+                        .menu
+                        .init_for_hwnd(win32_handle.hwnd.get() as _)?;
                 }
                 log::info!("Initialized Windows menu bar for window");
             }
@@ -195,45 +213,34 @@ impl MenuManager {
     }
 
     /// Poll for menu events and return any triggered actions
-    pub fn poll_events(&self) -> impl Iterator<Item = MenuAction> + '_ {
-        std::iter::from_fn(|| {
-            // Use try_recv to get events without blocking
-            match MenuEvent::receiver().try_recv() {
-                Ok(event) => self.action_map.get(&event.id).copied(),
-                Err(_) => None,
+    ///
+    /// Any activation invalidates the applied state: a clicked toggle flips
+    /// its own checkmark, and the next sync must write the real state back.
+    pub fn poll_events(&mut self) -> Vec<MenuAction> {
+        let mut actions = Vec::new();
+        while let Ok(event) = MenuEvent::receiver().try_recv() {
+            if let Some(action) = self.native.action_map.get(&event.id) {
+                actions.push(*action);
             }
-        })
+        }
+        if !actions.is_empty() {
+            self.native.invalidate();
+        }
+        actions
+    }
+
+    /// Apply the focused window's state (enabled, checked, labels, the
+    /// arrangement list). Cheap when nothing changed.
+    pub fn apply_state(&mut self, state: &MenuState) {
+        self.native.apply(state);
     }
 
     /// Update the profiles submenu with the current list of profiles
     ///
     /// This should be called whenever profiles are loaded or modified.
     pub fn update_profiles(&mut self, profiles: &[&Profile]) {
-        // Remove existing profile menu items
-        for item in self.profile_menu_items.drain(..) {
-            // Remove from action_map
-            self.action_map.remove(item.id());
-            // Remove from submenu
-            let _ = self.profiles_submenu.remove(&item);
-        }
-
-        // Add new profile menu items in order. The entries come from the shared
-        // model so the in-app menu lists the same profiles under the same labels.
-        for entry in model::profile_entries(profiles.iter().copied()) {
-            let item = MenuItem::with_id(entry.menu_id, &entry.label, true, None);
-
-            self.action_map.insert(item.id().clone(), entry.action);
-
-            // Add to submenu
-            if let Err(e) = self.profiles_submenu.append(&item) {
-                log::warn!("Failed to add profile menu item '{}': {}", entry.label, e);
-                continue;
-            }
-
-            // Track for later removal
-            self.profile_menu_items.push(item);
-        }
-
+        self.native.set_profiles(profiles);
+        self.profiles = profiles.iter().map(|p| (*p).clone()).collect();
         log::info!("Updated profiles menu with {} items", profiles.len());
     }
 
@@ -242,4 +249,17 @@ impl MenuManager {
         let profiles: Vec<&Profile> = manager.profiles_ordered();
         self.update_profiles(&profiles);
     }
+}
+
+/// Build the native menu for this platform from `keybindings`.
+fn build_native(keybindings: &[KeyBinding], capture: &state::Capture) -> Result<NativeMenu> {
+    let registry = KeybindingRegistry::from_config(keybindings);
+    let mut sections = model::menu_model_with_registry(cfg!(target_os = "macos"), &registry);
+    if let Some(open) = capture {
+        state::release_captured_accelerators(&mut sections, open);
+    }
+    let quit = registry
+        .chord_for_action("quit")
+        .and_then(|combo| registry_accel::accelerator_from_combo(&combo));
+    NativeMenu::build(&sections, quit)
 }

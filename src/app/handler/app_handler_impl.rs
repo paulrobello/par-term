@@ -285,6 +285,9 @@ impl ApplicationHandler<AppEvent> for WindowManager {
         // Find the actually focused window (the one with is_focused == true)
         let focused_window = self.get_focused_window_id();
         self.process_menu_events(event_loop, focused_window);
+        // UX.md MN2/MN3: rebuild the menus when the bindings changed (any
+        // config path), and apply the focused window's enabled/checked state.
+        self.sync_menus();
 
         // Check if any window requested opening the settings window
         // Also collect shader reload results for propagation to standalone settings window

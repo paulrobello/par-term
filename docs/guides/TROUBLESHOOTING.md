@@ -640,7 +640,7 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
 **Solution:**
 
-1. From the menu bar while connected to a remote host: **Shell > Install Shell Integration on Remote Host...**
+1. From the menu bar while connected to a remote host: **Shell > SSH > Install Shell Integration on Remote Host...**
 
    On Linux, open the in-app menu with the `☰` button in the tab bar (or the
    `toggle_menu` action) — the same **Shell** menu is there.

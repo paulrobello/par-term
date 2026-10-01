@@ -106,11 +106,15 @@ impl TabBarUI {
 
         // Don't show if configured to hide
         if !self.should_show(tab_count, config.tabs.tab_bar_mode) {
-            // The in-app menu is drawn inside this bar, so hiding the bar makes
-            // the menu unreachable — including from a `toggle_menu` keybinding,
-            // which only takes effect where the menu is drawn. Users who hide
-            // the tab bar need keybindings for the commands themselves.
-            self.app_menu.hide(ctx.ctx());
+            // UX.md MN4: the in-app menu normally lives in this bar, so with
+            // the bar hidden its button floats at the window's top-left —
+            // otherwise the menu, and `toggle_menu`, would be unreachable.
+            self.show_hidden_bar_menu(
+                ctx,
+                profiles,
+                config.tabs.tab_bar_height,
+                crate::menu::AppMenuUi::enabled(),
+            );
             // A keyboard rename (UX.md A12) can open with the bar hidden. The
             // context menu is a free-floating Area, so it still draws, and
             // it owns the rename field's Enter/Escape — skipping it would
@@ -336,6 +340,27 @@ impl TabBarUI {
     /// input should be routed to egui rather than the terminal.
     pub fn is_app_menu_open(&self) -> bool {
         self.app_menu.is_open()
+    }
+
+    /// The in-app menu for a frame whose tab bar is hidden: floated at the
+    /// window's top-left where the menu is drawn (`enabled`), torn down
+    /// elsewhere so no popup or toggle request outlives the bar.
+    fn show_hidden_bar_menu(
+        &mut self,
+        ui: &mut egui::Ui,
+        profiles: &crate::profile::ProfileManager,
+        height: f32,
+        enabled: bool,
+    ) {
+        if !enabled {
+            self.app_menu.hide(ui.ctx());
+            return;
+        }
+        let menu = &mut self.app_menu;
+        egui::Area::new(egui::Id::new("floating_app_menu"))
+            .fixed_pos(egui::Pos2::ZERO)
+            .order(egui::Order::Foreground)
+            .show(ui.ctx(), |ui| menu.show(ui, profiles, height));
     }
 
     /// Return the tab ID at the given egui logical-pixel position, using the

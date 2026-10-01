@@ -10,8 +10,9 @@ Complete reference for all par-term keyboard shortcuts.
 > `toggle_menu`. It offers the same commands as the macOS and Windows menus,
 > because all three are built from one shared model. Every chord in the tables
 > below is a registry default, so it works on Linux without the native menu.
-> Binding `toggle_menu` matters if you run with `tab_bar_mode: never`, since
-> there is then no tab bar to hold the button.
+> With the tab bar hidden (`tab_bar_mode: never`, or `when_multiple` with one
+> tab) the `☰` button floats at the window's top-left, so the menu and
+> `toggle_menu` stay reachable.
 >
 > Set `PAR_TERM_IN_APP_MENU=1` to force the in-app menu on any platform, or `0`
 > to disable it.
@@ -56,7 +57,7 @@ Complete reference for all par-term keyboard shortcuts.
 | Reopen closed tab | `Cmd + Shift + T` (alias `Cmd + Z`) | `Ctrl + Shift + Z` |
 | Quit | `Cmd + Q` | `Ctrl + Shift + Q` |
 | Move tab to new window | *(unbound)* | *(unbound)* |
-| Save window arrangement | View menu: "Save Window Arrangement..." | View menu: "Save Window Arrangement..." |
+| Save window arrangement | Window menu: Arrangements > "Save or Manage Arrangements..." | Window menu: Arrangements > "Save or Manage Arrangements..." |
 
 > **📝 Note:** **Close** follows iTerm2: it closes the focused pane; closing a tab's last pane closes the tab, and closing the last tab closes the window. The running-job confirmation and the par-mux last-tab dialog apply before the cascade. **Close tab** closes every pane in the tab at once. The *(menu)* Minimize chord is dispatched by the **native** menu bar, which Linux does not have.
 

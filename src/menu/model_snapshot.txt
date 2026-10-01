@@ -1,0 +1,165 @@
+Shell/New Window
+Shell/New Tab
+Shell/Duplicate Tab
+Shell/---
+Shell/Split Right
+Shell/Split Down
+Shell/Split Left
+Shell/Split Up
+Shell/---
+Shell/Close
+Shell/Close Tab
+Shell/Close Window
+Shell/Close Other Tabs
+Shell/Close Tabs to the Right
+Shell/Reopen Closed Tab
+Shell/---
+Shell/Broadcast Input >
+Shell/Broadcast Input/All Panes in Current Tab
+Shell/Broadcast Input/Exclude Current Pane
+Shell/---
+Shell/Attach to Session...
+Shell/New par-mux Session
+Shell/Session >
+Shell/Session/Switch Session...
+Shell/Session/Detach
+Shell/Session/---
+Shell/Session/Next Agent Needing Attention
+Shell/SSH >
+Shell/SSH/Quick Connect...
+Shell/SSH/Install Shell Integration on Remote Host...
+Shell/---
+Shell/Quit
+Edit/Copy
+Edit/Paste
+Edit/Paste Special...
+Edit/Select All
+Edit/---
+Edit/Copy Mode
+Edit/Find...
+Edit/Marks >
+Edit/Marks/Previous Mark
+Edit/Marks/Next Mark
+Edit/Scroll >
+Edit/Scroll/Page Up
+Edit/Scroll/Page Down
+Edit/Scroll/To Top
+Edit/Scroll/To Bottom
+Edit/---
+Edit/Clear Screen
+Edit/Clear Scrollback
+Edit/---
+Edit/Clipboard History
+Edit/Command History
+Edit/---
+Edit/Settings...
+View/Command Palette...
+View/Open Quickly...
+View/---
+View/Full Screen
+View/Maximize Vertically
+View/Zoom Pane
+View/---
+View/Profile Drawer
+View/Assistant Panel
+View/Agent Usage
+View/FPS Overlay
+View/---
+View/Make Text Bigger
+View/Make Text Normal Size
+View/Make Text Smaller
+View/Cycle Cursor Style
+View/---
+View/Background Shader
+View/Next Background Shader
+View/Animate Background Shader
+View/Shader Readability Mode
+View/Cursor Shader
+View/Throughput Mode
+Session/Rename Pane...
+Session/Rename Tab...
+Session/Restart Pane
+Session/---
+Session/Move Pane to New Tab
+Session/---
+Session/Record Output to File
+Profiles/Open Profiles...
+Profiles/---
+Profiles/<profiles>
+Profiles/Manage Profiles...
+Profiles/Reload Dynamic Profiles
+Window/Minimize
+Window/Zoom
+Window/---
+Window/Arrangements >
+Window/Arrangements/Save or Manage Arrangements...
+Window/Arrangements/Restore >
+Window/Arrangements/Restore/<arrangements>
+Window/---
+Window/Tab >
+Window/Tab/Next Tab
+Window/Tab/Previous Tab
+Window/Tab/Last-Used Tab
+Window/Tab/Rightmost Tab
+Window/Tab/---
+Window/Tab/Move Tab Left
+Window/Tab/Move Tab Right
+Window/Tab/Move Tab to New Window
+Window/Tab/Move Tab to Window...
+Window/Tab/Demote Tab to Pane...
+Window/Tab/---
+Window/Tab/Tab 1
+Window/Tab/Tab 2
+Window/Tab/Tab 3
+Window/Tab/Tab 4
+Window/Tab/Tab 5
+Window/Tab/Tab 6
+Window/Tab/Tab 7
+Window/Tab/Tab 8
+Window/Tab/Tab 9
+Window/Pane >
+Window/Pane/Select Pane Left
+Window/Pane/Select Pane Right
+Window/Pane/Select Pane Above
+Window/Pane/Select Pane Below
+Window/Pane/---
+Window/Pane/Next Pane
+Window/Pane/Previous Pane
+Window/Pane/Last-Focused Pane
+Window/Pane/Select Pane by Letter
+Window/Pane/---
+Window/Pane/Resize >
+Window/Pane/Resize/Left
+Window/Pane/Resize/Right
+Window/Pane/Resize/Up
+Window/Pane/Resize/Down
+Window/Pane/Resize/---
+Window/Pane/Resize/With Arrow Keys
+Window/Pane/Swap >
+Window/Pane/Swap/Left
+Window/Pane/Swap/Right
+Window/Pane/Swap/Up
+Window/Pane/Swap/Down
+Window/Pane/Equalize Panes
+Window/Pane/Cycle Layout Presets
+Window/---
+Window/Always on Top
+Window/---
+Window/Select Window >
+Window/Select Window/Next Window
+Window/Select Window/Previous Window
+Window/Select Window/---
+Window/Select Window/Window 1
+Window/Select Window/Window 2
+Window/Select Window/Window 3
+Window/Select Window/Window 4
+Window/Select Window/Window 5
+Window/Select Window/Window 6
+Window/Select Window/Window 7
+Window/Select Window/Window 8
+Window/Select Window/Window 9
+Help/Keyboard Shortcuts
+Help/par-term Help
+Help/Reload Configuration
+Help/---
+Help/About par-term

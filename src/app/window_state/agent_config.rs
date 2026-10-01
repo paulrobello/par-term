@@ -47,6 +47,18 @@ impl WindowState {
 
                 let changes = ConfigChanges::detect(&self.config.load(), &new_config);
 
+                // An outside edit to the bindings must reach the registry the
+                // key handler matches against, the same rebuild
+                // `apply_config_to_windows` does; the menu follows the config
+                // copy (UX.md MN3), so the two cannot disagree.
+                if changes.keybindings {
+                    self.keybinding_registry =
+                        par_term_keybindings::KeybindingRegistry::from_config(
+                            &new_config.keybindings,
+                        );
+                    log::info!("CONFIG: keybinding registry rebuilt from the reloaded config");
+                }
+
                 // Replace the entire in-memory config so that any subsequent
                 // config.save() writes the agent's changes, not stale values.
                 self.config.store(Arc::new(new_config));

@@ -114,6 +114,44 @@ fn nothing_else_closes_the_menu_when_the_bar_is_hidden() {
     );
 }
 
+/// UX.md MN4: with the tab bar hidden the in-app menu floats at the
+/// window's top-left, so `toggle_menu` (and a click) still reach it.
+#[test]
+fn the_in_app_menu_stays_reachable_with_the_bar_hidden() {
+    let _guard = crate::menu::bridge_test_lock();
+    let _ = crate::menu::drain_pending_actions();
+    let ctx = egui::Context::default();
+    let mut bar = TabBarUI::new();
+    let config = hidden_bar_config();
+    assert!(!bar.should_show(1, config.tabs.tab_bar_mode), "bar hidden");
+
+    let profiles = ProfileManager::new();
+    let frame = |bar: &mut TabBarUI| {
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            bar.show_hidden_bar_menu(ui, &profiles, config.tabs.tab_bar_height, true);
+        });
+        output.textures_delta.clear();
+    };
+    frame(&mut bar);
+    assert!(!bar.is_app_menu_open());
+
+    crate::menu::request_toggle();
+    frame(&mut bar);
+    frame(&mut bar);
+    assert!(
+        bar.is_app_menu_open(),
+        "toggle_menu must open the floating menu while the bar is hidden"
+    );
+
+    // Where the menu is not drawn (a native menu bar exists), hiding still
+    // tears it down so nothing re-opens later.
+    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        bar.show_hidden_bar_menu(ui, &profiles, config.tabs.tab_bar_height, false);
+    });
+    output.textures_delta.clear();
+    assert!(!bar.is_app_menu_open());
+}
+
 #[test]
 fn enter_submits_a_rename_opened_with_the_bar_hidden() {
     let ctx = egui::Context::default();

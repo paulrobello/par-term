@@ -101,9 +101,9 @@ Saving an arrangement captures a snapshot of every open window, including its po
 3. Scroll to the **Save Current Layout** section
 4. Enter a name for the arrangement and click **Save**
 
-### Via View Menu
+### Via Window Menu
 
-Select **View > Save Window Arrangement...** from the menu bar. This opens the Settings window to Sessions > Arrangements where you can enter a name and save.
+Select **Window > Arrangements > Save or Manage Arrangements...** from the menu bar. This opens the Settings window to Sessions > Arrangements where you can enter a name and save. **Window > Arrangements > Restore** lists every saved arrangement and restores the one you pick.
 
 On Linux the same item is in the in-app menu, opened with the `☰` button in the tab bar or the `toggle_menu` action. The keybinding below works everywhere.
 

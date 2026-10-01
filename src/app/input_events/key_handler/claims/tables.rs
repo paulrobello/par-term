@@ -63,7 +63,9 @@ const PASTE_COPY: &[Claim] = &[
 
 /// macOS application-menu accelerators, from `crate::menu::macos`. Mirrored —
 /// that module builds `muda` items directly rather than going through
-/// `menu_model`, and it is outside this module's ownership.
+/// `menu_model` (the Window menu's Minimize is in the model and derived).
+/// Quit mirrors the shipped default; the live item takes the registry's
+/// `quit` chord.
 pub(super) const MACOS_APP_MENU: &[Claim] = &[
     Claim {
         action: "open_settings",
@@ -76,12 +78,6 @@ pub(super) const MACOS_APP_MENU: &[Claim] = &[
         mac: Some(ModSpec::exact(mods(false, false, false, true))),
         other: None,
         keys: &[ch('Q')],
-    },
-    Claim {
-        action: "internal:minimize",
-        mac: Some(ModSpec::exact(mods(false, false, false, true))),
-        other: None,
-        keys: &[ch('M')],
     },
 ];
 

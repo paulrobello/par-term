@@ -254,26 +254,22 @@ fn push_claims(out: &mut Vec<Rule>, p: Platform, source: &'static str, claims: &
     }
 }
 
-/// Derived from the live menu model — not a mirror.
+/// Derived from the live menu model — not a mirror. Walks submenus too:
+/// a nested item's key equivalent claims its chord like a top-level one.
 fn menu_rules(p: Platform) -> Vec<Rule> {
-    let mut rules = Vec::new();
-    for section in crate::menu::model::menu_model(p.is_mac()) {
-        for entry in &section.entries {
-            let crate::menu::model::MenuEntry::Item(spec) = entry else {
-                continue;
-            };
-            let Some(accel) = &spec.accelerator else {
-                continue;
-            };
-            rules.push(Rule {
+    let model = crate::menu::model::menu_model(p.is_mac());
+    crate::menu::model::all_items(&model)
+        .into_iter()
+        .filter_map(|spec| {
+            let accel = spec.accelerator.as_ref()?;
+            Some(Rule {
                 source: "native_menu",
                 action: menu_action_name(spec.action),
                 spec: ModSpec::exact(accelerator_mods(accel)),
                 keys: vec![accelerator_key(accel)],
-            });
-        }
-    }
-    rules
+            })
+        })
+        .collect()
 }
 
 /// Derived from the shipped defaults — not a mirror.
@@ -374,6 +370,8 @@ fn menu_action_name(action: crate::menu::MenuAction) -> String {
             A::Minimize => "internal:minimize".into(),
             A::Zoom => "internal:zoom".into(),
             A::About => "internal:about".into(),
+            A::OpenDocs => "internal:open_docs".into(),
+            A::RestoreArrangement(_) => "internal:restore_arrangement".into(),
             A::InstallShellIntegrationRemote => "internal:install_shell_integration_remote".into(),
             other => unreachable!("{other:?} has a keybinding_action id"),
         },

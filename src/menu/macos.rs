@@ -3,7 +3,7 @@
 //! This module contains code that is only compiled on macOS and handles:
 //! - Global application menu bar initialization via NSApp
 //! - The macOS "app menu" (About, Settings, Services, Hide, Quit)
-//! - The macOS "Window" menu (Minimize, Zoom, Always on Top)
+//! - Registering the Window and Help sections with NSApp
 
 use anyhow::Result;
 use muda::accelerator::{Accelerator, Code, Modifiers};
@@ -12,34 +12,44 @@ use muda::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use super::actions::MenuAction;
 use std::collections::HashMap;
 
-/// Initialize the macOS global application menu bar.
+/// Attach the menu to NSApp and register its Window and Help sections.
 ///
-/// On macOS the menu is attached to NSApp (the global application object),
-/// not to individual windows. This only needs to be called once.
-pub fn init_for_nsapp(menu: &Menu) -> Result<()> {
+/// The registration must follow `init_for_nsapp`: muda resolves the submenu
+/// through NSApp's current main menu, so registering earlier is a silent
+/// no-op (the P4 Window list never appeared for that reason). AppKit then
+/// appends the open-window list to the Window menu and the search field to
+/// Help.
+pub fn init_for_nsapp(menu: &Menu, window_menu: Option<&Submenu>, help_menu: Option<&Submenu>) {
     menu.init_for_nsapp();
+    if let Some(window_menu) = window_menu {
+        window_menu.set_as_windows_menu_for_nsapp();
+    }
+    if let Some(help_menu) = help_menu {
+        help_menu.set_as_help_menu_for_nsapp();
+    }
     log::info!("Initialized macOS global menu bar");
-    Ok(())
 }
 
 /// Build and append the macOS application menu (the first submenu, which becomes
 /// the "par-term" application menu in the macOS menu bar).
 ///
-/// This menu contains: About, separator, Settings, separator, Services,
-/// separator, Hide/Hide Others/Show All, separator, Quit.
-///
-/// Returns `Ok(())` on success.
-pub fn build_app_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuAction>) -> Result<()> {
+/// `quit_accelerator` is the `quit` action's registry chord, so unbinding
+/// `quit` releases Cmd+Q. Settings keeps the platform's Cmd+, (the
+/// registry's `open_settings` chord, F12, is shown by the Windows and in-app
+/// Settings items).
+pub fn build_app_menu(
+    menu: &Menu,
+    action_map: &mut HashMap<MenuId, MenuAction>,
+    quit_accelerator: Option<Accelerator>,
+) -> Result<()> {
     let app_menu = Submenu::new("par-term", true);
 
-    // About par-term
     let about_app = MenuItem::with_id("about_app", "About par-term", true, None);
     action_map.insert(about_app.id().clone(), MenuAction::About);
     app_menu.append(&about_app)?;
 
     app_menu.append(&PredefinedMenuItem::separator())?;
 
-    // Settings... (Cmd+,) — standard macOS settings shortcut
     let settings_app = MenuItem::with_id(
         "settings_app",
         "Settings...",
@@ -50,63 +60,21 @@ pub fn build_app_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuAction>)
     app_menu.append(&settings_app)?;
 
     app_menu.append(&PredefinedMenuItem::separator())?;
-
     app_menu.append(&PredefinedMenuItem::services(None))?;
-
     app_menu.append(&PredefinedMenuItem::separator())?;
-
     app_menu.append(&PredefinedMenuItem::hide(None))?;
     app_menu.append(&PredefinedMenuItem::hide_others(None))?;
     app_menu.append(&PredefinedMenuItem::show_all(None))?;
-
     app_menu.append(&PredefinedMenuItem::separator())?;
 
-    // Use a custom MenuItem instead of PredefinedMenuItem::quit(None) because
-    // the predefined Quit directly calls [NSApp terminate:] which invokes
-    // exit(0), bypassing all Rust cleanup (Drop impls, shutdown logic, etc.).
-    // A custom MenuItem fires through muda's MenuEvent channel, allowing our
-    // MenuAction::Quit handler to perform graceful shutdown.
-    let quit_app = MenuItem::with_id(
-        "quit_app",
-        "Quit par-term",
-        true,
-        Some(Accelerator::new(Modifiers::META, Code::KeyQ)),
-    );
+    // A custom MenuItem instead of PredefinedMenuItem::quit(None): the
+    // predefined Quit calls [NSApp terminate:], which exits without running
+    // Rust cleanup. This one fires through muda's event channel so
+    // MenuAction::Quit can shut down gracefully.
+    let quit_app = MenuItem::with_id("quit_app", "Quit par-term", true, quit_accelerator);
     action_map.insert(quit_app.id().clone(), MenuAction::Quit);
     app_menu.append(&quit_app)?;
 
     menu.append(&app_menu)?;
-    Ok(())
-}
-
-/// Build and append the macOS Window menu (Minimize, Zoom, Always on Top).
-///
-/// The Window menu is a macOS convention that is not present on other platforms.
-pub fn build_window_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuAction>) -> Result<()> {
-    let window_menu = Submenu::new("Window", true);
-
-    let minimize = MenuItem::with_id(
-        "minimize",
-        "Minimize",
-        true,
-        Some(Accelerator::new(Modifiers::META, Code::KeyM)),
-    );
-    action_map.insert(minimize.id().clone(), MenuAction::Minimize);
-    window_menu.append(&minimize)?;
-
-    let zoom = MenuItem::with_id("zoom", "Zoom", true, None);
-    action_map.insert(zoom.id().clone(), MenuAction::Zoom);
-    window_menu.append(&zoom)?;
-
-    window_menu.append(&PredefinedMenuItem::separator())?;
-    let always_on_top = MenuItem::with_id("always_on_top", "Always on Top", true, None);
-    action_map.insert(always_on_top.id().clone(), MenuAction::ToggleAlwaysOnTop);
-    window_menu.append(&always_on_top)?;
-
-    menu.append(&window_menu)?;
-    // UX.md V10/TW8: register this as NSApp's Window menu so AppKit appends
-    // the open-window list (and Bring All to Front). Must follow `append`:
-    // AppKit needs the submenu in the bar.
-    window_menu.set_as_windows_menu_for_nsapp();
     Ok(())
 }
