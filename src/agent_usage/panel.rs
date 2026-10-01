@@ -355,6 +355,41 @@ fn draw_day_chart(ui: &mut egui::Ui, days: &[crate::agent_usage::records::DayUsa
 mod tests {
     use super::*;
 
+    /// One headless egui frame over `panel` with `keys` pressed; returns
+    /// the action `show()` asked for.
+    fn frame_with_keys(
+        ctx: &Context,
+        snap: &UsageSnapshot,
+        panel: &mut AgentUsagePanel,
+        keys: &[Key],
+    ) -> Option<PanelAction> {
+        let events = keys
+            .iter()
+            .map(|&key| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            })
+            .collect();
+        let mut action = None;
+        let action_slot = &mut action;
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 800.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ui| *action_slot = panel.show(ui.ctx(), snap),
+        );
+        out.textures_delta.clear();
+        action
+    }
+
     #[test]
     fn starts_hidden() {
         assert!(!AgentUsagePanel::new().visible);
@@ -393,17 +428,19 @@ mod tests {
     }
 
     #[test]
-    fn show_holds_the_egui_side_escape_close() {
-        // Same reasoning as the palette: while egui holds focus the key
-        // layer never sees Escape, so show() must close on the egui side.
-        let source = include_str!("panel.rs");
-        // Assembled at runtime so the test's own source cannot match itself.
-        let needle = ["consume", "_key"].join("");
-        let input_call = ["input", "_mut"].join("");
-        assert!(
-            source.contains(&needle) && source.contains(&input_call),
-            "show() must close the panel on the egui-side Escape"
-        );
+    fn escape_closes_the_panel_on_the_egui_side() {
+        // The stack resolves Escape itself (CloseTop, withheld from egui);
+        // show() must still close when Escape does arrive here — ui-test
+        // chord injection, or a delegated Escape from a mode above.
+        let snap = UsageSnapshot {
+            records: Vec::new(),
+            errors: Vec::new(),
+        };
+        let ctx = Context::default();
+        let mut panel = AgentUsagePanel::new();
+        panel.open();
+        frame_with_keys(&ctx, &snap, &mut panel, &[Key::Escape]);
+        assert!(!panel.visible, "Escape closes the panel");
     }
 
     #[test]
@@ -425,38 +462,35 @@ mod tests {
         let ctx = Context::default();
         let mut panel = AgentUsagePanel::new();
         panel.open();
-        let frame = |panel: &mut AgentUsagePanel, keys: &[Key]| {
-            let events = keys
-                .iter()
-                .map(|&key| egui::Event::Key {
-                    key,
-                    physical_key: None,
-                    pressed: true,
-                    repeat: false,
-                    modifiers: egui::Modifiers::NONE,
-                })
-                .collect();
-            let mut out = ctx.run_ui(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(1200.0, 800.0),
-                    )),
-                    events,
-                    ..Default::default()
-                },
-                |ui| {
-                    panel.show(ui.ctx(), &snap);
-                },
-            );
-            out.textures_delta.clear();
-        };
-        frame(&mut panel, &[Key::L]);
+        frame_with_keys(&ctx, &snap, &mut panel, &[Key::L]);
         assert_eq!(panel.selected_agent, 1, "l moves to the next agent");
-        frame(&mut panel, &[Key::L, Key::L]);
+        frame_with_keys(&ctx, &snap, &mut panel, &[Key::L, Key::L]);
         assert_eq!(panel.selected_agent, 0, "two coalesced presses both act");
-        frame(&mut panel, &[Key::H]);
+        frame_with_keys(&ctx, &snap, &mut panel, &[Key::H]);
         assert_eq!(panel.selected_agent, 2, "h wraps back to the last agent");
+    }
+
+    #[test]
+    fn r_requests_the_refresh_rescan() {
+        // The footer advertises `r refresh`; the caller runs the rescan
+        // when show() returns RefreshRequested (egui_submit).
+        let snap = UsageSnapshot {
+            records: Vec::new(),
+            errors: Vec::new(),
+        };
+        let ctx = Context::default();
+        let mut panel = AgentUsagePanel::new();
+        panel.open();
+        assert_eq!(
+            frame_with_keys(&ctx, &snap, &mut panel, &[Key::R]),
+            Some(PanelAction::RefreshRequested),
+            "r is the advertised refresh key"
+        );
+        assert_eq!(
+            frame_with_keys(&ctx, &snap, &mut panel, &[]),
+            None,
+            "the refresh fires once per press, not every frame"
+        );
     }
 
     #[test]
