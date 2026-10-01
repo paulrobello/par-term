@@ -25,6 +25,26 @@ pub struct KeybindingMatcher {
 enum MatchKey {
     Character(char),
     Named(NamedKey),
+    /// winit reported no logical key. On Windows every Ctrl+Alt+letter arrives
+    /// as `Key::Unidentified` (Ctrl+Alt is AltGr there, and a US layout has no
+    /// AltGr character), so a character binding can only match it by physical
+    /// key. `Key::Dead` is deliberately not folded in here: a dead key is a
+    /// real compose keystroke, not a missing one.
+    Unidentified,
+}
+
+impl MatchKey {
+    fn from_logical(logical_key: &Key) -> Option<Self> {
+        match logical_key {
+            Key::Character(c) => c
+                .chars()
+                .next()
+                .map(|ch| MatchKey::Character(ch.to_ascii_uppercase())),
+            Key::Named(named) => Some(MatchKey::Named(*named)),
+            Key::Unidentified(_) => Some(MatchKey::Unidentified),
+            Key::Dead(_) => None,
+        }
+    }
 }
 
 impl KeybindingMatcher {
@@ -52,16 +72,7 @@ impl KeybindingMatcher {
             cmd_or_ctrl: false, // Resolved during matching
         };
 
-        let key = match logical_key {
-            Key::Character(c) => {
-                // Get the first character, uppercased for case-insensitive matching
-                c.chars()
-                    .next()
-                    .map(|ch| MatchKey::Character(ch.to_ascii_uppercase()))
-            }
-            Key::Named(named) => Some(MatchKey::Named(*named)),
-            _ => None,
-        };
+        let key = MatchKey::from_logical(logical_key);
 
         // Extract physical key code
         let physical_key = match physical_key {
@@ -303,14 +314,7 @@ impl KeybindingMatcher {
             cmd_or_ctrl: false,
         };
 
-        let key = match logical_key {
-            Key::Character(c) => c
-                .chars()
-                .next()
-                .map(|ch| MatchKey::Character(ch.to_ascii_uppercase())),
-            Key::Named(named) => Some(MatchKey::Named(*named)),
-            _ => None,
-        };
+        let key = MatchKey::from_logical(logical_key);
 
         let physical_key = match physical_key {
             PhysicalKey::Code(code) => Some(code),
@@ -362,13 +366,15 @@ impl KeybindingMatcher {
                 }
             }
             // Character binding with logical matching (default)
-            (ParsedKey::Character(combo_char), false) => {
-                if let Some(MatchKey::Character(event_char)) = &self.key {
+            (ParsedKey::Character(combo_char), false) => match &self.key {
+                Some(MatchKey::Character(event_char)) => {
                     event_char.eq_ignore_ascii_case(combo_char)
-                } else {
-                    false
                 }
-            }
+                Some(MatchKey::Unidentified) => self.physical_key.is_some_and(|physical| {
+                    platform::physical_key_matches_char(physical, *combo_char)
+                }),
+                _ => false,
+            },
             // Named key binding
             (ParsedKey::Named(combo_named), _) => {
                 if let Some(MatchKey::Named(event_named)) = &self.key {
@@ -451,6 +457,59 @@ mod tests {
             &WinitModifiers::default(),
         );
         assert!(matcher_f12.matches(&f12));
+    }
+
+    /// Windows reports every Ctrl+Alt+letter as `Key::Unidentified` (Ctrl+Alt
+    /// is AltGr there and a US layout has no AltGr character for it), so the
+    /// Ctrl+Alt defaults — Ctrl+Alt+S session picker, Ctrl+Alt+W close tab —
+    /// were dead keys. Observed on Windows 11 with `DEBUG_LEVEL=3`:
+    /// `No keybinding match for key=Unidentified(Windows(0x0053)),
+    /// modifiers=CONTROL | ALT`. The physical key must carry the match.
+    #[test]
+    fn unidentified_logical_key_matches_character_binding_by_physical_key() {
+        use winit::keyboard::{ModifiersState, NativeKey, NativeKeyCode};
+
+        let ctrl_alt = WinitModifiers::from(ModifiersState::CONTROL | ModifiersState::ALT);
+        let windows_ctrl_alt_s = KeybindingMatcher::from_key_fields(
+            &Key::Unidentified(NativeKey::Windows(0x53)),
+            PhysicalKey::Code(KeyCode::KeyS),
+            &ctrl_alt,
+        );
+        assert!(windows_ctrl_alt_s.matches(&parse_key_combo("Ctrl+Alt+S").unwrap()));
+        assert!(!windows_ctrl_alt_s.matches(&parse_key_combo("Ctrl+Alt+T").unwrap()));
+        assert!(!windows_ctrl_alt_s.matches(&parse_key_combo("Ctrl+S").unwrap()));
+        assert!(!windows_ctrl_alt_s.matches(&parse_key_combo("Ctrl+Alt+Shift+S").unwrap()));
+
+        // The remapping constructor is what the live key handler calls.
+        let remapped = KeybindingMatcher::from_key_fields_with_remapping(
+            &Key::Unidentified(NativeKey::Windows(0x57)),
+            PhysicalKey::Code(KeyCode::KeyW),
+            &ctrl_alt,
+            &par_term_config::ModifierRemapping::default(),
+        );
+        assert!(remapped.matches(&parse_key_combo("Ctrl+Alt+W").unwrap()));
+
+        // No physical key either: nothing to match on.
+        let unknown = KeybindingMatcher::from_key_fields(
+            &Key::Unidentified(NativeKey::Unidentified),
+            PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
+            &ctrl_alt,
+        );
+        assert!(!unknown.matches(&parse_key_combo("Ctrl+Alt+S").unwrap()));
+    }
+
+    /// A dead key is a compose keystroke, not a missing logical key, so the
+    /// physical fallback must not turn it into a character binding match.
+    #[test]
+    fn dead_logical_key_does_not_match_by_physical_key() {
+        use winit::keyboard::ModifiersState;
+
+        let dead = KeybindingMatcher::from_key_fields(
+            &Key::Dead(Some('´')),
+            PhysicalKey::Code(KeyCode::KeyE),
+            &WinitModifiers::from(ModifiersState::ALT),
+        );
+        assert!(!dead.matches(&parse_key_combo("Alt+E").unwrap()));
     }
 
     /// Test that Modifiers comparison works correctly for CmdOrCtrl
