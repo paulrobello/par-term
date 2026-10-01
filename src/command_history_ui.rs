@@ -4,14 +4,13 @@
 //! with fuzzy matching and ranked results with match highlighting.
 
 use crate::command_history::CommandHistoryEntry;
-use crate::ui_constants::{
-    CMD_HISTORY_WINDOW_DEFAULT_HEIGHT, CMD_HISTORY_WINDOW_DEFAULT_WIDTH,
-    CMD_HISTORY_WINDOW_MAX_HEIGHT,
-};
-use egui::{Context, Window};
+use egui::Context;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use std::collections::VecDeque;
+
+/// Rows drawn before the list scrolls.
+const VISIBLE_ROWS: usize = 14;
 
 /// Command history UI manager using egui
 pub struct CommandHistoryUI {
@@ -21,8 +20,8 @@ pub struct CommandHistoryUI {
     /// Current search query
     search_query: String,
 
-    /// Index of currently selected entry in filtered results
-    selected_index: Option<usize>,
+    /// Selection and drawn window, on the shared picker (UX.md OV5).
+    nav: crate::app::overlay::picker::ListNav,
 
     /// Cached command history entries (refreshed when shown)
     cached_entries: Vec<CommandHistoryEntry>,
@@ -32,6 +31,9 @@ pub struct CommandHistoryUI {
 
     /// Whether the search input should request focus
     request_focus: bool,
+
+    /// The live toggle chord for the footer; `None` when unbound.
+    toggle_chord: Option<String>,
 }
 
 /// Action to take after showing the UI
@@ -62,10 +64,11 @@ impl CommandHistoryUI {
         Self {
             visible: false,
             search_query: String::new(),
-            selected_index: None,
+            nav: Default::default(),
             cached_entries: Vec::new(),
             matcher: SkimMatcherV2::default(),
             request_focus: false,
+            toggle_chord: None,
         }
     }
 
@@ -74,18 +77,14 @@ impl CommandHistoryUI {
         self.visible = true;
         self.search_query.clear();
         self.request_focus = true;
-        self.selected_index = if self.cached_entries.is_empty() {
-            None
-        } else {
-            Some(0)
-        };
+        self.nav.reset();
     }
 
     /// Close the command history UI
     pub fn close(&mut self) {
         self.visible = false;
         self.search_query.clear();
-        self.selected_index = None;
+        self.nav.reset();
     }
 
     /// Toggle visibility
@@ -100,46 +99,15 @@ impl CommandHistoryUI {
     /// Update cached entries from persistent command history
     pub fn update_entries(&mut self, entries: &VecDeque<CommandHistoryEntry>) {
         self.cached_entries = entries.iter().cloned().collect();
-        // Reset selection if out of bounds
-        if let Some(idx) = self.selected_index
-            && idx >= self.cached_entries.len()
-        {
-            self.selected_index = if self.cached_entries.is_empty() {
-                None
-            } else {
-                Some(0)
-            };
-        }
-    }
-
-    /// Navigate selection up
-    pub fn select_previous(&mut self) {
-        if let Some(idx) = self.selected_index
-            && idx > 0
-        {
-            self.selected_index = Some(idx - 1);
-        }
     }
 
     /// Get the command text of the currently selected entry (if any).
     /// Re-runs fuzzy matching to resolve the filtered index.
     pub fn selected_command(&self) -> Option<String> {
-        let idx = self.selected_index?;
         let matches = self.get_matched_entries();
         matches
-            .get(idx)
+            .get(self.nav.selected)
             .map(|m| self.cached_entries[m.index].command.clone())
-    }
-
-    /// Navigate selection down
-    pub fn select_next(&mut self, filtered_count: usize) {
-        if let Some(idx) = self.selected_index {
-            if idx < filtered_count.saturating_sub(1) {
-                self.selected_index = Some(idx + 1);
-            }
-        } else if filtered_count > 0 {
-            self.selected_index = Some(0);
-        }
     }
 
     /// Get fuzzy-matched and ranked entries based on current search query
@@ -178,157 +146,108 @@ impl CommandHistoryUI {
         matches
     }
 
-    /// Show the command history window and return any action to take
+    /// Record the live `toggle_command_history` chord the footer names
+    /// (UX.md OV5); `None` when unbound. Set every frame by the renderer.
+    pub fn set_toggle_chord(&mut self, chord: Option<String>) {
+        self.toggle_chord = chord;
+    }
+
+    /// Read the live chord from the registry (every frame, so every opening
+    /// path shows the current binding).
+    pub(crate) fn sync_toggle_chord(
+        &mut self,
+        registry: &par_term_keybindings::KeybindingRegistry,
+    ) {
+        self.toggle_chord = registry
+            .chord_for_action("toggle_command_history")
+            .map(|c| crate::command_palette::catalog::chord_display(&c));
+    }
+
+    /// The chord the footer names.
+    #[cfg(test)]
+    pub(crate) fn toggle_chord(&self) -> Option<&str> {
+        self.toggle_chord.as_deref()
+    }
+
+    /// Show the command history window and return any action to take.
+    ///
+    /// Keys, scrolling, and the footer come from the shared picker (UX.md
+    /// OV5): arrows, PageUp/PageDown, Home/End, Enter inserts, Escape closes.
     pub fn show(&mut self, ctx: &Context) -> CommandHistoryAction {
+        use crate::app::overlay::picker::{self, ListConfig, ListHooks, ListOutcome};
+
         if !self.visible {
             return CommandHistoryAction::None;
         }
 
-        let mut action = CommandHistoryAction::None;
-        let mut open = true;
-
-        // Calculate center position for initial placement
-        let screen_rect = ctx.content_rect();
-        let default_pos = egui::pos2(
-            (screen_rect.width() - CMD_HISTORY_WINDOW_DEFAULT_WIDTH) / 2.0,
-            (screen_rect.height() - CMD_HISTORY_WINDOW_DEFAULT_HEIGHT) / 2.0,
-        );
-
         let matched_entries = self.get_matched_entries();
-
-        // B70: keyboard navigation lives on the egui side. The panel is a
-        // guarding Popup in the overlay stack (UX.md OV2): the stack
-        // consumes every key it does not close on before terminal key
-        // dispatch and feeds it to egui, so this is the only reader.
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
-            self.close();
+        let config = ListConfig {
+            id: "Command History Search",
+            hint: "Search commands",
+            visible_rows: VISIBLE_ROWS,
+            width: crate::app::overlay::theme::WIDTH_LARGE,
+            empty_text: "No matching commands",
+            enter_verb: "insert",
+            toggle_chord: self.toggle_chord.as_deref(),
+            alternates: false,
+            alternate_labels: None,
+            extra_keys: &[],
+            multi_select: false,
+        };
+        let count = format!(
+            "{} / {} commands",
+            matched_entries.len(),
+            self.cached_entries.len()
+        );
+        let mut show_count = |ui: &mut egui::Ui| {
+            ui.label(count.as_str());
+        };
+        let entries = &self.cached_entries;
+        let (outcome, query_changed) = picker::show_list_with(
+            ctx,
+            &config,
+            ListHooks {
+                keys_follow_filter: false,
+                above: Some(&mut show_count),
+                below: None,
+            },
+            &mut self.search_query,
+            &mut self.request_focus,
+            &mut self.nav,
+            matched_entries.len(),
+            |ui, index, selected| {
+                let matched = &matched_entries[index];
+                let entry = &entries[matched.index];
+                let job = build_highlighted_label(
+                    &entry.command,
+                    &matched.indices,
+                    selected,
+                    entry.exit_code,
+                    entry.timestamp_ms,
+                );
+                let response = ui
+                    .selectable_label(selected, job)
+                    .on_hover_text(format_tooltip(entry));
+                response.clicked()
+            },
+        );
+        if query_changed {
+            self.nav.reset();
         }
-        // num_presses, not key_pressed: input events can coalesce into one
-        // frame (key repeat, the ui-test harness pressing faster than the
-        // frame cadence) and each press must move the selection — a boolean
-        // would swallow every press but the first.
-        let downs = ctx.input(|i| i.num_presses(egui::Key::ArrowDown));
-        for _ in 0..downs {
-            self.select_next(matched_entries.len());
+        match outcome {
+            ListOutcome::Chosen { index, .. } => {
+                let command = matched_entries
+                    .get(index)
+                    .map(|m| self.cached_entries[m.index].command.clone());
+                self.close();
+                command.map_or(CommandHistoryAction::None, CommandHistoryAction::Insert)
+            }
+            ListOutcome::Closed => {
+                self.close();
+                CommandHistoryAction::None
+            }
+            ListOutcome::Open | ListOutcome::ToggleMark(_) => CommandHistoryAction::None,
         }
-        let ups = ctx.input(|i| i.num_presses(egui::Key::ArrowUp));
-        for _ in 0..ups {
-            self.select_previous();
-        }
-        if ctx.input(|i| i.key_pressed(egui::Key::Enter))
-            && let Some(command) = self.selected_command()
-        {
-            action = CommandHistoryAction::Insert(command);
-            self.visible = false;
-        }
-
-        Window::new("Command History Search")
-            .resizable(true)
-            .collapsible(false)
-            .default_width(CMD_HISTORY_WINDOW_DEFAULT_WIDTH)
-            .default_height(CMD_HISTORY_WINDOW_DEFAULT_HEIGHT)
-            .max_height(CMD_HISTORY_WINDOW_MAX_HEIGHT)
-            .default_pos(default_pos)
-            .open(&mut open)
-            .show(ctx, |ui| {
-                // Search bar
-                ui.horizontal(|ui| {
-                    ui.label("Search:");
-                    let response = ui.text_edit_singleline(&mut self.search_query);
-                    if self.request_focus {
-                        response.request_focus();
-                        self.request_focus = false;
-                    }
-                });
-
-                ui.separator();
-
-                // Results count
-                ui.horizontal(|ui| {
-                    ui.label(format!(
-                        "{} / {} commands",
-                        matched_entries.len(),
-                        self.cached_entries.len()
-                    ));
-                });
-
-                ui.separator();
-
-                // Entry list
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        if matched_entries.is_empty() {
-                            ui.label("No matching commands");
-                        } else {
-                            for (filtered_idx, matched) in matched_entries.iter().enumerate() {
-                                let entry = &self.cached_entries[matched.index];
-                                let is_selected = self.selected_index == Some(filtered_idx);
-
-                                // Build highlighted text
-                                let layout_job = build_highlighted_label(
-                                    &entry.command,
-                                    &matched.indices,
-                                    is_selected,
-                                    entry.exit_code,
-                                    entry.timestamp_ms,
-                                );
-
-                                let response = ui.selectable_label(is_selected, layout_job);
-
-                                if response.clicked() {
-                                    self.selected_index = Some(filtered_idx);
-                                }
-
-                                if response.double_clicked() {
-                                    action = CommandHistoryAction::Insert(entry.command.clone());
-                                    self.visible = false;
-                                }
-
-                                // Show tooltip with full command and metadata on hover
-                                // Auto-scroll to selected item
-                                let response = response.on_hover_text(format_tooltip(entry));
-                                if is_selected {
-                                    response.scroll_to_me(Some(egui::Align::Center));
-                                }
-                            }
-                        }
-                    });
-
-                ui.separator();
-
-                // Action buttons
-                ui.horizontal(|ui| {
-                    if ui.button("Insert Selected").clicked()
-                        && let Some(idx) = self.selected_index
-                        && let Some(matched) = matched_entries.get(idx)
-                    {
-                        let entry = &self.cached_entries[matched.index];
-                        action = CommandHistoryAction::Insert(entry.command.clone());
-                        self.visible = false;
-                    }
-
-                    if ui.button("Close").clicked() {
-                        self.visible = false;
-                    }
-                });
-
-                // Keyboard hints
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label("Hints:");
-                    ui.label("\u{f062}\u{f063} Navigate");
-                    ui.label("Enter Insert");
-                    ui.label("Esc Close");
-                });
-            });
-
-        // Handle window close
-        if !open {
-            self.visible = false;
-        }
-
-        action
     }
 }
 
@@ -539,13 +458,12 @@ mod b70_tests {
         let mut ui = CommandHistoryUI::new();
         ui.update_entries(&entries());
         ui.open();
-        assert_eq!(ui.selected_index, Some(0));
+        assert_eq!(ui.nav.selected, 0);
 
         let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown, false)]);
         let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown, false)]);
         assert_eq!(
-            ui.selected_index,
-            Some(2),
+            ui.nav.selected, 2,
             "two ArrowDown presses move to the third row"
         );
 
@@ -565,7 +483,7 @@ mod b70_tests {
         ui.open();
         let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown, false)]);
         let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowUp, false)]);
-        assert_eq!(ui.selected_index, Some(0));
+        assert_eq!(ui.nav.selected, 0);
     }
 
     #[test]
@@ -603,32 +521,37 @@ mod b70_tests {
         assert!(matches!(action, CommandHistoryAction::None));
     }
 
-    /// B70 source pin: the egui-side wiring must stay in show(). The winit
-    /// layer is unreachable for these keys (auto-focused search field +
-    /// modal guard), so show() losing this block would silently kill all
-    /// keyboard navigation. Matches code, not comments.
     #[test]
-    fn show_reads_navigation_from_the_egui_input() {
-        // Count only the source outside this test module — the pin's own
-        // literals would otherwise inflate the count.
-        let source = include_str!("command_history_ui.rs");
-        let source = source.split("mod b70_tests").next().unwrap();
-        assert_eq!(
-            source.matches("num_presses(egui::Key::ArrowDown)").count(),
-            1,
-            "show() must keep the ArrowDown num_presses wiring"
+    fn the_footer_names_the_live_toggle_chord_and_insert() {
+        let mut ui = CommandHistoryUI::new();
+        ui.set_toggle_chord(Some("Cmd+Shift+H".into()));
+        assert_eq!(ui.toggle_chord(), Some("Cmd+Shift+H"));
+        let config = crate::app::overlay::picker::ListConfig {
+            id: "t",
+            hint: "",
+            visible_rows: VISIBLE_ROWS,
+            width: 0.0,
+            empty_text: "",
+            enter_verb: "insert",
+            toggle_chord: ui.toggle_chord(),
+            alternates: false,
+            alternate_labels: None,
+            extra_keys: &[],
+            multi_select: false,
+        };
+        assert!(
+            crate::app::overlay::picker::footer_text(&config)
+                .ends_with("Enter insert · Esc or Cmd+Shift+H close")
         );
-        assert_eq!(
-            source
-                .matches("consume_key(egui::Modifiers::NONE, egui::Key::Escape)")
-                .count(),
-            1,
-            "show() must keep the Escape consume_key wiring"
-        );
-        assert_eq!(
-            source.matches("key_pressed(egui::Key::Enter)").count(),
-            1,
-            "show() must keep the Enter wiring"
-        );
+    }
+
+    #[test]
+    fn page_down_and_end_move_the_shared_selection() {
+        let ctx = egui::Context::default();
+        let mut ui = CommandHistoryUI::new();
+        ui.update_entries(&entries());
+        ui.open();
+        let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::End, false)]);
+        assert_eq!(ui.nav.selected, 2);
     }
 }

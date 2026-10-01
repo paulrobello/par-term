@@ -498,6 +498,8 @@ impl WindowState {
                     actions.clipboard = self.overlay_ui.clipboard_history_ui.show(ctx);
 
                     // Show command history UI and collect action
+                    self.overlay_ui
+                        .sync_picker_chords(&self.keybinding_registry);
                     actions.command_history = self.overlay_ui.command_history_ui.show(ctx);
 
                     // Show paste special UI and collect action

@@ -13,17 +13,18 @@
 //! overlay stack (OV2) it closes the picker — read from the live registry
 //! when the picker opens and omitted when unbound.
 //!
-//! Alternates (Shift+Enter / Cmd+Enter): no migrated picker has an
-//! alternate meaning today — the palette runs an action and the tree
-//! picker jumps, with nothing to open "in a new window" or "beside". They
-//! stay available for the pickers that do: Open Profiles (UX.md PR1: new
-//! window / replace profile) is the planned first user. Clipboard history's
-//! Shift+Enter (paste special) lives in its own un-migrated `show()`.
+//! Alternates (Shift+Enter / Cmd+Enter): Open Profiles (UX.md PR1) is the
+//! picker that gives both a meaning (new window / this tab, named through
+//! `alternate_labels`). A picker with a single alternate takes it as an
+//! [`ExtraKey`] instead, so its footer does not advertise Cmd+Enter:
+//! clipboard history's Shift+Enter (paste special).
 //!
 //! [`ListNav`] is the pure selection/scroll state machine — testable
 //! without egui. [`show_list`] draws a picker over a caller-owned row
 //! list; the caller keeps its own row type and filtering, and hands the
 //! component already-filtered rows plus a row renderer.
+//! [`show_list_with`] adds [`ListHooks`]: content above and below the rows,
+//! and a key gate for pickers that embed their own text fields.
 
 use egui::{Context, Frame, Key, RichText, Window, epaint::Shadow};
 
@@ -155,6 +156,21 @@ pub(crate) struct ListConfig<'a> {
     pub(crate) multi_select: bool,
 }
 
+/// Content a picker draws around its rows, inside the same window: `above`
+/// sits between the filter field and the list (a result count), `below`
+/// between the list and the footer (action buttons, a preview).
+#[derive(Default)]
+pub(crate) struct ListHooks<'a> {
+    /// Take navigation and Enter only while the filter field, or nothing,
+    /// holds keyboard focus. A picker that embeds its own text fields (the
+    /// session picker's rename and create-name fields) needs this so the
+    /// picker does not eat the Enter that submits them. Escape is never
+    /// gated by it.
+    pub(crate) keys_follow_filter: bool,
+    pub(crate) above: Option<&'a mut dyn FnMut(&mut egui::Ui)>,
+    pub(crate) below: Option<&'a mut dyn FnMut(&mut egui::Ui)>,
+}
+
 /// The footer line for `config`: the navigation keys, Enter's verb, the
 /// alternates and extra chords only when the picker takes them, and the
 /// close keys — Escape, plus the live toggle chord when one is bound.
@@ -178,6 +194,12 @@ pub(crate) fn footer_text(config: &ListConfig<'_>) -> String {
         None => "Esc close".to_string(),
     });
     parts.join(" · ")
+}
+
+/// Whether the picker reads navigation and Enter this frame (see
+/// [`ListHooks::keys_follow_filter`]).
+fn keys_are_live(follow_filter: bool, focused: Option<egui::Id>, filter_id: egui::Id) -> bool {
+    !follow_filter || focused.is_none_or(|id| id == filter_id)
 }
 
 /// Read this frame's navigation keys. `num_presses`, not `key_pressed`:
@@ -240,6 +262,30 @@ pub(crate) fn show_list(
     rows_len: usize,
     draw_row: impl FnMut(&mut egui::Ui, usize, bool) -> bool,
 ) -> (ListOutcome, bool) {
+    show_list_with(
+        ctx,
+        config,
+        ListHooks::default(),
+        query,
+        request_focus,
+        nav,
+        rows_len,
+        draw_row,
+    )
+}
+
+/// [`show_list`] with content drawn around the rows (see [`ListHooks`]).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn show_list_with(
+    ctx: &Context,
+    config: &ListConfig<'_>,
+    hooks: ListHooks<'_>,
+    query: &mut String,
+    request_focus: &mut bool,
+    nav: &mut ListNav,
+    rows_len: usize,
+    draw_row: impl FnMut(&mut egui::Ui, usize, bool) -> bool,
+) -> (ListOutcome, bool) {
     let mut result = (ListOutcome::Open, false);
     Window::new(config.id)
         .title_bar(false)
@@ -249,7 +295,7 @@ pub(crate) fn show_list(
         .frame(Frame::popup(&ctx.global_style()).shadow(Shadow::default()))
         .show(ctx, |ui| {
             ui.set_min_width(config.width);
-            result = list_body(
+            result = body(
                 ui,
                 config,
                 ListBodyState {
@@ -259,6 +305,7 @@ pub(crate) fn show_list(
                 },
                 rows_len,
                 true,
+                hooks,
                 draw_row,
             );
         });
@@ -285,6 +332,29 @@ pub(crate) fn list_body(
     state: ListBodyState<'_>,
     rows_len: usize,
     owns_keys: bool,
+    draw_row: impl FnMut(&mut egui::Ui, usize, bool) -> bool,
+) -> (ListOutcome, bool) {
+    body(
+        ui,
+        config,
+        state,
+        rows_len,
+        owns_keys,
+        ListHooks::default(),
+        draw_row,
+    )
+}
+
+/// [`list_body`] with [`ListHooks`]. Two key gates: Escape is live while
+/// the picker owns its keys (`owns_keys`, or its filter is focused);
+/// navigation and Enter additionally obey `hooks.keys_follow_filter`.
+fn body(
+    ui: &mut egui::Ui,
+    config: &ListConfig<'_>,
+    state: ListBodyState<'_>,
+    rows_len: usize,
+    owns_keys: bool,
+    mut hooks: ListHooks<'_>,
     mut draw_row: impl FnMut(&mut egui::Ui, usize, bool) -> bool,
 ) -> (ListOutcome, bool) {
     let ListBodyState {
@@ -293,13 +363,15 @@ pub(crate) fn list_body(
         nav,
     } = state;
     let filter_id = ui.make_persistent_id((config.id, "filter"));
-    let keys_live = owns_keys || ui.ctx().memory(|m| m.has_focus(filter_id));
+    let focused = ui.ctx().memory(|m| m.focused());
+    let escape_live = owns_keys || focused == Some(filter_id);
+    let keys_live = escape_live && keys_are_live(hooks.keys_follow_filter, focused, filter_id);
     let ctx = ui.ctx().clone();
     let mut outcome = ListOutcome::Open;
+    if escape_live && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
+        return (ListOutcome::Closed, false);
+    }
     if keys_live {
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
-            return (ListOutcome::Closed, false);
-        }
         nav.apply(read_nav(&ctx), rows_len, config.visible_rows);
         if config.multi_select
             && rows_len > 0
@@ -314,6 +386,8 @@ pub(crate) fn list_body(
                 how,
             };
         }
+    } else if escape_live {
+        nav.keep_visible(rows_len, config.visible_rows);
     }
 
     let field = ui.add(
@@ -328,6 +402,10 @@ pub(crate) fn list_body(
     }
     let query_changed = field.changed();
     ui.separator();
+    if let Some(above) = hooks.above.as_mut() {
+        above(ui);
+        ui.separator();
+    }
     let end = (nav.scroll_offset + config.visible_rows).min(rows_len);
     for index in nav.scroll_offset..end {
         if draw_row(ui, index, index == nav.selected) {
@@ -341,6 +419,10 @@ pub(crate) fn list_body(
         ui.weak(config.empty_text);
     }
     ui.separator();
+    if let Some(below) = hooks.below.as_mut() {
+        below(ui);
+        ui.separator();
+    }
     ui.label(RichText::new(footer_text(config)).weak().small());
     (outcome, query_changed)
 }
@@ -440,6 +522,16 @@ mod tests {
             10,
         );
         assert_eq!(nav, ListNav::default());
+    }
+
+    #[test]
+    fn an_embedded_text_field_takes_the_keys_when_gated() {
+        let filter = egui::Id::new("filter");
+        let other = egui::Id::new("rename");
+        assert!(keys_are_live(false, Some(other), filter), "ungated");
+        assert!(keys_are_live(true, None, filter), "nothing focused");
+        assert!(keys_are_live(true, Some(filter), filter), "filter focused");
+        assert!(!keys_are_live(true, Some(other), filter), "other field");
     }
 
     fn config(toggle_chord: Option<&str>, alternates: bool) -> ListConfig<'_> {

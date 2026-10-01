@@ -199,6 +199,37 @@ fn picker_footers_name_the_live_toggle_chord() {
 }
 
 #[test]
+fn rebound_chords_reach_every_migrated_picker_footer() {
+    // OV5: the history and session pickers sync the live chord every frame,
+    // so a rebind shows on every opening path, not only on a chord open.
+    let mut ws = window();
+    ws.keybinding_registry = par_term_keybindings::KeybindingRegistry::from_config(&[
+        par_term_config::KeyBinding {
+            key: "F5".to_string(),
+            action: "toggle_command_history".to_string(),
+        },
+        par_term_config::KeyBinding {
+            key: "F6".to_string(),
+            action: "toggle_clipboard_history".to_string(),
+        },
+        par_term_config::KeyBinding {
+            key: "F8".to_string(),
+            action: "toggle_session_picker".to_string(),
+        },
+    ]);
+    ws.overlay_ui.sync_picker_chords(&ws.keybinding_registry);
+    assert_eq!(ws.overlay_ui.command_history_ui.toggle_chord(), Some("F5"));
+    assert_eq!(
+        ws.overlay_ui.clipboard_history_ui.toggle_chord(),
+        Some("F6")
+    );
+    assert_eq!(
+        ws.overlay_ui.tmux_session_picker_ui.toggle_chord(),
+        Some("F8")
+    );
+}
+
+#[test]
 fn live_no_overlay_leaves_keys_to_the_terminal() {
     let ws = window();
     assert_eq!(ws.route_overlay_key(&escape()), KeyRoute::Terminal);

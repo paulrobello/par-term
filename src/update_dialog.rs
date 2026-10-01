@@ -24,6 +24,9 @@ pub enum UpdateDialogAction {
 ///
 /// When `installing` is true, the Install button is disabled and shows "Installing...".
 /// The `install_status` message (if any) is displayed below the buttons.
+///
+/// Not on `overlay::confirm`: three peer actions and an install that Escape
+/// must not abandon (see `confirm.rs`).
 pub fn render(
     ctx: &egui::Context,
     update_result: &UpdateCheckResult,

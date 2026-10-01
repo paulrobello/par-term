@@ -4,11 +4,10 @@
 //! to clipboard content before pasting.
 
 use crate::paste_transform::{PasteTransform, transform};
-use crate::ui_constants::{
-    PASTE_SPECIAL_TRANSFORMS_MAX_HEIGHT, PASTE_SPECIAL_WINDOW_DEFAULT_HEIGHT,
-    PASTE_SPECIAL_WINDOW_DEFAULT_WIDTH,
-};
-use egui::{Color32, Context, RichText, Window};
+use egui::{Color32, Context, RichText};
+
+/// Rows drawn before the transformation list scrolls.
+const VISIBLE_ROWS: usize = 10;
 
 /// Action to take after showing the UI
 #[derive(Debug, Clone)]
@@ -27,8 +26,11 @@ pub struct PasteSpecialUI {
     /// Current search query for filtering transformations
     search_query: String,
 
-    /// Index of currently selected transformation (for keyboard navigation)
-    selected_index: usize,
+    /// Selection and drawn window, on the shared picker (UX.md OV5).
+    nav: crate::app::overlay::picker::ListNav,
+
+    /// Whether the search field should take focus (set on open).
+    request_focus: bool,
 
     /// The clipboard content to transform
     content: String,
@@ -53,7 +55,8 @@ impl PasteSpecialUI {
         Self {
             visible: false,
             search_query: String::new(),
-            selected_index: 0,
+            nav: Default::default(),
+            request_focus: false,
             content: String::new(),
             filtered_transforms: filtered,
             preview_result: Ok(String::new()),
@@ -65,7 +68,8 @@ impl PasteSpecialUI {
         self.visible = true;
         self.content = content;
         self.search_query.clear();
-        self.selected_index = 0;
+        self.nav.reset();
+        self.request_focus = true;
         self.update_filtered_transforms();
         self.update_preview();
     }
@@ -77,25 +81,9 @@ impl PasteSpecialUI {
         self.search_query.clear();
     }
 
-    /// Navigate selection up
-    pub fn select_previous(&mut self) {
-        if self.selected_index > 0 {
-            self.selected_index -= 1;
-            self.update_preview();
-        }
-    }
-
-    /// Navigate selection down
-    pub fn select_next(&mut self) {
-        if self.selected_index < self.filtered_transforms.len().saturating_sub(1) {
-            self.selected_index += 1;
-            self.update_preview();
-        }
-    }
-
     /// Get the currently selected transformation
     pub fn selected_transform(&self) -> Option<PasteTransform> {
-        self.filtered_transforms.get(self.selected_index).copied()
+        self.filtered_transforms.get(self.nav.selected).copied()
     }
 
     /// Apply the selected transformation and return the result
@@ -111,11 +99,8 @@ impl PasteSpecialUI {
             .filter(|t| t.matches_query(&self.search_query))
             .copied()
             .collect();
-
-        // Reset selection if out of bounds
-        if self.selected_index >= self.filtered_transforms.len() {
-            self.selected_index = 0;
-        }
+        self.nav
+            .keep_visible(self.filtered_transforms.len(), VISIBLE_ROWS);
     }
 
     /// Update the preview result for the current selection
@@ -127,205 +112,105 @@ impl PasteSpecialUI {
         }
     }
 
-    /// Show the paste special window and return any action to take
+    /// Show the paste special window and return any action to take.
+    ///
+    /// The transformation list, keys, and footer come from the shared
+    /// picker (UX.md OV5): arrows, PageUp/PageDown, Home/End, Enter applies
+    /// (a no-op while the transform fails), Escape closes. The preview is
+    /// drawn below the list.
     pub fn show(&mut self, ctx: &Context) -> PasteSpecialAction {
+        use crate::app::overlay::picker::{self, ListConfig, ListHooks, ListOutcome};
+
         if !self.visible {
             return PasteSpecialAction::None;
         }
 
-        let mut action = PasteSpecialAction::None;
-        let mut open = true;
-        let mut search_changed = false;
-
-        // B70: keyboard navigation lives on the egui side — the overlay
-        // stack consumes every key before terminal key dispatch, so this is
-        // the only reader (full reasoning in command_history_ui::show).
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
-            self.close();
-        }
-        let downs = ctx.input(|i| i.num_presses(egui::Key::ArrowDown));
-        for _ in 0..downs {
-            self.select_next();
-        }
-        let ups = ctx.input(|i| i.num_presses(egui::Key::ArrowUp));
-        for _ in 0..ups {
-            self.select_previous();
-        }
-        if ctx.input(|i| i.key_pressed(egui::Key::Enter))
-            && let Some(result) = self.apply_selected()
-        {
-            action = PasteSpecialAction::Paste(result);
-            self.close();
-        }
-
-        // Calculate center position
-        let screen_rect = ctx.content_rect();
-        let default_pos = egui::pos2(
-            (screen_rect.width() - PASTE_SPECIAL_WINDOW_DEFAULT_WIDTH) / 2.0,
-            (screen_rect.height() - PASTE_SPECIAL_WINDOW_DEFAULT_HEIGHT) / 2.0,
+        let before = (self.nav.selected, self.filtered_transforms.len());
+        let config = ListConfig {
+            id: "Paste Special",
+            hint: "Search transformations",
+            visible_rows: VISIBLE_ROWS,
+            width: crate::app::overlay::theme::WIDTH_MEDIUM,
+            empty_text: "No matching transformations",
+            enter_verb: "apply",
+            // No toggle action: the overlay stack has no chord that closes it.
+            toggle_chord: None,
+            alternates: false,
+            alternate_labels: None,
+            extra_keys: &[],
+            multi_select: false,
+        };
+        let transforms = self.filtered_transforms.clone();
+        let content = self.content.clone();
+        let preview = self.preview_result.clone();
+        let mut show_preview = |ui: &mut egui::Ui| {
+            ui.label(RichText::new("Original:").small().color(Color32::GRAY));
+            ui.label(
+                RichText::new(truncate_preview(&content, 100))
+                    .monospace()
+                    .color(Color32::LIGHT_GRAY),
+            );
+            ui.add_space(4.0);
+            ui.label(RichText::new("Result:").small().color(Color32::GRAY));
+            match &preview {
+                Ok(result) => ui.label(
+                    RichText::new(truncate_preview(result, 100))
+                        .monospace()
+                        .color(Color32::LIGHT_GREEN),
+                ),
+                Err(error) => ui.label(RichText::new(error).monospace().color(Color32::RED)),
+            };
+            ui.label(
+                RichText::new(format!("{} chars", content.len()))
+                    .small()
+                    .color(Color32::GRAY),
+            );
+        };
+        let (outcome, query_changed) = picker::show_list_with(
+            ctx,
+            &config,
+            ListHooks {
+                keys_follow_filter: false,
+                above: None,
+                below: Some(&mut show_preview),
+            },
+            &mut self.search_query,
+            &mut self.request_focus,
+            &mut self.nav,
+            transforms.len(),
+            |ui, index, selected| {
+                let t = transforms[index];
+                ui.selectable_label(selected, t.display_name())
+                    .on_hover_text(t.description())
+                    .clicked()
+            },
         );
-
-        Window::new("Paste Special")
-            .resizable(true)
-            .collapsible(false)
-            .default_width(PASTE_SPECIAL_WINDOW_DEFAULT_WIDTH)
-            .default_height(PASTE_SPECIAL_WINDOW_DEFAULT_HEIGHT)
-            .default_pos(default_pos)
-            .open(&mut open)
-            .show(ctx, |ui| {
-                // Search bar with focus
-                ui.horizontal(|ui| {
-                    ui.label("Search:");
-                    let response = ui.text_edit_singleline(&mut self.search_query);
-                    if response.changed() {
-                        search_changed = true;
-                    }
-                    // Request focus on the search box
-                    response.request_focus();
-                });
-
-                ui.separator();
-
-                // Track if we need to update preview after the UI loop
-                let mut clicked_index: Option<usize> = None;
-                let mut double_clicked = false;
-
-                // Two-column layout: transformations list and preview
-                ui.columns(2, |columns| {
-                    // Left column: transformation list
-                    columns[0].heading("Transformations");
-                    egui::ScrollArea::vertical()
-                        .id_salt("transforms_scroll")
-                        .auto_shrink([false, false])
-                        .max_height(PASTE_SPECIAL_TRANSFORMS_MAX_HEIGHT)
-                        .show(&mut columns[0], |ui| {
-                            if self.filtered_transforms.is_empty() {
-                                ui.label("No matching transformations");
-                            } else {
-                                for (idx, transform_type) in
-                                    self.filtered_transforms.iter().enumerate()
-                                {
-                                    let is_selected = idx == self.selected_index;
-                                    let text = if is_selected {
-                                        RichText::new(transform_type.display_name())
-                                            .strong()
-                                            .color(Color32::WHITE)
-                                    } else {
-                                        RichText::new(transform_type.display_name())
-                                    };
-
-                                    let response = ui.selectable_label(is_selected, text);
-
-                                    if response.clicked() {
-                                        clicked_index = Some(idx);
-                                    }
-
-                                    if response.double_clicked() {
-                                        clicked_index = Some(idx);
-                                        double_clicked = true;
-                                    }
-
-                                    // Show description on hover
-                                    response.on_hover_text(transform_type.description());
-                                }
-                            }
-                        });
-
-                    // Right column: preview
-                    columns[1].heading("Preview");
-                    columns[1].separator();
-
-                    // Show original content (truncated)
-                    columns[1].label(RichText::new("Original:").small().color(Color32::GRAY));
-                    let original_preview = truncate_preview(&self.content, 100);
-                    columns[1].label(
-                        RichText::new(&original_preview)
-                            .monospace()
-                            .color(Color32::LIGHT_GRAY),
-                    );
-
-                    columns[1].add_space(8.0);
-
-                    // Show transformed content (or error)
-                    columns[1].label(RichText::new("Result:").small().color(Color32::GRAY));
-                    match &self.preview_result {
-                        Ok(result) => {
-                            let result_preview = truncate_preview(result, 100);
-                            columns[1].label(
-                                RichText::new(&result_preview)
-                                    .monospace()
-                                    .color(Color32::LIGHT_GREEN),
-                            );
-                        }
-                        Err(error) => {
-                            columns[1].label(RichText::new(error).monospace().color(Color32::RED));
-                        }
-                    }
-                });
-
-                // Handle click events after the borrow ends
-                if let Some(idx) = clicked_index {
-                    self.selected_index = idx;
-                    self.update_preview();
-                    if double_clicked && let Some(result) = self.apply_selected() {
-                        action = PasteSpecialAction::Paste(result);
-                        self.visible = false;
-                    }
-                }
-
-                ui.separator();
-
-                // Action buttons
-                ui.horizontal(|ui| {
-                    let can_apply =
-                        self.preview_result.is_ok() && !self.filtered_transforms.is_empty();
-
-                    if ui
-                        .add_enabled(can_apply, egui::Button::new("Apply & Paste"))
-                        .clicked()
-                        && let Some(result) = self.apply_selected()
-                    {
-                        action = PasteSpecialAction::Paste(result);
-                        self.visible = false;
-                    }
-
-                    if ui.button("Cancel").clicked() {
-                        self.visible = false;
-                    }
-
-                    // Show content length info
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(format!("{} chars", self.content.len()))
-                                .small()
-                                .color(Color32::GRAY),
-                        );
-                    });
-                });
-
-                // Keyboard hints
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("\u{f062}\u{f063} Navigate  Enter Apply  Esc Cancel")
-                            .small()
-                            .color(Color32::GRAY),
-                    );
-                });
-            });
-
-        // Handle search changes
-        if search_changed {
+        if query_changed {
+            self.nav.reset();
             self.update_filtered_transforms();
-            self.update_preview();
         }
-
-        // Handle window close
-        if !open {
-            self.visible = false;
+        match outcome {
+            ListOutcome::Chosen { index, .. } => {
+                self.nav.selected = index;
+                match self.apply_selected() {
+                    Some(result) => {
+                        self.close();
+                        PasteSpecialAction::Paste(result)
+                    }
+                    None => PasteSpecialAction::None,
+                }
+            }
+            ListOutcome::Closed => {
+                self.close();
+                PasteSpecialAction::None
+            }
+            ListOutcome::Open | ListOutcome::ToggleMark(_) => {
+                if query_changed || (self.nav.selected, self.filtered_transforms.len()) != before {
+                    self.update_preview();
+                }
+                PasteSpecialAction::None
+            }
         }
-
-        action
     }
 }
 
@@ -384,17 +269,10 @@ mod tests {
         let mut ui = PasteSpecialUI::new();
         ui.open("test".to_string());
 
-        assert_eq!(ui.selected_index, 0);
+        assert_eq!(ui.nav.selected, 0);
 
-        ui.select_next();
-        assert_eq!(ui.selected_index, 1);
-
-        ui.select_previous();
-        assert_eq!(ui.selected_index, 0);
-
-        // Can't go below 0
-        ui.select_previous();
-        assert_eq!(ui.selected_index, 0);
+        ui.nav.selected = 1;
+        assert_eq!(ui.selected_transform(), Some(PasteTransform::all()[1]));
     }
 
     #[test]
@@ -476,12 +354,12 @@ mod b70_tests {
         let ctx = egui::Context::default();
         let mut ui = PasteSpecialUI::new();
         ui.open("hello world".into());
-        let start = ui.selected_index;
+        let start = ui.nav.selected;
 
         let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown)]);
-        assert_eq!(ui.selected_index, start + 1, "ArrowDown moves selection");
+        assert_eq!(ui.nav.selected, start + 1, "ArrowDown moves selection");
         let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowUp)]);
-        assert_eq!(ui.selected_index, start, "ArrowUp moves it back");
+        assert_eq!(ui.nav.selected, start, "ArrowUp moves it back");
 
         let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Enter)]);
         assert!(!ui.visible, "Enter applies and closes");
@@ -501,29 +379,42 @@ mod b70_tests {
         assert!(matches!(action, PasteSpecialAction::None));
     }
 
-    /// B70 source pin (counted outside this test module's own literals) —
-    /// same rationale as the other panels: the winit layer cannot see these
-    /// keys, so show() losing the wiring kills keyboard navigation.
     #[test]
-    fn show_reads_navigation_from_the_egui_input() {
-        let source = include_str!("paste_special_ui.rs");
-        let source = source.split("mod b70_tests").next().unwrap();
-        assert_eq!(
-            source.matches("num_presses(egui::Key::ArrowDown)").count(),
-            1,
-            "show() must keep the ArrowDown num_presses wiring"
-        );
-        assert_eq!(
-            source
-                .matches("consume_key(egui::Modifiers::NONE, egui::Key::Escape)")
-                .count(),
-            1,
-            "show() must keep the Escape consume_key wiring"
-        );
-        assert_eq!(
-            source.matches("key_pressed(egui::Key::Enter)").count(),
-            1,
-            "show() must keep the Enter wiring"
+    fn enter_on_a_failing_transform_is_a_no_op() {
+        let ctx = egui::Context::default();
+        let mut ui = PasteSpecialUI::new();
+        // Not valid base64: the decode transform returns Err.
+        ui.open("not base64 !!".into());
+        ui.search_query = "base64".into();
+        ui.update_filtered_transforms();
+        let failing = ui
+            .filtered_transforms
+            .iter()
+            .position(|t| transform("not base64 !!", *t).is_err())
+            .expect("a base64 transform fails on this input");
+        ui.nav.selected = failing;
+        let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Enter)]);
+        assert!(ui.visible, "a failed transform keeps the dialog open");
+        assert!(matches!(action, PasteSpecialAction::None));
+    }
+
+    #[test]
+    fn the_footer_has_no_invented_chord() {
+        let config = crate::app::overlay::picker::ListConfig {
+            id: "t",
+            hint: "",
+            visible_rows: VISIBLE_ROWS,
+            width: 0.0,
+            empty_text: "",
+            enter_verb: "apply",
+            toggle_chord: None,
+            alternates: false,
+            alternate_labels: None,
+            extra_keys: &[],
+            multi_select: false,
+        };
+        assert!(
+            crate::app::overlay::picker::footer_text(&config).ends_with("Enter apply · Esc close")
         );
     }
 }

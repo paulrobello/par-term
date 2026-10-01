@@ -5,11 +5,7 @@
 //! sessions (attach or create through the tmux gateway, when tmux
 //! integration is on). Both lists load off the frame.
 
-use crate::ui_constants::{
-    TMUX_PICKER_LIST_MAX_HEIGHT, TMUX_PICKER_WINDOW_DEFAULT_HEIGHT,
-    TMUX_PICKER_WINDOW_DEFAULT_WIDTH,
-};
-use egui::{Color32, Context, Frame, Key, RichText, Window, epaint::Shadow};
+use egui::{Context, RichText};
 use std::process::Command;
 use std::sync::mpsc::{self, Receiver};
 use std::time::Duration;
@@ -17,6 +13,9 @@ use std::time::Duration;
 /// Deadline for `tmux list-sessions`. Instant against a healthy server; an
 /// unresponsive one must not hold the egui frame.
 const TMUX_LIST_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Rows drawn before the tmux list scrolls.
+const VISIBLE_ROWS: usize = 8;
 
 /// Information about a tmux session
 #[derive(Debug, Clone)]
@@ -72,6 +71,14 @@ pub struct TmuxSessionPickerUI {
     pending_load: Option<Receiver<Result<Vec<TmuxSessionInfo>, String>>>,
     /// The par-mux section's editing state.
     mux_section: crate::session_picker_mux::MuxPickerSection,
+    /// Filter over the tmux list.
+    query: String,
+    /// Selection and drawn window, on the shared picker (UX.md OV5).
+    nav: crate::app::overlay::picker::ListNav,
+    /// Whether the filter field should take focus (set on open).
+    request_focus: bool,
+    /// The live toggle chord for the footer; `None` when unbound.
+    toggle_chord: Option<String>,
 }
 
 impl TmuxSessionPickerUI {
@@ -85,6 +92,10 @@ impl TmuxSessionPickerUI {
             sessions_loaded: false,
             pending_load: None,
             mux_section: crate::session_picker_mux::MuxPickerSection::default(),
+            query: String::new(),
+            nav: Default::default(),
+            request_focus: false,
+            toggle_chord: None,
         }
     }
 
@@ -98,6 +109,9 @@ impl TmuxSessionPickerUI {
         self.error_message = None;
         self.new_session_name.clear();
         self.mux_section.reset();
+        self.query.clear();
+        self.nav.reset();
+        self.request_focus = true;
     }
 
     /// Hide the session picker
@@ -202,26 +216,53 @@ impl TmuxSessionPickerUI {
         Ok(sessions)
     }
 
-    /// Show the session picker UI and return any requested action
+    /// Read the live chord from the registry (every frame, so every opening
+    /// path shows the current binding).
+    pub(crate) fn sync_toggle_chord(
+        &mut self,
+        registry: &par_term_keybindings::KeybindingRegistry,
+    ) {
+        self.toggle_chord = registry
+            .chord_for_action("toggle_session_picker")
+            .map(|c| crate::command_palette::catalog::chord_display(&c));
+    }
+
+    /// The chord the footer names.
+    #[cfg(test)]
+    pub(crate) fn toggle_chord(&self) -> Option<&str> {
+        self.toggle_chord.as_deref()
+    }
+
+    /// Indices of the tmux sessions matching the filter, in list order.
+    fn filtered(&self) -> Vec<usize> {
+        let query = self.query.to_lowercase();
+        self.sessions
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| query.is_empty() || s.name.to_lowercase().contains(&query))
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    /// Show the session picker UI and return any requested action.
+    ///
+    /// The tmux list, filter, keys, and footer come from the shared picker
+    /// (UX.md OV5): arrows, PageUp/PageDown, Home/End, Enter attaches the
+    /// selected tmux session, Escape closes. The par-mux section, the
+    /// loading state, Refresh, and Create sit in the picker's hooks, and
+    /// the picker reads keys only while the filter (or nothing) has focus,
+    /// so Enter still submits a rename or a new session name.
     pub fn show(
         &mut self,
         ctx: &Context,
         picker: &SessionPickerContext<'_>,
     ) -> SessionPickerAction {
+        use crate::app::overlay::picker::{self, ListConfig, ListHooks, ListOutcome};
+
         if !self.visible {
             return SessionPickerAction::None;
         }
         let tmux_path = picker.tmux_path;
-
-        // Escape closes the picker on the egui side (B69), mirroring the
-        // command palette: with the session-name field focused this is the
-        // only layer that sees the key, and consuming it here keeps the
-        // Escape from also reaching other egui widgets. The B61 modal guard
-        // remains the backstop that keeps an unfocused Escape off the PTY.
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
-            self.visible = false;
-            return SessionPickerAction::None;
-        }
 
         // Load sessions on first show, off the frame (B69)
         if picker.tmux_enabled && !self.sessions_loaded {
@@ -229,166 +270,152 @@ impl TmuxSessionPickerUI {
         }
         self.poll_pending_load();
 
+        let filtered = if picker.tmux_enabled {
+            self.filtered()
+        } else {
+            Vec::new()
+        };
+        let loading = self.pending_load.is_some();
+        let empty_text = if !picker.tmux_enabled {
+            "Turn on tmux integration in Settings to list tmux sessions"
+        } else if loading {
+            "Loading sessions..."
+        } else {
+            "No tmux sessions found"
+        };
+        let config = ListConfig {
+            id: "Sessions",
+            hint: "Filter tmux sessions",
+            visible_rows: VISIBLE_ROWS,
+            width: crate::app::overlay::theme::WIDTH_LARGE,
+            empty_text,
+            enter_verb: "attach tmux session",
+            toggle_chord: self.toggle_chord.as_deref(),
+            alternates: false,
+            alternate_labels: None,
+            extra_keys: &[],
+            multi_select: false,
+        };
+
         let mut action = SessionPickerAction::None;
-        let mut close_requested = false;
-
-        // Fully opaque — scoped to this picker (OV1: no global style writes).
-
-        let mut open = true;
-        let viewport = ctx.input(|i| i.viewport_rect());
-
-        Window::new("Sessions")
-            .resizable(true)
-            .default_width(TMUX_PICKER_WINDOW_DEFAULT_WIDTH)
-            .default_height(TMUX_PICKER_WINDOW_DEFAULT_HEIGHT)
-            .default_pos(viewport.center())
-            .pivot(egui::Align2::CENTER_CENTER)
-            .open(&mut open)
-            .frame(
-                Frame::window(&ctx.global_style())
-                    .fill(crate::app::overlay::theme::PANEL_FILL)
-                    .stroke(egui::Stroke::NONE)
-                    .shadow(Shadow {
-                        offset: [0, 0],
-                        blur: 0,
-                        spread: 0,
-                        color: Color32::TRANSPARENT,
-                    }),
-            )
-            .show(ctx, |ui| {
-                crate::app::overlay::theme::solid_panel(ui);
-                if let Some(mux) = picker.mux.as_ref()
-                    && let Some(chosen) = self.mux_section.show(ui, mux)
-                {
-                    action = SessionPickerAction::Mux(chosen);
-                    close_requested = true;
+        let mut refresh_requested = false;
+        let mut create_requested = false;
+        let error = self.error_message.clone();
+        let mux_section = &mut self.mux_section;
+        let mux_action = &mut action;
+        let mut above = |ui: &mut egui::Ui| {
+            if let Some(mux) = picker.mux.as_ref()
+                && let Some(chosen) = mux_section.show(ui, mux)
+            {
+                *mux_action = SessionPickerAction::Mux(chosen);
+            }
+            if !picker.tmux_enabled {
+                return;
+            }
+            if picker.mux.is_some() {
+                ui.add_space(8.0);
+            }
+            if let Some(err) = &error {
+                ui.colored_label(crate::app::overlay::theme::DANGER, err);
+            }
+            ui.horizontal(|ui| {
+                ui.heading("tmux Sessions");
+                if loading {
+                    ui.spinner();
                 }
-                if !picker.tmux_enabled {
-                    if picker.mux.is_none() {
+            });
+        };
+        let new_session_name = &mut self.new_session_name;
+        let tmux_enabled = picker.tmux_enabled;
+        let mut below = |ui: &mut egui::Ui| {
+            if !tmux_enabled {
+                return;
+            }
+            if ui.button("Refresh").clicked() {
+                refresh_requested = true;
+            }
+            ui.add_space(8.0);
+            ui.heading("Create New tmux Session");
+            ui.horizontal(|ui| {
+                ui.label("Session name:");
+                ui.text_edit_singleline(new_session_name);
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Create").clicked() {
+                    create_requested = true;
+                }
+                ui.label(
+                    RichText::new("(leave empty for auto-generated name)")
+                        .small()
+                        .weak(),
+                );
+            });
+        };
+        let sessions = &self.sessions;
+        let (outcome, query_changed) = picker::show_list_with(
+            ctx,
+            &config,
+            ListHooks {
+                keys_follow_filter: true,
+                above: Some(&mut above),
+                below: Some(&mut below),
+            },
+            &mut self.query,
+            &mut self.request_focus,
+            &mut self.nav,
+            filtered.len(),
+            |ui, index, selected| {
+                let session = &sessions[filtered[index]];
+                let name = if session.attached {
+                    RichText::new(&session.name).strong()
+                } else {
+                    RichText::new(&session.name)
+                };
+                let mut clicked = false;
+                ui.horizontal(|ui| {
+                    clicked = ui.selectable_label(selected, name).clicked();
+                    ui.label(
+                        RichText::new(format!(
+                            "({} window{})",
+                            session.window_count,
+                            if session.window_count == 1 { "" } else { "s" }
+                        ))
+                        .weak(),
+                    );
+                    if session.attached {
                         ui.label(
-                            RichText::new(
-                                "Turn on tmux integration in Settings to list tmux sessions",
-                            )
-                            .italics(),
+                            RichText::new("(attached)").color(crate::app::overlay::theme::SUCCESS),
                         );
                     }
-                    return;
-                }
-                if picker.mux.is_some() {
-                    ui.add_space(16.0);
-                }
-
-                // Error message
-                if let Some(ref err) = self.error_message {
-                    ui.colored_label(crate::app::overlay::theme::DANGER, err);
-                    ui.add_space(8.0);
-                }
-
-                // Existing sessions section
-                ui.heading("tmux Sessions");
-                ui.separator();
-
-                if self.sessions.is_empty() {
-                    if self.pending_load.is_some() {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label(RichText::new("Loading sessions...").italics());
-                        });
-                    } else {
-                        ui.label(RichText::new("No tmux sessions found").italics());
-                    }
-                } else {
-                    egui::ScrollArea::vertical()
-                        .max_height(TMUX_PICKER_LIST_MAX_HEIGHT)
-                        .show(ui, |ui| {
-                            for session in &self.sessions {
-                                ui.horizontal(|ui| {
-                                    // Session name
-                                    let name_text = if session.attached {
-                                        RichText::new(&session.name).strong()
-                                    } else {
-                                        RichText::new(&session.name)
-                                    };
-                                    ui.label(name_text);
-
-                                    // Window count
-                                    ui.label(
-                                        RichText::new(format!(
-                                            "({} window{})",
-                                            session.window_count,
-                                            if session.window_count == 1 { "" } else { "s" }
-                                        ))
-                                        .weak(),
-                                    );
-
-                                    // Attached indicator
-                                    if session.attached {
-                                        ui.label(
-                                            RichText::new("(attached)")
-                                                .color(crate::app::overlay::theme::SUCCESS),
-                                        );
-                                    }
-
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            if ui.button("Attach").clicked() {
-                                                action = SessionPickerAction::Attach(
-                                                    session.name.clone(),
-                                                );
-                                                close_requested = true;
-                                            }
-                                        },
-                                    );
-                                });
-                            }
-                        });
-                }
-
-                ui.add_space(16.0);
-
-                // Refresh button
-                if ui.button("Refresh").clicked() {
-                    self.refresh_sessions(tmux_path);
-                }
-
-                ui.add_space(16.0);
-
-                // Create new session section
-                ui.heading("Create New tmux Session");
-                ui.separator();
-
-                ui.horizontal(|ui| {
-                    ui.label("Session name:");
-                    ui.text_edit_singleline(&mut self.new_session_name);
                 });
-
-                ui.add_space(8.0);
-
-                ui.horizontal(|ui| {
-                    if ui.button("Create").clicked() {
-                        let name = if self.new_session_name.is_empty() {
-                            None
-                        } else {
-                            Some(self.new_session_name.clone())
-                        };
-                        action = SessionPickerAction::CreateNew(name);
-                        close_requested = true;
-                    }
-
-                    ui.label(
-                        RichText::new("(leave empty for auto-generated name)")
-                            .small()
-                            .weak(),
-                    );
-                });
-            });
-
-        // Handle close
-        if !open || close_requested {
+                clicked
+            },
+        );
+        if query_changed {
+            self.nav.reset();
+        }
+        if refresh_requested {
+            self.refresh_sessions(tmux_path);
+        }
+        if create_requested {
+            let name = (!self.new_session_name.is_empty()).then(|| self.new_session_name.clone());
+            action = SessionPickerAction::CreateNew(name);
+        }
+        match outcome {
+            ListOutcome::Chosen { index, .. } => {
+                if let Some(&i) = filtered.get(index) {
+                    action = SessionPickerAction::Attach(self.sessions[i].name.clone());
+                }
+            }
+            ListOutcome::Closed => {
+                self.visible = false;
+                return SessionPickerAction::None;
+            }
+            ListOutcome::Open | ListOutcome::ToggleMark(_) => {}
+        }
+        if !matches!(action, SessionPickerAction::None) {
             self.visible = false;
         }
-
         action
     }
 }
@@ -402,6 +429,7 @@ impl Default for TmuxSessionPickerUI {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use egui::Key;
 
     #[test]
     fn refresh_spawns_instead_of_loading_in_the_frame() {
@@ -446,16 +474,88 @@ mod tests {
         assert!(!picker.sessions_loaded);
     }
 
-    #[test]
-    fn show_consumes_escape_to_close() {
-        // B69 pin: show() must close the picker on the egui-side Escape —
-        // with the session-name field focused no other layer sees the key.
-        // Assembled needle so the scan cannot match this test's own source.
-        let source = include_str!("tmux_session_picker_ui.rs");
-        let needle = ["consume", "_key"].join("");
-        assert!(
-            source.contains(&needle),
-            "show() must consume Escape to close the picker"
+    fn frame(
+        ctx: &egui::Context,
+        picker: &mut TmuxSessionPickerUI,
+        key: Key,
+    ) -> SessionPickerAction {
+        ctx.begin_pass(egui::RawInput {
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        });
+        let action = picker.show(
+            ctx,
+            &SessionPickerContext {
+                tmux_path: "/nonexistent/par-term-test-tmux",
+                tmux_enabled: true,
+                mux: None,
+            },
         );
+        ctx.end_pass().textures_delta.clear();
+        action
+    }
+
+    fn loaded(names: &[&str]) -> TmuxSessionPickerUI {
+        let mut picker = TmuxSessionPickerUI::new();
+        picker.show_picker();
+        picker.sessions = names
+            .iter()
+            .map(|n| TmuxSessionInfo {
+                id: format!("${n}"),
+                name: n.to_string(),
+                window_count: 1,
+                attached: false,
+            })
+            .collect();
+        picker.sessions_loaded = true;
+        picker
+    }
+
+    #[test]
+    fn escape_closes_the_picker_and_returns_no_action() {
+        // B69: Escape closes on the egui side, first and unconditionally.
+        let ctx = egui::Context::default();
+        let mut picker = loaded(&["a"]);
+        let action = frame(&ctx, &mut picker, Key::Escape);
+        assert!(!picker.visible);
+        assert!(matches!(action, SessionPickerAction::None));
+    }
+
+    #[test]
+    fn arrows_and_enter_attach_the_selected_tmux_session() {
+        let ctx = egui::Context::default();
+        let mut picker = loaded(&["alpha", "beta"]);
+        let _ = frame(&ctx, &mut picker, Key::ArrowDown);
+        match frame(&ctx, &mut picker, Key::Enter) {
+            SessionPickerAction::Attach(name) => assert_eq!(name, "beta"),
+            other => panic!("expected Attach, got {other:?}"),
+        }
+        assert!(!picker.visible);
+    }
+
+    #[test]
+    fn enter_in_an_embedded_name_field_does_not_attach() {
+        // keys_follow_filter: while another field (a rename or the new
+        // session name) holds focus, Enter submits that field, not the list.
+        let ctx = egui::Context::default();
+        let mut picker = loaded(&["alpha"]);
+        let _ = frame(&ctx, &mut picker, Key::ArrowDown);
+        ctx.memory_mut(|m| m.request_focus(egui::Id::new("new-session-name")));
+        let action = frame(&ctx, &mut picker, Key::Enter);
+        assert!(matches!(action, SessionPickerAction::None));
+        assert!(picker.visible, "the list did not take the Enter");
+    }
+
+    #[test]
+    fn the_filter_narrows_the_tmux_list() {
+        let mut picker = loaded(&["alpha", "beta"]);
+        picker.query = "BET".into();
+        assert_eq!(picker.filtered(), vec![1]);
     }
 }

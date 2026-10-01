@@ -1,8 +1,17 @@
-use crate::ui_constants::{
-    CLIPBOARD_WINDOW_DEFAULT_HEIGHT, CLIPBOARD_WINDOW_DEFAULT_WIDTH, CLIPBOARD_WINDOW_MAX_HEIGHT,
-};
-use egui::{Context, Window};
+use egui::Context;
 use par_term_terminal::{ClipboardEntry, ClipboardSlot};
+
+/// Rows drawn before the list scrolls.
+const VISIBLE_ROWS: usize = 12;
+
+/// Shift+Enter opens paste special: the one alternate, taken as an extra
+/// key so the footer does not advertise a Cmd+Enter the list does not use.
+const PASTE_SPECIAL_KEY: [crate::app::overlay::picker::ExtraKey; 1] =
+    [crate::app::overlay::picker::ExtraKey {
+        modifiers: egui::Modifiers::SHIFT,
+        key: egui::Key::Enter,
+        label: "Shift+Enter paste special",
+    }];
 
 /// Clipboard history UI manager using egui
 pub struct ClipboardHistoryUI {
@@ -12,8 +21,14 @@ pub struct ClipboardHistoryUI {
     /// Current search query
     search_query: String,
 
-    /// Index of currently selected entry (for keyboard navigation)
-    selected_index: Option<usize>,
+    /// Selection and drawn window, on the shared picker (UX.md OV5).
+    nav: crate::app::overlay::picker::ListNav,
+
+    /// Whether the search field should take focus (set on open).
+    request_focus: bool,
+
+    /// The live toggle chord for the footer; `None` when unbound.
+    toggle_chord: Option<String>,
 
     /// Cached clipboard history entries (refreshed when shown)
     cached_entries: Vec<ClipboardEntry>,
@@ -47,7 +62,9 @@ impl ClipboardHistoryUI {
         Self {
             visible: false,
             search_query: String::new(),
-            selected_index: None,
+            nav: Default::default(),
+            request_focus: false,
+            toggle_chord: None,
             cached_entries: Vec::new(),
         }
     }
@@ -56,210 +73,125 @@ impl ClipboardHistoryUI {
     pub fn toggle(&mut self) {
         self.visible = !self.visible;
         if self.visible {
-            // Reset selection when opening
-            self.selected_index = if self.cached_entries.is_empty() {
-                None
-            } else {
-                Some(0)
-            };
+            self.nav.reset();
+            self.request_focus = true;
         }
     }
 
     /// Update cached entries from terminal
     pub fn update_entries(&mut self, entries: Vec<ClipboardEntry>) {
         self.cached_entries = entries;
-        // Reset selection if out of bounds
-        if let Some(idx) = self.selected_index
-            && idx >= self.cached_entries.len()
-        {
-            self.selected_index = if self.cached_entries.is_empty() {
-                None
-            } else {
-                Some(self.cached_entries.len() - 1)
-            };
-        }
     }
 
-    /// Navigate selection up
-    pub fn select_previous(&mut self) {
-        if let Some(idx) = self.selected_index {
-            if idx > 0 {
-                self.selected_index = Some(idx - 1);
-            }
-        } else if !self.cached_entries.is_empty() {
-            self.selected_index = Some(self.cached_entries.len() - 1);
-        }
-    }
-
-    /// Navigate selection down
-    pub fn select_next(&mut self) {
-        if let Some(idx) = self.selected_index {
-            if idx < self.cached_entries.len().saturating_sub(1) {
-                self.selected_index = Some(idx + 1);
-            }
-        } else if !self.cached_entries.is_empty() {
-            self.selected_index = Some(0);
-        }
+    /// Entries matching the search query, in list order.
+    fn filtered(&self) -> Vec<&ClipboardEntry> {
+        let query = self.search_query.to_lowercase();
+        self.cached_entries
+            .iter()
+            .filter(|e| query.is_empty() || e.content.to_lowercase().contains(&query))
+            .collect()
     }
 
     /// Get the currently selected entry
     pub fn selected_entry(&self) -> Option<&ClipboardEntry> {
-        self.selected_index
-            .and_then(|idx| self.cached_entries.get(idx))
+        self.filtered().get(self.nav.selected).copied()
     }
 
-    /// Show the clipboard history window and return any action to take
+    /// Read the live chord from the registry (every frame, so every opening
+    /// path shows the current binding).
+    pub(crate) fn sync_toggle_chord(
+        &mut self,
+        registry: &par_term_keybindings::KeybindingRegistry,
+    ) {
+        self.toggle_chord = registry
+            .chord_for_action("toggle_clipboard_history")
+            .map(|c| crate::command_palette::catalog::chord_display(&c));
+    }
+
+    /// The chord the footer names.
+    #[cfg(test)]
+    pub(crate) fn toggle_chord(&self) -> Option<&str> {
+        self.toggle_chord.as_deref()
+    }
+
+    /// Show the clipboard history window and return any action to take.
+    ///
+    /// Keys, scrolling, and the footer come from the shared picker (UX.md
+    /// OV5): arrows, PageUp/PageDown, Home/End, Enter pastes, Shift+Enter
+    /// opens paste special, Escape closes.
     pub fn show(&mut self, ctx: &Context) -> ClipboardHistoryAction {
+        use crate::app::overlay::picker::{self, Activation, ListConfig, ListHooks, ListOutcome};
+
         if !self.visible {
             return ClipboardHistoryAction::None;
         }
 
-        let mut action = ClipboardHistoryAction::None;
-        let mut open = true;
-
-        // B70: keyboard navigation lives on the egui side — the overlay
-        // stack consumes every key before terminal key dispatch, so this is
-        // the only reader (full reasoning in command_history_ui::show).
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
-            self.visible = false;
-        }
-        let downs = ctx.input(|i| i.num_presses(egui::Key::ArrowDown));
-        for _ in 0..downs {
-            self.select_next();
-        }
-        let ups = ctx.input(|i| i.num_presses(egui::Key::ArrowUp));
-        for _ in 0..ups {
-            self.select_previous();
-        }
-        // consume_key with exact modifiers rather than key_pressed:
-        // InputState::modifiers only tracks ModifiersChanged events, so the
-        // modifier must be matched on the key event itself — and this keeps
-        // a Shift+Enter from double-firing the plain-Enter path.
-        let shift_enter =
-            ctx.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::Enter));
-        let plain_enter = !shift_enter
-            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
-        if (shift_enter || plain_enter)
-            && let Some(entry) = self.selected_entry()
-        {
-            let content = entry.content.clone();
-            self.visible = false;
-            if shift_enter {
-                action = ClipboardHistoryAction::OpenPasteSpecial(content);
-            } else {
-                action = ClipboardHistoryAction::Paste(content);
+        let matches: Vec<ClipboardEntry> = self.filtered().into_iter().cloned().collect();
+        let config = ListConfig {
+            id: "Clipboard History",
+            hint: "Search clipboard history",
+            visible_rows: VISIBLE_ROWS,
+            width: crate::app::overlay::theme::WIDTH_MEDIUM,
+            empty_text: "No clipboard history entries",
+            enter_verb: "paste",
+            toggle_chord: self.toggle_chord.as_deref(),
+            alternates: false,
+            alternate_labels: None,
+            extra_keys: &PASTE_SPECIAL_KEY,
+            multi_select: false,
+        };
+        let mut clear_requested = false;
+        let mut clear_button = |ui: &mut egui::Ui| {
+            if ui.button("Clear History").clicked() {
+                clear_requested = true;
             }
-        }
-
-        // Calculate center position for initial placement
-        let screen_rect = ctx.content_rect();
-        let default_pos = egui::pos2(
-            (screen_rect.width() - CLIPBOARD_WINDOW_DEFAULT_WIDTH) / 2.0,
-            (screen_rect.height() - CLIPBOARD_WINDOW_DEFAULT_HEIGHT) / 2.0,
+        };
+        let (outcome, query_changed) = picker::show_list_with(
+            ctx,
+            &config,
+            ListHooks {
+                keys_follow_filter: false,
+                above: None,
+                below: Some(&mut clear_button),
+            },
+            &mut self.search_query,
+            &mut self.request_focus,
+            &mut self.nav,
+            matches.len(),
+            |ui, index, selected| {
+                let entry = &matches[index];
+                let label = format!(
+                    "[{}] {}",
+                    format_timestamp(entry.timestamp),
+                    truncate_preview(&entry.content, 80)
+                );
+                ui.selectable_label(selected, label)
+                    .on_hover_text(&entry.content)
+                    .clicked()
+            },
         );
-
-        Window::new("Clipboard History")
-            .resizable(true)
-            .collapsible(false)
-            .default_width(CLIPBOARD_WINDOW_DEFAULT_WIDTH)
-            .default_height(CLIPBOARD_WINDOW_DEFAULT_HEIGHT)
-            .max_height(CLIPBOARD_WINDOW_MAX_HEIGHT)
-            .default_pos(default_pos)
-            .open(&mut open)
-            .show(ctx, |ui| {
-                // Search bar
-                ui.horizontal(|ui| {
-                    ui.label("Search:");
-                    ui.text_edit_singleline(&mut self.search_query);
-                });
-
-                ui.separator();
-
-                // Entry list
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        let filtered_entries: Vec<(usize, &ClipboardEntry)> = self
-                            .cached_entries
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, entry)| {
-                                if self.search_query.is_empty() {
-                                    true
-                                } else {
-                                    entry
-                                        .content
-                                        .to_lowercase()
-                                        .contains(&self.search_query.to_lowercase())
-                                }
-                            })
-                            .collect();
-
-                        if filtered_entries.is_empty() {
-                            ui.label("No clipboard history entries");
-                        } else {
-                            for (original_idx, entry) in filtered_entries {
-                                let is_selected = self.selected_index == Some(original_idx);
-                                let preview = truncate_preview(&entry.content, 80);
-                                let timestamp = format_timestamp(entry.timestamp);
-
-                                let response = ui.selectable_label(
-                                    is_selected,
-                                    format!("[{}] {}", timestamp, preview),
-                                );
-
-                                if response.clicked() {
-                                    self.selected_index = Some(original_idx);
-                                }
-
-                                if response.double_clicked() {
-                                    action = ClipboardHistoryAction::Paste(entry.content.clone());
-                                    self.visible = false;
-                                }
-
-                                // Show tooltip with full content on hover
-                                response.on_hover_text(&entry.content);
-                            }
-                        }
-                    });
-
-                ui.separator();
-
-                // Action buttons
-                ui.horizontal(|ui| {
-                    if ui.button("Paste Selected").clicked()
-                        && let Some(entry) = self.selected_entry()
-                    {
-                        action = ClipboardHistoryAction::Paste(entry.content.clone());
-                        self.visible = false;
-                    }
-
-                    if ui.button("Clear History").clicked() {
-                        action = ClipboardHistoryAction::ClearAll;
-                    }
-
-                    if ui.button("Close").clicked() {
-                        self.visible = false;
-                    }
-                });
-
-                // Keyboard hints
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label("Hints:");
-                    ui.label("\u{f062}\u{f063} Navigate");
-                    ui.label("Enter Paste");
-                    ui.label("Shift+Enter Transform");
-                    ui.label("Esc Close");
-                });
-            });
-
-        // Handle window close
-        if !open {
-            self.visible = false;
+        if query_changed {
+            self.nav.reset();
         }
-
-        action
+        if clear_requested {
+            return ClipboardHistoryAction::ClearAll;
+        }
+        match outcome {
+            ListOutcome::Chosen { index, how } => {
+                let content = matches.get(index).map(|e| e.content.clone());
+                self.visible = false;
+                match (content, how) {
+                    (Some(c), Activation::Extra(_)) => ClipboardHistoryAction::OpenPasteSpecial(c),
+                    (Some(c), _) => ClipboardHistoryAction::Paste(c),
+                    (None, _) => ClipboardHistoryAction::None,
+                }
+            }
+            ListOutcome::Closed => {
+                self.visible = false;
+                ClipboardHistoryAction::None
+            }
+            ListOutcome::Open | ListOutcome::ToggleMark(_) => ClipboardHistoryAction::None,
+        }
     }
 }
 
@@ -370,10 +302,10 @@ mod b70_tests {
         let mut ui = ClipboardHistoryUI::new();
         ui.update_entries(entries());
         ui.toggle();
-        assert_eq!(ui.selected_index, Some(0));
+        assert_eq!(ui.nav.selected, 0);
 
         let _ = frame(&ctx, &mut ui, vec![key_event(egui::Key::ArrowDown, false)]);
-        assert_eq!(ui.selected_index, Some(1));
+        assert_eq!(ui.nav.selected, 1);
 
         let action = frame(&ctx, &mut ui, vec![key_event(egui::Key::Enter, false)]);
         assert!(!ui.visible, "Enter closes the panel");
@@ -411,31 +343,54 @@ mod b70_tests {
         assert!(matches!(action, ClipboardHistoryAction::None));
     }
 
-    /// B70 source pin (counted outside this test module's own literals):
-    /// show() losing the egui-side wiring would silently kill all keyboard
-    /// navigation — the winit layer cannot see these keys.
     #[test]
-    fn show_reads_navigation_from_the_egui_input() {
-        let source = include_str!("clipboard_history_ui.rs");
-        let source = source.split("mod b70_tests").next().unwrap();
-        assert_eq!(
-            source.matches("num_presses(egui::Key::ArrowDown)").count(),
-            1,
-            "show() must keep the ArrowDown num_presses wiring"
-        );
-        assert_eq!(
-            source
-                .matches("consume_key(egui::Modifiers::SHIFT, egui::Key::Enter)")
-                .count(),
-            1,
-            "show() must keep the Shift+Enter consume_key wiring"
-        );
-        assert_eq!(
-            source
-                .matches("consume_key(egui::Modifiers::NONE, egui::Key::Escape)")
-                .count(),
-            1,
-            "show() must keep the Escape consume_key wiring"
-        );
+    fn the_footer_names_paste_special_and_the_live_chord() {
+        let mut ui = ClipboardHistoryUI::new();
+        ui.toggle_chord = Some("Cmd+Shift+V".into());
+        let config = crate::app::overlay::picker::ListConfig {
+            id: "t",
+            hint: "",
+            visible_rows: VISIBLE_ROWS,
+            width: 0.0,
+            empty_text: "",
+            enter_verb: "paste",
+            toggle_chord: ui.toggle_chord(),
+            alternates: false,
+            alternate_labels: None,
+            extra_keys: &PASTE_SPECIAL_KEY,
+            multi_select: false,
+        };
+        let footer = crate::app::overlay::picker::footer_text(&config);
+        assert!(footer.contains("Shift+Enter paste special"));
+        assert!(!footer.contains("Cmd+Enter"));
+        assert!(footer.ends_with("Esc or Cmd+Shift+V close"));
+    }
+
+    #[test]
+    fn cmd_enter_is_not_an_alternate() {
+        // Only Shift+Enter is an alternate. Cmd+Enter is not advertised, and
+        // egui's plain-Enter match rejects a held Command, so it does nothing.
+        let ctx = egui::Context::default();
+        let mut ui = ClipboardHistoryUI::new();
+        ui.update_entries(entries());
+        ui.toggle();
+        let cmd_enter = egui::Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::COMMAND,
+        };
+        let action = frame(&ctx, &mut ui, vec![cmd_enter]);
+        assert!(matches!(action, ClipboardHistoryAction::None));
+        assert!(ui.visible, "Cmd+Enter neither pastes nor closes");
+    }
+
+    #[test]
+    fn a_filtered_list_selects_among_the_matches() {
+        let mut ui = ClipboardHistoryUI::new();
+        ui.update_entries(entries());
+        ui.search_query = "AAA".into();
+        assert_eq!(ui.selected_entry().unwrap().content, "b70-clip-AAA");
     }
 }

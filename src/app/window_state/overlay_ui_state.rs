@@ -98,6 +98,18 @@ pub(crate) struct OverlayUiState {
 }
 
 impl OverlayUiState {
+    /// Point every migrated picker's footer at the live chord for its
+    /// toggle action (UX.md OV5). Called each frame, so every opening path
+    /// (chord, menu, ui-test) shows the current binding.
+    pub(crate) fn sync_picker_chords(
+        &mut self,
+        registry: &par_term_keybindings::KeybindingRegistry,
+    ) {
+        self.command_history_ui.sync_toggle_chord(registry);
+        self.clipboard_history_ui.sync_toggle_chord(registry);
+        self.tmux_session_picker_ui.sync_toggle_chord(registry);
+    }
+
     pub(crate) fn new(config: &Config) -> Self {
         let command_history_max = config.command_history_max_entries;
         let profile_manager = match profile_storage::load_profiles() {

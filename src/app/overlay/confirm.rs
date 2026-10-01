@@ -12,6 +12,28 @@
 //! - **Escape cancels**;
 //! - a **"Don't ask again" checkbox** where a setting exists.
 //!
+//! # Dialogs that stay off this component
+//!
+//! `resolve` maps Enter and Escape to the safe choice unconditionally. Three
+//! answer-bearing dialogs cannot take that, and `routing::escape_behavior`
+//! pins them `Inert` (Escape swallowed, nothing closes):
+//!
+//! - **Trigger confirmation** (`render_trigger_prompt_dialog`): the answers
+//!   are Deny, Allow Once, and Always Allow. Safe here would be Deny, which
+//!   removes the pending action for good, so a stray Escape or Enter would
+//!   silently deny a queued automation. Always Allow is an approval, not a
+//!   "destructive" action, and does not belong on the destructive chord.
+//! - **Agent-command confirmation** (`render_agent_command_confirm_dialog`):
+//!   Cancel calls `cancel_head`, which drops the command from the queue, so
+//!   an Escape that cancelled would discard a command the user has not read.
+//!   Run is the approval, again not a destructive action.
+//! - **Update dialog** (`update_dialog::render`): Install, Skip This Version,
+//!   and Dismiss are three peer actions with no safe/destructive split, and
+//!   Escape must not abandon an install in flight.
+//!
+//! Migrating any of them means first deciding that Escape may answer the
+//! question, which is a product decision, not a refactor.
+//!
 //! Key handling runs *after* the buttons: egui fake-clicks a focused
 //! button on Enter, so a focused destructive button would otherwise take
 //! its action on the same frame Enter is pressed. Resolving keys last lets

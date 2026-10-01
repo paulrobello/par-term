@@ -339,6 +339,9 @@ pub(super) fn render_copy_mode_status_bar(
 /// action carries a target: approving a write into a tab the user cannot see is only
 /// legitimate if the dialog says which tab that is.
 ///
+/// Not on `overlay::confirm`: Escape must stay inert here, because Deny discards
+/// the queued action and Always Allow is an approval (see `confirm.rs`).
+///
 /// Uses `trigger_prompt_activated_frame` as a flicker guard to prevent the click that opens
 /// the dialog from immediately dismissing it.
 pub(super) fn render_trigger_prompt_dialog(
@@ -627,6 +630,9 @@ pub(super) fn render_pane_hint_overlay(ctx: &egui::Context, badges: &[PaneHintBa
 /// it. The flicker guard (`confirm_dialog_activated_frame`) follows the
 /// `render_trigger_prompt_dialog` pattern so the keypress that opened the
 /// palette row cannot also click a button on this same frame.
+///
+/// Not on `overlay::confirm`: Cancel drops the command unread and Run is an
+/// approval, so Escape stays inert (see `confirm.rs`).
 pub(super) fn render_agent_command_confirm_dialog(
     ctx: &egui::Context,
     store: &mut crate::agent_commands_store::AgentCommandStore,
