@@ -53,6 +53,43 @@ pub struct SessionPickerContext<'a> {
     pub mux: Option<crate::session_picker_mux::MuxPickerInput<'a>>,
 }
 
+/// The list's filter placeholder, empty-list line, and Enter verb.
+#[derive(Debug, PartialEq, Eq)]
+struct ListTexts {
+    hint: &'static str,
+    empty_text: &'static str,
+    enter_verb: &'static str,
+}
+
+/// Pick the list texts for the multiplexer the picker is serving: the tmux
+/// list when tmux integration is on, the par-mux flow when it is off and the
+/// par-mux section is present, and the tmux-integration hint when neither.
+fn list_texts(tmux_enabled: bool, mux_present: bool, loading: bool) -> ListTexts {
+    if tmux_enabled {
+        ListTexts {
+            hint: "Filter tmux sessions",
+            empty_text: if loading {
+                "Loading sessions..."
+            } else {
+                "No tmux sessions found"
+            },
+            enter_verb: "attach tmux session",
+        }
+    } else if mux_present {
+        ListTexts {
+            hint: "Filter par-mux sessions",
+            empty_text: "Attach, switch, or create a par-mux session above",
+            enter_verb: "attach par-mux session",
+        }
+    } else {
+        ListTexts {
+            hint: "Filter tmux sessions",
+            empty_text: "Turn on tmux integration in Settings to list tmux sessions",
+            enter_verb: "attach tmux session",
+        }
+    }
+}
+
 /// tmux Session Picker UI
 pub struct TmuxSessionPickerUI {
     /// Whether the picker is visible
@@ -276,20 +313,14 @@ impl TmuxSessionPickerUI {
             Vec::new()
         };
         let loading = self.pending_load.is_some();
-        let empty_text = if !picker.tmux_enabled {
-            "Turn on tmux integration in Settings to list tmux sessions"
-        } else if loading {
-            "Loading sessions..."
-        } else {
-            "No tmux sessions found"
-        };
+        let texts = list_texts(picker.tmux_enabled, picker.mux.is_some(), loading);
         let config = ListConfig {
             id: "Sessions",
-            hint: "Filter tmux sessions",
+            hint: texts.hint,
             visible_rows: VISIBLE_ROWS,
             width: crate::app::overlay::theme::WIDTH_LARGE,
-            empty_text,
-            enter_verb: "attach tmux session",
+            empty_text: texts.empty_text,
+            enter_verb: texts.enter_verb,
             toggle_chord: self.toggle_chord.as_deref(),
             alternates: false,
             alternate_labels: None,
@@ -550,6 +581,29 @@ mod tests {
         let action = frame(&ctx, &mut picker, Key::Enter);
         assert!(matches!(action, SessionPickerAction::None));
         assert!(picker.visible, "the list did not take the Enter");
+    }
+
+    #[test]
+    fn list_texts_follow_the_active_multiplexer() {
+        let tmux = list_texts(true, true, false);
+        assert_eq!(tmux.hint, "Filter tmux sessions");
+        assert_eq!(tmux.empty_text, "No tmux sessions found");
+        assert_eq!(tmux.enter_verb, "attach tmux session");
+        assert_eq!(
+            list_texts(true, false, true).empty_text,
+            "Loading sessions..."
+        );
+
+        // Default config: tmux off, par-mux attached. No tmux wording.
+        let mux = list_texts(false, true, false);
+        for text in [mux.hint, mux.empty_text, mux.enter_verb] {
+            assert!(!text.to_lowercase().contains("tmux"), "{text}");
+        }
+        assert!(mux.empty_text.contains("par-mux session"));
+        assert!(mux.enter_verb.contains("par-mux session"));
+
+        let neither = list_texts(false, false, false);
+        assert!(neither.empty_text.starts_with("Turn on tmux integration"));
     }
 
     #[test]
