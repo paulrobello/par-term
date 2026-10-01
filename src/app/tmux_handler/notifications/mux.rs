@@ -215,6 +215,8 @@ impl WindowState {
         // The profile path follows par-term's one-daemon-per-session naming.
         self.tmux_state.mux_daemon = Some(name.to_string());
         self.tmux_state.mux_daemon_rx = None;
+        self.tmux_state.mux_attach_socket =
+            Some(par_term_emu_core_rust::mux::ipc::default_socket_path(name));
         let (tx, rx) = std::sync::mpsc::channel();
         let worker_name = name.to_string();
         match std::thread::Builder::new()
@@ -231,6 +233,7 @@ impl WindowState {
             }
             Err(e) => {
                 log::error!("mux attach worker could not start: {e}");
+                self.tmux_state.mux_attach_socket = None;
                 self.record_mux_error("par-mux: attach failed (worker thread unavailable)");
                 self.mux_restore_placeholder_retire();
             }
@@ -261,13 +264,15 @@ impl WindowState {
             Err(std::sync::mpsc::TryRecvError::Disconnected) => None,
             Ok(result) => Some(result),
         };
-        // The attempt settled: its by-name daemon report (if any) is read
-        // now or dropped, never left for the next attach to pick up.
+        // The attempt settled: its by-name daemon report and its socket (if
+        // any) are read now or dropped, never left for the next attach to
+        // pick up.
         let reported_daemon = self
             .tmux_state
             .mux_daemon_rx
             .take()
             .and_then(|rx| rx.try_recv().ok());
+        let socket = self.tmux_state.mux_attach_socket.take();
         match outcome {
             None => {
                 log::error!("mux attach worker died without reporting a result");
@@ -283,10 +288,15 @@ impl WindowState {
                 self.mux_restore_placeholder_retire();
             }
             Some(Ok(client)) => {
-                if let Some(daemon) = reported_daemon {
-                    self.tmux_state.mux_daemon = Some(daemon);
-                }
-                let transport = MuxTransport::new(MuxSessionClient::from_core(client));
+                let socket = match reported_daemon {
+                    Some((daemon, reported_socket)) => {
+                        self.tmux_state.mux_daemon = Some(daemon);
+                        Some(reported_socket)
+                    }
+                    None => socket,
+                };
+                let transport =
+                    MuxTransport::with_socket(MuxSessionClient::from_core(client), socket);
                 if let Err(e) = self.install_mux_transport(&pending.name, transport) {
                     log::error!("par-mux attach to '{}' failed: {e}", pending.name);
                     self.record_mux_error(format!(

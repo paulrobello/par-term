@@ -11,7 +11,20 @@ fn attached_two_pane_state(
 ) -> (WindowState, std::path::PathBuf) {
     let path = mux_tests::socket_path(tag);
     mux_tests::spawn_daemon(&path);
-    let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+    attach_two_panes(tag, &path, &path, jobs_to_ignore)
+}
+
+/// Attach a window through `connect_to` (the daemon itself, or a proxy in
+/// front of it) to the daemon serving `daemon_socket`, and split it to two
+/// mapped panes. Returns the window and `daemon_socket`.
+fn attach_two_panes(
+    tag: &str,
+    connect_to: &std::path::Path,
+    daemon_socket: &std::path::Path,
+    jobs_to_ignore: Vec<String>,
+) -> (WindowState, std::path::PathBuf) {
+    let path = daemon_socket.to_path_buf();
+    let core_client = par_term_emu_core_rust::mux::MuxClient::connect(connect_to).expect("connect");
     let (tx, rx) = std::sync::mpsc::channel();
     tx.send(Ok(core_client)).unwrap();
     drop(tx);
@@ -30,6 +43,8 @@ fn attached_two_pane_state(
         name: tag.to_string(),
         rx,
     });
+    // What every production attach records: the socket it connects through.
+    ws.tmux_state.mux_attach_socket = Some(connect_to.to_path_buf());
     ws.poll_mux_attach();
     assert!(ws.tmux_state.transport.is_some(), "attach must install");
     ws.handle_tmux_window_add(0);
@@ -99,8 +114,8 @@ fn wait_for_foreground(ws: &WindowState, pane: u64, want: &str) {
 /// confirming kills the pane daemon-side. Against a daemon that predates
 /// the `pane-info` foreground token (the published 0.56 line) the close
 /// must degrade to the unconfirmed daemon-side kill, never block or fail.
-/// Under the plain gate this test therefore exercises the old-daemon arm;
-/// under `scripts/with-local-core.sh` it exercises the confirming arm.
+/// The pinned core (0.57) and later carry the token, so the gate exercises
+/// the confirming arm; the old-daemon arm runs only against an older core.
 #[test]
 fn closing_an_attached_pane_running_a_job_asks_first() {
     // `sleep` is on the default ignore list; this test IS the sleep-100
@@ -148,4 +163,232 @@ fn closing_an_attached_pane_running_a_job_asks_first() {
     assert!(!ws.close_focused_pane_confirmed());
     wait_for_pane_count(&mut ws, 1, "confirmed close never killed the pane");
     let _ = std::fs::remove_file(&path);
+}
+
+type Stream = std::sync::Arc<par_term_emu_core_rust::mux::LocalStream>;
+type Trigger = std::sync::Arc<std::sync::Mutex<Option<(String, Duration)>>>;
+
+/// A byte-level proxy in front of the daemon at `daemon` that can hold one
+/// chosen command. Every connection made to `listen` is relayed to its own
+/// daemon connection. Once armed with `(substring, hold)`, the FIRST command
+/// line containing `substring` on any connection is forwarded only after
+/// `hold` — the shape of one slow daemon command already in flight — and the
+/// trigger disarms itself.
+struct StallProxy {
+    trigger: Trigger,
+}
+
+impl StallProxy {
+    fn spawn(listen: &std::path::Path, daemon: &std::path::Path) -> Self {
+        use par_term_emu_core_rust::mux::{
+            accept_connection, bind_local_listener, connect_local_stream,
+        };
+        let trigger: Trigger = std::sync::Arc::default();
+        let listener = bind_local_listener(listen).expect("proxy binds");
+        let daemon = daemon.to_path_buf();
+        let accept_trigger = std::sync::Arc::clone(&trigger);
+        std::thread::spawn(move || {
+            while let Ok((client, _abort)) = accept_connection(&listener) {
+                let Ok(upstream) = connect_local_stream(&daemon) else {
+                    continue;
+                };
+                let (client, upstream) = (Stream::new(client), Stream::new(upstream));
+                let trigger = std::sync::Arc::clone(&accept_trigger);
+                let (c, u) = (Stream::clone(&client), Stream::clone(&upstream));
+                std::thread::spawn(move || relay_commands(&c, &u, &trigger));
+                std::thread::spawn(move || relay_bytes(&upstream, &client));
+            }
+        });
+        Self { trigger }
+    }
+
+    /// Hold the next command containing `substring` for `hold`.
+    fn arm(&self, substring: &str, hold: Duration) {
+        *self.trigger.lock().unwrap() = Some((substring.to_string(), hold));
+    }
+}
+
+/// Client to daemon, line by line, so a command can be held whole.
+fn relay_commands(from: &Stream, to: &Stream, trigger: &Trigger) {
+    use std::io::{BufRead, Write};
+    let mut reader = std::io::BufReader::new(&**from);
+    let mut writer = &**to;
+    let mut line = String::new();
+    loop {
+        line.clear();
+        match reader.read_line(&mut line) {
+            Ok(0) | Err(_) => return,
+            Ok(_) => {}
+        }
+        let hold = {
+            let mut armed = trigger.lock().unwrap();
+            match armed.as_ref() {
+                Some((substring, hold)) if line.contains(substring.as_str()) => {
+                    let hold = *hold;
+                    *armed = None;
+                    Some(hold)
+                }
+                _ => None,
+            }
+        };
+        if let Some(hold) = hold {
+            std::thread::sleep(hold);
+        }
+        if writer.write_all(line.as_bytes()).is_err() {
+            return;
+        }
+    }
+}
+
+/// Daemon to client, raw bytes.
+fn relay_bytes(from: &Stream, to: &Stream) {
+    use std::io::{Read, Write};
+    let (mut reader, mut writer) = (&**from, &**to);
+    let mut buf = [0u8; 16 * 1024];
+    loop {
+        match reader.read(&mut buf) {
+            Ok(0) | Err(_) => return,
+            Ok(n) => {
+                if writer.write_all(&buf[..n]).is_err() {
+                    return;
+                }
+            }
+        }
+    }
+}
+
+/// How long a stalled command is held: far past both the transport's inline
+/// wait (250 ms) and any bound the close check may take, short of the core
+/// client's 10 s reply timeout.
+const STALL: Duration = Duration::from_secs(4);
+
+/// A window attached THROUGH a [`StallProxy`] to an in-process daemon, two
+/// panes mapped, the focused one running `sleep 100` as the daemon sees it.
+/// `None` against a daemon without the `pane-info` foreground token (the
+/// published 0.56 line), which has nothing to confirm on.
+fn proxied_pane_running_sleep(
+    tag: &str,
+) -> Option<(
+    WindowState,
+    StallProxy,
+    std::path::PathBuf,
+    std::path::PathBuf,
+)> {
+    let shells = ["bash", "zsh", "fish", "sh"].map(String::from).to_vec();
+    let daemon = mux_tests::socket_path(&format!("{tag}-d"));
+    let proxy_path = mux_tests::socket_path(&format!("{tag}-p"));
+    mux_tests::spawn_daemon(&daemon);
+    let proxy = StallProxy::spawn(&proxy_path, &daemon);
+    let (ws, _) = attach_two_panes(tag, &proxy_path, &daemon, shells);
+    let target = ws.focused_mux_pane_from_native().expect("focused mux pane");
+    let idle = send(&ws, &format!("pane-info -t %{target}"));
+    if !idle.iter().any(|l| l.contains(" cmd=")) {
+        eprintln!("old daemon (no pane-info cmd token): nothing to confirm on");
+        let _ = std::fs::remove_file(&daemon);
+        let _ = std::fs::remove_file(&proxy_path);
+        return None;
+    }
+    send(&ws, &format!("send-keys -t %{target} -l 'sleep 100'"));
+    send(&ws, &format!("send-keys -t %{target} Enter"));
+    wait_for_foreground(&ws, target, "sleep");
+    Some((ws, proxy, daemon, proxy_path))
+}
+
+/// Pump the window until `deadline` so the stalled command drains.
+fn pump_until(ws: &mut WindowState, deadline: Instant) {
+    while Instant::now() < deadline {
+        ws.check_mux_notifications();
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Card 01a0f3af7c157451b1053dd6070ecd7b, criterion 1: one slow daemon
+/// command already in flight on the attached connection (an off-loop
+/// discovery or seed query) must not make a close skip the running-job
+/// confirmation. The old check queued its `pane-info` behind the stalled
+/// command on the one connection, gave up at the inline wait, and failed
+/// open: no dialog, and the close went straight on to `kill-pane` with
+/// `sleep 100` still running.
+#[cfg(unix)]
+#[test]
+fn a_slow_in_flight_daemon_command_does_not_skip_the_job_confirmation() {
+    use crate::app::tmux_handler::tmux_state::MuxJob;
+    let Some((mut ws, proxy, daemon, proxy_path)) = proxied_pane_running_sleep("mux-close-stall")
+    else {
+        return;
+    };
+
+    // A seed query from the off-loop worker, held at the proxy: it is in
+    // flight on the attached connection, holding the client lock.
+    proxy.arm("refresh-client -t %0", STALL);
+    let stalled_at = Instant::now();
+    let transport = ws.tmux_state.transport.as_ref().expect("transport");
+    assert!(transport.submit_job(MuxJob::SeedPanes(vec![0])));
+    std::thread::sleep(Duration::from_millis(150));
+
+    let started = Instant::now();
+    assert!(
+        !ws.close_focused_pane(),
+        "the close must not end the window"
+    );
+    let took = started.elapsed();
+    assert!(
+        ws.overlay_ui.close_confirmation_ui.is_visible(),
+        "a running job behind a slow in-flight command must still raise the confirmation"
+    );
+    assert_eq!(ws.overlay_ui.close_confirmation_ui.command_name(), "sleep");
+    assert!(
+        took < STALL / 2,
+        "the close check waited out the in-flight command ({took:?})"
+    );
+
+    pump_until(&mut ws, stalled_at + STALL + Duration::from_millis(500));
+    assert_eq!(
+        daemon_pane_count(&ws),
+        2,
+        "the job's pane must survive the close"
+    );
+    let _ = std::fs::remove_file(&daemon);
+    let _ = std::fs::remove_file(&proxy_path);
+}
+
+/// The hung-daemon half: when the running-job check itself cannot get an
+/// answer in time, the close fails CLOSED (the confirmation opens) and the
+/// event loop is back well before the daemon would have answered. The old
+/// check waited on the daemon's reply for as long as it took (here the whole
+/// stall; a hung daemon cost the core client's 10 s timeout) on the event
+/// loop.
+#[cfg(unix)]
+#[test]
+fn a_job_check_the_daemon_cannot_answer_in_time_holds_the_close() {
+    let Some((mut ws, proxy, daemon, proxy_path)) = proxied_pane_running_sleep("mux-close-hung")
+    else {
+        return;
+    };
+    let target = ws.focused_mux_pane_from_native().expect("focused mux pane");
+
+    proxy.arm(&format!("pane-info -t %{target}"), STALL);
+    let stalled_at = Instant::now();
+    assert!(
+        !ws.close_focused_pane(),
+        "the close must not end the window"
+    );
+    let took = stalled_at.elapsed();
+    assert!(
+        took < STALL / 2,
+        "the close blocked the event loop on an unanswered check ({took:?})"
+    );
+    assert!(
+        ws.overlay_ui.close_confirmation_ui.is_visible(),
+        "a check that could not answer must hold the close for confirmation"
+    );
+
+    pump_until(&mut ws, stalled_at + STALL + Duration::from_millis(500));
+    assert_eq!(
+        daemon_pane_count(&ws),
+        2,
+        "nothing is killed while the check is unanswered"
+    );
+    let _ = std::fs::remove_file(&daemon);
+    let _ = std::fs::remove_file(&proxy_path);
 }

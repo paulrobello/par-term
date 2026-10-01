@@ -49,6 +49,7 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ### Fixed
 
+- **Closing an attached par-mux pane no longer skips the running-job confirmation while a slow daemon command is in flight.** The check queued behind that command on the window's one daemon connection, gave up after 250 ms, and let the close go ahead unconfirmed. It now asks on a short-lived connection of its own, so the in-flight command cannot delay it. When the daemon still cannot answer within a second, the close is held behind the confirmation (saying the check could not be made) rather than skipped, and the event loop is never held longer than that.
 - **Closing the last pane of the last tab with the close-pane shortcut closes the window** instead of leaving an empty window. The Shell menu's Close item uses the same pane-first cascade.
 - **The macOS Window menu lists open windows.** It was registered with AppKit before the menu bar was installed, which AppKit ignores, so the window list and Bring All to Front never appeared.
 - **Menu New Tab honors "New tab shortcut shows profiles"** on macOS and Windows (UX.md B10): the menu item runs the same action as the shortcut.

@@ -4,11 +4,15 @@
 //! (attach/detach lifecycle, input routing, client capability pushes).
 
 use crate::app::tmux_handler::tmux_state::{MuxJob, MuxJobResult, TmuxTransport};
+use par_term_emu_core_rust::mux::MuxClient;
 use par_term_mux::MuxSessionClient;
 use par_term_tmux::TmuxPaneId;
 use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{Receiver, Sender, SyncSender, TrySendError, channel, sync_channel};
+use std::sync::mpsc::{
+    Receiver, RecvTimeoutError, Sender, SyncSender, TrySendError, channel, sync_channel,
+};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -56,9 +60,22 @@ pub(crate) struct MuxTransport {
     /// Inline sends currently waiting for the client lock. A job yields to
     /// them before each of its commands (see [`run_job`]).
     inline_waiters: Arc<AtomicUsize>,
+    /// The socket this client attached through, where
+    /// [`TmuxTransport::query_bounded`] opens its own connection. `None`
+    /// when the attach did not record one.
+    socket: Option<PathBuf>,
 }
 
 impl MuxTransport {
+    /// [`Self::new`] for a client attached through `socket`, so bounded
+    /// queries can bypass this connection's command queue.
+    pub(crate) fn with_socket(client: MuxSessionClient, socket: Option<PathBuf>) -> Self {
+        Self {
+            socket,
+            ..Self::new(client)
+        }
+    }
+
     pub(crate) fn new(client: MuxSessionClient) -> Self {
         let client = Arc::new(Mutex::new(client));
         let health = Arc::new(MuxHealth::default());
@@ -78,6 +95,7 @@ impl MuxTransport {
             health,
             job_results: Mutex::new(results_rx),
             inline_waiters,
+            socket: None,
         }
     }
 
@@ -88,7 +106,10 @@ impl MuxTransport {
     /// an in-process server at an explicit path.
     #[cfg(test)]
     pub(crate) fn connect_or_spawn_at(path: &std::path::Path) -> io::Result<Self> {
-        Ok(Self::new(MuxSessionClient::connect_or_spawn_at(path)?))
+        Ok(Self::with_socket(
+            MuxSessionClient::connect_or_spawn_at(path)?,
+            Some(path.to_path_buf()),
+        ))
     }
 
     /// The wrapped client, locked. Callers run short command sequences
@@ -226,6 +247,32 @@ fn run_job(job: MuxJob, send: &dyn Fn(&str) -> io::Result<Vec<String>>) -> MuxJo
     }
 }
 
+/// Run one read-only `command` on a connection of its own to `socket`,
+/// waiting at most `budget` for the reply. The attached connection's
+/// replies arrive strictly in order, so a query there waits out whatever
+/// command is already in flight and no queue priority can let it overtake;
+/// a second connection is served by its own daemon thread. A query that
+/// misses the budget is left to finish (or hit the core client's reply
+/// timeout) on its worker thread, so the caller is never held past it.
+fn side_query(socket: &Path, command: &str, budget: Duration) -> io::Result<Vec<String>> {
+    let (tx, rx) = channel();
+    let (socket, command) = (socket.to_path_buf(), command.to_string());
+    std::thread::Builder::new()
+        .name("mux-side-query".into())
+        .spawn(move || {
+            let reply = MuxClient::connect(&socket).and_then(|mut client| client.send(&command));
+            let _ = tx.send(reply);
+        })?;
+    match rx.recv_timeout(budget) {
+        Ok(reply) => reply,
+        Err(RecvTimeoutError::Timeout) => Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            format!("no reply within {} ms", budget.as_millis()),
+        )),
+        Err(RecvTimeoutError::Disconnected) => Err(io::Error::other("query thread died")),
+    }
+}
+
 /// The window a `pane-info` reply (`%N @W COLSxROWS [cmd=…]`) places the
 /// pane in, with the pane's grid size.
 pub(super) fn parse_pane_info(line: &str) -> Option<(par_term_tmux::TmuxWindowId, (u16, u16))> {
@@ -331,6 +378,28 @@ impl TmuxTransport for MuxTransport {
     fn send_command(&self, command: &str) -> io::Result<Vec<String>> {
         let mut client = self.lock_for_send()?;
         client.send(command)
+    }
+
+    fn query_bounded(&self, command: &str, budget: Duration) -> io::Result<Vec<String>> {
+        let Some(socket) = &self.socket else {
+            return self.send_command(command);
+        };
+        match side_query(socket, command, budget) {
+            // A daemon that missed the budget would hold the attached
+            // connection at least as long: no fallback there.
+            Err(e) if e.kind() == io::ErrorKind::TimedOut => Err(e),
+            // The socket stopped leading to this daemon (a legacy-path
+            // attach, a socket file removed under a live daemon): the
+            // attached connection may still answer.
+            Err(e) => {
+                log::warn!(
+                    "par-mux: query on {} failed ({e}), using the attached connection",
+                    socket.display()
+                );
+                self.send_command(command)
+            }
+            reply => reply,
+        }
     }
 
     fn send_command_no_wait(&self, command: &str) -> io::Result<()> {

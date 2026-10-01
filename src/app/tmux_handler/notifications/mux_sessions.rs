@@ -80,6 +80,7 @@ impl WindowState {
             return;
         }
         self.tmux_state.mux_daemon_rx = None;
+        self.tmux_state.mux_attach_socket = Some(socket.to_path_buf());
         let (tx, rx) = std::sync::mpsc::channel();
         let socket = socket.to_path_buf();
         let spawned = std::thread::Builder::new()
@@ -101,6 +102,7 @@ impl WindowState {
             }
             Err(e) => {
                 log::error!("mux attach worker could not start: {e}");
+                self.tmux_state.mux_attach_socket = None;
                 self.record_mux_error("par-mux: attach failed (worker thread unavailable)");
             }
         }
@@ -272,6 +274,7 @@ impl WindowState {
             return;
         };
         self.detach_for_switch();
+        self.tmux_state.mux_attach_socket = None;
         let (tx, rx) = std::sync::mpsc::channel();
         let (daemon_tx, daemon_rx) = std::sync::mpsc::channel();
         let wanted = name.to_string();
@@ -284,14 +287,13 @@ impl WindowState {
                     .find(|s| s.name == wanted);
                 let client = match listed {
                     Some(row) => {
-                        let _ = daemon_tx.send(row.daemon.clone());
+                        let _ = daemon_tx.send((row.daemon.clone(), row.socket.clone()));
                         par_term_emu_core_rust::mux::MuxClient::connect(&row.socket)
                     }
                     None if create_missing => {
-                        let _ = daemon_tx.send(wanted.clone());
-                        par_term_emu_core_rust::mux::MuxClient::connect_or_spawn_at(
-                            &dir.join(format!("par-mux-{wanted}.sock")),
-                        )
+                        let socket = dir.join(format!("par-mux-{wanted}.sock"));
+                        let _ = daemon_tx.send((wanted.clone(), socket.clone()));
+                        par_term_emu_core_rust::mux::MuxClient::connect_or_spawn_at(&socket)
                     }
                     None => Err(std::io::Error::new(
                         std::io::ErrorKind::NotFound,

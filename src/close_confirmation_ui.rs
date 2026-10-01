@@ -32,6 +32,9 @@ pub struct CloseConfirmationUI {
     command_name: String,
     /// The tab title for display
     tab_title: String,
+    /// The pane's job could not be checked (a par-mux daemon that did not
+    /// answer in time): the dialog asks without naming a command.
+    unverified: bool,
     /// Shared ConfirmDialog state (UX.md OV3)
     confirm: crate::app::overlay::confirm::ConfirmState,
     /// "Don't ask again" was ticked on the last Close answer
@@ -53,6 +56,7 @@ impl CloseConfirmationUI {
             pending_pane_id: None,
             command_name: String::new(),
             tab_title: String::new(),
+            unverified: false,
             confirm: Default::default(),
             dont_ask_again_chosen: false,
         }
@@ -85,6 +89,19 @@ impl CloseConfirmationUI {
         self.pending_pane_id = Some(pane_id);
         self.command_name = command_name.to_string();
         self.tab_title = tab_title.to_string();
+        self.unverified = false;
+    }
+
+    /// Show the confirmation for a pane whose running command could not be
+    /// checked: the close is held rather than allowed to end a job unseen.
+    pub fn show_for_pane_unverified(
+        &mut self,
+        tab_id: TabId,
+        pane_id: crate::pane::PaneId,
+        tab_title: &str,
+    ) {
+        self.show_for_pane(tab_id, pane_id, tab_title, "");
+        self.unverified = true;
     }
 
     /// Hide the dialog and clear state
@@ -94,6 +111,7 @@ impl CloseConfirmationUI {
         self.pending_pane_id = None;
         self.command_name.clear();
         self.tab_title.clear();
+        self.unverified = false;
         self.confirm.reset();
     }
 
@@ -116,14 +134,24 @@ impl CloseConfirmationUI {
         } else {
             ("Close Tab?", "tab")
         };
-        let body = [
-            format!("The {target} \"{}\" has a running command:", self.tab_title),
-            "Closing will terminate this process.".to_string(),
-        ];
+        let body = if self.unverified {
+            [
+                format!(
+                    "The par-mux daemon did not report whether the {target} \"{}\" is running a command.",
+                    self.tab_title
+                ),
+                "Closing will terminate any process running in it.".to_string(),
+            ]
+        } else {
+            [
+                format!("The {target} \"{}\" has a running command:", self.tab_title),
+                "Closing will terminate this process.".to_string(),
+            ]
+        };
         let spec = ConfirmSpec {
             title,
             body: &body,
-            detail: Some(&self.command_name),
+            detail: (!self.unverified).then_some(self.command_name.as_str()),
             safe_label: "Cancel",
             alternate_label: None,
             destructive_label: "Close Anyway",
@@ -148,6 +176,12 @@ impl CloseConfirmationUI {
     /// caller after a Close, then cleared).
     pub(crate) fn take_dont_ask_again(&mut self) -> bool {
         std::mem::take(&mut self.dont_ask_again_chosen)
+    }
+
+    /// The command the open dialog names.
+    #[cfg(test)]
+    pub(crate) fn command_name(&self) -> &str {
+        &self.command_name
     }
 }
 

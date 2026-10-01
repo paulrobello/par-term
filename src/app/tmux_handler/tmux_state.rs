@@ -28,6 +28,18 @@ pub(crate) trait TmuxTransport {
     );
     /// Run one control-mode command, returning the reply block body.
     fn send_command(&self, command: &str) -> std::io::Result<Vec<String>>;
+    /// Run one read-only query, returning within `budget` (a `TimedOut`
+    /// error past it) whatever command is already in flight. The default
+    /// is [`TmuxTransport::send_command`]; the par-mux transport asks on a
+    /// connection of its own, since replies on the attached one arrive in
+    /// order behind any slow command already sent.
+    fn query_bounded(
+        &self,
+        command: &str,
+        _budget: std::time::Duration,
+    ) -> std::io::Result<Vec<String>> {
+        self.send_command(command)
+    }
     /// Fire-and-forget form of [`TmuxTransport::send_command`] for
     /// commands whose reply the caller never reads (keystrokes, size
     /// pushes, pastes). The default runs the synchronous call; the par-mux
@@ -200,10 +212,16 @@ pub(crate) struct TmuxState {
     /// par-mux error replaces it, and the daemon's "responding again"
     /// retires it.
     pub(crate) mux_error_toast: Option<u64>,
-    /// The by-name attach worker reports which daemon it chose here
-    /// (`attach_mux_session_by_name`); `poll_mux_attach` reads it.
+    /// The by-name attach worker reports which daemon it chose here, with
+    /// that daemon's socket (`attach_mux_session_by_name`);
+    /// `poll_mux_attach` reads it.
     #[cfg(feature = "mux")]
-    pub(crate) mux_daemon_rx: Option<std::sync::mpsc::Receiver<String>>,
+    pub(crate) mux_daemon_rx: Option<std::sync::mpsc::Receiver<(String, std::path::PathBuf)>>,
+    /// The socket the in-flight attach connects through. `poll_mux_attach`
+    /// hands it to the transport, whose bounded queries (the close path's
+    /// running-job check) open their own connection there.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_attach_socket: Option<std::path::PathBuf>,
     /// The last finished par-mux session directory scan (UX.md A16/A22):
     /// what the session picker and the palette's attach rows list.
     #[cfg(feature = "mux")]
@@ -251,6 +269,8 @@ impl TmuxState {
             mux_error_toast: None,
             #[cfg(feature = "mux")]
             mux_daemon_rx: None,
+            #[cfg(feature = "mux")]
+            mux_attach_socket: None,
             #[cfg(feature = "mux")]
             mux_directory: None,
             #[cfg(feature = "mux")]
