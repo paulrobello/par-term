@@ -74,6 +74,15 @@ impl CloseConfirmationUI {
         self.pending_pane_id = None;
         self.command_name = command_name.to_string();
         self.tab_title = tab_title.to_string();
+        self.unverified = false;
+    }
+
+    /// Show the confirmation for a tab whose panes' running commands could
+    /// not be checked: the close is held rather than allowed to end a job
+    /// unseen.
+    pub fn show_for_tab_unverified(&mut self, tab_id: TabId, tab_title: &str) {
+        self.show_for_tab(tab_id, tab_title, "");
+        self.unverified = true;
     }
 
     /// Show the confirmation dialog for a pane with a running command

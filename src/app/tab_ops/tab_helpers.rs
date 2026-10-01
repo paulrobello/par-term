@@ -4,13 +4,18 @@
 //! - `duplicate_tab`, `duplicate_tab_by_id` — duplicate an existing tab
 //! - `has_multiple_tabs` — query predicate
 //! - `active_terminal` — accessor for the active tab's terminal
-//! - `check_current_tab_running_job` — running-job confirmation gate
+//! - `confirm_current_tab_close` — running-job confirmation gate for a tab
+//!   close (local tabs read the tab's terminal; attached par-mux tabs ask
+//!   the daemon about every pane in the window)
+//! - `check_current_tab_running_job` — the local tab's running-job check
 
 //! - Debug logging for close confirmation flow
 
 use std::sync::Arc;
 
 use super::super::window_state::WindowState;
+#[cfg(feature = "mux")]
+use super::pane_ops::MuxJobCheck;
 
 impl WindowState {
     /// Duplicate current tab
@@ -82,6 +87,79 @@ impl WindowState {
         &self,
     ) -> Option<&Arc<tokio::sync::RwLock<par_term_terminal::TerminalManager>>> {
         self.tab_manager.active_tab().map(|tab| &tab.terminal)
+    }
+
+    /// Hold the active tab's close behind the running-job confirmation when
+    /// closing it would end a job. Returns true when the dialog is now up
+    /// and the close must wait for its answer.
+    ///
+    /// An attached par-mux tab's own terminal is a hidden local shell that
+    /// never runs the job, and the close kills the whole daemon window, so
+    /// the daemon is asked about every live pane in it — the same bounded,
+    /// separate-connection check as a pane close, failing closed when the
+    /// daemon cannot answer in time.
+    pub(super) fn confirm_current_tab_close(&mut self) -> bool {
+        if !self.config.load().shell.confirm_close_running_jobs {
+            return false;
+        }
+        #[cfg(feature = "mux")]
+        if let Some(check) = self.check_mux_tab_running_job() {
+            return match check {
+                MuxJobCheck::Idle => false,
+                MuxJobCheck::Job(name) => self.show_tab_close_confirmation(Some(&name)),
+                MuxJobCheck::Unanswered => self.show_tab_close_confirmation(None),
+            };
+        }
+        match self.check_current_tab_running_job() {
+            Some(name) => self.show_tab_close_confirmation(Some(&name)),
+            None => false,
+        }
+    }
+
+    /// The running-job check for the active tab when it mirrors a par-mux
+    /// daemon window, over every daemon pane in it that has not exited (a
+    /// held pane has no job, and an all-held tab's close must stay the
+    /// plain `kill-window`). `None` for a tab that mirrors no daemon window.
+    #[cfg(feature = "mux")]
+    fn check_mux_tab_running_job(&self) -> Option<MuxJobCheck> {
+        let tab_id = self.tab_manager.active_tab_id()?;
+        self.mux_window_for_tab(tab_id)?;
+        let mut panes: Vec<u64> = self
+            .tmux_state
+            .tab_tmux_pane_ids(tab_id)
+            .into_iter()
+            .filter(|pane| !self.tmux_state.mux_exited_panes.contains_key(pane))
+            .collect();
+        panes.sort_unstable();
+        Some(self.check_mux_panes_running_job(&panes))
+    }
+
+    /// Open the running-job confirmation for the active tab, naming
+    /// `command_name` (`None`: the job could not be checked). Returns true:
+    /// the close waits for the answer.
+    fn show_tab_close_confirmation(&mut self, command_name: Option<&str>) -> bool {
+        let Some(tab) = self.tab_manager.active_tab() else {
+            return false;
+        };
+        let tab_id = tab.id;
+        let tab_title = if tab.title.is_empty() {
+            "Terminal".to_string()
+        } else {
+            tab.title.clone()
+        };
+        log::info!(
+            "[CLOSE_TAB] Showing close confirmation for tab {} with running command: {:?}",
+            tab_id,
+            command_name
+        );
+        let dialog = &mut self.overlay_ui.close_confirmation_ui;
+        match command_name {
+            Some(name) => dialog.show_for_tab(tab_id, &tab_title, name),
+            None => dialog.show_for_tab_unverified(tab_id, &tab_title),
+        }
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
+        true
     }
 
     /// Check if the current tab's terminal has a running job that should trigger confirmation

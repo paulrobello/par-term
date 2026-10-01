@@ -382,34 +382,49 @@ impl WindowState {
 
     /// Whether the focused attached (par-mux) pane runs a foreground job
     /// that should hold a close for confirmation.
+    #[cfg(feature = "mux")]
+    fn check_mux_pane_running_job(&self) -> MuxJobCheck {
+        match self.focused_mux_pane_from_native() {
+            Some(pane) => self.check_mux_panes_running_job(&[pane]),
+            None => MuxJobCheck::Idle,
+        }
+    }
+
+    /// Whether any of `panes` (attached par-mux panes) runs a foreground
+    /// job that should hold a close for confirmation.
     ///
     /// The job runs daemon-side, so the local hidden shell cannot answer:
     /// this asks the daemon (`pane-info`, foreground command name) and
-    /// applies the same `jobs_to_ignore` list as the local check. The query
-    /// is bounded ([`MUX_JOB_CHECK_BUDGET`]) and does not queue behind a
+    /// applies the same `jobs_to_ignore` list as the local check. The
+    /// queries share one [`MUX_JOB_CHECK_BUDGET`] and do not queue behind a
     /// slow command already in flight on the attached connection. A daemon
     /// that ANSWERED without evidence of a job (an `%error` reply from a
     /// daemon without `pane-info`, a reply without the `cmd=` token) is
     /// `Idle`; one that could not be asked in time is `Unanswered`.
     #[cfg(feature = "mux")]
-    fn check_mux_pane_running_job(&self) -> MuxJobCheck {
-        let (Some(transport), Some(pane)) = (
-            self.tmux_state.transport.as_ref(),
-            self.focused_mux_pane_from_native(),
-        ) else {
+    pub(super) fn check_mux_panes_running_job(&self, panes: &[u64]) -> MuxJobCheck {
+        let Some(transport) = self.tmux_state.transport.as_ref() else {
             return MuxJobCheck::Idle;
         };
-        let reply =
-            match transport.query_bounded(&format!("pane-info -t %{pane}"), MUX_JOB_CHECK_BUDGET) {
+        let deadline = std::time::Instant::now() + MUX_JOB_CHECK_BUDGET;
+        for &pane in panes {
+            let budget = deadline.saturating_duration_since(std::time::Instant::now());
+            let reply = match transport.query_bounded(&format!("pane-info -t %{pane}"), budget) {
                 Ok(reply) => reply,
                 Err(e) => {
                     log::warn!("par-mux pane-info failed, confirming close unverified: {e}");
                     return MuxJobCheck::Unanswered;
                 }
             };
-        par_term_mux::pane_foreground_command(&reply, pane)
-            .and_then(|name| mux_foreground_job(&name, &self.config.load().shell.jobs_to_ignore))
-            .map_or(MuxJobCheck::Idle, MuxJobCheck::Job)
+            if let Some(job) =
+                par_term_mux::pane_foreground_command(&reply, pane).and_then(|name| {
+                    mux_foreground_job(&name, &self.config.load().shell.jobs_to_ignore)
+                })
+            {
+                return MuxJobCheck::Job(job);
+            }
+        }
+        MuxJobCheck::Idle
     }
 
     /// Show the running-job close confirmation for the focused attached
@@ -566,15 +581,15 @@ impl WindowState {
     }
 }
 
-/// How long a close waits for the daemon to report the pane's foreground
-/// job. It runs on the event loop, so it bounds the stall a hung daemon can
+/// How long a close waits for the daemon to report its panes' foreground
+/// jobs. It runs on the event loop, so it bounds the stall a hung daemon can
 /// cause; past it the close is held for confirmation rather than skipped.
 #[cfg(feature = "mux")]
 const MUX_JOB_CHECK_BUDGET: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// What the daemon said about the focused attached pane's foreground job.
+/// What the daemon said about the closing attached panes' foreground jobs.
 #[cfg(feature = "mux")]
-enum MuxJobCheck {
+pub(super) enum MuxJobCheck {
     /// No job to protect (or no daemon pane to ask about).
     Idle,
     /// This job is running.

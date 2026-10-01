@@ -241,27 +241,7 @@ impl WindowState {
             self.config.load().shell.confirm_close_running_jobs
         );
 
-        // Check if we need to show confirmation for running jobs
-        if self.config.load().shell.confirm_close_running_jobs
-            && let Some(command_name) = self.check_current_tab_running_job()
-            && let Some(tab) = self.tab_manager.active_tab()
-        {
-            let tab_id = tab.id;
-            let tab_title = if tab.title.is_empty() {
-                "Terminal".to_string()
-            } else {
-                tab.title.clone()
-            };
-            log::info!(
-                "[CLOSE_TAB] Showing close confirmation for tab {} with running command: {}",
-                tab_id,
-                command_name
-            );
-            self.overlay_ui
-                .close_confirmation_ui
-                .show_for_tab(tab_id, &tab_title, &command_name);
-            self.focus_state.needs_redraw = true;
-            self.request_redraw();
+        if self.confirm_current_tab_close() {
             return false; // Don't close yet, waiting for confirmation
         }
 
@@ -269,6 +249,14 @@ impl WindowState {
             "[CLOSE_TAB] No running job detected or confirmation disabled, closing immediately"
         );
 
+        self.close_current_tab_confirmed()
+    }
+
+    /// Close the current tab after the running-job dialog was confirmed (or
+    /// found nothing to confirm). An attached tab still takes the last-tab
+    /// gate: confirming a job's end is not choosing to end the session.
+    /// Returns true if the window should close (last tab was closed).
+    pub(crate) fn close_current_tab_confirmed(&mut self) -> bool {
         // UX.md M1: closing the LAST attached tab would end the whole
         // session — kill-window on the session's only window empties it
         // and the daemon deletes the session. Detach / End session /

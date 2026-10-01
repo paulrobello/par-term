@@ -149,7 +149,7 @@ impl WindowState {
                     log::info!("Force-closed pane {} in tab {}", pane_id, tab_id);
                     was_last
                 } else {
-                    let was_last = self.close_current_tab_immediately();
+                    let was_last = self.close_current_tab_confirmed();
                     log::info!("Force-closed tab {}", tab_id);
                     was_last
                 };

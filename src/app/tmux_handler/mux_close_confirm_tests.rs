@@ -47,7 +47,10 @@ fn attach_two_panes(
     ws.tmux_state.mux_attach_socket = Some(connect_to.to_path_buf());
     ws.poll_mux_attach();
     assert!(ws.tmux_state.transport.is_some(), "attach must install");
-    ws.handle_tmux_window_add(0);
+    // The created session reports its window through the daemon's own
+    // %window-add push, drained below. Adding @0 by hand as well left a
+    // stale duplicate tab mapped to @0, which reads as a second attached
+    // tab (and hides the last-tab gate).
 
     let deadline = Instant::now() + Duration::from_secs(10);
     while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
@@ -124,10 +127,7 @@ fn closing_an_attached_pane_running_a_job_asks_first() {
     let (mut ws, path) = attached_two_pane_state("mux-close-confirm", shells);
     let target = ws.focused_mux_pane_from_native().expect("focused mux pane");
 
-    let idle = send(&ws, &format!("pane-info -t %{target}"));
-    let daemon_reports_foreground = idle.iter().any(|l| l.contains(" cmd="));
-
-    if !daemon_reports_foreground {
+    if !daemon_reports_foreground(&ws, target) {
         eprintln!("old daemon (no pane-info cmd token): asserting the unconfirmed close");
         send(&ws, &format!("send-keys -t %{target} -l 'sleep 100'"));
         send(&ws, &format!("send-keys -t %{target} Enter"));
@@ -274,20 +274,8 @@ fn proxied_pane_running_sleep(
     std::path::PathBuf,
     std::path::PathBuf,
 )> {
-    let shells = ["bash", "zsh", "fish", "sh"].map(String::from).to_vec();
-    let daemon = mux_tests::socket_path(&format!("{tag}-d"));
-    let proxy_path = mux_tests::socket_path(&format!("{tag}-p"));
-    mux_tests::spawn_daemon(&daemon);
-    let proxy = StallProxy::spawn(&proxy_path, &daemon);
-    let (ws, _) = attach_two_panes(tag, &proxy_path, &daemon, shells);
+    let (ws, proxy, daemon, proxy_path) = proxied_attach(tag)?;
     let target = ws.focused_mux_pane_from_native().expect("focused mux pane");
-    let idle = send(&ws, &format!("pane-info -t %{target}"));
-    if !idle.iter().any(|l| l.contains(" cmd=")) {
-        eprintln!("old daemon (no pane-info cmd token): nothing to confirm on");
-        let _ = std::fs::remove_file(&daemon);
-        let _ = std::fs::remove_file(&proxy_path);
-        return None;
-    }
     send(&ws, &format!("send-keys -t %{target} -l 'sleep 100'"));
     send(&ws, &format!("send-keys -t %{target} Enter"));
     wait_for_foreground(&ws, target, "sleep");
@@ -391,4 +379,228 @@ fn a_job_check_the_daemon_cannot_answer_in_time_holds_the_close() {
     );
     let _ = std::fs::remove_file(&daemon);
     let _ = std::fs::remove_file(&proxy_path);
+}
+
+fn daemon_window_count(ws: &WindowState) -> usize {
+    send(ws, "list-windows")
+        .iter()
+        .filter(|l| l.contains('@'))
+        .count()
+}
+
+/// A window attached THROUGH a [`StallProxy`] with two daemon windows: the
+/// active tab mirrors a two-pane window whose UNFOCUSED pane runs `sleep
+/// 100` as the daemon sees it, and a second mux tab keeps the session
+/// alive past that tab's close (no last-tab dialog). Returns the window,
+/// the proxy, both socket paths, and the job's daemon pane. `None` against
+/// a daemon without the `pane-info` foreground token.
+fn proxied_tab_with_a_background_job(
+    tag: &str,
+) -> Option<(
+    WindowState,
+    StallProxy,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    u64,
+)> {
+    let (mut ws, proxy, daemon, proxy_path) = proxied_attach(tag)?;
+    let tab = ws.tab_manager.active_tab_id().expect("active tab");
+
+    // The second daemon window: a mux tab of its own once its pane maps.
+    send(&ws, "new-window");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while ws.tmux_state.tmux_pane_owners.len() < 3 {
+        assert!(Instant::now() < deadline, "the second window never mapped");
+        for line in send(&ws, "list-panes") {
+            if let Some(pane) = line.strip_prefix('%').and_then(|p| p.parse::<u64>().ok())
+                && !ws.tmux_state.tmux_pane_owners.contains_key(&pane)
+            {
+                send(&ws, &format!("refresh-client -t %{pane} -C 80x24"));
+            }
+        }
+        ws.check_mux_notifications();
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    ws.tab_manager.switch_to(tab);
+
+    let focused = ws.focused_mux_pane_from_native().expect("focused mux pane");
+    let job = ws
+        .tmux_state
+        .tab_tmux_pane_ids(tab)
+        .into_iter()
+        .find(|p| *p != focused)
+        .expect("the tab's other pane");
+    send(&ws, &format!("send-keys -t %{job} -l 'sleep 100'"));
+    send(&ws, &format!("send-keys -t %{job} Enter"));
+    wait_for_foreground(&ws, job, "sleep");
+    Some((ws, proxy, daemon, proxy_path, job))
+}
+
+/// Whether the daemon reports `pane`'s foreground command (`pane-info`'s
+/// `cmd=` token, absent before the 0.57 core). Polled: the token is also
+/// absent until the pane's shell process is up, so one early probe would
+/// skip the test on a daemon that has it.
+fn daemon_reports_foreground(ws: &WindowState, pane: u64) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let reply = send(ws, &format!("pane-info -t %{pane}"));
+        if reply.iter().any(|l| l.contains(" cmd=")) {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// [`attach_two_panes`] through a fresh [`StallProxy`]; `None` (sockets
+/// removed) against a daemon without the `pane-info` foreground token.
+fn proxied_attach(
+    tag: &str,
+) -> Option<(
+    WindowState,
+    StallProxy,
+    std::path::PathBuf,
+    std::path::PathBuf,
+)> {
+    let shells = ["bash", "zsh", "fish", "sh"].map(String::from).to_vec();
+    let daemon = mux_tests::socket_path(&format!("{tag}-d"));
+    let proxy_path = mux_tests::socket_path(&format!("{tag}-p"));
+    mux_tests::spawn_daemon(&daemon);
+    let proxy = StallProxy::spawn(&proxy_path, &daemon);
+    let (ws, _) = attach_two_panes(tag, &proxy_path, &daemon, shells);
+    let target = ws.focused_mux_pane_from_native().expect("focused mux pane");
+    if !daemon_reports_foreground(&ws, target) {
+        eprintln!("old daemon (no pane-info cmd token): nothing to confirm on");
+        let _ = std::fs::remove_file(&daemon);
+        let _ = std::fs::remove_file(&proxy_path);
+        return None;
+    }
+    Some((ws, proxy, daemon, proxy_path))
+}
+
+/// Card 01a0f6bc76a576f09dbc3cd9d3bb640e: closing an attached TAB whose
+/// daemon pane runs a job must raise the running-job confirmation, through
+/// the same separate-connection check as a pane close. The old check read
+/// the tab's own terminal — for an attached tab, the hidden local shell,
+/// which never runs the job — so the close went straight on to
+/// `kill-window` and ended `sleep 100` unasked. The job sits in the tab's
+/// unfocused pane (a tab close ends every pane in it), and one slow daemon
+/// command is in flight on the attached connection.
+#[cfg(unix)]
+#[test]
+fn closing_an_attached_tab_with_a_daemon_job_asks_first_past_a_slow_command() {
+    use crate::app::tmux_handler::tmux_state::MuxJob;
+    let Some((mut ws, proxy, daemon, proxy_path, _job)) =
+        proxied_tab_with_a_background_job("mux-tabclose-stall")
+    else {
+        return;
+    };
+
+    proxy.arm("refresh-client -t %0", STALL);
+    let stalled_at = Instant::now();
+    let transport = ws.tmux_state.transport.as_ref().expect("transport");
+    assert!(transport.submit_job(MuxJob::SeedPanes(vec![0])));
+    std::thread::sleep(Duration::from_millis(150));
+
+    let started = Instant::now();
+    assert!(!ws.close_current_tab(), "the close must not end the window");
+    let took = started.elapsed();
+    assert!(
+        ws.overlay_ui.close_confirmation_ui.is_visible(),
+        "a daemon job in the tab must raise the confirmation"
+    );
+    assert_eq!(ws.overlay_ui.close_confirmation_ui.command_name(), "sleep");
+    assert!(
+        took < STALL / 2,
+        "the close check waited out the in-flight command ({took:?})"
+    );
+
+    pump_until(&mut ws, stalled_at + STALL + Duration::from_millis(500));
+    assert_eq!(
+        daemon_window_count(&ws),
+        2,
+        "the job's window must survive the close"
+    );
+    let _ = std::fs::remove_file(&daemon);
+    let _ = std::fs::remove_file(&proxy_path);
+}
+
+/// The hung-daemon half for a tab close: a job check the daemon cannot
+/// answer in time holds the close (fail-closed) instead of killing the
+/// window, and the event loop is back well before the daemon answers.
+#[cfg(unix)]
+#[test]
+fn a_tab_job_check_the_daemon_cannot_answer_in_time_holds_the_close() {
+    let Some((mut ws, proxy, daemon, proxy_path, _job)) =
+        proxied_tab_with_a_background_job("mux-tabclose-hung")
+    else {
+        return;
+    };
+
+    proxy.arm("pane-info", STALL);
+    let stalled_at = Instant::now();
+    assert!(!ws.close_current_tab(), "the close must not end the window");
+    let took = stalled_at.elapsed();
+    assert!(
+        took < STALL / 2,
+        "the close blocked the event loop on an unanswered check ({took:?})"
+    );
+    assert!(
+        ws.overlay_ui.close_confirmation_ui.is_visible(),
+        "a check that could not answer must hold the close for confirmation"
+    );
+
+    pump_until(&mut ws, stalled_at + STALL + Duration::from_millis(500));
+    assert_eq!(
+        daemon_window_count(&ws),
+        2,
+        "nothing is killed while the check is unanswered"
+    );
+    let _ = std::fs::remove_file(&daemon);
+    let _ = std::fs::remove_file(&proxy_path);
+}
+
+/// The confirmed close of the session's LAST attached tab still takes the
+/// last-tab gate (UX.md M1): "Close Anyway" on the running-job dialog
+/// answers for the job, not for the session. The confirmed tab close used
+/// to go straight to the immediate close, which for the only daemon window
+/// is a `kill-window` that empties and deletes the session.
+#[test]
+fn confirming_a_job_on_the_last_attached_tab_still_asks_about_the_session() {
+    let shells = ["bash", "zsh", "fish", "sh"].map(String::from).to_vec();
+    let (mut ws, path) = attached_two_pane_state("mux-tabclose-last", shells);
+    let target = ws.focused_mux_pane_from_native().expect("focused mux pane");
+    if !daemon_reports_foreground(&ws, target) {
+        eprintln!("old daemon (no pane-info cmd token): nothing to confirm on");
+        let _ = std::fs::remove_file(&path);
+        return;
+    }
+    send(&ws, &format!("send-keys -t %{target} -l 'sleep 100'"));
+    send(&ws, &format!("send-keys -t %{target} Enter"));
+    wait_for_foreground(&ws, target, "sleep");
+
+    assert!(
+        !ws.close_current_tab(),
+        "the close must wait for the dialog"
+    );
+    assert!(
+        ws.overlay_ui.close_confirmation_ui.is_visible(),
+        "the job is asked about first"
+    );
+    assert!(!ws.overlay_ui.mux_last_tab_ui.is_visible());
+
+    ws.overlay_ui.close_confirmation_ui.hide();
+    assert!(!ws.close_current_tab_confirmed());
+    assert!(
+        ws.overlay_ui.mux_last_tab_ui.is_visible(),
+        "confirming the job must still ask before ending the session"
+    );
+    assert_eq!(
+        daemon_window_count(&ws),
+        1,
+        "the session's only window survives"
+    );
+    let _ = std::fs::remove_file(&path);
 }
