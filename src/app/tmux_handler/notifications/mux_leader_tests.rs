@@ -5,10 +5,11 @@
 //! landed daemon-side. The local-tab and tmux-gateway halves are in
 //! `app::leader::window_tests`.
 
-use super::mux_test_seams::attached_window_with_tabs;
+use super::mux_test_seams::{
+    SettledSend, attached_window_with_tabs, poll_until, quiesce, wait_until,
+};
 use crate::app::leader::{ArmedBy, LeaderPress, LeaderStep};
 use crate::app::window_state::WindowState;
-use std::time::{Duration, Instant};
 use winit::keyboard::{Key, ModifiersState};
 
 fn send(ws: &WindowState, cmd: &str) -> Vec<String> {
@@ -16,15 +17,14 @@ fn send(ws: &WindowState, cmd: &str) -> Vec<String> {
         .transport
         .as_ref()
         .expect("transport")
-        .send_command(cmd)
+        .send_settled(cmd)
         .unwrap_or_else(|e| panic!("{cmd}: {e}"))
 }
 
-/// Drain notifications (pumping a size so layouts arrive) until `done`.
+/// Drain notifications (pumping a size so layouts arrive) until `done`,
+/// then settle the send worker for the next inline leader action.
 fn pump(ws: &mut WindowState, what: &str, done: impl Fn(&WindowState) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !done(ws) {
-        assert!(Instant::now() < deadline, "{what}: timed out");
+    wait_until(what, || {
         if let Some(t) = ws.tmux_state.transport.as_ref() {
             let panes: Vec<u64> = ws.tmux_state.tmux_pane_owners.keys().copied().collect();
             for pane in panes {
@@ -32,8 +32,9 @@ fn pump(ws: &mut WindowState, what: &str, done: impl Fn(&WindowState) -> bool) {
             }
         }
         ws.check_tmux_notifications();
-        std::thread::sleep(Duration::from_millis(30));
-    }
+        done(ws)
+    });
+    quiesce(ws);
 }
 
 fn press(ws: &mut WindowState, key: Key, mods: ModifiersState) -> Option<LeaderStep> {
@@ -118,6 +119,7 @@ fn leader_c_n_p_z_x_drive_an_attached_tab_daemon_side() {
     assert_eq!(active_window(&ws), Some(first), "leader p: previous tab");
 
     // z: split the tab daemon-side, then zoom it through the leader.
+    quiesce(&mut ws);
     assert!(ws.split_pane_via_mux(true), "daemon-side split");
     pump(&mut ws, "split mapped", |ws| {
         ws.tab_manager
@@ -159,7 +161,11 @@ fn leader_twice_reaches_the_attached_pane_as_typed_input() {
     ws.config.store(std::sync::Arc::new(config));
     let pane = *ws.tmux_state.tmux_pane_owners.keys().next().expect("pane");
     send(&ws, &format!("send-keys -t %{pane} 'exec cat -v' Enter"));
-    std::thread::sleep(Duration::from_millis(300));
+    // The leader's literal must reach `cat`, not the shell's line editor.
+    wait_until("cat -v runs in the pane", || {
+        let info = send(&ws, &format!("pane-info -t %{pane}"));
+        par_term_mux::pane_foreground_command(&info, pane).as_deref() == Some("cat")
+    });
 
     let ctrl_a =
         |ws: &mut WindowState| press(ws, Key::Character("a".into()), ModifiersState::CONTROL);
@@ -167,17 +173,14 @@ fn leader_twice_reaches_the_attached_pane_as_typed_input() {
     assert_eq!(ctrl_a(&mut ws), Some(LeaderStep::Literal));
     send(&ws, &format!("send-keys -t %{pane} Enter"));
 
-    let deadline = Instant::now() + Duration::from_secs(10);
-    loop {
-        let screen = send(&ws, &format!("capture-pane -t %{pane} -p")).join("\n");
-        if screen.contains("^A") {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the literal ^A never reached the daemon pane:\n{screen}"
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    let mut screen = String::new();
+    let seen = poll_until(|| {
+        screen = send(&ws, &format!("capture-pane -t %{pane} -p")).join("\n");
+        screen.contains("^A")
+    });
+    assert!(
+        seen,
+        "the literal ^A never reached the daemon pane:\n{screen}"
+    );
     let _ = std::fs::remove_file(&path);
 }

@@ -64,11 +64,11 @@ impl WindowState {
 pub(crate) mod tests {
     use super::*;
     use crate::app::tmux_handler::notifications::mux::{MuxAttachPending, tests as mux_tests};
+    use crate::app::tmux_handler::notifications::mux_test_seams::{SettledSend, wait_until};
     use crate::app::tmux_handler::tmux_state::TmuxTransport;
     use crate::app::window_state::WindowState;
     use crate::config::Config;
     use std::sync::{Arc, Mutex};
-    use std::time::{Duration, Instant};
 
     /// Records every control-mode command sent through it. The test keeps
     /// the `Arc` handle after the transport itself is boxed into
@@ -145,21 +145,13 @@ pub(crate) mod tests {
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
 
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
-            assert!(
-                Instant::now() < deadline,
-                "window @0 never got a mapped pane"
-            );
-            ws.tmux_state
-                .transport
-                .as_ref()
-                .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
-                .expect("size push broadcasts %layout-change");
+        wait_until("window @0 gets a mapped pane", || {
+            if let Some(t) = ws.tmux_state.transport.as_ref() {
+                let _ = t.send_command_no_wait("refresh-client -t %0 -C 80x24");
+            }
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            ws.tmux_state.tmux_pane_owners.contains_key(&0)
+        });
         let (tab_id, pane) = ws.tmux_state.tmux_pane_owners[&0];
         ws.tab_manager.switch_to(tab_id);
 
@@ -263,39 +255,26 @@ pub(crate) mod tests {
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
 
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
-            assert!(
-                Instant::now() < deadline,
-                "window @0 never got a mapped pane"
-            );
-            ws.tmux_state
-                .transport
-                .as_ref()
-                .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
-                .expect("size push broadcasts %layout-change");
+        wait_until("window @0 gets a mapped pane", || {
+            if let Some(t) = ws.tmux_state.transport.as_ref() {
+                let _ = t.send_command_no_wait("refresh-client -t %0 -C 80x24");
+            }
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            ws.tmux_state.tmux_pane_owners.contains_key(&0)
+        });
 
         // Split the daemon pane so the tab shows two mirror panes.
         ws.tmux_state
             .transport
             .as_ref()
             .expect("transport")
-            .send_command("split-window -h -t %0")
+            .send_settled("split-window -h -t %0")
             .expect("daemon-side split");
         let tab_id = ws.tmux_state.tmux_pane_owners[&0].0;
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while ws.tmux_state.tab_tmux_pane_ids(tab_id).len() < 2 {
-            assert!(
-                Instant::now() < deadline,
-                "the daemon split never produced a second mirror pane"
-            );
+        wait_until("the daemon split produces a second mirror pane", || {
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            ws.tmux_state.tab_tmux_pane_ids(tab_id).len() >= 2
+        });
 
         let (transport, sent) = RecordingTransport::new();
         ws.tmux_state.transport = Some(Box::new(transport));

@@ -8,11 +8,11 @@
 //! at `par-mux-<name>.sock` paths the way `par-mux <name>` binds them.
 
 use super::mux::tests::manners_state;
+use super::mux_test_seams::wait_until;
 use crate::app::window_state::WindowState;
 use crate::session_picker_mux::{MuxPickerAction, MuxSessionRow};
 use par_term_emu_core_rust::mux::{MuxClient, MuxServer};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 
 /// A private socket directory for one test. Short: macOS caps a socket
 /// path at 104 bytes.
@@ -54,19 +54,30 @@ fn window_in(dir: &Path) -> WindowState {
 
 /// Pump until `done` holds (attach completion, directory scan, layout).
 fn pump(ws: &mut WindowState, what: &str, done: impl Fn(&WindowState) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(15);
-    while !done(ws) {
-        assert!(Instant::now() < deadline, "{what}: timed out");
-        ws.check_tmux_notifications();
-        std::thread::sleep(Duration::from_millis(30));
-    }
+    wait_until(what, || {
+        done(ws) || {
+            ws.check_tmux_notifications();
+            done(ws)
+        }
+    });
 }
 
+/// A complete directory scan. The scan gives each daemon a fixed reply
+/// window (`DAEMON_QUERY_DEADLINE`) and reports a slow one as "did not
+/// answer"; under load an in-process daemon can miss it, so the test
+/// rescans until every daemon answered. A daemon that never answers still
+/// fails at the wait's deadline.
 fn scan(ws: &mut WindowState) -> Vec<MuxSessionRow> {
-    ws.tmux_state.mux_directory = None;
-    ws.refresh_mux_directory();
-    pump(ws, "directory scan", |ws| {
-        ws.tmux_state.mux_directory.is_some()
+    wait_until("a directory scan every daemon answered", || {
+        ws.tmux_state.mux_directory = None;
+        ws.refresh_mux_directory();
+        pump(ws, "directory scan", |ws| {
+            ws.tmux_state.mux_directory.is_some()
+        });
+        ws.tmux_state
+            .mux_directory
+            .as_ref()
+            .is_some_and(|d| d.errors.is_empty())
     });
     ws.tmux_state
         .mux_directory
@@ -276,11 +287,7 @@ fn the_picker_renames_and_ends_sessions() {
     assert_eq!(daemon_sessions(&shared), vec!["b", "renamed"]);
 
     ws.handle_mux_session_request(MuxPickerAction::Kill(b));
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while daemon_sessions(&shared) != vec!["renamed"] {
-        assert!(Instant::now() < deadline, "b never ended");
-        std::thread::sleep(Duration::from_millis(30));
-    }
+    wait_until("b ends", || daemon_sessions(&shared) == vec!["renamed"]);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

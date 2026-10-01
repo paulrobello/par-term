@@ -10,6 +10,7 @@
 //! daemon a hook report on its socket, exactly as an agent's hook does.
 
 use super::mux::tests::manners_state;
+use super::mux_test_seams::{SettledSend, quiesce, wait_until};
 use crate::app::window_state::WindowState;
 use crate::session_chip::{MuxHealth, SessionChipAction};
 use crate::tab::pane_badges::AgentAttention;
@@ -17,12 +18,12 @@ use std::io::{BufRead, BufReader, Write};
 use std::time::{Duration, Instant};
 
 fn pump(ws: &mut WindowState, what: &str, done: impl Fn(&WindowState) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !done(ws) {
-        assert!(Instant::now() < deadline, "{what}: timed out");
-        ws.check_tmux_notifications();
-        std::thread::sleep(Duration::from_millis(30));
-    }
+    wait_until(what, || {
+        done(ws) || {
+            ws.check_tmux_notifications();
+            done(ws)
+        }
+    });
 }
 
 fn attached(tag: &str, tabs: usize) -> (WindowState, std::path::PathBuf) {
@@ -160,7 +161,7 @@ fn tab_reorder_and_blank_rename_reach_the_daemon() {
             .transport
             .as_ref()
             .unwrap()
-            .send_command("list-windows")
+            .send_settled("list-windows")
             .unwrap()
             .iter()
             .filter_map(|l| l.strip_prefix('@')?.split(':').next()?.parse().ok())
@@ -171,6 +172,7 @@ fn tab_reorder_and_blank_rename_reach_the_daemon() {
     let first_tab = ws.tab_manager.tabs()[0].id;
     let first_window = ws.mux_window_for_tab(first_tab).unwrap();
     ws.switch_to_tab_id(first_tab);
+    quiesce(&mut ws);
     ws.move_tab_right();
     assert_eq!(ws.tab_manager.tabs()[1].id, first_tab, "moved locally");
     assert_eq!(
@@ -181,6 +183,7 @@ fn tab_reorder_and_blank_rename_reach_the_daemon() {
     );
 
     // U12: a blank rename sends the auto title, never an empty name.
+    quiesce(&mut ws);
     ws.handle_tab_bar_action_after_render(crate::tab_bar_ui::TabBarAction::RenameTab(
         first_tab,
         "custom".to_string(),
@@ -190,7 +193,7 @@ fn tab_reorder_and_blank_rename_reach_the_daemon() {
             .transport
             .as_ref()
             .unwrap()
-            .send_command("list-windows")
+            .send_settled("list-windows")
             .unwrap()
             .iter()
             .find_map(|l| {
@@ -200,6 +203,7 @@ fn tab_reorder_and_blank_rename_reach_the_daemon() {
             .unwrap_or_default()
     };
     assert_eq!(name_of(&ws, first_window), "custom");
+    quiesce(&mut ws);
     ws.handle_tab_bar_action_after_render(crate::tab_bar_ui::TabBarAction::RenameTab(
         first_tab,
         String::new(),

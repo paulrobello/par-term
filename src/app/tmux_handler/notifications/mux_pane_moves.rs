@@ -322,6 +322,7 @@ impl WindowState {
 mod tests {
     use super::super::mux::MuxAttachPending;
     use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
+    use super::super::mux_test_seams::{SettledSend, poll_until, quiesce, wait_until};
     use crate::app::window_state::WindowState;
     use std::time::{Duration, Instant};
 
@@ -330,7 +331,7 @@ mod tests {
             .transport
             .as_ref()
             .expect("transport")
-            .send_command(cmd)
+            .send_settled(cmd)
             .unwrap_or_else(|e| panic!("{cmd}: {e}"))
     }
 
@@ -408,33 +409,31 @@ mod tests {
     /// Drain ONLY — no test-side layout pump — until the link is whole:
     /// what a production client sees after a move made anywhere.
     fn drain_until_linked(ws: &mut WindowState, what: &str) {
-        let deadline = Instant::now() + Duration::from_secs(10);
-        loop {
+        let mut problems = Vec::new();
+        let linked = poll_until(|| {
             ws.check_mux_notifications();
-            let problems = all_problems(ws);
-            if problems.is_empty() {
-                return;
-            }
-            assert!(
-                Instant::now() < deadline,
-                "{what}: daemon link broken: {problems:?}; owners {:?}; native ids {:?}",
-                ws.tmux_state.tmux_pane_owners,
-                ws.tab_manager
-                    .tabs()
-                    .iter()
-                    .map(|t| (
-                        t.id,
-                        ws.tmux_state.tmux_sync.get_window(t.id),
-                        t.pane_manager().map(|pm| pm
-                            .all_panes()
-                            .iter()
-                            .map(|p| p.id)
-                            .collect::<Vec<_>>())
-                    ))
-                    .collect::<Vec<_>>()
-            );
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            problems = all_problems(ws);
+            problems.is_empty()
+        });
+        assert!(
+            linked,
+            "{what}: daemon link broken: {problems:?}; owners {:?}; native ids {:?}",
+            ws.tmux_state.tmux_pane_owners,
+            ws.tab_manager
+                .tabs()
+                .iter()
+                .map(|t| (
+                    t.id,
+                    ws.tmux_state.tmux_sync.get_window(t.id),
+                    t.pane_manager().map(|pm| pm
+                        .all_panes()
+                        .iter()
+                        .map(|p| p.id)
+                        .collect::<Vec<_>>())
+                ))
+                .collect::<Vec<_>>()
+        );
+        quiesce(ws);
     }
 
     #[cfg(unix)]
@@ -492,14 +491,11 @@ mod tests {
             "send-keys -t %1 -l 'echo MOVED-PANE-MARK | tr A-Z a-z'",
         );
         send(&ws, "send-keys -t %1 Enter");
-        let deadline = Instant::now() + Duration::from_secs(15);
-        while !send(&ws, "capture-pane -t %1 -p")
-            .iter()
-            .any(|l| l.trim() == "moved-pane-mark")
-        {
-            assert!(Instant::now() < deadline, "marker never printed in %1");
-            std::thread::sleep(Duration::from_millis(50));
-        }
+        wait_until("the marker prints in %1", || {
+            send(&ws, "capture-pane -t %1 -p")
+                .iter()
+                .any(|l| l.trim() == "moved-pane-mark")
+        });
 
         // Break %1 out into its own window: a new tab, linked, re-seeded.
         let new_window = send(&ws, "break-pane -s %1");
@@ -511,16 +507,16 @@ mod tests {
         let (tab0, _) = ws.tmux_state.tmux_pane_owner(0).unwrap();
         let (tab1, _) = ws.tmux_state.tmux_pane_owner(1).unwrap();
         assert_ne!(tab0, tab1, "the broken-out pane lives in its own tab");
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while !pane_text(&ws, 1).contains("moved-pane-mark") {
-            assert!(
-                Instant::now() < deadline,
-                "the broken-out pane's new mirror was never seeded: {:?}",
-                pane_text(&ws, 1)
-            );
+        let seeded = poll_until(|| {
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            pane_text(&ws, 1).contains("moved-pane-mark")
+        });
+        assert!(
+            seeded,
+            "the broken-out pane's new mirror was never seeded: {:?}",
+            pane_text(&ws, 1)
+        );
+        quiesce(&mut ws);
 
         // Join it back beside %0: its window closes, both panes share a tab.
         let joined = send(&ws, "join-pane -s %1 -t %0 -h");
@@ -592,6 +588,7 @@ mod tests {
 
         // Promote the focused pane: break-pane, a new daemon window + tab.
         let focused = ws.focused_mux_pane_from_native().expect("mux pane focused");
+        quiesce(&mut ws);
         ws.promote_pane_to_tab();
         drain_until_linked(&mut ws, "promote (break-pane)");
         assert_eq!(
@@ -606,6 +603,7 @@ mod tests {
         let other = if focused == 0 { 1 } else { 0 };
         let (target_tab, target_native) = ws.tmux_state.tmux_pane_owner(other).unwrap();
         assert_eq!(ws.mux_demote_refusal(promoted_tab, Some(target_tab)), None);
+        quiesce(&mut ws);
         ws.execute_demote(
             promoted_tab,
             target_tab,

@@ -184,6 +184,7 @@ impl WindowState {
 
 #[cfg(test)]
 mod tests {
+    use super::super::mux_test_seams::{SettledSend, quiesce, wait_until};
     use super::*;
 
     fn unknown(line: &str) -> CoreNotification {
@@ -260,20 +261,18 @@ mod tests {
         assert_eq!(respawn_command(5, false), "respawn-pane -k -t %5");
     }
 
-    /// Pump the drain until `done` holds, re-pushing the client size so a
-    /// layout arrives even when the daemon is otherwise quiet.
+    /// Pump the drain until `done` holds.
     fn pump_until(
         ws: &mut crate::app::window_state::WindowState,
         what: &str,
-        timeout: std::time::Duration,
         done: impl Fn(&crate::app::window_state::WindowState) -> bool,
     ) {
-        let deadline = std::time::Instant::now() + timeout;
-        while !done(ws) {
-            assert!(std::time::Instant::now() < deadline, "timed out: {what}");
-            ws.check_mux_notifications();
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
+        wait_until(what, || {
+            done(ws) || {
+                ws.check_mux_notifications();
+                done(ws)
+            }
+        });
     }
 
     /// Criteria 1+2 end to end against the daemon surface that HOLDS an
@@ -287,7 +286,6 @@ mod tests {
     fn exited_pane_shows_code_and_restart_respawns_it() {
         use super::super::mux::MuxAttachPending;
         use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
-        use std::time::Duration;
 
         let path = socket_path("pane-exit");
         spawn_daemon(&path);
@@ -303,39 +301,31 @@ mod tests {
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
-        let deadline = std::time::Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "the layout consumer never mapped %0"
-            );
+        wait_until("the layout consumer maps %0", || {
             ws.tmux_state
                 .transport
                 .as_ref()
                 .unwrap()
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_command_no_wait("refresh-client -t %0 -C 80x24")
                 .expect("size push");
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            ws.tmux_state.tmux_pane_owners.contains_key(&0)
+        });
         let send = |ws: &crate::app::window_state::WindowState, cmd: &str| {
             ws.tmux_state
                 .transport
                 .as_ref()
                 .unwrap()
-                .send_command(cmd)
+                .send_settled(cmd)
                 .unwrap_or_else(|e| panic!("{cmd}: {e}"))
         };
 
         // The shell exits with a known code.
         send(&ws, "send-keys -t %0 -l 'exit 7'");
         send(&ws, "send-keys -t %0 Enter");
-        pump_until(
-            &mut ws,
-            "%pane-exited for %0",
-            Duration::from_secs(30),
-            |ws| ws.tmux_state.mux_exited_panes.contains_key(&0),
-        );
+        pump_until(&mut ws, "%pane-exited for %0", |ws| {
+            ws.tmux_state.mux_exited_panes.contains_key(&0)
+        });
         assert_eq!(
             ws.tmux_state.mux_exited_panes.get(&0),
             Some(&Some(7)),
@@ -370,18 +360,16 @@ mod tests {
 
         // Enter restarts: respawn-pane WITHOUT -k (the pane is dead). The
         // chrome clears only on the %pane-respawned push.
+        quiesce(&mut ws);
         assert_eq!(ws.handle_key_for_exited_mux_pane(b"\r"), Some(()));
         assert_eq!(
             ws.last_toast_text(),
             None,
             "the dead-pane respawn was accepted"
         );
-        pump_until(
-            &mut ws,
-            "%pane-respawned clears the chrome",
-            Duration::from_secs(15),
-            |ws| ws.tmux_state.mux_exited_panes.is_empty(),
-        );
+        pump_until(&mut ws, "%pane-respawned clears the chrome", |ws| {
+            ws.tmux_state.mux_exited_panes.is_empty()
+        });
         assert!(
             ws.tmux_state.tmux_pane_owners.contains_key(&0),
             "the respawned pane keeps its id and mapping"
@@ -399,6 +387,7 @@ mod tests {
             "a running pane must refuse respawn without -k"
         );
         // ...and the restart path uses -k for it.
+        quiesce(&mut ws);
         assert!(ws.restart_focused_mux_pane());
         assert_eq!(
             ws.last_toast_text(),
@@ -419,7 +408,6 @@ mod tests {
     ) -> (crate::app::window_state::WindowState, std::path::PathBuf) {
         use super::super::mux::MuxAttachPending;
         use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
-        use std::time::Duration;
 
         let path = socket_path(tag);
         spawn_daemon(&path);
@@ -434,12 +422,9 @@ mod tests {
         });
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
-        pump_until(
-            &mut ws,
-            "the %window-add adoption maps %0",
-            Duration::from_secs(10),
-            |ws| ws.tmux_state.tmux_pane_owners.contains_key(&0),
-        );
+        pump_until(&mut ws, "the %window-add adoption maps %0", |ws| {
+            ws.tmux_state.tmux_pane_owners.contains_key(&0)
+        });
         assert_eq!(ws.tab_manager.tab_count(), 1, "one tab for @0");
         (ws, path)
     }
@@ -449,7 +434,7 @@ mod tests {
             .transport
             .as_ref()
             .unwrap()
-            .send_command(cmd)
+            .send_settled(cmd)
             .unwrap_or_else(|e| panic!("{cmd}: {e}"))
     }
 
@@ -458,12 +443,9 @@ mod tests {
     fn exit_and_hold(ws: &mut crate::app::window_state::WindowState, pane: u64) {
         send_ok(ws, &format!("send-keys -t %{pane} -l 'exit 7'"));
         send_ok(ws, &format!("send-keys -t %{pane} Enter"));
-        pump_until(
-            ws,
-            "%pane-exited",
-            std::time::Duration::from_secs(30),
-            |ws| ws.tmux_state.mux_exited_panes.contains_key(&pane),
-        );
+        pump_until(ws, "%pane-exited", |ws| {
+            ws.tmux_state.mux_exited_panes.contains_key(&pane)
+        });
     }
 
     fn daemon_windows(ws: &crate::app::window_state::WindowState) -> Vec<u64> {
@@ -480,20 +462,13 @@ mod tests {
     /// ordinary %window-close teardown.
     #[test]
     fn closing_a_held_last_pane_tab_kills_its_daemon_window() {
-        use std::time::Duration;
         let (mut ws, path) = attached_with_pane_zero("held-close");
 
         // A second window, so closing the held one does not end the session.
         send_ok(&ws, "new-window");
-        let deadline = std::time::Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "window @1 never mapped"
-            );
-            ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+        pump_until(&mut ws, "window @1 mapped", |ws| {
+            ws.tmux_state.tmux_pane_owners.contains_key(&1)
+        });
         assert_eq!(daemon_windows(&ws), vec![0, 1]);
 
         exit_and_hold(&mut ws, 0);
@@ -501,6 +476,7 @@ mod tests {
         ws.tab_manager.switch_to(held_tab);
         assert!(ws.tmux_state.all_tab_panes_held(held_tab));
 
+        quiesce(&mut ws);
         assert!(!ws.close_focused_pane(), "the window stays open");
         assert!(
             !ws.overlay_ui.mux_last_tab_ui.is_visible(),
@@ -511,12 +487,9 @@ mod tests {
             vec![1],
             "the held window is killed daemon-side, not left running"
         );
-        pump_until(
-            &mut ws,
-            "%window-close tears the held tab down",
-            Duration::from_secs(10),
-            |ws| ws.tab_manager.get_tab(held_tab).is_none(),
-        );
+        pump_until(&mut ws, "%window-close tears the held tab down", |ws| {
+            ws.tab_manager.get_tab(held_tab).is_none()
+        });
         assert!(
             ws.tmux_state.tmux_sync.get_tab(0).is_none(),
             "no stale window mapping"
@@ -531,36 +504,28 @@ mod tests {
     /// hidden tabs.
     #[test]
     fn killing_a_held_tab_beside_a_hidden_tab_leaves_a_visible_tab_active() {
-        use std::time::Duration;
         let (mut ws, path) = attached_with_pane_zero("held-beside-hidden");
         send_ok(&ws, "new-window");
-        let deadline = std::time::Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "window @1 never mapped"
-            );
-            ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+        pump_until(&mut ws, "window @1 mapped", |ws| {
+            ws.tmux_state.tmux_pane_owners.contains_key(&1)
+        });
         let (tab_a, _) = ws.tmux_state.tmux_pane_owner(0).unwrap();
         let (tab_b, _) = ws.tmux_state.tmux_pane_owner(1).unwrap();
 
         // Hide B: its (live) last pane closes, the D7 shape.
         ws.tab_manager.switch_to(tab_b);
+        quiesce(&mut ws);
         assert!(!ws.close_focused_pane());
         assert!(ws.tab_manager.get_tab(tab_b).is_some_and(|t| t.is_hidden));
         assert_eq!(ws.tab_manager.active_tab_id(), Some(tab_a));
 
         // A's shell exits; Cmd+W on the held tab kills its window.
         exit_and_hold(&mut ws, 0);
+        quiesce(&mut ws);
         assert!(!ws.close_focused_pane());
-        pump_until(
-            &mut ws,
-            "the held tab tears down",
-            Duration::from_secs(10),
-            |ws| ws.tab_manager.get_tab(tab_a).is_none(),
-        );
+        pump_until(&mut ws, "the held tab tears down", |ws| {
+            ws.tab_manager.get_tab(tab_a).is_none()
+        });
         let active = ws.tab_manager.active_tab().expect("a tab stays active");
         assert_eq!(active.id, tab_b);
         assert!(
@@ -585,6 +550,7 @@ mod tests {
         );
 
         exit_and_hold(&mut ws, 0);
+        quiesce(&mut ws);
         assert!(!ws.close_focused_pane(), "the dialog decides");
         assert!(
             ws.overlay_ui.mux_last_tab_ui.is_visible(),

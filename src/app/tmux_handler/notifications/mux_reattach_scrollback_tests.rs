@@ -11,9 +11,9 @@
 
 use super::mux::MuxAttachPending;
 use super::mux::tests::{socket_path, spawn_daemon};
+use super::mux_test_seams::{poll_until, wait_until};
 use crate::app::window_state::WindowState;
 use par_term_emu_core_rust::mux::MuxClient;
-use std::time::{Duration, Instant};
 
 /// Lines of output the first client leaves in the pane's history.
 const ROWS: usize = 400;
@@ -40,29 +40,20 @@ fn seed_history(path: &std::path::Path, session: &str) {
         .send(&format!("new-session -s {session}"))
         .expect("new-session");
     let command = format!("seq -f ROW%g 1 {ROWS} | tr A-Z a-z");
-    let deadline = Instant::now() + Duration::from_secs(20);
-    // The shell may still be starting; retype until the output lands.
-    let mut typed = false;
-    loop {
-        if !typed {
-            first
-                .send(&format!("send-keys -t %0 \"{command}\" Enter"))
-                .expect("send-keys");
-            typed = true;
-        }
-        let history = first
+    // A command typed before the shell starts is buffered by the pty and
+    // runs once the shell reads it.
+    first
+        .send(&format!("send-keys -t %0 \"{command}\" Enter"))
+        .expect("send-keys");
+    let mut history = String::new();
+    let printed = poll_until(|| {
+        history = first
             .send("capture-pane -t %0 -p -S -2000")
             .expect("capture-pane")
             .join("\n");
-        if history.lines().any(|l| l.trim() == format!("row{ROWS}")) {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the pane never printed its rows: {history:?}"
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+        history.lines().any(|l| l.trim() == format!("row{ROWS}"))
+    });
+    assert!(printed, "the pane never printed its rows: {history:?}");
     // Dropping the client is the detach; the session keeps its history.
 }
 
@@ -83,16 +74,14 @@ fn reattach(ws: &mut WindowState, path: &std::path::Path, session: &str) {
         ws.tmux_state.mux_screen_seeds.contains_key(&0),
         "the attach collected a seed for %0"
     );
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while ws.tmux_state.mux_screen_seeds.contains_key(&0) {
-        assert!(Instant::now() < deadline, "the %0 seed was never delivered");
+    wait_until("the %0 seed is delivered", || {
         if let Some(t) = ws.tmux_state.transport.as_ref() {
             // Force a layout push so the consumer creates the mirror pane.
-            let _ = t.send_command("refresh-client -t %0 -C 80x24");
+            let _ = t.send_command_no_wait("refresh-client -t %0 -C 80x24");
         }
         ws.check_mux_notifications();
-        std::thread::sleep(Duration::from_millis(40));
-    }
+        !ws.tmux_state.mux_screen_seeds.contains_key(&0)
+    });
 }
 
 /// `(scrollback_len, scrollback lines)` of the mirror pane showing `%0`.

@@ -580,6 +580,9 @@ impl WindowState {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::super::mux_attach::stamp_pane_session_id;
+    use super::super::mux_test_seams::{
+        DAEMON_DEADLINE, SettledSend, drain_send_worker, poll_until, quiesce, wait_until,
+    };
     use super::super::mux_transport::{DaemonHealthSignal, MuxHealth};
     use super::*;
     use crate::pane::NavigationDirection;
@@ -632,7 +635,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn connect(path: &Path) -> MuxTransport {
-        let deadline = Instant::now() + Duration::from_secs(5);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             match MuxTransport::connect_or_spawn_at(path) {
                 Ok(transport) => return transport,
@@ -658,7 +661,7 @@ pub(crate) mod tests {
         sync: &mut TmuxSync,
         wanted: impl Fn(&SyncAction) -> bool,
     ) -> Vec<SyncAction> {
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let mut seen = Vec::new();
         while Instant::now() < deadline {
             let actions = poll_actions(transport, sync);
@@ -669,7 +672,7 @@ pub(crate) mod tests {
             }
             std::thread::sleep(Duration::from_millis(25));
         }
-        panic!("expected action never arrived within 10s; saw: {seen:?}");
+        panic!("expected action never arrived within {DAEMON_DEADLINE:?}; saw: {seen:?}");
     }
 
     /// Map every daemon pane to a native pane id (`10_000 + tmux id`) —
@@ -695,7 +698,7 @@ pub(crate) mod tests {
             assert!(matches!(outcome, AttachOutcome::Created(_)));
 
             // Wait for the session's initial window before splitting.
-            let deadline = Instant::now() + Duration::from_secs(10);
+            let deadline = Instant::now() + DAEMON_DEADLINE;
             let mut created = false;
             while Instant::now() < deadline && !created {
                 created = first
@@ -714,7 +717,7 @@ pub(crate) mod tests {
                 .expect("send-keys marker");
             // Wait for the echo to land before the drop: a fixed sleep raced
             // shell startup (cmd.exe's banner on Windows outlasted 300 ms).
-            let deadline = Instant::now() + Duration::from_secs(15);
+            let deadline = Instant::now() + DAEMON_DEADLINE;
             loop {
                 let screen = first
                     .send("capture-pane -t %0 -p")
@@ -997,26 +1000,23 @@ pub(crate) mod tests {
         // layout consumer does — a created session's %window-add fired
         // before the transport existed, so pumping would never map it.
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
-            if Instant::now() >= deadline {
-                // Push a layout for window @0 so the consumer maps %0.
-                break;
-            }
+        // Push a layout for window @0 so the consumer maps %0.
+        poll_until(|| {
             ws.tmux_state
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            ws.tmux_state.tmux_pane_owners.contains_key(&0)
+        });
         assert!(
             ws.tmux_state.tmux_pane_owners.contains_key(&0),
             "the layout consumer never mapped %0"
         );
 
+        quiesce(&mut ws);
         assert!(
             ws.split_pane_via_mux(true),
             "daemon-side split must succeed"
@@ -1078,7 +1078,7 @@ pub(crate) mod tests {
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
@@ -1088,7 +1088,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
@@ -1096,16 +1096,13 @@ pub(crate) mod tests {
 
         // Split to a second pane; the reply's new daemon pane %1 becomes
         // focused, and the layout consumer maps it into the mirror.
+        quiesce(&mut ws);
         assert!(ws.split_pane_via_mux(true), "daemon-side split");
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
-            assert!(
-                Instant::now() < deadline,
-                "the layout consumer never mapped %1"
-            );
+        wait_until("the layout consumer maps %1", || {
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            ws.tmux_state.tmux_pane_owners.contains_key(&1)
+        });
+        quiesce(&mut ws);
 
         // The focused native pane maps to a daemon pane; its LEFT neighbor
         // maps to another (do not assume which id the split put where).
@@ -1147,7 +1144,7 @@ pub(crate) mod tests {
             before, after,
             "the daemon must swap the two panes (list-panes order {before:?} -> {after:?})"
         );
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         // The mirror's PRE-swap orientation has the focused pane right of
         // its neighbor (the split put it there); the consumer applying the
         // swapped layout flips that. Poll until the flip is visible.
@@ -1177,7 +1174,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24");
+                .send_settled("refresh-client -t %0 -C 80x24");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
             assert!(Instant::now() < deadline, "mirror never re-laid-out");
@@ -1220,7 +1217,7 @@ pub(crate) mod tests {
         // %window-add fired before the transport existed, so the tab is
         // driven manually (the split test's pump).
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
@@ -1230,7 +1227,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
@@ -1242,9 +1239,9 @@ pub(crate) mod tests {
             .transport
             .as_ref()
             .expect("transport")
-            .send_command("new-window")
+            .send_settled("new-window")
             .expect("new-window");
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
             assert!(
                 Instant::now() < deadline,
@@ -1254,7 +1251,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %1 -C 80x24")
+                .send_settled("refresh-client -t %1 -C 80x24")
                 .expect("size push broadcasts %layout-change for @1");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
@@ -1359,7 +1356,7 @@ pub(crate) mod tests {
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
 
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
@@ -1369,7 +1366,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
@@ -1380,7 +1377,7 @@ pub(crate) mod tests {
         // Seed ONLY the mirror: daemon output routes to the mapped mirror,
         // never to the tab's hidden shell.
         ws.handle_tmux_output(0, b"mux-mirror-needle 4999\r\n");
-        let deadline = Instant::now() + Duration::from_secs(5);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !pane_text(&ws, tab_id, pane).contains("mux-mirror-needle") {
             assert!(
                 Instant::now() < deadline,
@@ -1489,7 +1486,7 @@ pub(crate) mod tests {
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
 
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
@@ -1499,7 +1496,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
@@ -1600,7 +1597,7 @@ pub(crate) mod tests {
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
 
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
@@ -1610,7 +1607,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
@@ -1704,7 +1701,7 @@ pub(crate) mod tests {
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
@@ -1714,29 +1711,25 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
         }
+        quiesce(&mut ws);
         assert!(
             ws.split_pane_via_mux(true),
             "split gives the window a second pane to close"
         );
         // The split pane's mapping arrives with the %layout-change push,
         // not the command reply — pump until the consumer has mapped %1.
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
-            assert!(
-                Instant::now() < deadline,
-                "the layout consumer never mapped the split pane %1: {:?}",
-                ws.tmux_state.tmux_pane_owners
-            );
+        wait_until("the layout consumer maps the split pane %1", || {
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            ws.tmux_state.tmux_pane_owners.contains_key(&1)
+        });
 
         // Close the focused pane (%1, the split's new pane) daemon-side.
+        quiesce(&mut ws);
         assert!(
             ws.close_pane_via_mux(),
             "a focused mux pane close must be consumed daemon-side"
@@ -1753,7 +1746,7 @@ pub(crate) mod tests {
 
         // The %layout-change reconciliation removed the killed pane's
         // mapping — no dangling tmux→native entry for a dead daemon pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while ws.tmux_state.tmux_pane_owners.contains_key(&1) {
             assert!(
                 Instant::now() < deadline,
@@ -1795,7 +1788,7 @@ pub(crate) mod tests {
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
@@ -1805,7 +1798,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
@@ -1837,7 +1830,7 @@ pub(crate) mod tests {
             .transport
             .as_ref()
             .expect("transport")
-            .send_command("select-pane -t %0 -T 'build box'")
+            .send_settled("select-pane -t %0 -T 'build box'")
             .expect("rename daemon-side");
         let mut titled = false;
         while Instant::now() < deadline && !titled {
@@ -1859,7 +1852,7 @@ pub(crate) mod tests {
             .transport
             .as_ref()
             .expect("transport")
-            .send_command("select-pane -t %0 -T ''")
+            .send_settled("select-pane -t %0 -T ''")
             .expect("clear daemon-side");
         let mut reverted = false;
         while Instant::now() < deadline && !reverted {
@@ -1903,7 +1896,7 @@ pub(crate) mod tests {
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
@@ -1913,7 +1906,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
@@ -1928,7 +1921,9 @@ pub(crate) mod tests {
         };
 
         // Rename through the app's write path: the local pane is named
-        // immediately AND the daemon holds the title (queried back).
+        // immediately AND the daemon holds the title (queried back). The
+        // rename sends inline, so the send worker is settled first.
+        quiesce(&mut ws);
         ws.rename_pane(native, "build box");
         assert_eq!(
             local_title(&ws).as_deref(),
@@ -1940,7 +1935,7 @@ pub(crate) mod tests {
             .transport
             .as_ref()
             .expect("transport")
-            .send_command("pane-title -t %0")
+            .send_settled("pane-title -t %0")
             .expect("pane-title query");
         assert!(
             reply.iter().any(|l| l.trim() == "build box"),
@@ -1948,13 +1943,14 @@ pub(crate) mod tests {
         );
 
         // Blank rename clears the daemon-side title too.
+        quiesce(&mut ws);
         ws.rename_pane(native, "");
         let reply = ws
             .tmux_state
             .transport
             .as_ref()
             .expect("transport")
-            .send_command("pane-title -t %0")
+            .send_settled("pane-title -t %0")
             .expect("pane-title query");
         assert!(
             !reply.iter().any(|l| l.trim() == "build box"),
@@ -1978,20 +1974,20 @@ pub(crate) mod tests {
         attach_test(&transport, "probe", None, &Default::default()).expect("attach");
         // User-rename %0; give %1 (split) a program OSC title.
         transport
-            .send_command("split-window -h -t %0")
+            .send_settled("split-window -h -t %0")
             .expect("split");
         transport
-            .send_command("select-pane -t %0 -T 'renamed pane'")
+            .send_settled("select-pane -t %0 -T 'renamed pane'")
             .expect("user rename");
         transport
             // The sleep holds the prompt back: distro bashrcs set the title
             // from PS1 on every prompt, which would overwrite the OSC title.
-            .send_command("send-keys -t %1 -l 'printf \"\\033]0;osc pane\\007\"; sleep 60'")
+            .send_settled("send-keys -t %1 -l 'printf \"\\033]0;osc pane\\007\"; sleep 60'")
             .expect("send printf");
         transport
-            .send_command("send-keys -t %1 Enter")
+            .send_settled("send-keys -t %1 Enter")
             .expect("enter");
-        let deadline = Instant::now() + Duration::from_secs(15);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             let title = transport.client().pane_title(1).expect("pane-title query");
             if title == "osc pane" {
@@ -2061,7 +2057,7 @@ pub(crate) mod tests {
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
@@ -2071,21 +2067,17 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24")
+                .send_settled("refresh-client -t %0 -C 80x24")
                 .expect("size push broadcasts %layout-change");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
         }
+        quiesce(&mut ws);
         assert!(ws.split_pane_via_mux(true), "split gives %1 to close");
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
-            assert!(
-                Instant::now() < deadline,
-                "the layout consumer never mapped the split pane %1"
-            );
+        wait_until("the layout consumer maps the split pane %1", || {
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            ws.tmux_state.tmux_pane_owners.contains_key(&1)
+        });
 
         // Both panes report: the widget counts both, scoped to mapped panes
         // exactly as the egui refresh site scopes them.
@@ -2106,11 +2098,12 @@ pub(crate) mod tests {
 
         // Close %1 (the split's new pane holds focus) and let the layout
         // reconciliation deliver the close signal.
+        quiesce(&mut ws);
         assert!(
             ws.close_pane_via_mux(),
             "close must be consumed daemon-side"
         );
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while ws.tmux_state.tmux_pane_owners.contains_key(&1) {
             assert!(
                 Instant::now() < deadline,
@@ -2254,17 +2247,9 @@ pub(crate) mod tests {
         // Four windows = four mux tabs (a CREATED session reports its
         // first window via the daemon's own %window-add push).
         for _ in 0..3 {
-            transport.send_command("new-window").expect("new-window");
-            std::thread::sleep(Duration::from_millis(50));
+            transport.send_settled("new-window").expect("new-window");
         }
-        // Background windows' layouts are not pushed on their own — the
-        // refresh-client -C pump forces a %layout-change broadcast for
-        // every pane so the layout consumer creates each mirror.
-        for pane in transport.client().list_panes().expect("list panes") {
-            transport
-                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
-                .expect("refresh-client");
-        }
+        pump_daemon_layouts(&transport, 4);
 
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -2285,7 +2270,7 @@ pub(crate) mod tests {
         // Pump until all four daemon windows became tabs with mirror
         // panes — each carrying a live hidden-shell PTY behind
         // `tab.terminal`, exactly what stalls an inline teardown.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() >= 4 && ws.tmux_state.tmux_pane_owners.len() >= 4 {
@@ -2329,16 +2314,8 @@ pub(crate) mod tests {
         let attach = attach_test(&transport, "hideundo", Some((80, 24)), &Default::default())
             .expect("attach");
         // A second window so hiding the first leaves a visible successor.
-        transport.send_command("new-window").expect("new-window");
-        std::thread::sleep(Duration::from_millis(50));
-        // Background windows' layouts are not pushed on their own — the
-        // refresh-client -C pump forces a %layout-change for every pane so
-        // the layout consumer creates each mirror.
-        for pane in transport.client().list_panes().expect("list panes") {
-            transport
-                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
-                .expect("refresh-client");
-        }
+        transport.send_settled("new-window").expect("new-window");
+        pump_daemon_layouts(&transport, 2);
 
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -2356,7 +2333,7 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_session_name = Some("hideundo".to_string());
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() >= 2 && ws.tmux_state.tmux_pane_owners.len() >= 2 {
@@ -2406,7 +2383,7 @@ pub(crate) mod tests {
             .transport
             .as_ref()
             .unwrap()
-            .send_command("list-windows")
+            .send_settled("list-windows")
             .expect("list-windows after hide");
         assert!(
             listing
@@ -2530,7 +2507,7 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_session_name = Some("splitfail".to_string());
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.focused_mux_pane_from_native().is_some() {
@@ -2599,7 +2576,7 @@ pub(crate) mod tests {
         });
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.focused_mux_pane_from_native().is_some() {
@@ -2681,7 +2658,7 @@ pub(crate) mod tests {
         // the daemon never pushes the layout that mirrors panes. The
         // wording claim under test is about TITLES: waiting for the
         // %window-add push to create its mapped tab is enough.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws
@@ -2744,7 +2721,7 @@ pub(crate) mod tests {
 
         // A CREATED session reports its only window via the daemon's own
         // %window-add push; pump until it became a tab with a mirror pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() >= 1 && !ws.tmux_state.tmux_pane_owners.is_empty() {
@@ -2777,7 +2754,7 @@ pub(crate) mod tests {
             .transport
             .as_ref()
             .unwrap()
-            .send_command("list-windows")
+            .send_settled("list-windows")
             .expect("list-windows while gated");
         assert!(
             windows.iter().any(|l| l.contains('@')),
@@ -2815,13 +2792,8 @@ pub(crate) mod tests {
         // A second window so the first close leaves another mux tab
         // mapped; background layouts are not pushed on their own, so
         // force the %layout-change broadcast per pane.
-        transport.send_command("new-window").expect("new-window");
-        std::thread::sleep(Duration::from_millis(50));
-        for pane in transport.client().list_panes().expect("list panes") {
-            transport
-                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
-                .expect("refresh-client");
-        }
+        transport.send_settled("new-window").expect("new-window");
+        pump_daemon_layouts(&transport, 2);
 
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -2843,7 +2815,7 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_sync.enable();
 
         // Two windows = two mux tabs.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() >= 2 && ws.tmux_state.tmux_pane_owners.len() >= 2 {
@@ -2859,13 +2831,14 @@ pub(crate) mod tests {
         }
 
         // Not the last attached tab: the close kills the window directly,
-        // no dialog.
+        // no dialog. The kill-window is sent inline.
+        quiesce(&mut ws);
         assert!(!ws.close_current_tab());
         assert!(
             !ws.overlay_ui.mux_last_tab_ui.is_visible(),
             "a close that leaves another mux tab must not gate"
         );
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() == 1 {
@@ -2883,7 +2856,7 @@ pub(crate) mod tests {
             .transport
             .as_ref()
             .unwrap()
-            .send_command("list-windows")
+            .send_settled("list-windows")
             .expect("list-windows after first close");
         assert_eq!(
             windows.iter().filter(|l| l.contains('@')).count(),
@@ -2899,8 +2872,9 @@ pub(crate) mod tests {
         // notifications tear the view down, and a fresh client sees the
         // session gone.
         ws.overlay_ui.mux_last_tab_ui.hide();
+        quiesce(&mut ws);
         ws.handle_mux_last_tab_action(crate::mux_last_tab_ui::MuxLastTabAction::EndSession);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tmux_state.transport.is_none() && ws.tab_manager.tab_count() == 0 {
@@ -2957,7 +2931,7 @@ pub(crate) mod tests {
         });
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() == 1 && !ws.tmux_state.tmux_pane_owners.is_empty() {
@@ -2977,9 +2951,9 @@ pub(crate) mod tests {
             .transport
             .as_ref()
             .unwrap()
-            .send_command("new-window")
+            .send_settled("new-window")
             .expect("new-window");
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             let windows = ws
@@ -2987,7 +2961,7 @@ pub(crate) mod tests {
                 .transport
                 .as_ref()
                 .unwrap()
-                .send_command("list-windows")
+                .send_settled("list-windows")
                 .expect("list-windows");
             if windows.iter().filter(|l| l.contains('@')).count() == 2 {
                 break;
@@ -2998,12 +2972,13 @@ pub(crate) mod tests {
             );
             std::thread::sleep(Duration::from_millis(25));
         }
-        // Let the queued %window-open land so the max_tabs drop is real.
-        std::thread::sleep(Duration::from_millis(100));
-        for _ in 0..4 {
-            ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(25));
-        }
+        // The %window-add for the overflow window was queued on this
+        // client ahead of the new-window reply. A drain skips while the
+        // send worker holds the client, so settle the worker first: the
+        // next drain then takes everything queued, and the max_tabs drop
+        // is real when the count below is read.
+        quiesce(&mut ws);
+        ws.check_mux_notifications();
         assert_eq!(
             ws.tab_manager.tab_count(),
             1,
@@ -3015,8 +2990,9 @@ pub(crate) mod tests {
         assert!(ws.overlay_ui.mux_last_tab_ui.is_visible());
 
         ws.overlay_ui.mux_last_tab_ui.hide();
+        quiesce(&mut ws);
         ws.handle_mux_last_tab_action(crate::mux_last_tab_ui::MuxLastTabAction::EndSession);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tmux_state.transport.is_none() && ws.tab_manager.tab_count() == 0 {
@@ -3068,7 +3044,7 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_session_name = Some("hidelast".to_string());
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() >= 1 && !ws.tmux_state.tmux_pane_owners.is_empty() {
@@ -3101,7 +3077,7 @@ pub(crate) mod tests {
             .transport
             .as_ref()
             .unwrap()
-            .send_command("list-windows")
+            .send_settled("list-windows")
             .expect("list-windows after fallback close");
         assert!(
             listing
@@ -3124,13 +3100,8 @@ pub(crate) mod tests {
         let transport = connect(&path);
         let attach = attach_test(&transport, "hiderost", Some((80, 24)), &Default::default())
             .expect("attach");
-        transport.send_command("new-window").expect("new-window");
-        std::thread::sleep(Duration::from_millis(50));
-        for pane in transport.client().list_panes().expect("list panes") {
-            transport
-                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
-                .expect("refresh-client");
-        }
+        transport.send_settled("new-window").expect("new-window");
+        pump_daemon_layouts(&transport, 2);
 
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -3145,7 +3116,7 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_session_name = Some("hiderost".to_string());
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() >= 2 && ws.tmux_state.tmux_pane_owners.len() >= 2 {
@@ -3197,14 +3168,9 @@ pub(crate) mod tests {
         let transport = connect(&path);
         let attach = attach_test(&transport, "rostends", Some((80, 24)), &Default::default())
             .expect("attach");
-        transport.send_command("new-window").expect("new-window");
-        transport.send_command("new-window").expect("new-window");
-        std::thread::sleep(Duration::from_millis(50));
-        for pane in transport.client().list_panes().expect("list panes") {
-            transport
-                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
-                .expect("refresh-client");
-        }
+        transport.send_settled("new-window").expect("new-window");
+        transport.send_settled("new-window").expect("new-window");
+        pump_daemon_layouts(&transport, 3);
 
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -3219,7 +3185,7 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_session_name = Some("rostends".to_string());
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() >= 3 && ws.tmux_state.tmux_pane_owners.len() >= 3 {
@@ -3283,13 +3249,8 @@ pub(crate) mod tests {
         let transport = connect(&path);
         let attach =
             attach_test(&transport, "actdot", Some((80, 24)), &Default::default()).expect("attach");
-        transport.send_command("new-window").expect("new-window");
-        std::thread::sleep(Duration::from_millis(50));
-        for pane in transport.client().list_panes().expect("list panes") {
-            transport
-                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
-                .expect("refresh-client");
-        }
+        transport.send_settled("new-window").expect("new-window");
+        pump_daemon_layouts(&transport, 2);
 
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -3304,7 +3265,7 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_session_name = Some("actdot".to_string());
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() >= 2 && ws.tmux_state.tmux_pane_owners.len() >= 2 {
@@ -3371,14 +3332,9 @@ pub(crate) mod tests {
         let transport = connect(&path);
         let attach = attach_test(&transport, "closebg", Some((80, 24)), &Default::default())
             .expect("attach");
-        transport.send_command("new-window").expect("new-window");
-        transport.send_command("new-window").expect("new-window");
-        std::thread::sleep(Duration::from_millis(50));
-        for pane in transport.client().list_panes().expect("list panes") {
-            transport
-                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
-                .expect("refresh-client");
-        }
+        transport.send_settled("new-window").expect("new-window");
+        transport.send_settled("new-window").expect("new-window");
+        pump_daemon_layouts(&transport, 3);
 
         let runtime = std::sync::Arc::new(
             tokio::runtime::Builder::new_current_thread()
@@ -3393,7 +3349,7 @@ pub(crate) mod tests {
         ws.tmux_state.tmux_session_name = Some("closebg".to_string());
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.tab_count() >= 3 && ws.tmux_state.tmux_pane_owners.len() >= 3 {
@@ -3412,8 +3368,9 @@ pub(crate) mod tests {
         let third_id = ws.tab_manager.tabs()[2].id;
         ws.tab_manager.switch_to(first_id);
 
+        quiesce(&mut ws);
         ws.handle_tab_bar_action_after_render(crate::tab_bar_ui::TabBarAction::Close(third_id));
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tab_manager.get_tab(third_id).is_none() {
@@ -3512,7 +3469,7 @@ out.flush()
 
             // Wait for the TUI to actually paint (a fixed sleep raced shell
             // startup under load: the seed caught only the typed command).
-            let deadline = Instant::now() + Duration::from_secs(15);
+            let deadline = Instant::now() + DAEMON_DEADLINE;
             loop {
                 let screen = first
                     .send("capture-pane -t %0 -p")
@@ -3578,7 +3535,7 @@ out.flush()
         // Live output drains into the same terminal — cursor-addressed
         // incremental updates must land on the seeded screen without a
         // full redraw.
-        let deadline = Instant::now() + Duration::from_secs(3);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let mut saw_update = false;
         while Instant::now() < deadline && !saw_update {
             let (notes, _) = transport.drain();
@@ -3637,7 +3594,7 @@ out.flush()
         {
             let mut first = MuxSessionClient::connect(&path).expect("first client");
             first.create_or_attach("wstui").expect("create");
-            let deadline = Instant::now() + Duration::from_secs(10);
+            let deadline = Instant::now() + DAEMON_DEADLINE;
             let mut created = false;
             while Instant::now() < deadline && !created {
                 created = first
@@ -3703,7 +3660,7 @@ out.flush()
             // A created session reports its window via %window-add instead.
             existing_windows = vec![0];
         }
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let native_of = |ws: &crate::app::window_state::WindowState| {
             ws.tmux_state
                 .tmux_pane_owners
@@ -3797,6 +3754,7 @@ out.flush()
         // the fresh-attach silent-no-split scenario: the daemon requires -t
         // on split-window, and the untargeted form used to be sent and its
         // %error reply silently counted as success.
+        quiesce(&mut ws);
         ws.split_pane_vertical();
         let mut split_landed = false;
         while Instant::now() < deadline && !split_landed {
@@ -3839,7 +3797,7 @@ out.flush()
 
         // Input now targets the new pane and its output lands there.
         assert!(ws.send_input_via_tmux(b"echo SPLIT-OK | tr A-Z a-z\r"));
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let mut new_pane_text = String::new();
         while Instant::now() < deadline && !new_pane_text.contains("split-ok") {
             ws.check_mux_notifications();
@@ -3857,7 +3815,7 @@ out.flush()
             .transport
             .as_ref()
             .expect("transport")
-            .send_command("capture-pane -t %1 -p")
+            .send_settled("capture-pane -t %1 -p")
             .expect("capture")
             .join("|");
         assert!(
@@ -3875,7 +3833,7 @@ out.flush()
             ws.route_mouse_report_to_mux(b"MOUSE-ROUTE-OK"),
             "a focused mux pane must take the mouse report"
         );
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let mut daemon_view = String::new();
         while Instant::now() < deadline && !daemon_view.contains("MOUSE-ROUTE-OK") {
             daemon_view = ws
@@ -3883,7 +3841,7 @@ out.flush()
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("capture-pane -t %1 -p")
+                .send_settled("capture-pane -t %1 -p")
                 .expect("capture")
                 .join("|");
             std::thread::sleep(Duration::from_millis(50));
@@ -3953,7 +3911,7 @@ out.flush()
         ws.tmux_state.tmux_sync.enable();
 
         // Pump until the layout consumer created the native mirror pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let native = loop {
             ws.check_mux_notifications();
             if let Some(&(tab_id, native)) = ws.tmux_state.tmux_pane_owners.get(&0) {
@@ -4049,7 +4007,7 @@ out.flush()
         ws.tmux_state.tmux_sync.enable();
 
         // Pump until the layout consumer created the native mirror pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let tab_id = loop {
             ws.check_mux_notifications();
             if let Some(&(tab_id, _)) = ws.tmux_state.tmux_pane_owners.get(&0) {
@@ -4080,6 +4038,7 @@ out.flush()
 
         // Split while logging is active — a pane born from a later layout
         // change must log too (the re-attachment path).
+        quiesce(&mut ws);
         ws.split_pane_vertical();
         let mut split_landed = false;
         while Instant::now() < deadline && !split_landed {
@@ -4197,7 +4156,7 @@ out.flush()
         ws.tmux_state.tmux_sync.enable();
 
         // Pump until the layout consumer created the native mirror pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if let Some(&(tab_id, _)) = ws.tmux_state.tmux_pane_owners.get(&0) {
@@ -4296,7 +4255,7 @@ out.flush()
         ws.tmux_state.tmux_sync.enable();
 
         // Pump until the layout consumer created the native mirror pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let tab_id = loop {
             ws.check_mux_notifications();
             if let Some(&(tab_id, _)) = ws.tmux_state.tmux_pane_owners.get(&0) {
@@ -4410,7 +4369,7 @@ out.flush()
         ws.tmux_state.tmux_sync.enable();
 
         // Pump until the layout consumer created the native mirror pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let tab_id = loop {
             ws.check_mux_notifications();
             if let Some(&(tab_id, native)) = ws.tmux_state.tmux_pane_owners.get(&0) {
@@ -4449,9 +4408,21 @@ out.flush()
             .transport
             .as_ref()
             .expect("transport")
-            .send_command("send-keys -t %0 -H 63 61 74 20 2d 76 0d")
+            .send_settled("send-keys -t %0 -H 63 61 74 20 2d 76 0d")
             .expect("start cat -v");
-        std::thread::sleep(Duration::from_millis(300));
+        // Reports sent before `cat` runs land in the shell's line editor,
+        // which consumes them; wait until the daemon reports `cat` as the
+        // pane's foreground command.
+        wait_until("cat -v runs in %0", || {
+            let info = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_settled("pane-info -t %0")
+                .expect("pane-info");
+            par_term_mux::pane_foreground_command(&info, 0).as_deref() == Some("cat")
+        });
 
         // Window blur then focus through the production entry. The first
         // call flips state (a fresh window reports focused), so both
@@ -4463,21 +4434,19 @@ out.flush()
         let mut daemon_view = String::new();
         let mut saw_focus_out = false;
         let mut saw_focus_in = false;
-        while Instant::now() < deadline && !(saw_focus_out && saw_focus_in) {
+        poll_until(|| {
             daemon_view = ws
                 .tmux_state
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("capture-pane -t %0 -p")
+                .send_settled("capture-pane -t %0 -p")
                 .expect("capture")
                 .join("|");
             saw_focus_out = daemon_view.contains("^[[O");
             saw_focus_in = daemon_view.contains("^[[I");
-            if !(saw_focus_out && saw_focus_in) {
-                std::thread::sleep(Duration::from_millis(50));
-            }
-        }
+            saw_focus_out && saw_focus_in
+        });
         assert!(
             saw_focus_in && saw_focus_out,
             "the daemon pane must see ESC[O and ESC[I from the focus \
@@ -4519,7 +4488,7 @@ out.flush()
 
         // Pump until the layout consumer creates the native pane — the
         // paste router resolves its target from the focused native pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tmux_state.tmux_pane_owners.contains_key(&0)
@@ -4547,7 +4516,7 @@ out.flush()
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("capture-pane -t %0 -p")
+                .send_settled("capture-pane -t %0 -p")
                 .expect("capture")
                 .join("|");
             std::thread::sleep(Duration::from_millis(50));
@@ -4586,7 +4555,7 @@ out.flush()
 
         // Pump until the layout consumer creates the native pane — the
         // input router resolves its target from the focused native pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tmux_state.tmux_pane_owners.contains_key(&0)
@@ -4611,7 +4580,7 @@ out.flush()
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("capture-pane -t %0 -p")
+                .send_settled("capture-pane -t %0 -p")
                 .expect("capture")
                 .join("|");
             std::thread::sleep(Duration::from_millis(50));
@@ -4653,7 +4622,7 @@ out.flush()
 
         // Pump until the layout consumer creates the native pane — the
         // paste router resolves its target from the focused native pane.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tmux_state.tmux_pane_owners.contains_key(&0)
@@ -4688,13 +4657,13 @@ out.flush()
             .transport
             .as_ref()
             .unwrap()
-            .send_command(&format!("send-keys -t %0 -H {hex}"))
+            .send_settled(&format!("send-keys -t %0 -H {hex}"))
             .expect("type byte-mirror command");
         ws.tmux_state
             .transport
             .as_ref()
             .unwrap()
-            .send_command("send-keys -t %0 Enter")
+            .send_settled("send-keys -t %0 Enter")
             .expect("run byte-mirror command");
 
         // Pump until BOTH the mirror reports bracketed paste armed AND
@@ -4710,7 +4679,7 @@ out.flush()
         // conditions together prove the tty is raw and the paste will be
         // wrapped. A paste that then beats the exec of `cat -v` queues in
         // the raw input buffer and is rendered when `cat -v` reads.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             let armed = focused_mirror_bracketed(&ws).is_some_and(|(start, _)| !start.is_empty());
@@ -4719,7 +4688,7 @@ out.flush()
                 .transport
                 .as_ref()
                 .unwrap()
-                .send_command("capture-pane -t %0 -p")
+                .send_settled("capture-pane -t %0 -p")
                 .expect("capture")
                 .join("|");
             if armed && view.contains("MIRROR_READY") {
@@ -4788,30 +4757,32 @@ out.flush()
         cfg.selection.paste_delay_ms = 400;
         ws.config.store(std::sync::Arc::new(cfg));
 
+        let delay = Duration::from_millis(400);
+        let pasted_at = Instant::now();
         assert!(
             ws.paste_via_tmux("D1\nD2"),
             "a focused mux pane must take the paste"
         );
 
         // First line goes out immediately; the second must wait out the
-        // 400ms delay.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        // 400ms delay. Only the poll tick (`check_mux_notifications`) can
+        // send it, and none runs until D1 is seen, so a stalled test thread
+        // cannot let D2 land early. The delay itself is pinned two ways,
+        // both lower bounds a loaded machine cannot violate: the queued
+        // chunk is due no sooner than the delay after the paste, and D2
+        // first appears no sooner than that either.
         let mut early = String::new();
-        while Instant::now() < deadline {
-            ws.check_mux_notifications();
+        poll_until(|| {
             early = ws
                 .tmux_state
                 .transport
                 .as_ref()
                 .unwrap()
-                .send_command("capture-pane -t %0 -p")
+                .send_settled("capture-pane -t %0 -p")
                 .expect("capture")
                 .join("|");
-            if early.contains("D1^M") {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(25));
-        }
+            early.contains("D1^M")
+        });
         assert!(
             early.contains("D1^M"),
             "the first line must arrive: {early:?}"
@@ -4820,24 +4791,36 @@ out.flush()
             !early.contains("D2"),
             "the second line must wait out paste_delay_ms: {early:?}"
         );
+        assert!(
+            ws.tmux_state
+                .pending_mux_paste
+                .borrow()
+                .as_ref()
+                .is_some_and(|p| p.next_due >= pasted_at + delay),
+            "the second line is queued behind the full delay"
+        );
 
-        let deadline = Instant::now() + Duration::from_secs(3);
         let mut late = early.clone();
-        while Instant::now() < deadline && !late.contains("D2") {
+        poll_until(|| {
             ws.check_mux_notifications();
             late = ws
                 .tmux_state
                 .transport
                 .as_ref()
                 .unwrap()
-                .send_command("capture-pane -t %0 -p")
+                .send_settled("capture-pane -t %0 -p")
                 .expect("capture")
                 .join("|");
-            std::thread::sleep(Duration::from_millis(25));
-        }
+            late.contains("D2")
+        });
+        let landed_after = pasted_at.elapsed();
         assert!(
             late.contains("D2"),
             "the second line must land after the delay: {late:?}"
+        );
+        assert!(
+            landed_after >= delay,
+            "the second line landed {landed_after:?} after the paste, inside the delay"
         );
         assert!(
             late.contains("^[[201~"),
@@ -4872,7 +4855,7 @@ out.flush()
         ws.tmux_state.tmux_session_name = Some(tag.to_string());
         ws.tmux_state.tmux_sync.enable();
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tmux_state.tmux_pane_owners.contains_key(&0)
@@ -4897,6 +4880,7 @@ out.flush()
     fn closing_a_mux_tabs_last_pane_closes_the_tab_and_keeps_the_window() {
         let (mut ws, path) = attached_single_pane_state("ws-lastpane");
 
+        quiesce(&mut ws);
         ws.close_focused_pane();
 
         // The tab closed locally, synchronously.
@@ -4910,7 +4894,7 @@ out.flush()
             .transport
             .as_ref()
             .unwrap()
-            .send_command("list-windows")
+            .send_settled("list-windows")
             .expect("list-windows")
             .join("|");
         assert!(
@@ -4935,10 +4919,10 @@ out.flush()
             .transport
             .as_ref()
             .unwrap()
-            .send_command("kill-pane -t %0")
+            .send_settled("kill-pane -t %0")
             .expect("kill-pane");
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tab_manager.tabs().is_empty() && Instant::now() < deadline {
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(25));
@@ -4951,23 +4935,44 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
-    /// Poll `capture-pane` on `%pane` until `needle` shows up (or 10s).
+    /// Wait until the daemon lists `panes` panes, then push a client size
+    /// for each: background windows' layouts are not pushed on their own,
+    /// and the `refresh-client -C` broadcast is what lets the layout
+    /// consumer create every mirror. Waiting on the pane list (not a sleep)
+    /// means no window the test just created can miss its pump.
+    fn pump_daemon_layouts(transport: &MuxTransport, panes: usize) {
+        let mut listed = Vec::new();
+        assert!(
+            poll_until(|| {
+                listed = transport.client().list_panes().expect("list panes");
+                listed.len() >= panes
+            }),
+            "the daemon never listed {panes} panes: {listed:?}"
+        );
+        for pane in listed {
+            transport
+                .send_command_no_wait(&format!("refresh-client -t %{pane} -C 80x24"))
+                .expect("refresh-client");
+        }
+    }
+
+    /// Poll `capture-pane` on `%pane` until `needle` shows up (or the
+    /// daemon deadline passes). Returns the last capture either way; every
+    /// caller asserts on it.
     fn capture_until(
         transport: &dyn crate::app::tmux_handler::tmux_state::TmuxTransport,
         pane: u64,
         needle: &str,
     ) -> String {
-        let deadline = Instant::now() + Duration::from_secs(10);
-        loop {
-            let view = transport
-                .send_command(&format!("capture-pane -t %{pane} -p"))
+        let mut view = String::new();
+        poll_until(|| {
+            view = transport
+                .send_settled(&format!("capture-pane -t %{pane} -p"))
                 .expect("capture")
                 .join("|");
-            if view.contains(needle) || Instant::now() >= deadline {
-                return view;
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            view.contains(needle)
+        });
+        view
     }
 
     /// Print `name`'s value in `%pane`, bracketed so the capture can be
@@ -4976,12 +4981,12 @@ out.flush()
     fn pane_var(transport: &MuxTransport, pane: u64, name: &str) -> String {
         let tag = format!("V{pane}{name}");
         transport
-            .send_command(&format!(
+            .send_settled(&format!(
                 "send-keys -t %{pane} -l 'echo \"<{tag}\"\"=${name}>\"'"
             ))
             .expect("send-keys");
         transport
-            .send_command(&format!("send-keys -t %{pane} Enter"))
+            .send_settled(&format!("send-keys -t %{pane} Enter"))
             .expect("enter");
         let view = capture_until(transport, pane, &format!("<{tag}="));
         let start = view
@@ -5006,13 +5011,13 @@ out.flush()
             "v=\"${name}\"; printf '<{tag}''=%s:%s:%s>\\n' \"${{#v}}\" \"${{v:0:8}}\" \"$(printf %s \"$v\" | tail -c 8)\""
         );
         transport
-            .send_command(&format!(
+            .send_settled(&format!(
                 "send-keys -t %{pane} -l {}",
                 par_term_mux::quote_env_value(&script)
             ))
             .expect("send-keys");
         transport
-            .send_command(&format!("send-keys -t %{pane} Enter"))
+            .send_settled(&format!("send-keys -t %{pane} Enter"))
             .expect("enter");
         let view = capture_until(transport, pane, &format!("<{tag}="));
         let start = view
@@ -5054,7 +5059,7 @@ out.flush()
 
         stamp_pane_session_id(&transport, Some(session.id));
         let reply = transport
-            .send_command("split-window -h -t %0")
+            .send_settled("split-window -h -t %0")
             .expect("split");
         assert!(
             reply.iter().any(|l| l.trim() == "%1"),
@@ -5078,7 +5083,7 @@ out.flush()
         let reattach = attach_test(&second, "envs", None, &changed).expect("reattach");
         assert!(matches!(reattach.outcome, AttachOutcome::Attached(_)));
         second
-            .send_command("split-window -v -t %1")
+            .send_settled("split-window -v -t %1")
             .expect("split after reattach");
         assert_eq!(pane_var(&second, 2, "PAR_TERM_ENV_PROBE"), "it's changed");
         assert_eq!(pane_var(&second, 0, "PAR_TERM_ENV_PROBE"), "first value");
@@ -5128,13 +5133,13 @@ out.flush()
         // var and the shell counts the entries missing from $PATH.
         let script = r#"n=0; printf '%s\n' "$PAR_TERM_PATH_PROBE" | tr : '\n' > /tmp/.ptprobe.$$; while read -r d; do [[ ":$PATH:" == *":$d:"* ]] || n=$((n+1)); done < /tmp/.ptprobe.$$; rm -f /tmp/.ptprobe.$$; echo "<MISS""=$n>""#;
         transport
-            .send_command(&format!(
+            .send_settled(&format!(
                 "send-keys -t %0 -l {}",
                 par_term_mux::quote_env_value(script)
             ))
             .expect("send-keys");
         transport
-            .send_command("send-keys -t %0 Enter")
+            .send_settled("send-keys -t %0 Enter")
             .expect("enter");
         let view = capture_until(&transport, 0, "<MISS=");
         assert!(view.contains("<MISS=0>"), "PATH entries missing: {view:?}");
@@ -5208,7 +5213,7 @@ out.flush()
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while (ws.tab_manager.tabs().is_empty() || ws.tmux_state.tmux_pane_owners.is_empty())
             && Instant::now() < deadline
         {
@@ -5221,7 +5226,7 @@ out.flush()
                 .transport
                 .as_ref()
                 .expect("transport")
-                .send_command("refresh-client -t %0 -C 80x24");
+                .send_settled("refresh-client -t %0 -C 80x24");
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(25));
         }
@@ -5246,9 +5251,9 @@ out.flush()
             .transport
             .as_ref()
             .expect("transport")
-            .send_command(&format!("kill-window -t @{window}"))
+            .send_settled(&format!("kill-window -t @{window}"))
             .expect("kill-window");
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tab_manager.tabs().is_empty() && Instant::now() < deadline {
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(25));
@@ -5747,12 +5752,20 @@ out.flush()
         spawn_daemon(&path);
         let transport = connect(&path);
 
+        let queued = Instant::now();
         transport
             .send_command_no_wait("send-keys -t %0 x")
             .expect("queue");
-        // Long enough that a lingering in-flight send would have tripped
-        // the 800 ms threshold if the reply never came.
-        std::thread::sleep(Duration::from_millis(1200));
+        // Wait for the reply first (a loaded machine can keep an answered
+        // send in flight past the 800 ms threshold; a reply that never
+        // comes fails the drain at its deadline). Then hold until 1.2 s
+        // after the send: an answered send whose in-flight mark lingered
+        // would have crossed the threshold by then. Nothing else is queued,
+        // so the hold cannot trip on load.
+        drain_send_worker(&transport);
+        if let Some(rest) = Duration::from_millis(1200).checked_sub(queued.elapsed()) {
+            std::thread::sleep(rest);
+        }
         for _ in 0..3 {
             assert_eq!(
                 transport.daemon_health_event(),
@@ -5820,7 +5833,7 @@ out.flush()
         {
             let mut primer = MuxSessionClient::connect(&path).expect("primer connects");
             primer.create_or_attach(session).expect("primer creates");
-            let deadline = Instant::now() + Duration::from_secs(10);
+            let deadline = Instant::now() + DAEMON_DEADLINE;
             loop {
                 if primer
                     .poll_actions()
@@ -5849,15 +5862,10 @@ out.flush()
         mut cond: impl FnMut(&crate::app::window_state::WindowState) -> bool,
         what: &str,
     ) {
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while Instant::now() < deadline {
+        wait_until(what, || {
             ws.check_mux_notifications();
-            if cond(ws) {
-                return;
-            }
-            std::thread::sleep(Duration::from_millis(25));
-        }
-        panic!("timed out waiting for {what}");
+            cond(ws)
+        });
     }
 
     /// Cmd+T while attached asks the daemon for a new window; the tab
@@ -5874,6 +5882,7 @@ out.flush()
             .collect();
         let tabs_before = ws.tab_manager.tab_count();
 
+        quiesce(&mut ws);
         ws.new_tab();
 
         pump_until(
@@ -5922,7 +5931,7 @@ out.flush()
         // A background window's layout is not pushed on its own — the
         // refresh-client -C pump forces the %layout-change that maps the
         // panes (the detach-fast pattern).
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while ws.tmux_state.tmux_pane_owners.is_empty() {
             assert!(Instant::now() < deadline, "no daemon pane ever mapped");
             for pane in listed_panes(&mut probe) {
@@ -5933,11 +5942,12 @@ out.flush()
         }
         let before = listed_panes(&mut probe);
 
+        quiesce(&mut ws);
         let outcome = ws.launch_agent_via_mux("echo PAR_TERM_AGENT_LAUNCHED");
         assert_eq!(outcome, MuxLaunchOutcome::Launched);
 
         // A new daemon pane exists; its shell ran the typed command.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let new_pane = loop {
             let fresh = listed_panes(&mut probe);
             if let Some(id) = fresh.iter().find(|id| !before.contains(id)) {
@@ -5949,7 +5959,7 @@ out.flush()
             );
             std::thread::sleep(Duration::from_millis(25));
         };
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let view = loop {
             let captured = probe
                 .send(&format!("capture-pane -t %{new_pane} -p"))
@@ -6020,7 +6030,7 @@ out.flush()
         // The delayed write lands after the shell initializes; poll the
         // tab's screen for the marker (Cmd+F's searchable-lines seam).
         let tab_id = ws.tab_manager.active_tab().unwrap().id;
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             let seen = ws.tab_manager.get_tab(tab_id).and_then(|tab| {
                 tab.try_with_read_terminal(|term| {
@@ -6107,6 +6117,7 @@ out.flush()
             .collect();
         ws.tab_manager.switch_to(tab_id);
 
+        quiesce(&mut ws);
         let was_last = ws.close_current_tab_immediately();
 
         assert!(!was_last, "the close returns before the notification lands");
@@ -6165,7 +6176,7 @@ out.flush()
         {
             let mut primer = MuxSessionClient::connect(&path).expect("primer connects");
             primer.create_or_attach("tabops-names").expect("primer");
-            let deadline = Instant::now() + Duration::from_secs(10);
+            let deadline = Instant::now() + DAEMON_DEADLINE;
             loop {
                 if primer
                     .poll_actions()
@@ -6198,6 +6209,7 @@ out.flush()
         assert_eq!(title, "build", "attach carries the daemon window name");
 
         use crate::tab_bar_ui::TabBarAction;
+        quiesce(&mut ws);
         ws.handle_tab_bar_action_after_render(TabBarAction::RenameTab(
             tab_id,
             "it's docs".to_string(),
@@ -6314,7 +6326,7 @@ out.flush()
         // The replies are written to the pane's pty INPUT and only become
         // visible when the tty echoes them, which can land after the marker
         // line. Poll for the replies themselves, not just the marker.
-        let deadline = Instant::now() + Duration::from_secs(15);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         let screen = loop {
             let screen = transport.client().refresh_pane(0).expect("replay");
             let screen = screen.join("\n");
@@ -6376,11 +6388,26 @@ out.flush()
         probe
             .create_or_attach("keeper")
             .expect("keeper session exists");
+        quiesce(&mut ws);
         probe
             .send(&format!("kill-window -t @{window}"))
             .expect("kill-window removes the session's last window");
 
-        let redrawn = ws.check_mux_notifications();
+        // The pushes reach this client's channel on its own reader thread,
+        // and the drain re-queries `list-sessions` inline (failing open if
+        // the send worker holds the client), so pump with the worker idle
+        // until the view ends. `redrawn` is the answer of the drain that
+        // ended it.
+        let mut redrawn = false;
+        wait_until("the view ends", || {
+            if let Some(t) = ws.tmux_state.transport.as_deref()
+                && !ws.tmux_state.mux_jobs_in_flight()
+            {
+                drain_send_worker(t);
+            }
+            redrawn = ws.check_mux_notifications();
+            ws.tmux_state.transport.is_none()
+        });
         assert!(redrawn, "the ended view must request a redraw");
         assert!(
             ws.tmux_state.transport.is_none(),
@@ -6438,7 +6465,7 @@ out.flush()
         ws.tmux_state.tmux_sync.enable();
 
         // Pump until the layout consumer creates the native mirror for %0.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if ws.tmux_state.tmux_pane_owners.contains_key(&0) {
@@ -6456,7 +6483,7 @@ out.flush()
             .transport
             .as_ref()
             .unwrap()
-            .send_command("refresh-client -t %0 -C 61x17")
+            .send_settled("refresh-client -t %0 -C 61x17")
             .expect("deliberate resize");
 
         let mirror_dims = |ws: &crate::app::window_state::WindowState| {
@@ -6470,7 +6497,7 @@ out.flush()
                 .dimensions()
         };
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         loop {
             ws.check_mux_notifications();
             if mirror_dims(&ws) == (61, 17) {
@@ -6529,7 +6556,7 @@ out.flush()
         {
             let mut seed = MuxSessionClient::connect(&path).expect("seed client");
             seed.create_or_attach("restoretest").expect("create");
-            let deadline = Instant::now() + Duration::from_secs(10);
+            let deadline = Instant::now() + DAEMON_DEADLINE;
             let mut created = false;
             while Instant::now() < deadline && !created {
                 created = seed
@@ -6644,7 +6671,7 @@ out.flush()
 
         // The window arrives via %window-add, but NO layout is pumped: the
         // tab has no panes and no tmux_pane_id — the pre-layout shape.
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while ws.tab_manager.tabs().is_empty() && Instant::now() < deadline {
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(25));
@@ -6668,9 +6695,9 @@ out.flush()
             .transport
             .as_ref()
             .expect("transport")
-            .send_command(&format!("kill-window -t @{window}"))
+            .send_settled(&format!("kill-window -t @{window}"))
             .expect("kill-window");
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tab_manager.tabs().is_empty() && Instant::now() < deadline {
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(25));

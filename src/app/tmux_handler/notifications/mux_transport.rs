@@ -28,6 +28,11 @@ const DAEMON_UNRESPONSIVE_AFTER: Duration = Duration::from_millis(800);
 /// freeze the caller for the worker's remaining timeout.
 const SEND_LOCK_WAIT: Duration = Duration::from_millis(250);
 
+/// The error an inline send fails fast with when [`SEND_LOCK_WAIT`] runs
+/// out. Nothing has been written to the daemon at that point.
+pub(crate) const SEND_LOCK_BUSY: &str =
+    "mux send worker still holds the client — daemon unresponsive?";
+
 /// The fire-and-forget outbox depth. Bounded so a wedged daemon cannot
 /// accrue an unbounded backlog (typing and paste chunks enqueue far faster
 /// than a 10 s reply timeout drains); overflow drops commands and counts
@@ -137,9 +142,7 @@ impl MuxTransport {
                 }
                 Err(std::sync::TryLockError::WouldBlock) => {
                     if Instant::now() >= deadline {
-                        return Err(io::Error::other(
-                            "mux send worker still holds the client — daemon unresponsive?",
-                        ));
+                        return Err(io::Error::other(SEND_LOCK_BUSY));
                     }
                     std::thread::sleep(Duration::from_millis(5));
                 }
@@ -464,20 +467,56 @@ mod tests {
     /// in the gap between two of them, and the send fails as if the daemon
     /// were hung — which silently skips the close-confirm `pane-info` probe
     /// and fails a split made right after a new window arrives.
+    ///
+    /// Under load a single in-flight job command can itself outlast
+    /// `SEND_LOCK_WAIT` (nothing interrupts a started command), so a send
+    /// may fail fast and be retried — a few times, not without bound. The
+    /// sends are spaced so the worker resumes the job between them: each
+    /// send must overtake a running job on its own, which a worker that
+    /// never yields lets one through only by luck, so it exhausts the
+    /// budget. Back to back, a send that won the lock would keep winning
+    /// while the worker sits parked, and the test would stop discriminating.
+    /// All 40 sends must also land while the 200 000-command job is still
+    /// running.
     #[test]
     fn inline_sends_overtake_a_long_off_loop_job() {
+        use super::super::mux_test_seams::wait_until;
+        use super::SEND_LOCK_BUSY;
+        /// Fail-fast retries allowed across all 40 sends.
+        const BUSY_BUDGET: usize = 10;
         let path = socket_path("job-priority");
         spawn_daemon(&path);
         let transport = connect(&path);
+        transport
+            .send_command("list-sessions")
+            .expect("the daemon answers before the job starts");
         // Far longer than SEND_LOCK_WAIT even on a fast machine: each
         // command is a full daemon round-trip.
         assert!(transport.submit_job(MuxJob::SeedPanes(vec![0; 200_000])));
-        std::thread::sleep(std::time::Duration::from_millis(20));
-        let started = std::time::Instant::now();
-        for i in 0..40 {
+        // The sends must compete with a RUNNING job, or they prove nothing.
+        wait_until("the job's first command is in flight", || {
             transport
-                .send_command("list-sessions")
-                .unwrap_or_else(|e| panic!("inline send {i} starved behind the job: {e}"));
+                .health
+                .state
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .started
+                .is_some()
+        });
+        let started = std::time::Instant::now();
+        let mut busy = 0;
+        for i in 0..40 {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            loop {
+                match transport.send_command("list-sessions") {
+                    Ok(_) => break,
+                    Err(e) if e.to_string() == SEND_LOCK_BUSY && busy < BUSY_BUDGET => busy += 1,
+                    Err(e) => panic!(
+                        "inline send {i} starved behind the job after {busy} fail-fast \
+                         retries: {e}"
+                    ),
+                }
+            }
         }
         assert!(
             transport.take_job_results().is_empty(),

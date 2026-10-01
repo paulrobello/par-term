@@ -9,29 +9,33 @@
 
 use super::mux::MuxAttachPending;
 use super::mux::tests::{manners_state, socket_path, spawn_daemon};
+use super::mux_test_seams::{DAEMON_DEADLINE, SettledSend, quiesce, wait_until};
 use crate::app::window_state::WindowState;
 use crate::pane::NavigationDirection;
 use par_term_emu_core_rust::mux::MuxClient;
 use par_term_emu_core_rust::tmux_control::TmuxNotification;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 fn send(ws: &WindowState, cmd: &str) -> Vec<String> {
     ws.tmux_state
         .transport
         .as_ref()
         .expect("transport")
-        .send_command(cmd)
+        .send_settled(cmd)
         .unwrap_or_else(|e| panic!("{cmd}: {e}"))
 }
 
-/// Drain until `done` holds, pumping `refresh-client -C` so layouts arrive.
+/// Drain until `done` holds (checked before each pump, so a condition
+/// already true applies nothing new), then settle the send worker so the
+/// next inline action does not fail fast behind the drain's queued work.
 fn drain_until(ws: &mut WindowState, what: &str, done: impl Fn(&WindowState) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !done(ws) {
-        assert!(Instant::now() < deadline, "{what}: timed out");
-        ws.check_mux_notifications();
-        std::thread::sleep(Duration::from_millis(30));
-    }
+    wait_until(what, || {
+        done(ws) || {
+            ws.check_mux_notifications();
+            done(ws)
+        }
+    });
+    quiesce(ws);
 }
 
 /// An attached window state with `%0` split side by side into `%0 | %1`,
@@ -50,15 +54,22 @@ fn attached_split(tag: &str) -> (WindowState, MuxClient, std::path::PathBuf) {
     });
     ws.poll_mux_attach();
     assert!(ws.tmux_state.transport.is_some(), "attach must install");
-    ws.handle_tmux_window_add(0);
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
-        assert!(Instant::now() < deadline, "%0 never mapped");
-        send(&ws, "refresh-client -t %0 -C 80x24");
-        ws.check_mux_notifications();
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    // The created session's %window-add waits in the client channel; the
+    // drain's window adoption maps %0. A manual handle_tmux_window_add(0)
+    // here would add a second tab for @0 and make window counts wrong.
+    drain_until(&mut ws, "%0 mapped", |ws| {
+        ws.tmux_state.tmux_pane_owners.contains_key(&0)
+    });
+    assert_eq!(ws.tab_manager.tab_count(), 1, "one tab for @0");
     assert!(ws.split_pane_via_mux(true), "daemon-side split");
+    assert!(
+        !ws.tmux_state
+            .mux_last_error
+            .as_deref()
+            .is_some_and(|e| e.contains("split failed")),
+        "the split reached the daemon: {:?}",
+        ws.tmux_state.mux_last_error
+    );
     drain_until(&mut ws, "split mapped", |ws| {
         ws.tmux_state.tmux_pane_owners.contains_key(&1)
             && ws
@@ -87,7 +98,7 @@ fn attached_split(tag: &str) -> (WindowState, MuxClient, std::path::PathBuf) {
 
 /// Wait until the second client receives a notification matching `want`.
 fn second_sees(second: &MuxClient, what: &str, want: impl Fn(&TmuxNotification) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + DAEMON_DEADLINE;
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
         assert!(!left.is_zero(), "the second client never saw {what}");
@@ -413,16 +424,10 @@ fn attached_equalize_evens_the_daemon_panes() {
     second_sees(&second, "the equalize layout", |n| {
         matches!(n, TmuxNotification::LayoutChange { .. })
     });
-    let deadline = Instant::now() + Duration::from_secs(10);
-    loop {
-        let (a, b) = (daemon_size(&ws, 0).0, daemon_size(&ws, 1).0);
-        if a.abs_diff(b) <= 1 {
-            break;
-        }
-        assert!(Instant::now() < deadline, "never evened out: {a} vs {b}");
+    wait_until("the daemon panes even out", || {
         ws.check_mux_notifications();
-        std::thread::sleep(Duration::from_millis(30));
-    }
+        daemon_size(&ws, 0).0.abs_diff(daemon_size(&ws, 1).0) <= 1
+    });
     let _ = std::fs::remove_file(&path);
 }
 
@@ -443,8 +448,9 @@ fn attached_layout_presets_are_refused_and_leave_the_daemon_layout() {
             preset.name()
         );
     }
-    std::thread::sleep(Duration::from_millis(200));
-    ws.check_mux_notifications();
+    // Anything a preset queued has reached the daemon once the worker is
+    // idle, so the sizes below are final.
+    quiesce(&mut ws);
     assert_eq!((daemon_size(&ws, 0), daemon_size(&ws, 1)), before);
     let _ = std::fs::remove_file(&path);
 }

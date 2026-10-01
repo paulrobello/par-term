@@ -2,6 +2,7 @@
 //! foreground job lives daemon-side, so the gate asks the daemon.
 
 use crate::app::tmux_handler::notifications::mux::{MuxAttachPending, tests as mux_tests};
+use crate::app::tmux_handler::notifications::mux_test_seams::{SettledSend, quiesce, wait_until};
 use crate::app::window_state::WindowState;
 use std::time::{Duration, Instant};
 
@@ -52,20 +53,19 @@ fn attach_two_panes(
     // stale duplicate tab mapped to @0, which reads as a second attached
     // tab (and hides the last-tab gate).
 
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
-        assert!(Instant::now() < deadline, "%0 never mapped");
-        send(&ws, "refresh-client -t %0 -C 80x24");
+    wait_until("%0 mapped", || {
+        if let Some(t) = ws.tmux_state.transport.as_ref() {
+            let _ = t.send_command_no_wait("refresh-client -t %0 -C 80x24");
+        }
         ws.check_mux_notifications();
-        std::thread::sleep(Duration::from_millis(50));
-    }
+        ws.tmux_state.tmux_pane_owners.contains_key(&0)
+    });
+    quiesce(&mut ws);
     assert!(ws.split_pane_via_mux(true), "split gives a second pane");
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
-        assert!(Instant::now() < deadline, "%1 never mapped");
+    wait_until("%1 mapped", || {
         ws.check_mux_notifications();
-        std::thread::sleep(Duration::from_millis(50));
-    }
+        ws.tmux_state.tmux_pane_owners.contains_key(&1)
+    });
     (ws, path)
 }
 
@@ -74,7 +74,7 @@ fn send(ws: &WindowState, command: &str) -> Vec<String> {
         .transport
         .as_ref()
         .expect("transport")
-        .send_command(command)
+        .send_settled(command)
         .expect("daemon command")
 }
 
@@ -87,38 +87,34 @@ fn daemon_pane_count(ws: &WindowState) -> usize {
 
 /// Pump notifications until the daemon holds `want` panes.
 fn wait_for_pane_count(ws: &mut WindowState, want: usize, what: &str) {
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while daemon_pane_count(ws) != want {
-        assert!(Instant::now() < deadline, "{what}");
+    wait_until(what, || {
         ws.check_mux_notifications();
-        std::thread::sleep(Duration::from_millis(50));
-    }
+        daemon_pane_count(ws) == want
+    });
 }
 
 /// Poll `pane-info` until the daemon reports `want` as the foreground
 /// command (the spawned job is a process the daemon must first observe).
 fn wait_for_foreground(ws: &WindowState, pane: u64, want: &str) {
-    let deadline = Instant::now() + Duration::from_secs(15);
-    loop {
-        let reply = send(ws, &format!("pane-info -t %{pane}"));
-        if par_term_mux::pane_foreground_command(&reply, pane).as_deref() == Some(want) {
-            return;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "daemon never reported {want:?} as the foreground of %{pane}: {reply:?}"
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    let mut reply = Vec::new();
+    let seen = super::notifications::mux_test_seams::poll_until(|| {
+        reply = send(ws, &format!("pane-info -t %{pane}"));
+        par_term_mux::pane_foreground_command(&reply, pane).as_deref() == Some(want)
+    });
+    assert!(
+        seen,
+        "daemon never reported {want:?} as the foreground of %{pane}: {reply:?}"
+    );
 }
 
 /// Card 01a0ea7b3beb749085938c8fba01d9f2: closing an attached pane that is
 /// running `sleep 100` holds the close behind the confirmation dialog, and
-/// confirming kills the pane daemon-side. Against a daemon that predates
-/// the `pane-info` foreground token (the published 0.56 line) the close
-/// must degrade to the unconfirmed daemon-side kill, never block or fail.
-/// The pinned core (0.57) and later carry the token, so the gate exercises
-/// the confirming arm; the old-daemon arm runs only against an older core.
+/// confirming kills the pane daemon-side. Where the daemon cannot read a
+/// pane's foreground command (Windows: no process-table access, so
+/// `pane-info` carries no `cmd=` token) the close must degrade to the
+/// unconfirmed daemon-side kill, never block or fail. The arm is chosen by
+/// platform: a timing probe would let a broken foreground report pass as
+/// the degraded arm.
 #[test]
 fn closing_an_attached_pane_running_a_job_asks_first() {
     // `sleep` is on the default ignore list; this test IS the sleep-100
@@ -131,9 +127,10 @@ fn closing_an_attached_pane_running_a_job_asks_first() {
         eprintln!("old daemon (no pane-info cmd token): asserting the unconfirmed close");
         send(&ws, &format!("send-keys -t %{target} -l 'sleep 100'"));
         send(&ws, &format!("send-keys -t %{target} Enter"));
+        quiesce(&mut ws);
         assert!(!ws.close_focused_pane());
         assert!(!ws.overlay_ui.close_confirmation_ui.is_visible());
-        wait_for_pane_count(&mut ws, 1, "old-daemon close never killed the pane");
+        wait_for_pane_count(&mut ws, 1, "unconfirmed close never killed the pane");
         let _ = std::fs::remove_file(&path);
         return;
     }
@@ -145,6 +142,10 @@ fn closing_an_attached_pane_running_a_job_asks_first() {
     send(&ws, &format!("send-keys -t %{target} Enter"));
     wait_for_foreground(&ws, target, "sleep");
 
+    // The confirmed close sends `kill-pane` inline, which fails fast while
+    // the send worker is busy; settle the worker so the kill reaches the
+    // daemon.
+    quiesce(&mut ws);
     assert!(
         !ws.close_focused_pane(),
         "the close must wait for the dialog"
@@ -205,6 +206,11 @@ impl StallProxy {
     /// Hold the next command containing `substring` for `hold`.
     fn arm(&self, substring: &str, hold: Duration) {
         *self.trigger.lock().unwrap() = Some((substring.to_string(), hold));
+    }
+
+    /// Whether the armed command has arrived and is being held.
+    fn fired(&self) -> bool {
+        self.trigger.lock().unwrap().is_none()
     }
 }
 
@@ -306,13 +312,16 @@ fn a_slow_in_flight_daemon_command_does_not_skip_the_job_confirmation() {
         return;
     };
 
+    // Settle queued size pushes first, so the held command is the seed's.
+    quiesce(&mut ws);
     // A seed query from the off-loop worker, held at the proxy: it is in
     // flight on the attached connection, holding the client lock.
     proxy.arm("refresh-client -t %0", STALL);
-    let stalled_at = Instant::now();
     let transport = ws.tmux_state.transport.as_ref().expect("transport");
     assert!(transport.submit_job(MuxJob::SeedPanes(vec![0])));
-    std::thread::sleep(Duration::from_millis(150));
+    // The close must race a command already in flight, or it proves nothing.
+    wait_until("the seed query is held at the proxy", || proxy.fired());
+    let stalled_at = Instant::now();
 
     let started = Instant::now();
     assert!(
@@ -355,6 +364,8 @@ fn a_job_check_the_daemon_cannot_answer_in_time_holds_the_close() {
     };
     let target = ws.focused_mux_pane_from_native().expect("focused mux pane");
 
+    // Settle queued jobs first, so the held `pane-info` is the close check's.
+    quiesce(&mut ws);
     proxy.arm(&format!("pane-info -t %{target}"), STALL);
     let stalled_at = Instant::now();
     assert!(
