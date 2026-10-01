@@ -135,7 +135,7 @@ elif [ -x "$CORE_DIR/target/debug/par-mux" ]; then
   DAEMON_SRC="$CORE_DIR/target/debug/par-mux"
 fi
 if [ -z "$DAEMON_SRC" ]; then
-  echo "with-local-core: WARNING — no par-mux daemon binary in $CORE_DIR/target (release or debug); build it (cargo build --no-default-features --features mux --bin par-mux) or mux attach will fail" >&2
+  echo "with-local-core: WARNING — no par-mux daemon binary in $CORE_DIR/target (release or debug); build it (cargo build --no-default-features --features mux-bin --bin par-mux) or mux attach will fail" >&2
 else
   if [ -n "$(find "$CORE_DIR/src" -type f -newer "$DAEMON_SRC" -print -quit 2>/dev/null)" ]; then
     echo "with-local-core: WARNING — staged daemon $DAEMON_SRC is older than the core's newest source; rebuild it or daemon-side fixes will read as absent" >&2

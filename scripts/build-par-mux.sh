@@ -41,7 +41,7 @@ ROOT=$(mktemp -d)
 trap 'rm -rf "$ROOT"' EXIT
 
 INSTALL_ARGS=(
-  --no-default-features --features mux --bin par-mux
+  --no-default-features --features mux-bin --bin par-mux
   --version "$LOCK_CORE_VERSION"
   --root "$ROOT"
   par-term-emu-core-rust

@@ -475,7 +475,7 @@ endif
 
 # Build and install the macOS bundle against the local core checkout
 bundle-install-local-core:
-	scripts/with-local-core.sh sh -c 'cargo build --manifest-path /Users/probello/Repos/par-term-emu-core-rust/Cargo.toml --no-default-features --features mux --bin par-mux --release && $(MAKE) build-full && cp /Users/probello/Repos/par-term-emu-core-rust/target/release/par-mux target/release/par-mux'
+	scripts/with-local-core.sh sh -c 'cargo build --manifest-path /Users/probello/Repos/par-term-emu-core-rust/Cargo.toml --no-default-features --features mux-bin --bin par-mux --release && $(MAKE) build-full && cp /Users/probello/Repos/par-term-emu-core-rust/target/release/par-mux target/release/par-mux'
 	@$(MAKE) bundle
 	@cp /Users/probello/Repos/par-term-emu-core-rust/target/release/par-mux target/release/bundle/par-term.app/Contents/MacOS/par-mux
 	@cp target/release/par-term "$${HOME}/.cargo/bin/par-term"
