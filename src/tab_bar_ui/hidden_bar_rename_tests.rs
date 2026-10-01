@@ -75,6 +75,12 @@ fn hidden_bar_config() -> Config {
 
 #[test]
 fn escape_dismisses_a_rename_opened_with_the_bar_hidden() {
+    // These frames render the hidden bar, whose teardown runs
+    // AppMenuUi::hide — a consumer of the menu bridge's process-global
+    // toggle request. Hold the bridge's test lock so they cannot steal a
+    // request another test just raised (see
+    // the_in_app_menu_stays_reachable_with_the_bar_hidden).
+    let _guard = crate::menu::bridge_test_lock();
     let ctx = egui::Context::default();
     let mut bar = TabBarUI::new();
     let tabs = one_tab();
@@ -154,6 +160,10 @@ fn the_in_app_menu_stays_reachable_with_the_bar_hidden() {
 
 #[test]
 fn enter_submits_a_rename_opened_with_the_bar_hidden() {
+    // Same constraint as the escape test above: the hidden-bar frames
+    // consume the menu bridge's process-global toggle request, so they run
+    // under the bridge's test lock.
+    let _guard = crate::menu::bridge_test_lock();
     let ctx = egui::Context::default();
     let mut bar = TabBarUI::new();
     let tabs = one_tab();
