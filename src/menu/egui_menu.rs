@@ -23,6 +23,7 @@ use super::sync::MenuSync;
 use crate::profile::ProfileManager;
 use egui::containers::menu::{MenuButton, SubMenuButton};
 use par_term_config::KeyBinding;
+use par_term_keybindings::KeybindingRegistry;
 
 /// Glyph on the trigger button.
 const TRIGGER_GLYPH: &str = "\u{2630}";
@@ -52,6 +53,9 @@ pub struct AppMenuUi {
     sections: Vec<MenuSection>,
     /// What `sections` was built from (UX.md MN3).
     built: MenuSync,
+    /// The live registry, refreshed alongside `sections`: the dynamic profile
+    /// entries read their accelerator chords from it (UX.md 21.2).
+    registry: KeybindingRegistry,
     /// The window's state, applied when drawing (UX.md MN2).
     state: MenuState,
     /// Whether the drop-down was open during the last frame that drew it.
@@ -78,6 +82,7 @@ impl AppMenuUi {
             // carry the commands a native application menu would otherwise own.
             sections: model::menu_model_with(false, keybindings),
             built,
+            registry: KeybindingRegistry::from_config(keybindings),
             state: MenuState::default(),
             open: false,
         }
@@ -97,6 +102,7 @@ impl AppMenuUi {
         let rebuilt = self.built.rebuild_reason(keybindings, &None).is_some();
         if rebuilt {
             self.sections = model::menu_model_with(false, keybindings);
+            self.registry = KeybindingRegistry::from_config(keybindings);
             self.built.record(keybindings, None);
         }
         self.state = state;
@@ -160,7 +166,7 @@ impl AppMenuUi {
             for section in &self.sections {
                 SubMenuButton::new(section.title).ui(ui, |ui| {
                     ui.set_min_width(SUBMENU_MIN_WIDTH);
-                    draw_entries(ui, &section.entries, &self.state, profiles);
+                    draw_entries(ui, &section.entries, &self.state, profiles, &self.registry);
                 });
             }
         });
@@ -186,6 +192,7 @@ fn draw_entries(
     entries: &[MenuEntry],
     state: &MenuState,
     profiles: &ProfileManager,
+    registry: &KeybindingRegistry,
 ) {
     for entry in entries {
         match entry {
@@ -197,12 +204,12 @@ fn draw_entries(
                 ui.add_enabled_ui(state.satisfies(sub.requires), |ui| {
                     SubMenuButton::new(sub.title).ui(ui, |ui| {
                         ui.set_min_width(SUBMENU_MIN_WIDTH);
-                        draw_entries(ui, &sub.entries, state, profiles);
+                        draw_entries(ui, &sub.entries, state, profiles, registry);
                     });
                 });
             }
             MenuEntry::Profiles => {
-                let entries = model::profile_entries(profiles.profiles_ordered());
+                let entries = model::profile_entries(profiles.profiles_ordered(), registry);
                 draw_dynamic(ui, &entries, state);
                 if !entries.is_empty() {
                     ui.separator();
@@ -240,10 +247,11 @@ fn draw_item(ui: &mut egui::Ui, spec: &MenuItemSpec, state: &MenuState) {
 /// Generated entries (profiles, arrangements).
 fn draw_dynamic(ui: &mut egui::Ui, entries: &[model::DynamicEntry], state: &MenuState) {
     for entry in entries {
-        if ui
-            .add_enabled(state.dynamic_enabled(), egui::Button::new(&entry.label))
-            .clicked()
-        {
+        let mut button = egui::Button::new(&entry.label);
+        if let Some(accelerator) = &entry.accelerator {
+            button = button.shortcut_text(model::accelerator_label(accelerator));
+        }
+        if ui.add_enabled(state.dynamic_enabled(), button).clicked() {
             bridge::dispatch(entry.action);
         }
     }

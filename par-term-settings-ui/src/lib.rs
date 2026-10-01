@@ -18,7 +18,7 @@
 //!
 //! Tracking: Issue ARC-010 in AUDIT.md.
 
-use par_term_config::{Config, Profile, ProfileId};
+use par_term_config::{Config, Profile};
 
 /// Callback type for detecting modified bundled shaders.
 pub type ShaderDetectModifiedFn = fn() -> Result<Vec<String>, String>;
@@ -157,8 +157,6 @@ pub enum SettingsWindowAction {
     TestNotification,
     /// Save profiles from inline editor to all windows
     SaveProfiles(Vec<Profile>),
-    /// Open a profile in the focused terminal window
-    OpenProfile(ProfileId),
     /// Start a coprocess by config index on the active tab
     StartCoprocess(usize),
     /// Stop a coprocess by config index on the active tab

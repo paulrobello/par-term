@@ -412,18 +412,37 @@ mod tests {
     }
 
     #[test]
-    fn a_migrated_chord_can_be_a_menu_accelerator() {
-        // UX.md acceptance: a migrated shortcut appears as the menu
-        // accelerator. The menu derives accelerators from registry chords;
-        // the migration keeps the chord string, so it must still convert.
+    fn a_migrated_chord_is_the_profile_menu_entry_s_accelerator() {
+        // UX.md 21.2/PR7 acceptance: a migrated shortcut appears as the menu
+        // accelerator. The entries both menu renderers draw resolve their
+        // accelerator from the live registry through `keybinding_action()`,
+        // so the migrated binding must surface as the entry's chord — and a
+        // profile with no chord must show none.
         let mut config = Config {
             keybindings: Vec::new(),
             ..Config::default()
         };
-        let mut profiles = vec![profile("Work", Some("CmdOrCtrl+Alt+W"))];
+        let mut profiles = vec![
+            profile("Work", Some("CmdOrCtrl+Alt+W")),
+            profile("Plain", None),
+        ];
         migrate_profile_shortcuts(&mut config, &mut profiles);
-        let combo = par_term_keybindings::parser::parse_key_combo(&config.keybindings[0].key)
-            .expect("migrated chord parses");
-        assert!(combo.modifiers.alt);
+        let registry = par_term_keybindings::KeybindingRegistry::from_config(&config.keybindings);
+        let entries = crate::menu::model::profile_entries(profiles.iter(), &registry);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(
+            entries[0].action.keybinding_action().as_deref(),
+            Some(format!("open_profile:{}", profiles[0].id).as_str()),
+            "the entry dispatches the open_profile registry action"
+        );
+        assert_eq!(
+            entries[0].accelerator,
+            crate::menu::registry_accel::accelerator_from_chord("CmdOrCtrl+Alt+W"),
+            "the migrated chord is the menu accelerator"
+        );
+        assert_eq!(
+            entries[1].accelerator, None,
+            "a profile with no chord shows no accelerator"
+        );
     }
 }

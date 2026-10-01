@@ -107,18 +107,6 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                     SettingsWindowAction::SaveProfiles(profiles) => {
                         self.save_profiles_from_settings(profiles);
                     }
-                    SettingsWindowAction::OpenProfile(id) => {
-                        // Open the profile in the focused terminal window
-                        // through its registry action (UX.md PR3, B71), the
-                        // path the launcher and a bound shortcut take.
-                        if let Some(window_id) = self.get_focused_window_id()
-                            && let Some(window_state) = self.windows.get_mut(&window_id)
-                        {
-                            window_state.execute_keybinding_action(
-                                &crate::profile::actions::ProfileAction::OpenTab(id).id(),
-                            );
-                        }
-                    }
                     SettingsWindowAction::StartCoprocess(index) => {
                         log::debug!("Handler: received StartCoprocess({})", index);
                         self.start_coprocess(index);

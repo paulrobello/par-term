@@ -217,12 +217,6 @@ impl SettingsWindow {
             return SettingsWindowAction::AssistantPromptsChanged;
         }
 
-        // Check for profile open request
-        if let Some(id) = self.settings_ui.take_profile_open_request() {
-            self.window.request_redraw();
-            return SettingsWindowAction::OpenProfile(id);
-        }
-
         // Check for open log file request
         if self.settings_ui.open_log_requested {
             self.settings_ui.open_log_requested = false;

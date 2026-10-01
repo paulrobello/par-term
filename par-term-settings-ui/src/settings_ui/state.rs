@@ -1,6 +1,6 @@
 //! SettingsUI state management and lifecycle methods.
 
-use par_term_config::{Config, CursorShaderMetadataCache, Profile, ProfileId, ShaderMetadataCache};
+use par_term_config::{Config, CursorShaderMetadataCache, Profile, ShaderMetadataCache};
 use rfd::FileDialog;
 use std::collections::HashSet;
 
@@ -219,7 +219,6 @@ impl SettingsUI {
             shell_integration_action: None,
             profile_modal_ui: ProfileModalUI::new(),
             profile_save_requested: false,
-            profile_open_requested: None,
             shader_installing: false,
             shader_status: None,
             shader_error: None,
@@ -513,11 +512,6 @@ impl SettingsUI {
         } else {
             None
         }
-    }
-
-    /// Take profile open request: returns and clears the profile ID to open.
-    pub fn take_profile_open_request(&mut self) -> Option<ProfileId> {
-        self.profile_open_requested.take()
     }
 
     /// Check whether the Assistant prompt library changed and clear the flag.

@@ -45,8 +45,6 @@ pub enum ProfileModalAction {
     Save,
     /// Cancel and discard changes
     Cancel,
-    /// Open a profile immediately (after creation)
-    OpenProfile(ProfileId),
 }
 
 /// Modal display mode

@@ -4,7 +4,7 @@
 //! methods for displaying and managing the settings window.
 
 use par_term_config::{
-    Config, CursorShaderMetadataCache, ProfileId, ShaderControlParseResult, ShaderMetadataCache,
+    Config, CursorShaderMetadataCache, ShaderControlParseResult, ShaderMetadataCache,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -217,8 +217,6 @@ pub struct SettingsUI {
     pub profile_modal_ui: ProfileModalUI,
     /// Flag: profile save was requested from inline UI
     pub profile_save_requested: bool,
-    /// Flag: open a profile was requested from inline UI
-    pub profile_open_requested: Option<ProfileId>,
     // Shader install workflow state
     /// Whether a shader install/uninstall operation is running
     pub(crate) shader_installing: bool,

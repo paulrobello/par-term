@@ -116,47 +116,23 @@ fn test_profile_modal_get_working_profiles() {
 // ============================================================================
 
 #[test]
-fn test_profile_modal_action_open_profile() {
-    let profile_id = Uuid::new_v4();
-    let action = ProfileModalAction::OpenProfile(profile_id);
-
-    match action {
-        ProfileModalAction::OpenProfile(id) => assert_eq!(id, profile_id),
-        _ => panic!("Expected OpenProfile action"),
-    }
-}
-
-#[test]
 fn test_profile_modal_actions_equality() {
-    let id1 = Uuid::new_v4();
-    let id2 = Uuid::new_v4();
-
     // Same type
     assert_eq!(ProfileModalAction::None, ProfileModalAction::None);
     assert_eq!(ProfileModalAction::Save, ProfileModalAction::Save);
     assert_eq!(ProfileModalAction::Cancel, ProfileModalAction::Cancel);
-    assert_eq!(
-        ProfileModalAction::OpenProfile(id1),
-        ProfileModalAction::OpenProfile(id1)
-    );
 
     // Different types
     assert_ne!(ProfileModalAction::None, ProfileModalAction::Save);
     assert_ne!(ProfileModalAction::Save, ProfileModalAction::Cancel);
-    assert_ne!(
-        ProfileModalAction::OpenProfile(id1),
-        ProfileModalAction::OpenProfile(id2)
-    );
 }
 
 #[test]
 fn test_profile_modal_actions_clone() {
-    let id = Uuid::new_v4();
     let actions = vec![
         ProfileModalAction::None,
         ProfileModalAction::Save,
         ProfileModalAction::Cancel,
-        ProfileModalAction::OpenProfile(id),
     ];
 
     for action in actions {
@@ -759,7 +735,6 @@ fn test_profile_modal_action_all_variants() {
         ProfileModalAction::None,
         ProfileModalAction::Save,
         ProfileModalAction::Cancel,
-        ProfileModalAction::OpenProfile(Uuid::new_v4()),
     ];
 
     for action in actions {
@@ -767,7 +742,6 @@ fn test_profile_modal_action_all_variants() {
             ProfileModalAction::None => {}
             ProfileModalAction::Save => {}
             ProfileModalAction::Cancel => {}
-            ProfileModalAction::OpenProfile(_) => {}
         }
     }
 }

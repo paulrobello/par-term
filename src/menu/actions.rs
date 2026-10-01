@@ -75,10 +75,11 @@ impl MenuAction {
     /// `None` when no registry action exists for it.
     ///
     /// The menu model reads its accelerators from the registry through this
-    /// mapping (`registry_accel::apply_registry_accelerators`), so a menu
-    /// item and its registry binding cannot drift apart. `None` covers the
-    /// menu-only commands: Copy/Paste (dedicated clipboard paths, not
-    /// `ACTION_HANDLERS`), profile and arrangement entries, the window-level
+    /// mapping (`registry_accel::apply_registry_accelerators`, and the same
+    /// chain inside `model::profile_entries` for the dynamic profile items),
+    /// so a menu item and its registry binding cannot drift apart. `None`
+    /// covers the menu-only commands: Copy/Paste (dedicated clipboard paths,
+    /// not `ACTION_HANDLERS`), arrangement entries, the window-level
     /// Minimize/Zoom, About, the docs link, and remote shell integration.
     pub fn keybinding_action(&self) -> Option<std::borrow::Cow<'static, str>> {
         let id = match self {
@@ -90,13 +91,17 @@ impl MenuAction {
             Self::FocusWindowNumber(n) => {
                 return Some(std::borrow::Cow::Owned(format!("switch_to_window_{n}")));
             }
+            // The same id `ProfileAction::OpenTab(id).id()` dispatches, so a
+            // profile item and its migrated chord run one handler (UX.md PR3).
+            Self::OpenProfile(id) => {
+                return Some(std::borrow::Cow::Owned(format!("open_profile:{id}")));
+            }
             Self::Quit => "quit",
             Self::SelectAll => "select_all",
             Self::OpenSettings => "open_settings",
             Self::SaveArrangement => "save_arrangement",
             Self::Action(id) => id,
-            Self::OpenProfile(_)
-            | Self::RestoreArrangement(_)
+            Self::RestoreArrangement(_)
             | Self::Copy
             | Self::Paste
             | Self::Minimize

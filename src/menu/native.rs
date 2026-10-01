@@ -12,6 +12,7 @@ use super::state::MenuState;
 use crate::profile::Profile;
 use anyhow::Result;
 use muda::{CheckMenuItem, IsMenuItem, Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
+use par_term_keybindings::KeybindingRegistry;
 use std::collections::HashMap;
 
 /// One native item the state is applied to.
@@ -46,6 +47,13 @@ pub(super) struct NativeMenu {
     pub(super) help_menu: Option<Submenu>,
     profiles: Option<DynamicSlot>,
     arrangements: Option<DynamicSlot>,
+    /// The registry the menu was built from: dynamic profile entries resolve
+    /// their accelerator chords from it when the list is (re)filled.
+    registry: KeybindingRegistry,
+    /// Whether the menu was built while the keyboard was captured (macOS):
+    /// dynamic entries then register no key equivalents either, or a disabled
+    /// macOS item would still swallow the chord a dialog must receive.
+    captured: bool,
     /// The state last applied; `None` forces the next apply.
     applied: Option<MenuState>,
 }
@@ -53,12 +61,15 @@ pub(super) struct NativeMenu {
 impl NativeMenu {
     /// Build the muda menu for `sections`. `quit_accelerator` is the `quit`
     /// action's registry chord (macOS shows Quit in the application menu,
-    /// outside the model).
+    /// outside the model). `registry` is the live registry the model's
+    /// accelerators were resolved from, kept for the dynamic entries.
     pub(super) fn build(
         sections: &[MenuSection],
         #[cfg_attr(not(target_os = "macos"), allow(unused_variables))] quit_accelerator: Option<
             muda::accelerator::Accelerator,
         >,
+        registry: KeybindingRegistry,
+        captured: bool,
     ) -> Result<Self> {
         let mut built = Self {
             menu: Menu::new(),
@@ -69,6 +80,8 @@ impl NativeMenu {
             help_menu: None,
             profiles: None,
             arrangements: None,
+            registry,
+            captured,
             applied: None,
         };
 
@@ -169,7 +182,7 @@ impl NativeMenu {
         }
         let wanted = model::arrangement_entries_from(&state.arrangements);
         if let Some(slot) = &mut self.arrangements {
-            fill_slot(slot, &mut self.action_map, &wanted, false);
+            fill_slot(slot, &mut self.action_map, &wanted, false, self.captured);
             for item in &slot.items {
                 item.set_enabled(dynamic_enabled);
             }
@@ -186,9 +199,10 @@ impl NativeMenu {
 
     /// Replace the profile entries.
     pub(super) fn set_profiles(&mut self, profiles: &[&Profile]) {
-        let wanted = model::profile_entries(profiles.iter().copied());
+        let registry = &self.registry;
+        let wanted = model::profile_entries(profiles.iter().copied(), registry);
         if let Some(slot) = &mut self.profiles {
-            fill_slot(slot, &mut self.action_map, &wanted, true);
+            fill_slot(slot, &mut self.action_map, &wanted, true, self.captured);
         }
         self.applied = None;
     }
@@ -201,6 +215,7 @@ fn fill_slot(
     action_map: &mut HashMap<MenuId, MenuAction>,
     wanted: &[model::DynamicEntry],
     trailing_separator: bool,
+    captured: bool,
 ) {
     let current: Vec<String> = slot.items.iter().map(|i| i.id().0.clone()).collect();
     let target: Vec<String> = wanted.iter().map(|e| e.menu_id.clone()).collect();
@@ -222,7 +237,12 @@ fn fill_slot(
     }
     let mut position = slot.position;
     for entry in wanted {
-        let item = MenuItem::with_id(entry.menu_id.as_str(), &entry.label, true, None);
+        // While the keyboard is captured the rebuilt menu carries no
+        // accelerators at all (`state::release_captured_accelerators`); a
+        // dynamic item keeping one would let a disabled macOS item swallow
+        // the chord a dialog must receive.
+        let accelerator = if captured { None } else { entry.accelerator };
+        let item = MenuItem::with_id(entry.menu_id.as_str(), &entry.label, true, accelerator);
         if let Err(e) = slot.submenu.insert(&item, position) {
             log::warn!("menu: failed to add {:?}: {e}", entry.label);
             continue;

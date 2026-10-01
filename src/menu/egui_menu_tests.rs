@@ -124,7 +124,7 @@ fn every_section_renders_its_entries() {
     state.checks.insert(crate::menu::state::Check::FpsOverlay);
     egui::__run_test_ui(|ui| {
         for section in &menu.sections {
-            draw_entries(ui, &section.entries, &state, &profiles);
+            draw_entries(ui, &section.entries, &state, &profiles, &menu.registry);
         }
     });
 }

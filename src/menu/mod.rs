@@ -274,5 +274,5 @@ fn build_native(keybindings: &[KeyBinding], capture: &state::Capture) -> Result<
     let quit = registry
         .chord_for_action("quit")
         .and_then(|combo| registry_accel::accelerator_from_combo(&combo));
-    NativeMenu::build(&sections, quit)
+    NativeMenu::build(&sections, quit, registry, capture.is_some())
 }

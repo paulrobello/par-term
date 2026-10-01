@@ -72,9 +72,6 @@ pub(crate) fn show_management_section(
                 ProfileModalAction::Save => {
                     settings.global_save_requested = true;
                 }
-                ProfileModalAction::OpenProfile(id) => {
-                    settings.profile_open_requested = Some(id);
-                }
                 ProfileModalAction::Cancel | ProfileModalAction::None => {}
             }
         },

@@ -289,6 +289,10 @@ pub struct DynamicEntry {
     pub menu_id: String,
     /// Label as shown in the menu.
     pub label: String,
+    /// Keyboard accelerator, resolved from the live registry the way
+    /// `registry_accel` resolves a static item's: a profile entry carries its
+    /// migrated chord (UX.md 21.2), an arrangement entry none.
+    pub accelerator: Option<Accelerator>,
     /// Action dispatched when the entry is activated.
     pub action: MenuAction,
 }
@@ -296,16 +300,26 @@ pub struct DynamicEntry {
 /// Expand [`MenuEntry::Profiles`] into one entry per configured profile.
 ///
 /// Shared by the muda and egui renderers so both show the same profiles, with
-/// the same labels, in the same order.
+/// the same labels, accelerators, and order. The accelerator comes from
+/// `registry` through [`MenuAction::keybinding_action`] — the same chain the
+/// static items use — so a rebound chord moves and an unbound one shows none.
 pub fn profile_entries<'a>(
     profiles: impl IntoIterator<Item = &'a crate::profile::Profile>,
+    registry: &KeybindingRegistry,
 ) -> Vec<DynamicEntry> {
     profiles
         .into_iter()
-        .map(|profile| DynamicEntry {
-            menu_id: format!("profile_{}", profile.id),
-            label: profile.display_label(),
-            action: MenuAction::OpenProfile(profile.id),
+        .map(|profile| {
+            let action = MenuAction::OpenProfile(profile.id);
+            DynamicEntry {
+                menu_id: format!("profile_{}", profile.id),
+                label: profile.display_label(),
+                accelerator: action
+                    .keybinding_action()
+                    .and_then(|id| registry.chord_for_action(&id))
+                    .and_then(|combo| super::registry_accel::accelerator_from_combo(&combo)),
+                action,
+            }
         })
         .collect()
 }
@@ -320,6 +334,7 @@ pub fn arrangement_entries_from(
         .map(|(id, name)| DynamicEntry {
             menu_id: format!("arrangement_{id}"),
             label: name.clone(),
+            accelerator: None,
             action: MenuAction::RestoreArrangement(*id),
         })
         .collect()
