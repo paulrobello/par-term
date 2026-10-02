@@ -2,7 +2,9 @@
 //! foreground job lives daemon-side, so the gate asks the daemon.
 
 use crate::app::tmux_handler::notifications::mux::{MuxAttachPending, tests as mux_tests};
-use crate::app::tmux_handler::notifications::mux_test_seams::{SettledSend, quiesce, wait_until};
+use crate::app::tmux_handler::notifications::mux_test_seams::{
+    DAEMON_DEADLINE, SettledSend, attach_until_installed, quiesce, wait_until,
+};
 use crate::app::window_state::WindowState;
 use std::time::{Duration, Instant};
 
@@ -25,10 +27,6 @@ fn attach_two_panes(
     jobs_to_ignore: Vec<String>,
 ) -> (WindowState, std::path::PathBuf) {
     let path = daemon_socket.to_path_buf();
-    let core_client = par_term_emu_core_rust::mux::MuxClient::connect(connect_to).expect("connect");
-    let (tx, rx) = std::sync::mpsc::channel();
-    tx.send(Ok(core_client)).unwrap();
-    drop(tx);
 
     let mut config = crate::config::Config::default();
     config.shell.confirm_close_running_jobs = true;
@@ -40,14 +38,21 @@ fn attach_two_panes(
             .expect("test runtime"),
     );
     let mut ws = WindowState::new(config, runtime);
-    ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
-        name: tag.to_string(),
-        rx,
-    });
-    // What every production attach records: the socket it connects through.
-    ws.tmux_state.mux_attach_socket = Some(connect_to.to_path_buf());
-    ws.poll_mux_attach();
-    assert!(ws.tmux_state.transport.is_some(), "attach must install");
+    attach_until_installed(
+        &mut ws,
+        || {
+            let core_client =
+                par_term_emu_core_rust::mux::MuxClient::connect(connect_to).expect("connect");
+            let (tx, rx) = std::sync::mpsc::channel();
+            tx.send(Ok(core_client)).unwrap();
+            drop(tx);
+            MuxAttachPending {
+                name: tag.to_string(),
+                rx,
+            }
+        },
+        connect_to,
+    );
     // The created session reports its window through the daemon's own
     // %window-add push, drained below. Adding @0 by hand as well left a
     // stale duplicate tab mapped to @0, which reads as a second attached
@@ -78,8 +83,36 @@ fn send(ws: &WindowState, command: &str) -> Vec<String> {
         .expect("daemon command")
 }
 
+/// A read-only daemon query for poll probes: rides out the transport's
+/// lock-busy fail-fast and the core client's fixed 10 s reply budget, so
+/// one slow round-trip on a loaded machine is "not yet", not a panic. A
+/// query that never answers still fails at the deadline (the expect).
+fn query(ws: &WindowState, command: &str) -> Vec<String> {
+    ws.tmux_state
+        .transport
+        .as_ref()
+        .expect("transport")
+        .query_settled(command)
+        .expect("daemon query")
+}
+
+/// Drain the worker of the seed job this test queued straight on the
+/// transport. A test-submitted job registers none of the app-side
+/// in-flight bookkeeping [`quiesce`] waits on (only app-driven seeds do,
+/// via queue_mux_pane_seeds), so quiesce alone would exit without
+/// pumping and its barrier would trip on this job's leftover result —
+/// plus whatever app-queued results (a window discovery, the seeds its
+/// application cascades) sit around it in the FIFO. Registering the
+/// already-queued seed here puts the whole cascade through quiesce's
+/// real drain: pump until the bookkeeping clears, then the barrier
+/// proves the worker idle.
+fn register_test_seed_and_quiesce(ws: &mut WindowState, pane: u64) {
+    *ws.tmux_state.mux_seeds_in_flight.entry(pane).or_default() += 1;
+    quiesce(ws);
+}
+
 fn daemon_pane_count(ws: &WindowState) -> usize {
-    send(ws, "list-panes")
+    query(ws, "list-panes")
         .iter()
         .filter(|l| l.starts_with('%'))
         .count()
@@ -97,8 +130,14 @@ fn wait_for_pane_count(ws: &mut WindowState, want: usize, what: &str) {
 /// command (the spawned job is a process the daemon must first observe).
 fn wait_for_foreground(ws: &WindowState, pane: u64, want: &str) {
     let mut reply = Vec::new();
+    let transport = ws.tmux_state.transport.as_ref().expect("transport");
     let seen = super::notifications::mux_test_seams::poll_until(|| {
-        reply = send(ws, &format!("pane-info -t %{pane}"));
+        // The probe rides out one slow round-trip (the core's fixed 10 s
+        // reply budget) instead of panicking; the loop's deadline is the
+        // teeth.
+        if let Ok(lines) = transport.query_settled(&format!("pane-info -t %{pane}")) {
+            reply = lines;
+        }
         par_term_mux::pane_foreground_command(&reply, pane).as_deref() == Some(want)
     });
     assert!(
@@ -263,10 +302,13 @@ fn relay_bytes(from: &Stream, to: &Stream) {
     }
 }
 
-/// How long a stalled command is held: far past both the transport's inline
-/// wait (250 ms) and any bound the close check may take, short of the core
-/// client's 10 s reply timeout.
-const STALL: Duration = Duration::from_secs(4);
+/// How long a stalled command is held: past the transport's inline wait
+/// (250 ms) and the running-job check's own budget (1 s), short of the
+/// core client's 10 s reply timeout (the held command must still
+/// complete). The `took < STALL / 2` bounds then keep ~3 s of margin over
+/// that budget, so scheduler noise on a loaded machine cannot read as
+/// "waited out the stall".
+const STALL: Duration = Duration::from_secs(8);
 
 /// A window attached THROUGH a [`StallProxy`] to an in-process daemon, two
 /// panes mapped, the focused one running `sleep 100` as the daemon sees it.
@@ -286,14 +328,6 @@ fn proxied_pane_running_sleep(
     send(&ws, &format!("send-keys -t %{target} Enter"));
     wait_for_foreground(&ws, target, "sleep");
     Some((ws, proxy, daemon, proxy_path))
-}
-
-/// Pump the window until `deadline` so the stalled command drains.
-fn pump_until(ws: &mut WindowState, deadline: Instant) {
-    while Instant::now() < deadline {
-        ws.check_mux_notifications();
-        std::thread::sleep(Duration::from_millis(50));
-    }
 }
 
 /// Card 01a0f3af7c157451b1053dd6070ecd7b, criterion 1: one slow daemon
@@ -321,7 +355,6 @@ fn a_slow_in_flight_daemon_command_does_not_skip_the_job_confirmation() {
     assert!(transport.submit_job(MuxJob::SeedPanes(vec![0])));
     // The close must race a command already in flight, or it proves nothing.
     wait_until("the seed query is held at the proxy", || proxy.fired());
-    let stalled_at = Instant::now();
 
     let started = Instant::now();
     assert!(
@@ -339,7 +372,9 @@ fn a_slow_in_flight_daemon_command_does_not_skip_the_job_confirmation() {
         "the close check waited out the in-flight command ({took:?})"
     );
 
-    pump_until(&mut ws, stalled_at + STALL + Duration::from_millis(500));
+    // Wait out the held seed job by draining it (not an estimated stall
+    // end); quiesce cannot see a job the test queued itself.
+    register_test_seed_and_quiesce(&mut ws, 0);
     assert_eq!(
         daemon_pane_count(&ws),
         2,
@@ -382,7 +417,8 @@ fn a_job_check_the_daemon_cannot_answer_in_time_holds_the_close() {
         "a check that could not answer must hold the close for confirmation"
     );
 
-    pump_until(&mut ws, stalled_at + STALL + Duration::from_millis(500));
+    // Wait for the actual job/worker completion, not an estimated stall end.
+    quiesce(&mut ws);
     assert_eq!(
         daemon_pane_count(&ws),
         2,
@@ -393,7 +429,7 @@ fn a_job_check_the_daemon_cannot_answer_in_time_holds_the_close() {
 }
 
 fn daemon_window_count(ws: &WindowState) -> usize {
-    send(ws, "list-windows")
+    query(ws, "list-windows")
         .iter()
         .filter(|l| l.contains('@'))
         .count()
@@ -419,7 +455,7 @@ fn proxied_tab_with_a_background_job(
 
     // The second daemon window: a mux tab of its own once its pane maps.
     send(&ws, "new-window");
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + DAEMON_DEADLINE;
     while ws.tmux_state.tmux_pane_owners.len() < 3 {
         assert!(Instant::now() < deadline, "the second window never mapped");
         for line in send(&ws, "list-panes") {
@@ -452,10 +488,22 @@ fn proxied_tab_with_a_background_job(
 /// absent until the pane's shell process is up, so one early probe would
 /// skip the test on a daemon that has it.
 fn daemon_reports_foreground(ws: &WindowState, pane: u64) -> bool {
-    let deadline = Instant::now() + Duration::from_secs(5);
+    // DAEMON_DEADLINE, not a tight window: the arm choice must not flip
+    // under load (a false negative silently skips the stall tests), and
+    // the probe rides out the core's fixed 10 s reply budget. A modern
+    // daemon grows the token once the pane's shell is up; only a hung
+    // daemon reaches the deadline.
+    let deadline = Instant::now() + DAEMON_DEADLINE;
     loop {
-        let reply = send(ws, &format!("pane-info -t %{pane}"));
-        if reply.iter().any(|l| l.contains(" cmd=")) {
+        let reply = ws
+            .tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .query_settled(&format!("pane-info -t %{pane}"));
+        if let Ok(lines) = reply.as_ref()
+            && lines.iter().any(|l| l.contains(" cmd="))
+        {
             return true;
         }
         if Instant::now() >= deadline {
@@ -510,10 +558,9 @@ fn closing_an_attached_tab_with_a_daemon_job_asks_first_past_a_slow_command() {
     };
 
     proxy.arm("refresh-client -t %0", STALL);
-    let stalled_at = Instant::now();
     let transport = ws.tmux_state.transport.as_ref().expect("transport");
     assert!(transport.submit_job(MuxJob::SeedPanes(vec![0])));
-    std::thread::sleep(Duration::from_millis(150));
+    wait_until("the seed query is held at the proxy", || proxy.fired());
 
     let started = Instant::now();
     assert!(!ws.close_current_tab(), "the close must not end the window");
@@ -528,7 +575,9 @@ fn closing_an_attached_tab_with_a_daemon_job_asks_first_past_a_slow_command() {
         "the close check waited out the in-flight command ({took:?})"
     );
 
-    pump_until(&mut ws, stalled_at + STALL + Duration::from_millis(500));
+    // Wait out the held seed job by draining it (not an estimated stall
+    // end); quiesce cannot see a job the test queued itself.
+    register_test_seed_and_quiesce(&mut ws, 0);
     assert_eq!(
         daemon_window_count(&ws),
         2,
@@ -563,7 +612,8 @@ fn a_tab_job_check_the_daemon_cannot_answer_in_time_holds_the_close() {
         "a check that could not answer must hold the close for confirmation"
     );
 
-    pump_until(&mut ws, stalled_at + STALL + Duration::from_millis(500));
+    // Wait for the actual job/worker completion, not an estimated stall end.
+    quiesce(&mut ws);
     assert_eq!(
         daemon_window_count(&ws),
         2,

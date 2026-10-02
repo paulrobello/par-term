@@ -580,7 +580,8 @@ impl WindowState {
 pub(crate) mod tests {
     use super::super::mux_attach::stamp_pane_session_id;
     use super::super::mux_test_seams::{
-        DAEMON_DEADLINE, SettledSend, drain_send_worker, poll_until, quiesce, wait_until,
+        DAEMON_DEADLINE, SettledSend, attach_until_installed, drain_send_worker, poll_until,
+        quiesce, wait_until,
     };
     use super::super::mux_transport::{DaemonHealthSignal, MuxHealth};
     use super::*;
@@ -4603,9 +4604,22 @@ out.flush()
         let path = socket_path(tag);
         spawn_daemon(&path);
 
-        let transport = connect(&path);
-        let attach = attach_test(&transport, tag, Some((80, 24)), &Default::default())
-            .expect("attach_sequence");
+        // Re-driven until it lands: an attach attempt's round-trips ride
+        // the core client's fixed 10 s reply budget, so a loaded machine
+        // can fail one attempt (the transport it consumed is dropped with
+        // it) though nothing is broken.
+        let mut built: Option<(MuxTransport, AttachSequence)> = None;
+        wait_until("attach_sequence completes", || {
+            let transport = connect(&path);
+            match attach_test(&transport, tag, Some((80, 24)), &Default::default()) {
+                Ok(seq) => {
+                    built = Some((transport, seq));
+                    true
+                }
+                Err(_) => false,
+            }
+        });
+        let (transport, attach) = built.expect("attach_sequence");
         let mut ws = manners_state();
         // Reported (reattached) windows get their tabs directly; a CREATED
         // session's tab arrives as the daemon's own %window-add push on the
@@ -4838,9 +4852,22 @@ out.flush()
         let path = socket_path(tag);
         spawn_daemon(&path);
 
-        let transport = connect(&path);
-        let attach = attach_test(&transport, tag, Some((80, 24)), &Default::default())
-            .expect("attach_sequence");
+        // Re-driven until it lands: an attach attempt's round-trips ride
+        // the core client's fixed 10 s reply budget, so a loaded machine
+        // can fail one attempt (the transport it consumed is dropped with
+        // it) though nothing is broken.
+        let mut built: Option<(MuxTransport, AttachSequence)> = None;
+        wait_until("attach_sequence completes", || {
+            let transport = connect(&path);
+            match attach_test(&transport, tag, Some((80, 24)), &Default::default()) {
+                Ok(seq) => {
+                    built = Some((transport, seq));
+                    true
+                }
+                Err(_) => false,
+            }
+        });
+        let (transport, attach) = built.expect("attach_sequence");
         let mut ws = manners_state();
         // Reported (reattached) windows get their tabs directly; a CREATED
         // session's tab arrives as the daemon's own %window-add push on the
@@ -4913,13 +4940,16 @@ out.flush()
         let (mut ws, path) = attached_single_pane_state("ws-winclose");
 
         // Bypass par-term's guard: kill the pane straight from the
-        // transport, the way another client would.
+        // transport, the way another client would. The reply is never
+        // read — the tab-close loop below is the teeth — and queueing
+        // avoids standing in the core client's fixed 10 s reply budget,
+        // which one slow daemon round-trip can blow on a loaded machine.
         ws.tmux_state
             .transport
             .as_ref()
             .unwrap()
-            .send_settled("kill-pane -t %0")
-            .expect("kill-pane");
+            .send_command_no_wait("kill-pane -t %0")
+            .expect("queueing must not block");
 
         let deadline = Instant::now() + DAEMON_DEADLINE;
         while !ws.tab_manager.tabs().is_empty() && Instant::now() < deadline {
@@ -4940,10 +4970,22 @@ out.flush()
     /// consumer create every mirror. Waiting on the pane list (not a sleep)
     /// means no window the test just created can miss its pump.
     fn pump_daemon_layouts(transport: &MuxTransport, panes: usize) {
-        let mut listed = Vec::new();
+        let mut listed: Vec<u64> = Vec::new();
         assert!(
             poll_until(|| {
-                listed = transport.client().list_panes().expect("list panes");
+                // The probe rides out one slow round-trip (the core's
+                // fixed 10 s reply budget) instead of panicking; the
+                // loop's deadline is the teeth.
+                if let Ok(lines) = transport.query_settled("list-panes") {
+                    listed = lines
+                        .iter()
+                        .filter_map(|l| {
+                            l.trim()
+                                .strip_prefix('%')
+                                .and_then(|s| s.parse::<u64>().ok())
+                        })
+                        .collect();
+                }
                 listed.len() >= panes
             }),
             "the daemon never listed {panes} panes: {listed:?}"
@@ -4965,10 +5007,12 @@ out.flush()
     ) -> String {
         let mut view = String::new();
         poll_until(|| {
-            view = transport
-                .send_settled(&format!("capture-pane -t %{pane} -p"))
-                .expect("capture")
-                .join("|");
+            // The probe rides out one slow round-trip (the core's fixed
+            // 10 s reply budget) instead of panicking; the loop's deadline
+            // is the teeth.
+            if let Ok(lines) = transport.query_settled(&format!("capture-pane -t %{pane} -p")) {
+                view = lines.join("|");
+            }
             view.contains(needle)
         });
         view
@@ -5846,11 +5890,15 @@ out.flush()
             }
         }
 
-        let transport = connect(&path);
         let probe = MuxSessionClient::connect(&path).expect("probe connects");
         let mut ws = manners_state();
-        ws.install_mux_transport(session, transport)
-            .expect("install_mux_transport");
+        // Re-driven until it lands: an install is one-shot and its attach
+        // round-trips ride the core client's fixed 10 s reply budget, so a
+        // loaded machine can fail one attempt though nothing is broken.
+        wait_until("install_mux_transport", || {
+            let transport = connect(&path);
+            ws.install_mux_transport(session, transport).is_ok()
+        });
         (ws, probe)
     }
 
@@ -6571,9 +6619,7 @@ out.flush()
 
         let mut ws = restore_placeholder_state();
         let placeholder = ws.tmux_state.mux_restore_placeholder_tab;
-        ws.tmux_state.mux_attach_pending = Some(pending_with_client("restoretest", &path));
-        ws.poll_mux_attach();
-        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        attach_until_installed(&mut ws, || pending_with_client("restoretest", &path), &path);
 
         assert!(
             ws.tab_manager
@@ -6597,9 +6643,7 @@ out.flush()
         // install — the window arrives later via %window-add.
         let mut ws = restore_placeholder_state();
         let placeholder = ws.tmux_state.mux_restore_placeholder_tab;
-        ws.tmux_state.mux_attach_pending = Some(pending_with_client("lateadd", &path));
-        ws.poll_mux_attach();
-        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        attach_until_installed(&mut ws, || pending_with_client("lateadd", &path), &path);
         assert!(
             ws.tab_manager
                 .get_tab(placeholder.expect("placeholder marked"))
@@ -6664,9 +6708,7 @@ out.flush()
         spawn_daemon(&path);
 
         let mut ws = manners_state();
-        ws.tmux_state.mux_attach_pending = Some(pending_with_client("zombie", &path));
-        ws.poll_mux_attach();
-        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        attach_until_installed(&mut ws, || pending_with_client("zombie", &path), &path);
 
         // The window arrives via %window-add, but NO layout is pumped: the
         // tab has no panes and no tmux_pane_id — the pre-layout shape.

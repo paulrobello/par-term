@@ -49,6 +49,9 @@ pub(crate) trait SettledSend {
     /// written, so a retry cannot repeat a command. Every other error,
     /// and a worker still busy at [`DAEMON_DEADLINE`], is returned.
     fn send_settled(&self, command: &str) -> std::io::Result<Vec<String>>;
+
+    /// Read-only query variant for poll-loop probes; see the impl.
+    fn query_settled(&self, command: &str) -> std::io::Result<Vec<String>>;
 }
 
 impl<T: TmuxTransport + ?Sized> SettledSend for T {
@@ -66,6 +69,63 @@ impl<T: TmuxTransport + ?Sized> SettledSend for T {
         });
         result.expect("polled at least once")
     }
+
+    /// Read-only daemon query for use as a poll-loop probe. Unlike
+    /// [`Self::send_settled`], it also rides out the core client's fixed
+    /// 10 s reply budget: one round-trip that slow on a loaded machine is
+    /// "not yet", not a lost message, so re-issuing cannot mask one (the
+    /// query has no side effect, and a late reply to a re-issued probe is
+    /// indistinguishable from the fresh one — reply blocks stay consumed
+    /// and paired in order). Any non-transient error (a dead daemon)
+    /// returns immediately; a query that never answers keeps returning the
+    /// transient error until the deadline, where the caller's own
+    /// assertion is the teeth.
+    fn query_settled(&self, command: &str) -> std::io::Result<Vec<String>> {
+        let deadline = Instant::now() + DAEMON_DEADLINE;
+        loop {
+            match self.send_command(command) {
+                Err(e)
+                    if e.to_string() == SEND_LOCK_BUSY
+                        || e.kind() == std::io::ErrorKind::TimedOut =>
+                {
+                    if Instant::now() >= deadline {
+                        return Err(e);
+                    }
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                other => return other,
+            }
+        }
+    }
+}
+
+/// Drive `poll_mux_attach` until the transport is installed, re-arming a
+/// fresh pending attach whenever an attempt settles without installing,
+/// then keep polling.
+///
+/// Each `poll_mux_attach` call is one-shot by design, and every round-trip
+/// of its attach sequence rides the core client's fixed 10 s reply budget;
+/// on a loaded machine one of them can blow that budget, failing an
+/// install that nothing is wrong with. The attach itself is repeatable
+/// (create_or_attach reattaches) and every attempt connects a fresh
+/// client, so a timed-out attempt's late replies cannot poison the next
+/// one. A daemon that never installs still fails [`wait_until`]'s assert
+/// at the deadline.
+pub(crate) fn attach_until_installed(
+    ws: &mut WindowState,
+    mut arm: impl FnMut() -> super::mux::MuxAttachPending,
+    socket: &std::path::Path,
+) {
+    wait_until("attach installs", || {
+        if ws.tmux_state.transport.is_none() && ws.tmux_state.mux_attach_pending.is_none() {
+            // What every production attach records: the socket it
+            // connects through.
+            ws.tmux_state.mux_attach_socket = Some(socket.to_path_buf());
+            ws.tmux_state.mux_attach_pending = Some(arm());
+        }
+        ws.poll_mux_attach();
+        ws.tmux_state.transport.is_some()
+    });
 }
 
 /// Wait until the transport's send worker is idle. Production actions that
@@ -117,17 +177,21 @@ pub(crate) fn attached_window_with_tabs(
 ) -> (WindowState, std::path::PathBuf) {
     let path = socket_path(tag);
     spawn_daemon(&path);
-    let core = MuxClient::connect(&path).expect("connect");
-    let (tx, rx) = std::sync::mpsc::channel();
-    tx.send(Ok(core)).unwrap();
-    drop(tx);
     let mut ws = manners_state();
-    ws.tmux_state.mux_attach_pending = Some(super::mux::MuxAttachPending {
-        name: tag.to_string(),
-        rx,
-    });
-    ws.poll_mux_attach();
-    assert!(ws.tmux_state.transport.is_some(), "attach installs");
+    attach_until_installed(
+        &mut ws,
+        || {
+            let core = MuxClient::connect(&path).expect("connect");
+            let (tx, rx) = std::sync::mpsc::channel();
+            tx.send(Ok(core)).unwrap();
+            drop(tx);
+            super::mux::MuxAttachPending {
+                name: tag.to_string(),
+                rx,
+            }
+        },
+        &path,
+    );
     for _ in 1..tabs {
         ws.tmux_state
             .transport

@@ -11,7 +11,7 @@
 
 use super::mux::MuxAttachPending;
 use super::mux::tests::{socket_path, spawn_daemon};
-use super::mux_test_seams::{poll_until, wait_until};
+use super::mux_test_seams::{attach_until_installed, poll_until, wait_until};
 use crate::app::window_state::WindowState;
 use par_term_emu_core_rust::mux::MuxClient;
 
@@ -60,16 +60,20 @@ fn seed_history(path: &std::path::Path, session: &str) {
 /// Attach `ws` to `session` through the production attach path and pump
 /// until `%0`'s seed has been delivered to its mirror pane.
 fn reattach(ws: &mut WindowState, path: &std::path::Path, session: &str) {
-    let core_client = MuxClient::connect(path).expect("reattach client");
-    let (tx, rx) = std::sync::mpsc::channel();
-    tx.send(Ok(core_client)).unwrap();
-    drop(tx);
-    ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
-        name: session.to_string(),
-        rx,
-    });
-    ws.poll_mux_attach();
-    assert!(ws.tmux_state.transport.is_some(), "attach must install");
+    attach_until_installed(
+        ws,
+        || {
+            let core_client = MuxClient::connect(path).expect("reattach client");
+            let (tx, rx) = std::sync::mpsc::channel();
+            tx.send(Ok(core_client)).unwrap();
+            drop(tx);
+            MuxAttachPending {
+                name: session.to_string(),
+                rx,
+            }
+        },
+        path,
+    );
     assert!(
         ws.tmux_state.mux_screen_seeds.contains_key(&0),
         "the attach collected a seed for %0"

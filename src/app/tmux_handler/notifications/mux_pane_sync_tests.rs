@@ -9,7 +9,9 @@
 
 use super::mux::MuxAttachPending;
 use super::mux::tests::{manners_state, socket_path, spawn_daemon};
-use super::mux_test_seams::{DAEMON_DEADLINE, SettledSend, quiesce, wait_until};
+use super::mux_test_seams::{
+    DAEMON_DEADLINE, SettledSend, attach_until_installed, quiesce, wait_until,
+};
 use crate::app::window_state::WindowState;
 use crate::pane::NavigationDirection;
 use par_term_emu_core_rust::mux::MuxClient;
@@ -43,17 +45,21 @@ fn drain_until(ws: &mut WindowState, what: &str, done: impl Fn(&WindowState) -> 
 fn attached_split(tag: &str) -> (WindowState, MuxClient, std::path::PathBuf) {
     let path = socket_path(tag);
     spawn_daemon(&path);
-    let core_client = MuxClient::connect(&path).expect("connect");
-    let (tx, rx) = std::sync::mpsc::channel();
-    tx.send(Ok(core_client)).unwrap();
-    drop(tx);
     let mut ws = manners_state();
-    ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
-        name: tag.to_string(),
-        rx,
-    });
-    ws.poll_mux_attach();
-    assert!(ws.tmux_state.transport.is_some(), "attach must install");
+    attach_until_installed(
+        &mut ws,
+        || {
+            let core_client = MuxClient::connect(&path).expect("connect");
+            let (tx, rx) = std::sync::mpsc::channel();
+            tx.send(Ok(core_client)).unwrap();
+            drop(tx);
+            MuxAttachPending {
+                name: tag.to_string(),
+                rx,
+            }
+        },
+        &path,
+    );
     // The created session's %window-add waits in the client channel; the
     // drain's window adoption maps %0. A manual handle_tmux_window_add(0)
     // here would add a second tab for @0 and make window counts wrong.

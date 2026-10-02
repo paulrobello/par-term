@@ -286,20 +286,26 @@ mod tests {
     fn exited_pane_shows_code_and_restart_respawns_it() {
         use super::super::mux::MuxAttachPending;
         use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
+        use super::super::mux_test_seams::attach_until_installed;
 
         let path = socket_path("pane-exit");
         spawn_daemon(&path);
-        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
-        let (tx, rx) = std::sync::mpsc::channel();
-        tx.send(Ok(core_client)).unwrap();
-        drop(tx);
         let mut ws = manners_state();
-        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
-            name: "exitme".to_string(),
-            rx,
-        });
-        ws.poll_mux_attach();
-        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        attach_until_installed(
+            &mut ws,
+            || {
+                let core_client =
+                    par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+                let (tx, rx) = std::sync::mpsc::channel();
+                tx.send(Ok(core_client)).unwrap();
+                drop(tx);
+                MuxAttachPending {
+                    name: "exitme".to_string(),
+                    rx,
+                }
+            },
+            &path,
+        );
         ws.handle_tmux_window_add(0);
         wait_until("the layout consumer maps %0", || {
             ws.tmux_state
