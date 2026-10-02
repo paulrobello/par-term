@@ -319,6 +319,117 @@ fn keyboard_resize_is_visible_to_a_second_client() {
     let _ = std::fs::remove_file(&path);
 }
 
+/// Resize-while-zoomed keeps the zoom (card 01a0f0e7): the arrow resize
+/// edits the underlying split and the daemon zoom survives. The core pin
+/// unzooms on every accepted non-Z layout mutation (ARC-090 remedy in the
+/// core's `mutate_layout`), so the resize sync re-asserts `resize-pane -Z`
+/// for the zoomed pane right after its own resize. Without that re-assert
+/// the unflagged `%layout-change` pulls the daemon and the mirror back to
+/// unzoomed — this also fails on the local-only fix (ad01babb) alone.
+#[test]
+fn keyboard_resize_while_zoomed_keeps_the_zoom() {
+    let (mut ws, second, path) = attached_split("p3-zoom-resize");
+    let focused = focused_daemon_pane(&ws).expect("focused");
+    let left_is_focused = ws
+        .tab_manager
+        .active_tab()
+        .and_then(|t| t.pane_manager())
+        .and_then(|pm| pm.neighbor_in_direction(pm.focused_pane_id()?, NavigationDirection::Right))
+        .is_some();
+    // A same-panes layout push makes the mirror adopt the daemon grid (the
+    // headless test has no renderer to size it), so pixel bounds and
+    // cells agree before the resize is computed.
+    send(&ws, "refresh-client -t %0 -C 80x24");
+    drain_until(&mut ws, "mirror adopts the daemon grid", |ws| {
+        ws.tmux_state
+            .tmux_pane_owner(focused)
+            .is_some_and(|(tab, native)| {
+                ws.tab_manager
+                    .get_tab(tab)
+                    .and_then(|t| t.pane_manager())
+                    .and_then(|pm| pm.get_pane(native))
+                    .and_then(|p| p.terminal.try_read().ok().map(|t| t.dimensions().0))
+                    == Some(daemon_size(ws, focused).0 as usize)
+            })
+    });
+    let (cols_unzoomed, rows_unzoomed) = daemon_size(&ws, focused);
+
+    ws.toggle_pane_zoom();
+    drain_until(&mut ws, "zoom mirrored", |ws| zoomed_native(ws).is_some());
+    second_sees(&second, "the zoomed layout", |n| {
+        matches!(n, TmuxNotification::LayoutChange { window_raw_flags, .. }
+            if window_raw_flags.contains('Z'))
+    });
+    while second.notifications().try_recv().is_ok() {}
+
+    ws.resize_pane(NavigationDirection::Right);
+
+    // The daemon unzoomed on the resize (unflagged `%layout-change`), so a
+    // flagged broadcast arriving AFTER one proves the re-assert re-zoomed.
+    let deadline = Instant::now() + DAEMON_DEADLINE;
+    let mut saw_unzoomed = false;
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        assert!(
+            !left.is_zero(),
+            "the daemon never echoed the resize and re-zoomed"
+        );
+        match second.notifications().recv_timeout(left) {
+            Ok(TmuxNotification::LayoutChange {
+                window_raw_flags, ..
+            }) => {
+                if window_raw_flags.contains('Z') {
+                    assert!(saw_unzoomed, "the re-zoom arrived before the resize echo");
+                    break;
+                }
+                saw_unzoomed = true;
+            }
+            Ok(_) => {}
+            Err(e) => panic!("the daemon never re-zoomed after the resize: {e}"),
+        }
+    }
+    drain_until(&mut ws, "the mirror keeps the zoom", |ws| {
+        zoomed_native(ws).is_some()
+    });
+    assert_eq!(
+        ws.tab_manager.active_tab().unwrap().pane_mode_badge(),
+        Some(crate::tab::pane_badges::ZOOM_BADGE),
+        "the zoom survives the resize"
+    );
+
+    // The hidden tree holds the edit: focusing away unzooms (the daemon
+    // clears a zoom on select-pane), and the zoomed pane's cell is back to
+    // tree size — wider or narrower per the arrow, proving the divider
+    // really moved beneath the zoom.
+    let nav = if left_is_focused {
+        NavigationDirection::Right
+    } else {
+        NavigationDirection::Left
+    };
+    ws.navigate_pane(nav);
+    drain_until(&mut ws, "unzoomed after focus move", |ws| {
+        zoomed_native(ws).is_none()
+    });
+    let (cols_after, rows_after) = daemon_size(&ws, focused);
+    assert_eq!(
+        rows_after, rows_unzoomed,
+        "a horizontal resize keeps the height"
+    );
+    if left_is_focused {
+        assert!(
+            cols_after > cols_unzoomed,
+            "the zoomed resize grew the pane: {cols_unzoomed} -> {cols_after}"
+        );
+    } else {
+        assert!(
+            cols_after < cols_unzoomed,
+            "the zoomed resize shrank the pane: {cols_unzoomed} -> {cols_after}"
+        );
+    }
+
+    let _ = std::fs::remove_file(&path);
+}
+
 /// Criterion 4 (tab switch): switching tabs from the keyboard on an
 /// attached window sends `select-window`, which a second client sees as
 /// `%window-pane-changed` for the newly selected window.

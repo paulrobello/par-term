@@ -556,6 +556,12 @@ impl WindowState {
             },
         };
 
+        // The zoomed pane's daemon identity, captured while sizing panes,
+        // and whether its own resize was accepted — the inputs to the zoom
+        // re-assert after the send loop.
+        let mut zoomed_tmux_pane: Option<crate::tmux::TmuxPaneId> = None;
+        let mut zoomed_resize_accepted = false;
+
         // Get pane sizes from active tab's pane manager
         let pane_sizes: Vec<(crate::tmux::TmuxPaneId, usize, usize)> = if let Some(tab) =
             self.tab_manager.active_tab()
@@ -572,6 +578,7 @@ impl WindowState {
                     // full-tab extent would be rejected as spanning the
                     // axis — size that cell, not the zoom display.
                     let bounds = if pm.zoomed_pane_id() == Some(pane.id) {
+                        zoomed_tmux_pane = Some(tmux_pane_id);
                         pm.zoomed_pane_tree_bounds().unwrap_or(pane.bounds)
                     } else {
                         pane.bounds
@@ -597,7 +604,17 @@ impl WindowState {
             };
             let sent = match mux_transport {
                 Some(transport) => match transport.send_command(cmd.trim_end()) {
-                    Ok(_) => true,
+                    Ok(lines) => {
+                        // The daemon's reply is an empty body only when it
+                        // accepted the resize (a non-empty one is an %error
+                        // block, which leaves the daemon untouched).
+                        if zoomed_tmux_pane == Some(tmux_pane_id)
+                            && lines.iter().all(|l| l.trim().is_empty())
+                        {
+                            zoomed_resize_accepted = true;
+                        }
+                        true
+                    }
                     Err(e) => {
                         crate::debug_error!("MUX", "resize-pane failed: {e}");
                         false
@@ -617,6 +634,34 @@ impl WindowState {
                     },
                     if is_horizontal_divider { rows } else { cols }
                 );
+            }
+        }
+
+        // The daemon clears a zoom on every accepted non-Z layout mutation
+        // (ARC-090 remedy), so the resizes above left it unzoomed and the
+        // mirror follows the unflagged broadcast. `-Z` toggles: an accepted
+        // resize guarantees the daemon already unzoomed, so re-asserting it
+        // now re-zooms instead of unzooming. Sent after the whole loop so a
+        // later sibling resize cannot unzoom again.
+        if let Some(transport) = mux_transport
+            && let Some(id) = zoomed_tmux_pane
+            && zoomed_resize_accepted
+        {
+            match transport.send_command(&format!("resize-pane -Z -t %{id}")) {
+                Ok(lines) if lines.iter().all(|l| l.trim().is_empty()) => {
+                    crate::debug_info!("MUX", "re-asserted zoom on %{} after resize", id);
+                }
+                Ok(lines) => {
+                    crate::debug_error!(
+                        "MUX",
+                        "zoom re-assert on %{} rejected: {}",
+                        id,
+                        lines.join("\n")
+                    );
+                }
+                Err(e) => {
+                    crate::debug_error!("MUX", "zoom re-assert on %{} failed: {e}", id);
+                }
             }
         }
     }
