@@ -199,17 +199,21 @@ impl CellRenderer {
         self.allocate_instance_buffers(bg, text);
     }
 
-    /// Reallocate both instance buffers (GPU and CPU side) to the given capacities.
+    /// Ensure both instance buffers (GPU and CPU side) can hold the given capacities.
+    ///
+    /// Existing allocations are reused when they already suffice: grid resizes used to
+    /// wholesale-reallocate the GPU buffers and the big CPU mirror arrays on every
+    /// grid change (a Malloc Large / resize-spike contributor). Arrays hold at their
+    /// high-water capacity; draw ranges come from the actual_* counts, never the caps.
     pub(crate) fn allocate_instance_buffers(&mut self, max_bg: usize, max_text: usize) {
+        if max_bg > self.buffers.max_bg_instances || max_text > self.buffers.max_text_instances {
+            let (bg_buf, text_buf) =
+                pipeline::create_instance_buffers(&self.device, max_bg, max_text);
+            self.buffers.bg_instance_buffer = bg_buf;
+            self.buffers.text_instance_buffer = text_buf;
+        }
         self.buffers.max_bg_instances = max_bg;
         self.buffers.max_text_instances = max_text;
-        let (bg_buf, text_buf) = pipeline::create_instance_buffers(
-            &self.device,
-            self.buffers.max_bg_instances,
-            self.buffers.max_text_instances,
-        );
-        self.buffers.bg_instance_buffer = bg_buf;
-        self.buffers.text_instance_buffer = text_buf;
         // Reset actual counts - will be updated when instance buffers are built
         self.buffers.actual_bg_instances = 0;
         self.buffers.actual_text_instances = 0;
@@ -219,25 +223,45 @@ impl CellRenderer {
         // be reported again if it still does not fit.
         self.buffers.overflow_reported = false;
 
-        self.bg_instances = vec![
-            BackgroundInstance {
-                position: [0.0, 0.0],
-                size: [0.0, 0.0],
-                color: [0.0, 0.0, 0.0, 0.0],
-            };
-            self.buffers.max_bg_instances
-        ];
-        self.text_instances = vec![
-            TextInstance {
-                position: [0.0, 0.0],
-                size: [0.0, 0.0],
-                tex_offset: [0.0, 0.0],
-                tex_size: [0.0, 0.0],
-                color: [0.0, 0.0, 0.0, 0.0],
-                is_colored: 0,
-            };
-            self.buffers.max_text_instances
-        ];
+        // Reuse when capacity suffices; vec![x; n] here was a wholesale realloc on
+        // every resize. resize() corrects len without reallocating in that case.
+        if self.bg_instances.capacity() >= max_bg {
+            self.bg_instances.resize(max_bg, BackgroundInstance::BLANK);
+        } else {
+            self.bg_instances = vec![
+                BackgroundInstance {
+                    position: [0.0, 0.0],
+                    size: [0.0, 0.0],
+                    color: [0.0, 0.0, 0.0, 0.0],
+                };
+                max_bg
+            ];
+        }
+        if self.text_instances.capacity() >= max_text {
+            self.text_instances.resize(
+                max_text,
+                TextInstance {
+                    position: [0.0, 0.0],
+                    size: [0.0, 0.0],
+                    tex_offset: [0.0, 0.0],
+                    tex_size: [0.0, 0.0],
+                    color: [0.0, 0.0, 0.0, 0.0],
+                    is_colored: 0,
+                },
+            );
+        } else {
+            self.text_instances = vec![
+                TextInstance {
+                    position: [0.0, 0.0],
+                    size: [0.0, 0.0],
+                    tex_offset: [0.0, 0.0],
+                    tex_size: [0.0, 0.0],
+                    color: [0.0, 0.0, 0.0, 0.0],
+                    is_colored: 0,
+                };
+                max_text
+            ];
+        }
 
         // Resize scratch buffers to match new grid; keep existing allocations if large enough
         self.scratch_row_bg.reserve(
