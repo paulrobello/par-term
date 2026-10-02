@@ -210,7 +210,7 @@ impl CellRenderer {
                             .round();
                         let cell_w = x1 - x0;
                         // y0 and y1 (snapped_cell_height) already computed above
-                        let y_mid = y0 + self.grid.cell_height / 2.0;
+                        let y_mid = y0 + (y1 - y0) / 2.0;
 
                         let bg_half_color = color_u8x4_rgb_to_f32_a(bg_color, text_alpha);
                         let (top_color, bottom_color) = if ch == '\u{2584}' {
@@ -266,38 +266,27 @@ impl CellRenderer {
                     }
 
                     // Try block element geometry (for solid blocks, partial blocks, etc.)
+                    // Snapped cell edges with every quad edge rounded — same geometry
+                    // as the ▄/▀ branch above, so mixed block encodings (QR codes,
+                    // charts, TUI fills) share exact boundaries. The legacy 1px bleed
+                    // extensions made █ render up to 2px wider than adjacent ▄/▀.
                     if let Some(geo_block) = block_chars::get_geometric_block(ch) {
-                        let rect = geo_block.to_pixel_rect(x0, y0, char_w, self.grid.cell_height);
-
-                        // Add small extension to prevent gaps (1 pixel overlap).
-                        let extension = 1.0;
-                        let ext_x = if geo_block.x == 0.0 { extension } else { 0.0 };
-                        let ext_y = if geo_block.y == 0.0 { extension } else { 0.0 };
-                        let ext_w = if geo_block.x + geo_block.width >= 1.0 {
-                            extension
-                        } else {
-                            0.0
-                        };
-                        let ext_h = if geo_block.y + geo_block.height >= 1.0 {
-                            extension
-                        } else {
-                            0.0
-                        };
-
-                        let final_x = rect.x - ext_x;
-                        let final_y = rect.y - ext_y;
-                        let final_w = rect.width + ext_x + ext_w;
-                        let final_h = rect.height + ext_y + ext_h;
+                        let x1 = (self.grid.window_padding
+                            + self.grid.content_offset_x
+                            + x_offset
+                            + char_w)
+                            .round();
+                        let rect = geo_block.to_snapped_rect(x0, x1, y0, y1);
 
                         // Render as a colored rectangle using the solid white pixel in atlas
                         self.scratch_row_text.push(TextInstance {
                             position: [
-                                final_x / self.config.width as f32 * 2.0 - 1.0,
-                                1.0 - (final_y / self.config.height as f32 * 2.0),
+                                rect.x / self.config.width as f32 * 2.0 - 1.0,
+                                1.0 - (rect.y / self.config.height as f32 * 2.0),
                             ],
                             size: [
-                                final_w / self.config.width as f32 * 2.0,
-                                final_h / self.config.height as f32 * 2.0,
+                                rect.width / self.config.width as f32 * 2.0,
+                                rect.height / self.config.height as f32 * 2.0,
                             ],
                             tex_offset: [
                                 self.atlas.solid_pixel_offset.0 as f32

@@ -91,6 +91,25 @@ impl GeometricBlock {
             height: self.height * cell_h,
         }
     }
+
+    /// Convert to pixel coordinates within a pixel-snapped cell, rounding every
+    /// edge to the pixel grid.
+    ///
+    /// Block characters that share a cell-boundary edge (█ next to ▀/▄, two
+    /// adjacent █ cells, blocks over a bg-pipeline cell fill) must agree on that
+    /// edge's pixel exactly, or mixed encodings — QR codes, charts, TUI fills —
+    /// render with per-character width differences. Rounding the derived edges
+    /// gives all such quads the same shared boundary; never combine this with
+    /// bleed extensions, which overlap the neighboring cell instead.
+    pub fn to_snapped_rect(self, x0: f32, x1: f32, y0: f32, y1: f32) -> PixelRect {
+        let r = self.to_pixel_rect(x0, y0, x1 - x0, y1 - y0);
+        PixelRect {
+            x: r.x.round(),
+            y: r.y.round(),
+            width: (r.x + r.width).round() - r.x.round(),
+            height: (r.y + r.height).round() - r.y.round(),
+        }
+    }
 }
 
 /// Pixel rectangle for rendering
@@ -252,4 +271,43 @@ pub(super) mod grid {
     pub const LIGHT_THICKNESS: f32 = 0.12;
     pub const HEAVY_THICKNESS: f32 = 0.20;
     pub const DOUBLE_THICKNESS: f32 = 0.08;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn full_block_fills_snapped_cell_exactly() {
+        // █ in cell [10..18]×[20..36]: rect == cell, no bleed past any edge
+        let r = GeometricBlock::full().to_snapped_rect(10.0, 18.0, 20.0, 36.0);
+        assert_eq!((r.x, r.y, r.width, r.height), (10.0, 20.0, 8.0, 16.0));
+    }
+
+    #[test]
+    fn adjacent_full_blocks_share_edge_without_overlap() {
+        // Two █ cells tile via a shared rounded edge; the legacy 1px-bleed
+        // extensions made the second rect overlap the first by 2px.
+        let a = GeometricBlock::full().to_snapped_rect(10.0, 18.0, 0.0, 16.0);
+        let b = GeometricBlock::full().to_snapped_rect(18.0, 27.0, 0.0, 16.0);
+        assert_eq!(a.x + a.width, b.x);
+    }
+
+    #[test]
+    fn half_and_full_blocks_agree_on_shared_edges() {
+        // A bar encoded █ in one text row and ▄ in the next must span the same
+        // pixels: shared x edges and ▄'s bottom edge == the cell's bottom edge.
+        let lower = GeometricBlock::new(0.0, 0.5, 1.0, 0.5).to_snapped_rect(10.0, 18.0, 20.0, 36.0);
+        let full = GeometricBlock::full().to_snapped_rect(10.0, 18.0, 20.0, 36.0);
+        assert_eq!(lower.x, full.x);
+        assert_eq!(lower.x + lower.width, full.x + full.width);
+        assert_eq!(lower.y + lower.height, full.y + full.height);
+    }
+
+    #[test]
+    fn interior_edge_is_pixel_snapped() {
+        // ▌ left-half in cell [10..19]: interior right edge (14.5) rounds.
+        let r = GeometricBlock::new(0.0, 0.0, 0.5, 1.0).to_snapped_rect(10.0, 19.0, 0.0, 16.0);
+        assert_eq!((r.x, r.width), (10.0, 5.0));
+    }
 }

@@ -134,6 +134,9 @@ impl CellRenderer {
             // Attempt geometric rendering for block/box-drawing characters.
             // See block_char_render.rs for the full implementation.
             let block_x0 = (content_x + col_idx as f32 * self.grid.cell_width).round();
+            let block_x1 = (content_x
+                + (col_idx + if cell.wide_char { 2 } else { 1 }) as f32 * self.grid.cell_width)
+                .round();
             let block_y0 = (content_y + row as f32 * self.grid.cell_height).round();
             let block_y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
             if let Some(new_idx) = self.render_block_char_geometrically(BlockCharRenderParams {
@@ -141,6 +144,7 @@ impl CellRenderer {
                 ch,
                 grapheme_len,
                 x0_pixel: block_x0,
+                x1_pixel: block_x1,
                 y0_pixel: block_y0,
                 y1_pixel: block_y1,
                 render_fg_color,

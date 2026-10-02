@@ -21,6 +21,8 @@ pub(super) struct BlockCharRenderParams<'a> {
     pub grapheme_len: usize,
     /// Pixel x position of the left edge of the cell.
     pub x0_pixel: f32,
+    /// Pixel x position of the right edge of the cell (snapped).
+    pub x1_pixel: f32,
     /// Pixel y position of the top edge of the cell (snapped).
     pub y0_pixel: f32,
     /// Pixel y position of the bottom edge of the cell (snapped).
@@ -54,6 +56,7 @@ impl CellRenderer {
             ch,
             grapheme_len,
             x0_pixel: x0,
+            x1_pixel: x1,
             y0_pixel: y0,
             y1_pixel: y1,
             render_fg_color,
@@ -125,10 +128,13 @@ impl CellRenderer {
 
         // --- Half-block characters (▄/▀) ---
         // Both halves are rendered through the text pipeline to avoid cross-pipeline seams.
+        // x1 and y_mid derive from the caller's snapped cell edges so adjacent
+        // half-block cells tile exactly; cell_width/cell_height are fractional and
+        // would leave sub-pixel gaps that the bg pipeline (which skips these cells)
+        // cannot cover.
         if ch == '\u{2584}' || ch == '\u{2580}' {
-            let x1 = x0 + char_w;
             let cell_w = x1 - x0;
-            let y_mid = y0 + self.grid.cell_height / 2.0;
+            let y_mid = y0 + (y1 - y0) / 2.0;
 
             let bg_half_color = color_u8x4_rgb_to_f32_a(cell.bg_color, text_alpha);
             let (top_color, bottom_color) = if ch == '\u{2584}' {
@@ -205,33 +211,22 @@ impl CellRenderer {
         }
 
         // --- Block element geometry ---
+        // Snapped cell edges with every quad edge rounded to the pixel grid —
+        // same geometry as the ▄/▀ branch above, so mixed block encodings
+        // (QR codes, charts, TUI fills) share exact boundaries. The legacy 1px
+        // bleed extensions made █ render up to 2px wider than adjacent ▄/▀.
         if let Some(geo_block) = block_chars::get_geometric_block(ch) {
-            let rect = geo_block.to_pixel_rect(x0, y0, char_w, self.grid.cell_height);
-
-            // 1 px extension to prevent gaps at cell edges.
-            let extension = 1.0;
-            let ext_x = if geo_block.x == 0.0 { extension } else { 0.0 };
-            let ext_y = if geo_block.y == 0.0 { extension } else { 0.0 };
-            let ext_w = if geo_block.x + geo_block.width >= 1.0 {
-                extension
-            } else {
-                0.0
-            };
-            let ext_h = if geo_block.y + geo_block.height >= 1.0 {
-                extension
-            } else {
-                0.0
-            };
+            let rect = geo_block.to_snapped_rect(x0, x1, y0, y1);
 
             if text_index < self.buffers.max_text_instances {
                 self.text_instances[text_index] = TextInstance {
                     position: [
-                        (rect.x - ext_x) / self.config.width as f32 * 2.0 - 1.0,
-                        1.0 - ((rect.y - ext_y) / self.config.height as f32 * 2.0),
+                        rect.x / self.config.width as f32 * 2.0 - 1.0,
+                        1.0 - (rect.y / self.config.height as f32 * 2.0),
                     ],
                     size: [
-                        (rect.width + ext_x + ext_w) / self.config.width as f32 * 2.0,
-                        (rect.height + ext_y + ext_h) / self.config.height as f32 * 2.0,
+                        rect.width / self.config.width as f32 * 2.0,
+                        rect.height / self.config.height as f32 * 2.0,
                     ],
                     tex_offset: solid_tex_offset,
                     tex_size: solid_tex_size,
