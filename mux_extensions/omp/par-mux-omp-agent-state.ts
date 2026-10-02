@@ -56,17 +56,37 @@ function sendRequestAttempt(request: unknown, timeoutMs: number): Promise<boolea
 }
 
 async function sendRequestNow(request: unknown): Promise<void> {
-  if (await sendRequestAttempt(request, 500)) {
+  const started = Date.now();
+  let attempts = 1;
+  let delivered = await sendRequestAttempt(request, 500);
+  if (!delivered) {
+    attempts = 2;
+    delivered = await sendRequestAttempt(request, 1500);
+  }
+  if (!delivered) {
+    attempts = 3;
+    // Third, longer rung: under heavy machine load a reply can outlive both
+    // budgets and a report abandoned that way drops its broadcast outright
+    // (e2e saw 73/74 at load ~130). Duplicate replies are already inert —
+    // the daemon drops a seq that does not advance.
+    delivered = await sendRequestAttempt(request, 4000);
+  }
+  sendLogLine(request, delivered, attempts, Date.now() - started);
+}
+
+// Under PAR_MUX_SENDLOG=1, one stderr line per finished send: which report
+// (by seq), how many rungs the ladder used, whether ANY attempt drew a
+// reply, and the wall time. The live-daemon e2e sets this and folds the
+// lines into its failure trace — the per-send outcome its notification
+// trace cannot name (card 01a0ef2d).
+function sendLogLine(request: unknown, delivered: boolean, attempts: number, ms: number): void {
+  if (process.env.PAR_MUX_SENDLOG !== "1") {
     return;
   }
-  if (await sendRequestAttempt(request, 1500)) {
-    return;
-  }
-  // Third, longer rung: under heavy machine load a reply can outlive both
-  // budgets and a report abandoned that way drops its broadcast outright
-  // (e2e saw 73/74 at load ~130). Duplicate replies are already inert —
-  // the daemon drops a seq that does not advance.
-  await sendRequestAttempt(request, 4000);
+  const req = request as { method?: string; params?: { seq?: number } };
+  console.error(
+    `SENDLOG seq=${req.params?.seq} method=${req.method} delivered=${delivered} attempts=${attempts} ms=${ms}`,
+  );
 }
 
 function sendRequest(request: unknown): Promise<void> {

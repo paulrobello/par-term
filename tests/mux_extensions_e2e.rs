@@ -137,6 +137,23 @@ fn trace_entry(note: &par_term_emu_core_rust::tmux_control::TmuxNotification) ->
     }
 }
 
+/// The daemon's roster and pane list at failure time, for the panic: the
+/// residual claim (with its stored seq and liveness-miss counters) is the
+/// daemon-side half of the evidence — against the driver's SENDLOG lines
+/// (which reports landed) and the notification trace (which broadcasts the
+/// test saw), the next occurrence names the mechanism outright.
+fn daemon_view(client: &mut MuxSessionClient) -> String {
+    let agents = match client.list_agents() {
+        Ok(roster) => format!("{roster:?}"),
+        Err(err) => format!("unavailable: {err}"),
+    };
+    let panes = match client.list_panes() {
+        Ok(panes) => format!("{panes:?}"),
+        Err(err) => format!("unavailable: {err}"),
+    };
+    format!("daemon view: list-agents={agents}; list-panes={panes}")
+}
+
 /// Install the real asset, drive it with bun against a live daemon, and
 /// assert the report lands as an accepted broadcast.
 fn installed_extension_drives_the_daemon(
@@ -195,6 +212,7 @@ fn installed_extension_drives_the_daemon(
         .env("PAR_MUX_ENV", "1")
         .env("PAR_MUX_SOCKET", &socket)
         .env("PAR_MUX_PANE_ID", "%0")
+        .env("PAR_MUX_SENDLOG", "1")
         .env_remove("OMPCODE")
         .current_dir(root.path())
         .output()
@@ -223,8 +241,18 @@ fn installed_extension_drives_the_daemon(
     let mut broadcasts = 0usize;
     let mut released = false;
     let mut trace: Vec<String> = Vec::new();
+    // Every notification the client received, each truncated for the
+    // failure dump: the raw stream around the gap, so a lost or mangled
+    // broadcast line is visible in place rather than inferred (card
+    // 01a0ef2d).
+    let mut raw_stream: Vec<String> = Vec::new();
     while Instant::now() < deadline {
         let (notes, _) = client.drain_core_notifications();
+        raw_stream.extend(notes.iter().map(|note| {
+            let mut text = format!("{note:?}");
+            text.truncate(160);
+            text
+        }));
         trace.extend(notes.iter().filter_map(trace_entry));
         broadcasts += notes
             .iter()
@@ -277,7 +305,12 @@ fn installed_extension_drives_the_daemon(
         "{agent} extension: expected {expected} broadcasts (state pushes + \
          accepted-session rebroadcasts) AND the quit release, saw {broadcasts} \
          broadcasts and released={released} in 30s; notifications in arrival \
-         order: {trace:?}"
+         order: {trace:?}\n\n\
+         raw stream (last 80):\n{:?}\n\n\
+         driver stderr:\n{}\n\n{}",
+        &raw_stream[raw_stream.len().saturating_sub(80)..],
+        String::from_utf8_lossy(&run.stderr),
+        daemon_view(&mut client)
     );
 }
 
