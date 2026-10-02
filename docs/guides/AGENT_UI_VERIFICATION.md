@@ -55,7 +55,7 @@ A JSON object with a `steps` array. Each step is one object with an optional
 | `{"chord": "Ctrl+Alt+Cmd+P"}` (or `"Unidentified+Ctrl+Alt+S"`, see below) | Inject a chord through the **real key path**: first the overlay-stack routing that `handle_window_event` runs for every key (UX.md OV2 — the same `route_overlay_key` call, not a mirror), then, if no overlay owns the key, the registry lookup → `execute_keybinding_action`. So while an overlay is open the chord does what a real key does: an overlay's own toggle chord closes it, another popup's chord replaces the top popup, Escape closes only the top overlay, and a dialog consumes everything else. The chord fires the action literally — `open_settings` opens (it is not a toggle), so closing the window again needs the window's own close path, not a second chord. |
 | `{"type_text": "fullscr"}` | Deliver text to the focused egui widget (the same synthetic-input channel macOS menu accelerators use), then render one frame synchronously so the next step reads post-input state. |
 | `{"press": "Enter"}` | Press a named key on the egui side, then render one frame synchronously (the redraw round-trip is neither immediate nor guaranteed — an occluded window or a gate-rejected redraw left presses undelivered run-to-run before this). Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). `Shift+`, `Cmd+`, and `Ctrl+` prefixes, in any order (e.g. `Shift+Enter`, `Cmd+Shift+d`), carry the modifiers on the egui event — panels that distinguish modified keys read them via `consume_key` (`Cmd+` is egui's platform command modifier). |
-| PTY-delivery asserts | A `file_bytes` proof that a keypress reached the shell needs a **primer and a flush chord** around it (see `tests/ui/b64_enter_safe_choice.json`, `b70_panel_nav.json`): a `{"chord": "Enter"}` before the interaction proves the sink is live, and one after flushes the read — without the trailing chord an async paste can sit in the PTY buffer unread when the script ends, and the sink asserts empty even though the app wrote the bytes. |
+| PTY-delivery asserts | A `file_bytes` proof that a keypress reached the shell needs a **primer and a flush chord** around it (see `tests/ui/b64_enter_safe_choice.json`, `b70_panel_nav.json`): a `{"chord": "Enter"}` before the interaction proves the sink is live, and one after flushes the read — without the trailing chord an async paste can sit in the PTY buffer unread when the script ends, and the sink asserts empty even though the app wrote the bytes. The sink path is reset at script load and may reference `$PAR_TERM_UI_TEST_SINK` (see [PTY-leak capture](#pty-leak-capture)). |
 | `{"assert": "X"}` / `{"assert_not": "X"}` | Boolean conditions, below. |
 | `{"assert_eq": ["what", "expected"]}` | Keyed values, below. |
 | `{"capture": "what"}` | Stash a capture-capable operand's current value. |
@@ -192,6 +192,26 @@ overlay guards lands in the file. `["file_empty", ...]` at the end of a
 script is the sink assertion: no keystroke, chord, or escape byte reached the
 shell during the run. This is how "typing in the palette must not reach the
 prompt" is verified mechanically.
+
+### Per-run sink guarantees
+
+Two harness behaviors keep a sink assert from passing on stale state:
+
+1. **Reset at load.** Before the first window opens, `--ui-test` deletes
+   every file a `file_bytes`/`file_empty` operand names. The app's own shell
+   recreates the sink on first delivery, so a leftover file from an earlier
+   run can never answer a delivery proof — observed 2026-09-29, b64 step 14
+   passed on a file a prior day's run left while that run's config captured
+   elsewhere. A sink the harness cannot delete (permissions, wrong type)
+   fails the load loudly.
+2. **Per-run stamping.** A file operand may name its sink as
+   `$PAR_TERM_UI_TEST_SINK` or `${PAR_TERM_UI_TEST_SINK}`; the variable
+   resolves once at script load and the report shows the resolved path.
+   Export the same value before launching: the PTY child inherits it, so the
+   config's `cat > "$PAR_TERM_UI_TEST_SINK"` lands on the identical path. A
+   referenced but unset variable fails the load loudly.
+   `tests/ui/b64_enter_safe_choice.json` uses the stamped form; the other
+   checked-in sink scripts keep literal paths and are covered by the reset.
 
 ## Worked example
 
@@ -476,3 +496,27 @@ no other key reached the shell. The quit half is self-checking: if Enter ever
 maps back to Quit, the app exits mid-script and the report is never written.
 Negative control (2026-09-29): pre-fix binary, same script — report missing,
 the quit dialog's Enter killed the app mid-run.
+
+```bash
+mkdir -p /tmp/pt-b64/cfg/par-term /tmp/pt-b64/home
+cat > /tmp/pt-b64/cfg/par-term/config.yaml <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - "-c"
+  - "cat > \"$PAR_TERM_UI_TEST_SINK\""
+login_shell: false
+shader_install_prompt: never
+shell_integration_state: never
+agent_skill_state: never
+EOF
+HOME=/tmp/pt-b64/home XDG_CONFIG_HOME=/tmp/pt-b64/cfg PAR_TERM_NO_MIGRATE=1 \
+  PAR_TERM_UI_TEST_SINK=/tmp/pt-b64/sink.bin \
+  target/dev-release/par-term \
+  --ui-test tests/ui/b64_enter_safe_choice.json \
+  --ui-test-report /tmp/pt-b64/report.json
+```
+
+The report's `all_passed` must be true. The sink path is stamped per run via
+`PAR_TERM_UI_TEST_SINK` — the script's `file_bytes` operand and the config's
+`cat` resolve to the same file through it, and the harness deletes the sink
+at load, so a leftover from an earlier run can never answer the assert.

@@ -100,6 +100,74 @@ pub(crate) enum UiTestAction {
     CloseModal { close_modal: String },
 }
 
+/// The env var a run recipe exports with its per-run PTY-sink path. A
+/// `file_bytes`/`file_empty` operand may reference it bare
+/// (`$PAR_TERM_UI_TEST_SINK`) or braced; the PTY child inherits the same
+/// value, so the config's `cat > "$PAR_TERM_UI_TEST_SINK"` lands on the
+/// identical path. Referenced but unset fails the load loudly.
+const SINK_ENV_VAR: &str = "PAR_TERM_UI_TEST_SINK";
+
+/// Expand `$PAR_TERM_UI_TEST_SINK` in a file operand; operands without the
+/// reference come back unchanged.
+fn resolve_sink_var(operand: &str) -> anyhow::Result<String> {
+    let bare = format!("${SINK_ENV_VAR}");
+    let braced = format!("${{{SINK_ENV_VAR}}}");
+    if !operand.contains(&bare) && !operand.contains(&braced) {
+        return Ok(operand.to_string());
+    }
+    match std::env::var(SINK_ENV_VAR) {
+        Ok(value) => Ok(operand.replace(&braced, &value).replace(&bare, &value)),
+        Err(_) => Err(anyhow::anyhow!(
+            "--ui-test: ${SINK_ENV_VAR} referenced but not set — export it to this run's sink path"
+        )),
+    }
+}
+
+/// The files a script's `file_bytes`/`file_empty` operands name (path
+/// portion only, before `:`/`*`).
+fn sink_paths(steps: &[UiTestStep]) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = steps
+        .iter()
+        .filter_map(|step| match &step.action {
+            UiTestAction::AssertEq {
+                assert_eq: (what, operand),
+            } => match (what.as_str(), operand.as_str()) {
+                ("file_empty", path) => Some(path),
+                ("file_bytes", path) => path.split([':', '*']).next(),
+                _ => None,
+            },
+            _ => None,
+        })
+        .filter(|p| !p.is_empty())
+        .map(PathBuf::from)
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+/// Delete the sink files the script names, so a file an earlier run left
+/// can never satisfy a delivery proof (observed 2026-09-29: a stale /tmp
+/// sink answered b64's step 14 a day later while that run's config
+/// captured elsewhere). Runs while only `App::run` has executed — before
+/// any window or PTY exists — so the app's own shell recreates the sink on
+/// first delivery.
+fn reset_sink_files(steps: &[UiTestStep]) -> anyhow::Result<()> {
+    for path in sink_paths(steps) {
+        match std::fs::remove_file(&path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                return Err(anyhow::anyhow!(
+                    "--ui-test: cannot reset sink {}: {e}",
+                    path.display()
+                ));
+            }
+            Ok(()) => {}
+        }
+    }
+    Ok(())
+}
+
 /// Load and parse a script file. Fails loudly on bad JSON so typos never
 /// masquerade as a passing run.
 pub(crate) fn load_script(path: &Path) -> anyhow::Result<UiTestScript> {
@@ -116,7 +184,20 @@ pub(crate) fn load_script(path: &Path) -> anyhow::Result<UiTestScript> {
             e
         )
     })?;
-    Ok(UiTestScript { steps: raw.steps })
+    let mut steps = raw.steps;
+    // Resolve before resetting so the reset (and the report) see per-run
+    // paths, not the placeholder text.
+    for step in &mut steps {
+        if let UiTestAction::AssertEq {
+            assert_eq: (what, operand),
+        } = &mut step.action
+            && matches!(what.as_str(), "file_bytes" | "file_empty")
+        {
+            *operand = resolve_sink_var(operand)?;
+        }
+    }
+    reset_sink_files(&steps)?;
+    Ok(UiTestScript { steps })
 }
 
 /// Accumulated per-step records for the final report.
@@ -1373,6 +1454,7 @@ enum StepOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
 
     #[test]
     fn chord_to_fields_maps_modifiers() {
@@ -1491,5 +1573,81 @@ mod tests {
                 ref assert_eq_captured
             } if assert_eq_captured == "tab_shell_pid"
         ));
+    }
+
+    /// Env mutation is process-global; serialize the sink-var tests.
+    static SINK_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn sink_placeholder_resolves_from_the_environment() {
+        let _guard = SINK_ENV_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sink = dir.path().join("sink.bin");
+        // Process-global env mutation is unsafe in edition 2024; the mutex
+        // guard serializes the tests that touch it.
+        unsafe { std::env::set_var(SINK_ENV_VAR, &sink) };
+        for form in [
+            format!(r#"${{{SINK_ENV_VAR}}}:0a"#),
+            format!(r#"${SINK_ENV_VAR}:0a"#),
+        ] {
+            let resolved = resolve_sink_var(&form).expect("resolves");
+            assert_eq!(resolved, format!("{}:0a", sink.display()));
+        }
+        assert_eq!(
+            resolve_sink_var("/tmp/literal.bin:0a").expect("literal unchanged"),
+            "/tmp/literal.bin:0a"
+        );
+        unsafe { std::env::remove_var(SINK_ENV_VAR) };
+    }
+
+    #[test]
+    fn unset_sink_placeholder_fails_the_load() {
+        let _guard = SINK_ENV_LOCK.lock().unwrap();
+        unsafe { std::env::remove_var(SINK_ENV_VAR) };
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script_path = dir.path().join("script.json");
+        std::fs::write(
+            &script_path,
+            format!(r#"{{"steps": [{{"assert_eq": ["file_bytes", "${{{SINK_ENV_VAR}}}:0a"]}}]}}"#),
+        )
+        .expect("write script");
+        let err = load_script(&script_path).expect_err("unset var must fail the load");
+        assert!(err.to_string().contains(SINK_ENV_VAR));
+    }
+
+    #[test]
+    fn load_script_resets_stale_sink_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // file_bytes: the delivery-proof case from the card — a planted
+        // stale sink must be gone before the first step runs.
+        let bytes_sink = dir.path().join("sink.bin");
+        std::fs::write(&bytes_sink, [0x0a]).expect("plant stale sink");
+        let script_path = dir.path().join("bytes.json");
+        std::fs::write(
+            &script_path,
+            format!(
+                r#"{{"steps": [{{"assert_eq": ["file_bytes", "{}:0a"]}}]}}"#,
+                bytes_sink.display()
+            ),
+        )
+        .expect("write script");
+        load_script(&script_path).expect("loads");
+        assert!(!bytes_sink.exists(), "stale delivery sink must be reset");
+
+        // file_empty: same reset, so a prior run's leftover bytes cannot
+        // poison the next run either.
+        let empty_sink = dir.path().join("capture.txt");
+        std::fs::write(&empty_sink, b"leaked").expect("plant stale capture");
+        let script_path = dir.path().join("empty.json");
+        std::fs::write(
+            &script_path,
+            format!(
+                r#"{{"steps": [{{"assert_eq": ["file_empty", "{}"]}}]}}"#,
+                empty_sink.display()
+            ),
+        )
+        .expect("write script");
+        load_script(&script_path).expect("loads");
+        assert!(!empty_sink.exists(), "stale file_empty sink must be reset");
     }
 }
