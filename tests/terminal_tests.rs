@@ -292,3 +292,41 @@ fn test_cursor_style_is_blinking() {
     assert!(!is_blinking(CursorStyle::SteadyUnderline));
     assert!(!is_blinking(CursorStyle::SteadyBar));
 }
+
+#[test]
+#[ignore]
+fn test_abrupt_child_kill_reports_dead_via_poll_liveness() {
+    // The pty-EOF/child-exit teardown path for an abruptly killed child
+    // (SIGKILL, no graceful exit): the reader's EOF stores running=false, and
+    // poll_liveness falls back to asking the OS while the flag lags. The
+    // stale-window bug (kanban 01a0fa9f) was a poller that watched neither.
+    use std::process::Command;
+    use std::time::{Duration, Instant};
+
+    let mut terminal = TerminalManager::new(80, 24).unwrap();
+    terminal.spawn_shell().unwrap();
+    assert!(terminal.is_running());
+
+    // Prime the OS-confirmed path against a live child first.
+    assert!(terminal.poll_liveness());
+
+    let pid = terminal.get_shell_pid().expect("spawned shell pid");
+    let status = Command::new("kill")
+        .args(["-9", &pid.to_string()])
+        .status()
+        .expect("kill spawned shell");
+    assert!(status.success(), "kill -9 {pid} failed");
+
+    // Death must surface through poll_liveness within a bounded window
+    // (EOF flips the reader flag in ms on macOS; the OS fallback covers the
+    // flag-lag cases).
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while terminal.poll_liveness() {
+        assert!(
+            Instant::now() < deadline,
+            "poll_liveness stayed true after SIGKILL"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(!terminal.is_running());
+}

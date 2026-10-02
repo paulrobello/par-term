@@ -229,6 +229,17 @@ impl TerminalManager {
         pty.is_running()
     }
 
+    /// OS-confirmed liveness: the reader's flag first, then the child handle.
+    ///
+    /// A pane's child can die without the reader flag ever flipping (an
+    /// abrupt kill can leave the master read erroring in a way the reader
+    /// does not treat as fatal), so a poller that only watches the flag never
+    /// sees the death. Asks the OS while the flag claims alive.
+    pub fn poll_liveness(&self) -> bool {
+        let mut pty = self.pty_session.lock();
+        pty.poll_running()
+    }
+
     /// Kill the PTY process
     ///
     /// # Errors

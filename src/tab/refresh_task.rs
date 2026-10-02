@@ -25,6 +25,7 @@ impl Tab {
 
         let handle = runtime.spawn(async move {
             let mut last_gen = 0u64;
+            let mut was_running: Option<bool> = None;
             let mut idle_streak = 0u32;
             const MAX_INACTIVE_IDLE_INTERVAL_MS: u64 = 250;
 
@@ -42,13 +43,24 @@ impl Tab {
 
                 let should_redraw = if let Ok(term) = terminal_clone.try_read() {
                     let current_gen = term.update_generation();
-                    if current_gen > last_gen {
+                    let gen_changed = current_gen > last_gen;
+                    if gen_changed {
                         last_gen = current_gen;
-                        true
-                    } else {
-                        false
                     }
+                    // A pane's child can die without producing output: the
+                    // reader's EOF path stores running=false but bumps no
+                    // generation counter, so the output-driven check above
+                    // never redraws and the shell-exit handling in
+                    // RedrawRequested never runs — the window survives as a
+                    // frozen frame. Redraw once on the running→dead edge;
+                    // poll_liveness asks the OS while the flag lags the real
+                    // child.
+                    let running = term.poll_liveness();
+                    let died = refresh_redraw_on_death(&mut was_running, running);
+                    gen_changed || died
                 } else {
+                    // Lock miss: keep the previous liveness state so a
+                    // contended read cannot fabricate a death edge.
                     false
                 };
 
@@ -71,5 +83,38 @@ impl Tab {
         if let Some(handle) = self.refresh_task.take() {
             handle.abort();
         }
+    }
+}
+
+/// One liveness poll of the refresh loop: true on the running→dead edge.
+///
+/// `was_running` carries the previous poll's state across calls (`None` =
+/// never seen, which can never be an edge). Returns true exactly once per
+/// death, so a kept-open dead pane (Keep action / restart prompt) does not
+/// redraw at every tick.
+fn refresh_redraw_on_death(was_running: &mut Option<bool>, running: bool) -> bool {
+    let died = *was_running == Some(true) && !running;
+    *was_running = Some(running);
+    died
+}
+
+#[cfg(test)]
+mod tests {
+    use super::refresh_redraw_on_death;
+
+    #[test]
+    fn death_edge_fires_once_and_not_on_first_poll() {
+        // First poll of a dead pane: no previous state, no edge.
+        let mut state = None;
+        assert!(!refresh_redraw_on_death(&mut state, false));
+        assert_eq!(state, Some(false));
+
+        // A kept-open dead pane does not redraw again.
+        assert!(!refresh_redraw_on_death(&mut state, false));
+        assert!(!refresh_redraw_on_death(&mut state, false));
+
+        // Respawn (running again) re-arms the edge for a later death.
+        assert!(!refresh_redraw_on_death(&mut state, true));
+        assert!(refresh_redraw_on_death(&mut state, false));
     }
 }
