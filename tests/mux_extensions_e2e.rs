@@ -167,6 +167,23 @@ fn installed_extension_drives_the_daemon(
         "a fresh session has a pane to report against"
     );
 
+    // A claimed pane must host the agent's namesake process, as every real
+    // claimed pane does: the daemon's liveness sweep (core scrape.rs) clears
+    // a hook claim whose pane tree provably lacks the claimed CLI for two
+    // 1s ticks, and this test's driver runs bun in the TEST process, not the
+    // pane — so without a namesake, the sweep releases the claim mid-report
+    // phase (seen as release lines between state broadcasts, counts short of
+    // expected, and the quit release firing a second time). `exec -a` renames
+    // the sleeping process to the claimed label; the bun gate above already
+    // returned on the platforms where that form does not exist.
+    let pane: par_term_tmux::TmuxPaneId = 0;
+    client
+        .send_keys_hex(
+            pane,
+            format!("bash -c 'exec -a {agent} sleep 90'\r").as_bytes(),
+        )
+        .expect("seed the pane's agent-namesake process");
+
     // A fresh session's first pane is %0 — the id the daemon would seed as
     // PAR_MUX_PANE_ID for a pane process (core pane.rs seeds id.to_string()).
     let driver = root.path().join("driver.mjs");
