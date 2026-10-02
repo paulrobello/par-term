@@ -11,7 +11,7 @@ mod upload;
 
 pub use layout::PaneRenderGeometry;
 use layout::compute_graphic_geometry;
-use upload::CachedTexture;
+use upload::{CachedTexture, texture_bytes};
 
 /// Initial capacity of the graphics instance buffer (number of simultaneous inline images).
 /// The buffer will grow automatically if more images are needed.
@@ -73,6 +73,9 @@ pub struct GraphicsRenderer {
 
     // Texture cache: maps sixel ID to texture info with LRU tracking
     texture_cache: HashMap<u64, CachedTexture>,
+    /// Total pixel bytes across cached textures — the byte-budget LRU's ledger,
+    /// kept in sync at every mutation (insert, evict, remove, clear).
+    texture_cache_bytes: u64,
 
     // Cell dimensions for positioning
     cell_width: f32,
@@ -149,6 +152,7 @@ impl GraphicsRenderer {
             instance_buffer,
             instance_capacity: initial_capacity,
             texture_cache: HashMap::new(),
+            texture_cache_bytes: 0,
             cell_width,
             cell_height,
             window_padding,
@@ -502,12 +506,15 @@ impl GraphicsRenderer {
 
     /// Remove a texture from the cache
     pub fn remove_texture(&mut self, id: u64) {
-        self.texture_cache.remove(&id);
+        if let Some(removed) = self.texture_cache.remove(&id) {
+            self.texture_cache_bytes -= texture_bytes(&removed.texture);
+        }
     }
 
     /// Clear all cached textures
     pub fn clear_cache(&mut self) {
         self.texture_cache.clear();
+        self.texture_cache_bytes = 0;
     }
 
     /// Get the number of cached textures
@@ -554,5 +561,6 @@ impl GraphicsRenderer {
         );
         // Clear texture cache since bind groups reference the old sampler
         self.texture_cache.clear();
+        self.texture_cache_bytes = 0;
     }
 }

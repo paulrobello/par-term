@@ -8,8 +8,48 @@ use std::time::Instant;
 use wgpu::*;
 
 /// Maximum number of textures to cache before evicting least-recently-used entries.
-/// This prevents unbounded GPU memory growth when displaying many inline images.
+/// Secondary bound only — the byte budget below is the primary eviction trigger.
 const MAX_TEXTURE_CACHE_SIZE: usize = 100;
+
+/// Byte budget for cached texture pixel data (Rgba8Unorm, width*height*4 per entry).
+/// A 5K screenshot is ~56MB RGBA; without a byte budget a handful of them fits the
+/// 100-texture count cap yet costs hundreds of MB of GPU memory.
+const MAX_TEXTURE_CACHE_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Pixel bytes held by one cached texture (Rgba8Unorm = 4 bytes per pixel).
+pub(super) fn texture_bytes(info: &SixelTextureInfo) -> u64 {
+    u64::from(info.width) * u64::from(info.height) * 4
+}
+
+/// Compute which cache entries to evict (oldest `last_used` first) so that a new
+/// texture of `incoming_bytes` fits both the byte budget and the count cap.
+/// Returns ids to evict, empty when nothing needs eviction. Pure so the policy is
+/// unit-testable without a wgpu device.
+fn plan_lru_evictions(
+    entries: &[(u64, Instant, u64)],
+    incoming_bytes: u64,
+    total_bytes: u64,
+) -> Vec<u64> {
+    let mut order: Vec<(Instant, u64, u64)> = entries
+        .iter()
+        .map(|(id, last_used, bytes)| (*last_used, *id, *bytes))
+        .collect();
+    order.sort_unstable_by_key(|(last_used, _, _)| *last_used);
+    let mut evict = Vec::new();
+    let mut bytes = total_bytes;
+    let mut count = entries.len();
+    let mut cursor = 0;
+    while cursor < order.len()
+        && (bytes + incoming_bytes > MAX_TEXTURE_CACHE_BYTES || count >= MAX_TEXTURE_CACHE_SIZE)
+    {
+        let (_, id, entry_bytes) = order[cursor];
+        bytes -= entry_bytes;
+        count -= 1;
+        evict.push(id);
+        cursor += 1;
+    }
+    evict
+}
 
 /// Metadata for a cached sixel texture
 pub(super) struct SixelTextureInfo {
@@ -108,19 +148,24 @@ impl super::GraphicsRenderer {
             });
         }
 
-        // Evict least-recently-used texture if cache is full
-        if self.texture_cache.len() >= MAX_TEXTURE_CACHE_SIZE
-            && let Some((&lru_id, _)) = self
-                .texture_cache
-                .iter()
-                .min_by_key(|(_, cached)| cached.last_used)
-        {
-            log::debug!(
-                "[GRAPHICS] Evicting LRU texture: id={}, cache_size={}",
-                lru_id,
-                self.texture_cache.len()
-            );
-            self.texture_cache.remove(&lru_id);
+        // Evict least-recently-used textures until the incoming texture fits
+        // both the byte budget and the count cap
+        let incoming_bytes = expected_size as u64;
+        let entries: Vec<(u64, Instant, u64)> = self
+            .texture_cache
+            .iter()
+            .map(|(id, cached)| (*id, cached.last_used, texture_bytes(&cached.texture)))
+            .collect();
+        for lru_id in plan_lru_evictions(&entries, incoming_bytes, self.texture_cache_bytes) {
+            if let Some(evicted) = self.texture_cache.remove(&lru_id) {
+                self.texture_cache_bytes -= texture_bytes(&evicted.texture);
+                log::debug!(
+                    "[GRAPHICS] Evicting LRU texture: id={}, freed={} bytes, cache_bytes={}",
+                    lru_id,
+                    texture_bytes(&evicted.texture),
+                    self.texture_cache_bytes
+                );
+            }
         }
 
         // Create texture
@@ -203,5 +248,59 @@ impl super::GraphicsRenderer {
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn mb(n: u64) -> u64 {
+        n * 1024 * 1024
+    }
+
+    fn entry(id: u64, age_secs: u64, w: u32, h: u32) -> (u64, Instant, u64) {
+        (
+            id,
+            Instant::now() - Duration::from_secs(age_secs),
+            u64::from(w) * u64::from(h) * 4,
+        )
+    }
+
+    #[test]
+    fn evicts_oldest_until_byte_budget_fits() {
+        // 3 x 100MB entries (300MB total), 256MB budget, 100MB incoming:
+        // evict the two oldest so 100 + 100 fits under 256MB
+        let entries = vec![
+            entry(1, 30, 5120, 5120),
+            entry(2, 20, 5120, 5120),
+            entry(3, 10, 5120, 5120),
+        ];
+        assert_eq!(plan_lru_evictions(&entries, mb(100), mb(300)), vec![1, 2]);
+    }
+
+    #[test]
+    fn evicts_exactly_one_for_count_cap() {
+        // 100 tiny entries at the count cap: one eviction frees a slot,
+        // the byte budget is not binding
+        let entries: Vec<_> = (1..=100u64).map(|i| entry(i, 100 - i, 16, 16)).collect();
+        assert_eq!(
+            plan_lru_evictions(&entries, 16 * 16 * 4, 100 * 16 * 16 * 4),
+            vec![1]
+        );
+    }
+
+    #[test]
+    fn oversized_incoming_on_empty_cache_proceeds_unbudgeted() {
+        // Nothing to evict: an oversized texture proceeds (same behavior class
+        // as the old count-only cap on an empty cache)
+        assert!(plan_lru_evictions(&[], mb(300), 0).is_empty());
+    }
+
+    #[test]
+    fn no_eviction_when_within_budget() {
+        let entries = vec![entry(1, 5, 100, 100), entry(2, 3, 100, 100)];
+        assert!(plan_lru_evictions(&entries, 100 * 100 * 4, 2 * 100 * 100 * 4).is_empty());
     }
 }
