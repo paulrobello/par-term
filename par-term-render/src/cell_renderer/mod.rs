@@ -326,7 +326,9 @@ impl CellRenderer {
                 label: Some("device"),
                 required_features: wgpu::Features::empty(),
                 required_limits: surface::texture_limits(adapter.limits().max_texture_dimension_2d),
-                memory_hints: wgpu::MemoryHints::default(),
+                // MemoryUsage over the Performance default: the Performance allocator was
+                // measured retaining 429MB of staging/free graphics pools (2026-10-02).
+                memory_hints: wgpu::MemoryHints::MemoryUsage,
                 ..Default::default()
             })
             .await?;
