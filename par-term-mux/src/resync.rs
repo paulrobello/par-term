@@ -3,8 +3,9 @@
 //! On connect, the app needs the daemon's current world: which sessions
 //! exist (create-or-attach is client-side for par-mux), which windows they
 //! hold, and which panes exist to seed screens for. Reply shapes are the
-//! daemon's fixed wire contract: `list-sessions` replies `$N: name` lines,
-//! `list-windows` replies `@N: name` lines, `list-panes` replies bare `%N`
+//! daemon's fixed wire contract: `list-sessions` replies `+W: wname: $N: name`
+//! rows (workspace-grouped), `list-windows` replies `@N: name` lines,
+//! `list-panes` replies bare `%N`
 //! lines — all globally scoped; geometry arrives via `%layout-change`
 //! pushes, not list replies.
 
@@ -13,11 +14,14 @@ use par_term_tmux::{TmuxPaneId, TmuxWindowId};
 use std::collections::HashMap;
 use std::io::{self, ErrorKind};
 
-/// One session from `list-sessions` (`$N: name`).
+/// One session from `list-sessions` (`+W: wname: $N: name`): the session
+/// plus the workspace that owns it.
 #[derive(Debug, Clone)]
 pub struct SessionSummary {
     pub id: u64,
     pub name: String,
+    pub workspace_id: u64,
+    pub workspace_name: String,
 }
 
 /// One window from `list-windows` (`@N: name`).
@@ -37,16 +41,15 @@ pub enum AttachOutcome {
 }
 
 impl MuxSessionClient {
-    /// List the daemon's sessions as `$N: name` lines.
+    /// List the daemon's sessions as `+W: wname: $N: name` rows, the
+    /// session id the last `$<digits>:` marker (the daemon's documented
+    /// resolution rule, so a name carrying `:` or `$` text still reads).
     pub fn list_sessions(&mut self) -> io::Result<Vec<SessionSummary>> {
         let lines = self.send("list-sessions")?;
         lines
             .iter()
             .filter(|line| !line.trim().is_empty())
-            .map(|line| {
-                let (id, name) = parse_id_name_line(line, '$')?;
-                Ok(SessionSummary { id, name })
-            })
+            .map(|line| parse_session_row(line))
             .collect()
     }
 
@@ -221,6 +224,53 @@ fn parse_id_name_line(line: &str, sigil: char) -> io::Result<(u64, String)> {
     Ok((id, name.to_string()))
 }
 
+/// Parse one `list-sessions` row, `+W: wname: $N: name`: the workspace id
+/// after the leading `+`, and the session id the LAST `$<digits>: ` marker
+/// in the line (the daemon's documented resolution rule — a name carrying
+/// `:` or `$` text stays whole because only the final marker separates it).
+pub fn parse_session_row(line: &str) -> io::Result<SessionSummary> {
+    let rest = line
+        .strip_prefix('+')
+        .ok_or_else(|| invalid_line("id", line))?;
+    let (ws_id, rest) = rest
+        .split_once(": ")
+        .ok_or_else(|| invalid_line("id", line))?;
+    let ws_id = ws_id.trim().parse().map_err(|_| invalid_line("id", line))?;
+
+    // The session marker: the last `$<digits>: ` run in the workspace part.
+    let bytes = rest.as_bytes();
+    let mut marker = None;
+    for (i, b) in bytes.iter().enumerate() {
+        if *b != b'$' {
+            continue;
+        }
+        let mut j = i + 1;
+        while j < bytes.len() && bytes[j].is_ascii_digit() {
+            j += 1;
+        }
+        if j > i + 1 && rest[j..].starts_with(':') {
+            marker = Some((i, j));
+        }
+    }
+    let Some((start, after_digits)) = marker else {
+        return Err(invalid_line("id", line));
+    };
+    let sess_id = rest[start + 1..after_digits]
+        .parse()
+        .map_err(|_| invalid_line("id", line))?;
+    // Workspace name = the text before the marker, minus its `: ` join.
+    let workspace_name = rest[..start]
+        .strip_suffix(' ')
+        .and_then(|s| s.strip_suffix(':'))
+        .unwrap_or(rest[..start].trim());
+    Ok(SessionSummary {
+        id: sess_id,
+        name: rest[after_digits + 1..].trim().to_string(),
+        workspace_id: ws_id,
+        workspace_name: workspace_name.to_string(),
+    })
+}
+
 fn invalid_line(kind: &str, line: &str) -> io::Error {
     io::Error::new(
         ErrorKind::InvalidData,
@@ -284,5 +334,42 @@ mod tests {
         assert!(parse_id_name_line("3: dev", '$').is_err());
         assert!(parse_id_name_line("$3:dev", '$').is_err());
         assert!(parse_id_name_line("$x: dev", '$').is_err());
+    }
+
+    #[test]
+    fn parses_workspace_grouped_session_rows() {
+        let row = parse_session_row("+0: main: $0: roster").expect("row parses");
+        assert_eq!(row.workspace_id, 0);
+        assert_eq!(row.workspace_name, "main");
+        assert_eq!(row.id, 0);
+        assert_eq!(row.name, "roster");
+
+        // Non-zero ids on both levels.
+        let row = parse_session_row("+2: other: $5: dev").expect("row parses");
+        assert_eq!(row.workspace_id, 2);
+        assert_eq!(row.workspace_name, "other");
+        assert_eq!(row.id, 5);
+        assert_eq!(row.name, "dev");
+    }
+
+    #[test]
+    fn workspace_names_carrying_marker_text_do_not_confuse_the_parse() {
+        // The documented rule: the session id is the LAST `$<digits>:`
+        // marker in the row, so a WORKSPACE name imitating one (it precedes
+        // the real marker) cannot steal the parse.
+        let row = parse_session_row("+0: $7: weird: $1: dev").expect("row parses");
+        assert_eq!(row.workspace_id, 0);
+        assert_eq!(row.workspace_name, "$7: weird");
+        assert_eq!(row.id, 1);
+        assert_eq!(row.name, "dev");
+    }
+
+    #[test]
+    fn rejects_malformed_session_rows() {
+        // Pre-workspace `$N: name` shape, a bare id, and a missing session
+        // marker all fail loudly — the daemon never sends them.
+        assert!(parse_session_row("$0: roster").is_err());
+        assert!(parse_session_row("+0").is_err());
+        assert!(parse_session_row("+0: main: dev").is_err());
     }
 }

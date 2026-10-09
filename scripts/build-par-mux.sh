@@ -5,12 +5,13 @@
 #
 # Usage: scripts/build-par-mux.sh <output-file> [--target <triple>]
 #
-# The daemon lives in the external par-term-emu-core-rust crate (a separate
-# repository), so it cannot be built with `cargo build -p` from this
-# workspace. `cargo install --version <lock's version>` fetches exactly the
-# crates.io release the client links — the version guarantee the stale-daemon
-# check (`check_daemon_version`) relies on: a daemon and client built from
-# different core versions would mismatch at attach.
+# The daemon ships as the standalone `par-mux` crate (same repository and
+# release train as par-term-emu-core-rust; the core root pins it `=X.Y.Z`),
+# so it cannot be built with `cargo build -p` from this workspace.
+# `cargo install --version <lock's version>` fetches exactly the crates.io
+# release in this checkout's Cargo.lock — the version guarantee the
+# stale-daemon check (`check_daemon_version`) relies on: a daemon and client
+# built from different core versions would mismatch at attach.
 #
 # With --target, the daemon is built for that triple (the host must have the
 # target installed and linkable — the release workflow's cross legs already
@@ -35,16 +36,22 @@ if [ -z "$LOCK_CORE_VERSION" ]; then
   echo "::error::could not read the par-term-emu-core-rust version from Cargo.lock" >&2
   exit 1
 fi
-echo "Building par-mux from par-term-emu-core-rust ${LOCK_CORE_VERSION}"
+PAR_MUX_VERSION=$(grep -A1 '^name = "par-mux"$' Cargo.lock \
+  | grep -m1 '^version' | sed 's/version = "\(.*\)"/\1/')
+if [ -z "$PAR_MUX_VERSION" ]; then
+  echo "::error::could not read the par-mux version from Cargo.lock (daemon crate missing from the dependency tree)" >&2
+  exit 1
+fi
+echo "Building par-mux daemon ${PAR_MUX_VERSION} (core ${LOCK_CORE_VERSION})"
 
 ROOT=$(mktemp -d)
 trap 'rm -rf "$ROOT"' EXIT
 
 INSTALL_ARGS=(
-  --no-default-features --features mux-bin --bin par-mux
-  --version "$LOCK_CORE_VERSION"
+  --no-default-features --features mux-bin,attach --bin par-mux --locked
+  --version "$PAR_MUX_VERSION"
   --root "$ROOT"
-  par-term-emu-core-rust
+  par-mux
 )
 # The temp --root makes cargo print "be sure to add <root>/bin to your PATH",
 # which is noise here: the binary is copied OUT of the temp root below, so

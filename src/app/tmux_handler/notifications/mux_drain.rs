@@ -462,23 +462,22 @@ impl WindowState {
         let Ok(lines) = transport.send_command("list-sessions") else {
             return false;
         };
-        // `$N: name` lines (the daemon's fixed wire contract). Any
-        // non-empty line that is not that shape is a daemon reply gone
+        // `+W: wname: $N: name` rows (the daemon's fixed wire contract,
+        // parsed by the same parser `MuxSessionClient::list_sessions` uses).
+        // Any non-empty line that is not that shape is a daemon reply gone
         // wrong — treat the whole query as unproven rather than guessing.
         let mut ids = Vec::with_capacity(lines.len());
-        for line in lines {
+        for line in &lines {
             if line.trim().is_empty() {
                 continue;
             }
-            let Some(id) = line
-                .strip_prefix('$')
-                .and_then(|rest| rest.split_once(": "))
-                .and_then(|(id, _)| id.parse::<u64>().ok())
-            else {
-                crate::debug_log!("MUX", "sessions-changed re-query got a bad line: {line:?}");
-                return false;
-            };
-            ids.push(id);
+            match par_term_mux::parse_session_row(line) {
+                Ok(session) => ids.push(session.id),
+                Err(_) => {
+                    crate::debug_log!("MUX", "sessions-changed re-query got a bad line: {line:?}");
+                    return false;
+                }
+            }
         }
         !ids.contains(&session_id)
     }

@@ -3283,9 +3283,36 @@ pub(crate) mod tests {
         let first_id = ws.tab_manager.tabs()[0].id;
         let second_id = ws.tab_manager.tabs()[1].id;
         ws.tab_manager.switch_to(first_id);
-        // Baseline: consume the attach seeds' generation bumps so the dot
-        // below derives only from the explicit mark_updated calls.
-        ws.check_activity_idle_notifications();
+        // Baseline: quiesce before the explicit phase — 0.58.1's daemon can
+        // push a late `%output` wave for the new pane after `%window-add`,
+        // and a single consume races it (observed flaking only under full
+        // suite load). Two consecutive passes with no dot at all mean no
+        // output arrived, so the dot below derives only from the explicit
+        // mark_updated calls.
+        let mut quiet_passes = 0;
+        let quiesce_deadline = Instant::now() + DAEMON_DEADLINE;
+        while quiet_passes < 2 {
+            for tab in ws.tab_manager.tabs_mut() {
+                tab.activity.has_activity = false;
+            }
+            ws.check_mux_notifications();
+            ws.check_activity_idle_notifications();
+            if ws
+                .tab_manager
+                .tabs()
+                .iter()
+                .all(|t| !t.activity.has_activity)
+            {
+                quiet_passes += 1;
+            } else {
+                quiet_passes = 0;
+            }
+            assert!(
+                Instant::now() < quiesce_deadline,
+                "output waves never quiesced before the baseline"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
         for tab in ws.tab_manager.tabs() {
             assert!(!tab.activity.has_activity, "no dot before new output");
         }

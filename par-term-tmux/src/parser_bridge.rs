@@ -127,7 +127,7 @@ impl ParserBridge {
 
             CoreNotification::Pause { pane_id: _ } => Some(TmuxNotification::Pause),
 
-            CoreNotification::Continue => Some(TmuxNotification::Continue),
+            CoreNotification::Continue { pane_id: _ } => Some(TmuxNotification::Continue),
 
             CoreNotification::Error {
                 timestamp: _,

@@ -182,7 +182,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -193,7 +193,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1189,7 +1189,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1447,7 +1447,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2957,7 +2957,7 @@ dependencies = [
  "once_cell",
  "png",
  "thiserror 2.0.20",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3880,6 +3880,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "par-mux"
+version = "0.58.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f6e334e3a05eb01ee82fd0218ca49a46983347d3bb9a43b3a5db31a5cb8cc7c"
+dependencies = [
+ "base64 0.22.1",
+ "dirs 6.0.0",
+ "interprocess",
+ "libc",
+ "log",
+ "nix 0.31.3",
+ "par-term-emu-core",
+ "parking_lot",
+ "regex",
+ "serde",
+ "serde_json",
+ "toml 0.9.12+spec-1.1.0",
+ "widestring",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "par-term"
 version = "0.47.0"
 dependencies = [
@@ -3999,21 +4021,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "par-term-emu-core-rust"
-version = "0.58.0"
+name = "par-term-emu-core"
+version = "0.58.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "051e1bc4a25b1392da0396d31028637bdff84191d3d8a004aab711e402e3d04b"
+checksum = "3f79fcf4247d150ad2891a29ee38f4665eb5d212521cf396c95a22a850f98eb7"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.2",
- "dirs 6.0.0",
  "flate2",
  "image",
- "interprocess",
  "libc",
  "log",
  "lru",
- "nix 0.31.3",
  "parking_lot",
  "percent-encoding",
  "portable-pty",
@@ -4022,15 +4041,31 @@ dependencies = [
  "serde_json",
  "smallvec",
  "swash",
- "toml 0.9.12+spec-1.1.0",
  "unicode-normalization",
  "unicode-segmentation",
  "unicode-width",
  "url",
  "uuid",
  "vte",
- "widestring",
- "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "par-term-emu-core-rust"
+version = "0.58.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bde08a39e248039d1ac644b3a65cd0874e5712645359ca66f5208b1ebf394b3"
+dependencies = [
+ "base64 0.22.1",
+ "flate2",
+ "interprocess",
+ "libc",
+ "log",
+ "par-mux",
+ "par-term-emu-core",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -4980,7 +5015,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5427,7 +5462,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5739,7 +5774,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6102,7 +6137,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6789,7 +6824,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
