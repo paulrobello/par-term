@@ -50,9 +50,15 @@ fn query_daemon(socket: &Path) -> Result<MuxDirectory, String> {
     let daemon = daemon_name_of(socket).unwrap_or_default();
     let mut client = par_term_mux::MuxSessionClient::connect(socket)
         .map_err(|e| format!("par-mux daemon '{daemon}': {e}"))?;
-    let workspaces = client
-        .list_workspaces()
-        .map_err(|e| format!("par-mux daemon '{daemon}': {e}"))?
+    // A daemon predating the workspace commands answers
+    // `unknown command: list-workspaces`; its sessions still list, and an
+    // empty workspace list simply hides the picker's workspaces section.
+    let workspaces = match client.list_workspaces() {
+        Ok(rows) => rows,
+        Err(e) if is_unknown_command(&e.to_string()) => Vec::new(),
+        Err(e) => return Err(format!("par-mux daemon '{daemon}': {e}")),
+    };
+    let workspaces = workspaces
         .into_iter()
         .map(|w| MuxWorkspaceRow {
             socket: socket.to_path_buf(),
@@ -139,6 +145,12 @@ fn is_dead_socket(message: &str) -> bool {
     lower.contains("connection refused")
         || lower.contains("no such file")
         || lower.contains("not found")
+}
+
+/// The daemon replied with its `unknown command:` error line — the client
+/// sent a command this daemon binary predates.
+fn is_unknown_command(message: &str) -> bool {
+    message.contains("unknown command:")
 }
 
 /// A background scan in flight. The picker, the palette cache, and the
