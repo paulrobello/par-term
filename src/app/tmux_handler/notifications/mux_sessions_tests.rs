@@ -108,6 +108,94 @@ fn daemon_sessions(socket: &Path) -> Vec<String> {
     names
 }
 
+/// The daemon's workspace rows (`list-workspaces`), name-sorted.
+fn daemon_workspaces(socket: &Path) -> Vec<par_term_mux::WorkspaceSummary> {
+    let mut client = par_term_mux::MuxSessionClient::connect(socket).expect("probe");
+    let mut workspaces = client.list_workspaces().expect("list-workspaces");
+    workspaces.sort_by(|a, b| a.name.cmp(&b.name));
+    workspaces
+}
+
+/// The workspace wire card's end-to-end criterion: create, switch (the
+/// view following to the resumed session), rename, and kill a workspace
+/// from par-term against a live daemon.
+#[test]
+fn workspaces_create_switch_rename_kill_end_to_end() {
+    let dir = socket_dir("workspaces");
+    daemon(&dir, "work", &["work"]);
+    let socket = dir.join("par-mux-work.sock");
+    let mut ws = window_in(&dir);
+    let rows = scan(&mut ws);
+
+    ws.handle_mux_session_request(MuxPickerAction::Attach(
+        rows.iter().find(|r| r.name == "work").unwrap().clone(),
+    ));
+    pump(&mut ws, "attach to work", |ws| attached(ws).is_some());
+
+    // CREATE: the daemon spawns the workspace's first session named after
+    // the workspace, and makes the workspace its active one.
+    ws.handle_mux_session_request(MuxPickerAction::NewWorkspace {
+        socket: socket.clone(),
+        daemon: "work".to_string(),
+        name: "dev".to_string(),
+    });
+    wait_until("the new workspace's session is listed", || {
+        scan(&mut ws).iter().any(|r| r.name == "dev")
+    });
+    let workspaces = daemon_workspaces(&socket);
+    let dev = workspaces
+        .iter()
+        .find(|w| w.name == "dev")
+        .expect("the created workspace is listed");
+    assert!(
+        dev.active,
+        "the new workspace becomes the daemon's active one"
+    );
+
+    // SWITCH (this window's daemon): the daemon resumes the workspace's
+    // active session as the displayed one, and the view follows.
+    let dev_row = ws
+        .tmux_state
+        .mux_directory
+        .as_ref()
+        .and_then(|d| d.workspaces.iter().find(|w| w.name == "dev"))
+        .cloned()
+        .expect("the directory lists the dev workspace");
+    ws.handle_mux_session_request(MuxPickerAction::SwitchWorkspace(dev_row.clone()));
+    pump(&mut ws, "follow lands on the resumed session", |ws| {
+        attached(ws) == Some(("work".to_string(), "dev".to_string()))
+    });
+
+    // RENAME daemon-side, then switch back to the workspace holding the
+    // original session.
+    ws.handle_mux_session_request(MuxPickerAction::RenameWorkspace(
+        dev_row.clone(),
+        "lab".to_string(),
+    ));
+    wait_until("the workspace reads its new name", || {
+        daemon_workspaces(&socket).iter().any(|w| w.name == "lab")
+    });
+    let main_row = ws
+        .tmux_state
+        .mux_directory
+        .as_ref()
+        .and_then(|d| d.workspaces.iter().find(|w| w.name == "main"))
+        .cloned()
+        .expect("the directory lists the main workspace");
+    ws.handle_mux_session_request(MuxPickerAction::SwitchWorkspace(main_row));
+    pump(&mut ws, "follow lands back on the original session", |ws| {
+        attached(ws) == Some(("work".to_string(), "work".to_string()))
+    });
+
+    // KILL: the workspace's sessions end with it.
+    ws.handle_mux_session_request(MuxPickerAction::KillWorkspace(dev_row));
+    wait_until("the workspace and its session are gone", || {
+        !daemon_workspaces(&socket).iter().any(|w| w.name == "lab")
+            && daemon_sessions(&socket) == vec!["work".to_string()]
+    });
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// The picker lists every session of every daemon, including a second
 /// session held by a daemon named otherwise — and attaching that one goes
 /// through its own daemon, never a new empty namesake.

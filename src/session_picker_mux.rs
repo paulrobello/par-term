@@ -23,6 +23,9 @@ pub struct MuxSessionRow {
     pub id: u64,
     /// Session name.
     pub name: String,
+    /// The workspace that owns the session (carried by `list-sessions`
+    /// rows since the workspace-aware wire).
+    pub workspace_name: String,
 }
 
 impl MuxSessionRow {
@@ -34,11 +37,27 @@ impl MuxSessionRow {
     }
 }
 
+/// One workspace a running daemon holds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MuxWorkspaceRow {
+    /// The daemon socket that serves the workspace.
+    pub socket: PathBuf,
+    /// The daemon's name for the socket (`par-mux-<name>.sock`).
+    pub daemon: String,
+    /// Workspace id (`+N`) within its daemon.
+    pub id: u64,
+    /// Workspace name.
+    pub name: String,
+    /// The daemon's active workspace (the one `select-workspace` resumes).
+    pub active: bool,
+}
+
 /// What a directory scan found: sessions, plus one message per daemon that
 /// could not be read (a broken daemon is visible, not silently absent).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MuxDirectory {
     pub sessions: Vec<MuxSessionRow>,
+    pub workspaces: Vec<MuxWorkspaceRow>,
     pub errors: Vec<String>,
 }
 
@@ -55,6 +74,19 @@ pub enum MuxPickerAction {
     Kill(MuxSessionRow),
     /// Detach this window from its session.
     Detach,
+    /// Create a named workspace on a listed daemon.
+    NewWorkspace {
+        socket: PathBuf,
+        daemon: String,
+        name: String,
+    },
+    /// Land on a listed daemon's workspace: daemon-side select, and for
+    /// this window's own daemon, follow to the resumed session.
+    SwitchWorkspace(MuxWorkspaceRow),
+    /// Rename a listed workspace daemon-side.
+    RenameWorkspace(MuxWorkspaceRow, String),
+    /// End a listed workspace (`kill-workspace`), after confirmation.
+    KillWorkspace(MuxWorkspaceRow),
 }
 
 /// The daemon name a socket path encodes, or `None` for a file that is not
@@ -93,6 +125,19 @@ pub fn session_name_refusal(name: &str) -> Option<&'static str> {
     None
 }
 
+/// Why `name` cannot name a workspace, or `None` when it can. Workspace
+/// names ride the wire quoted (the `new-workspace -n` grammar), so only
+/// the line-framed wire itself constrains them.
+pub fn workspace_name_refusal(name: &str) -> Option<&'static str> {
+    if name.is_empty() {
+        return Some("a workspace name is required");
+    }
+    if name.chars().any(|c| c == '\n' || c == '\r') {
+        return Some("a workspace name cannot contain line breaks");
+    }
+    None
+}
+
 /// What the picker's par-mux section shows this frame.
 pub struct MuxPickerInput<'a> {
     /// The last finished scan, or `None` before the first one lands.
@@ -116,6 +161,17 @@ pub struct MuxPickerSection {
     confirm_kill: Option<MuxSessionRow>,
     /// Refusal for the typed new-session name, shown under the field.
     name_error: Option<&'static str>,
+    /// Workspace being renamed, with its edit buffer.
+    ws_renaming: Option<(MuxWorkspaceRow, String)>,
+    /// The workspace rename field was just opened (OV4).
+    ws_rename_first_frame: bool,
+    /// Workspace whose End was pressed once; a second press ends it.
+    ws_confirm_kill: Option<MuxWorkspaceRow>,
+    /// The daemon a pending new-workspace name targets: `(socket, daemon,
+    /// edit buffer)` while the inline new-workspace prompt is open.
+    ws_new_target: Option<(PathBuf, String, String)>,
+    /// Refusal for the typed new-workspace name, shown under the field.
+    ws_name_error: Option<&'static str>,
 }
 
 impl MuxPickerSection {
@@ -168,6 +224,36 @@ impl MuxPickerSection {
         for row in sessions {
             if let Some(chosen) = self.show_row(ui, row, input.attached) {
                 action = Some(chosen);
+            }
+        }
+
+        // Workspaces subsection, grouped per daemon: each daemon's
+        // workspaces with Switch/Rename/End and a New affordance —
+        // create/switch/kill workspaces end to end from par-term.
+        if let Some(dir) = input.directory {
+            let mut seen: Vec<PathBuf> = Vec::new();
+            for ws in &dir.workspaces {
+                if seen.contains(&ws.socket) {
+                    continue;
+                }
+                seen.push(ws.socket.clone());
+                ui.add_space(8.0);
+                ui.separator();
+                ui.label(
+                    RichText::new(format!("Workspaces — {}", ws.daemon))
+                        .weak()
+                        .small(),
+                );
+                for w in dir.workspaces.iter().filter(|w| w.socket == ws.socket) {
+                    if let Some(chosen) =
+                        self.show_workspace_row(ui, w, input.attached, &dir.sessions)
+                    {
+                        action = Some(chosen);
+                    }
+                }
+                if let Some(chosen) = self.show_new_workspace_row(ui, &ws.socket, &ws.daemon) {
+                    action = Some(chosen);
+                }
             }
         }
         if let Some(dir) = input.directory {
@@ -282,6 +368,156 @@ impl MuxPickerSection {
         });
         action
     }
+
+    /// One workspace row: name with the active marker, then Switch /
+    /// Rename / End on the right.
+    fn show_workspace_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        ws: &MuxWorkspaceRow,
+        attached: Option<(&str, &str)>,
+        sessions: &[MuxSessionRow],
+    ) -> Option<MuxPickerAction> {
+        let mut action = None;
+        let ours = attached.is_some_and(|(daemon, _)| daemon == ws.daemon);
+        if let Some((target, buffer)) = self.ws_renaming.as_mut()
+            && target == ws
+        {
+            // UX.md OV4: Enter submits, Escape or a click away cancels.
+            use crate::app::overlay::inline_edit::{self, InlineEditOutcome};
+            let first_frame = std::mem::take(&mut self.ws_rename_first_frame);
+            let mut outcome = InlineEditOutcome::Editing;
+            ui.horizontal(|ui| {
+                let response = ui.add(egui::TextEdit::singleline(buffer).desired_width(160.0));
+                outcome = inline_edit::resolve(ui, &response, first_frame);
+                if ui.button("Cancel").clicked() {
+                    outcome = InlineEditOutcome::Cancel;
+                }
+            });
+            match outcome {
+                InlineEditOutcome::Submit => {
+                    action = Some(MuxPickerAction::RenameWorkspace(
+                        ws.clone(),
+                        buffer.trim().to_string(),
+                    ));
+                    self.ws_renaming = None;
+                }
+                InlineEditOutcome::Cancel => self.ws_renaming = None,
+                InlineEditOutcome::Editing => {}
+            }
+            return action;
+        }
+        ui.horizontal(|ui| {
+            let label = if ws.active {
+                RichText::new(format!("{} (active)", ws.name)).strong()
+            } else {
+                RichText::new(&ws.name)
+            };
+            ui.label(label);
+            if ours {
+                ui.label(RichText::new("(this daemon)").weak());
+            }
+            let session_count = sessions
+                .iter()
+                .filter(|s| s.socket == ws.socket && s.workspace_name == ws.name)
+                .count();
+            if session_count > 0 {
+                ui.label(
+                    RichText::new(format!(
+                        "({session_count} session{})",
+                        if session_count == 1 { "" } else { "s" }
+                    ))
+                    .weak(),
+                );
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let armed = self.ws_confirm_kill.as_ref() == Some(ws);
+                let end = if armed { "Confirm End" } else { "End" };
+                if ui
+                    .button(RichText::new(end).color(crate::app::overlay::theme::DANGER))
+                    .on_hover_text("End the workspace and every session in it")
+                    .clicked()
+                {
+                    if armed {
+                        self.ws_confirm_kill = None;
+                        action = Some(MuxPickerAction::KillWorkspace(ws.clone()));
+                    } else {
+                        self.ws_confirm_kill = Some(ws.clone());
+                    }
+                }
+                if ui.button("Rename").clicked() {
+                    self.ws_confirm_kill = None;
+                    self.ws_renaming = Some((ws.clone(), ws.name.clone()));
+                    self.ws_rename_first_frame = true;
+                }
+                if !ws.active && ui.button("Switch").clicked() {
+                    self.ws_confirm_kill = None;
+                    action = Some(MuxPickerAction::SwitchWorkspace(ws.clone()));
+                }
+            });
+        });
+        action
+    }
+
+    /// The per-daemon new-workspace affordance: a button that opens an
+    /// inline name prompt, and the prompt row while it is open.
+    fn show_new_workspace_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        socket: &Path,
+        daemon: &str,
+    ) -> Option<MuxPickerAction> {
+        let open = self
+            .ws_new_target
+            .as_ref()
+            .is_some_and(|(s, d, _)| s == socket && d == daemon);
+        if !open {
+            if ui.button("New workspace").clicked() {
+                self.ws_new_target =
+                    Some((socket.to_path_buf(), daemon.to_string(), String::new()));
+                self.ws_name_error = None;
+            }
+            return None;
+        }
+        let mut buffer = self
+            .ws_new_target
+            .as_ref()
+            .map(|(_, _, b)| b.clone())
+            .unwrap_or_default();
+        let mut chosen: Option<MuxPickerAction> = None;
+        ui.horizontal(|ui| {
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut buffer)
+                    .desired_width(160.0)
+                    .hint_text("workspace name"),
+            );
+            let submit = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if ui.button("Create").clicked() || submit {
+                let name = buffer.trim().to_string();
+                match workspace_name_refusal(&name) {
+                    Some(reason) => self.ws_name_error = Some(reason),
+                    None => {
+                        self.ws_new_target = None;
+                        chosen = Some(MuxPickerAction::NewWorkspace {
+                            socket: socket.to_path_buf(),
+                            daemon: daemon.to_string(),
+                            name,
+                        });
+                    }
+                }
+            }
+            if ui.button("Cancel").clicked() {
+                self.ws_new_target = None;
+            }
+        });
+        if let Some((_, _, b)) = self.ws_new_target.as_mut() {
+            *b = buffer;
+        }
+        if let Some(reason) = self.ws_name_error {
+            ui.colored_label(crate::app::overlay::theme::DANGER, reason);
+        }
+        chosen
+    }
 }
 
 #[cfg(test)]
@@ -294,6 +530,7 @@ mod tests {
             daemon: daemon.to_string(),
             id: 0,
             name: name.to_string(),
+            workspace_name: String::new(),
         }
     }
 

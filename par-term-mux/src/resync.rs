@@ -31,6 +31,15 @@ pub struct WindowSummary {
     pub name: String,
 }
 
+/// One workspace from `list-workspaces` (`+N: name[ active]`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceSummary {
+    pub id: u64,
+    pub name: String,
+    /// The daemon's active workspace (the one `select-workspace` resumes).
+    pub active: bool,
+}
+
 /// What [`MuxSessionClient::create_or_attach`] did.
 #[derive(Debug, Clone)]
 pub enum AttachOutcome {
@@ -90,6 +99,83 @@ impl MuxSessionClient {
             .into_iter()
             .find(|line| !line.trim().is_empty())
             .unwrap_or_default())
+    }
+
+    /// List the daemon's workspaces as `+N: name` rows, id order; the
+    /// daemon's active one ends with ` active`.
+    pub fn list_workspaces(&mut self) -> io::Result<Vec<WorkspaceSummary>> {
+        let lines = self.send("list-workspaces")?;
+        lines
+            .iter()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| {
+                let (id, name) = parse_id_name_line(line, '+')?;
+                let (name, active) = match name.strip_suffix(" active") {
+                    Some(name) => (name, true),
+                    None => (name.as_str(), false),
+                };
+                Ok(WorkspaceSummary {
+                    id,
+                    name: name.to_string(),
+                    active,
+                })
+            })
+            .collect()
+    }
+
+    /// Create a workspace (`new-workspace [-n name]`). The daemon answers
+    /// the new id (`+N`), makes it active, and spawns its first session
+    /// (named after the workspace, window `1`), so it is landable the
+    /// moment it exists.
+    pub fn new_workspace(&mut self, name: Option<&str>) -> io::Result<WorkspaceSummary> {
+        let flag = name.map_or_else(String::new, |n| {
+            format!(" -n {}", crate::quote_env_value(n))
+        });
+        let lines = self.send(&format!("new-workspace{flag}"))?;
+        let line = lines
+            .iter()
+            .find(|line| !line.trim().is_empty())
+            .ok_or_else(|| invalid_line("workspace id", ""))?;
+        let (id, name) = parse_id_name_line(line, '+')?;
+        Ok(WorkspaceSummary {
+            id,
+            name,
+            active: true,
+        })
+    }
+
+    /// Select a workspace (`select-workspace -t +N`): the workspace's
+    /// previously active session resumes as the daemon's displayed one.
+    pub fn select_workspace(&mut self, id: u64) -> io::Result<()> {
+        self.send(&format!("select-workspace -t +{id}")).map(|_| ())
+    }
+
+    /// Rename a workspace (`rename-workspace -t +N <name>`).
+    pub fn rename_workspace(&mut self, id: u64, name: &str) -> io::Result<()> {
+        let cmd = format!("rename-workspace -t +{id} {}", crate::quote_env_value(name));
+        self.send(&cmd).map(|_| ())
+    }
+
+    /// Kill a workspace (`kill-workspace -t +N`): its sessions end and the
+    /// workspace is removed; an emptied active workspace lands clients on
+    /// the first survivor.
+    pub fn kill_workspace(&mut self, id: par_term_tmux::TmuxWorkspaceId) -> io::Result<()> {
+        self.send(&format!("kill-workspace -t +{id}")).map(|_| ())
+    }
+
+    /// The displayed session's id (bare `switch-client`): the active
+    /// workspace's active session — the one a no-target attach resumes.
+    /// Empty when the daemon displays nothing.
+    pub fn displayed_session_id(&mut self) -> io::Result<Option<u64>> {
+        let lines = self.send("switch-client")?;
+        let Some(line) = lines.iter().find(|line| !line.trim().is_empty()) else {
+            return Ok(None);
+        };
+        line.trim()
+            .strip_prefix('$')
+            .and_then(|rest| rest.parse().ok())
+            .map(Some)
+            .ok_or_else(|| invalid_line("session id", line))
     }
 
     /// Attach to `name`, creating the session when it does not exist —

@@ -9,6 +9,10 @@ pub type TmuxWindowId = u64;
 /// tmux pane ID (e.g., %0, %1)
 pub type TmuxPaneId = u64;
 
+/// par-mux workspace ID (e.g., +0, +1) — par-mux's own level above
+/// sessions; tmux has no concept of it
+pub type TmuxWorkspaceId = u64;
+
 /// Information about a tmux session
 #[derive(Debug, Clone)]
 pub struct TmuxSessionInfo {

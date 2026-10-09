@@ -246,6 +246,7 @@ impl WindowState {
                 matches!(
                     n,
                     par_term_emu_core_rust::tmux_control::TmuxNotification::SessionsChanged
+                        | par_term_emu_core_rust::tmux_control::TmuxNotification::WorkspacesChanged
                 )
             });
         if !session_set_changes.is_empty() {

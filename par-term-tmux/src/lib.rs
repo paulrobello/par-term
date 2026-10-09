@@ -47,4 +47,5 @@ pub use status_format::{FormatContext, expand_format, sanitize_tmux_output};
 pub use sync::{SyncAction, TmuxSync};
 pub use types::{
     LayoutNode, TmuxLayout, TmuxPane, TmuxPaneId, TmuxSessionInfo, TmuxWindow, TmuxWindowId,
+    TmuxWorkspaceId,
 };

@@ -8,11 +8,12 @@
 //! is reached rather than shadowed by a new empty namesake.
 
 use super::mux::MuxAttachPending;
-use super::mux_directory::{self, MuxDirectory, MuxSessionRow, PendingScan};
+use super::mux_directory::{self, MuxDirectory, MuxSessionRow, MuxWorkspaceRow, PendingScan};
 use crate::app::window_state::WindowState;
 use std::path::{Path, PathBuf};
 
 pub(crate) use crate::session_picker_mux::MuxPickerAction as MuxSessionRequest;
+use crate::session_picker_mux::MuxPickerAction;
 
 impl WindowState {
     /// The socket directory this window scans and attaches in.
@@ -58,6 +59,7 @@ impl WindowState {
                 self.tmux_state.mux_directory_scan = None;
                 self.tmux_state.mux_directory = Some(result.unwrap_or_else(|()| MuxDirectory {
                     sessions: Vec::new(),
+                    workspaces: Vec::new(),
                     errors: vec!["par-mux session scan stopped unexpectedly".to_string()],
                 }));
                 true
@@ -185,17 +187,38 @@ impl WindowState {
                     self.show_toast("Not attached to a par-mux session");
                 }
             }
+            MuxSessionRequest::NewWorkspace {
+                socket,
+                daemon,
+                name,
+            } => {
+                self.new_mux_workspace(&socket, &daemon, &name);
+            }
+            MuxSessionRequest::SwitchWorkspace(ws) => {
+                self.switch_mux_workspace(&ws);
+            }
+            MuxSessionRequest::RenameWorkspace(ws, new_name) => {
+                self.rename_mux_workspace(&ws, &new_name);
+            }
+            MuxSessionRequest::KillWorkspace(ws) => {
+                self.kill_mux_workspace(&ws);
+            }
         }
         self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 
-    /// Run one command against the daemon serving `row` — through this
-    /// window's transport when that is the daemon, else a short-lived
+    /// Run one command against the daemon at `socket`/`daemon` — through
+    /// this window's transport when that is the daemon, else a short-lived
     /// connect (never a spawn).
-    fn send_to_session_daemon(&mut self, row: &MuxSessionRow, command: &str) -> Result<(), String> {
+    fn send_to_daemon(
+        &mut self,
+        socket: &Path,
+        daemon: &str,
+        command: &str,
+    ) -> Result<Vec<String>, String> {
         let ours = self.tmux_state.transport.is_some()
-            && self.tmux_state.mux_daemon.as_deref() == Some(row.daemon.as_str());
+            && self.tmux_state.mux_daemon.as_deref() == Some(daemon);
         let reply = if ours {
             self.tmux_state
                 .transport
@@ -203,12 +226,152 @@ impl WindowState {
                 .map(|t| t.send_command(command))
                 .unwrap_or_else(|| Err(std::io::Error::other("no transport")))
         } else {
-            par_term_mux::MuxSessionClient::connect(&row.socket).and_then(|mut c| c.send(command))
+            par_term_mux::MuxSessionClient::connect(socket).and_then(|mut c| c.send(command))
         };
         match reply {
             Ok(body) if body.iter().any(|l| l.starts_with("%error")) => Err(body.join(" ")),
-            Ok(_) => Ok(()),
+            Ok(body) => Ok(body),
             Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// Run one command against the daemon serving `row`.
+    fn send_to_session_daemon(&mut self, row: &MuxSessionRow, command: &str) -> Result<(), String> {
+        self.send_to_daemon(&row.socket, &row.daemon, command)
+            .map(|_| ())
+    }
+
+    /// Create a workspace on a daemon (`new-workspace -n`): the daemon
+    /// makes it active and spawns its first session, so the new row is
+    /// landable the moment it exists.
+    fn new_mux_workspace(&mut self, socket: &Path, daemon: &str, name: &str) {
+        if let Some(reason) = crate::session_picker_mux::workspace_name_refusal(name) {
+            self.show_toast(format!("par-mux: {reason}"));
+            return;
+        }
+        let command = format!("new-workspace -n {}", par_term_mux::quote_env_value(name));
+        match self.send_to_daemon(socket, daemon, &command) {
+            Ok(_) => {
+                self.show_toast(format!("par-mux: created workspace '{name}'"));
+                self.refresh_mux_directory();
+            }
+            Err(e) => self.record_mux_error(format!("par-mux: new-workspace failed — {e}")),
+        }
+    }
+
+    /// Land on a listed daemon's workspace (`select-workspace -t +N`). For
+    /// this window's own daemon the view follows: the daemon resumes the
+    /// workspace's active session as the displayed one, and this window
+    /// reattaches to it through the ordinary session-switch flow.
+    fn switch_mux_workspace(&mut self, ws: &MuxWorkspaceRow) {
+        let ours = self.tmux_state.transport.is_some()
+            && self.tmux_state.mux_daemon.as_deref() == Some(ws.daemon.as_str());
+        match self.send_to_daemon(
+            &ws.socket,
+            &ws.daemon,
+            &format!("select-workspace -t +{}", ws.id),
+        ) {
+            Ok(_) => {
+                self.show_toast(format!("par-mux: switched to workspace '{}'", ws.name));
+                self.refresh_mux_directory();
+                if ours {
+                    self.follow_displayed_mux_session();
+                }
+            }
+            Err(e) => self.record_mux_error(format!("par-mux: select-workspace failed — {e}")),
+        }
+    }
+
+    /// After a daemon-side workspace switch, land this window on the
+    /// session the daemon now displays (bare `switch-client` answers its
+    /// id): resolve the id against a fresh directory and run the ordinary
+    /// attach flow. A listing that misses the id keeps the toast's switch
+    /// and skips the follow rather than attaching blind.
+    fn follow_displayed_mux_session(&mut self) {
+        let Some(transport) = self.tmux_state.transport.as_ref() else {
+            return;
+        };
+        let displayed = transport
+            .send_command("switch-client")
+            .ok()
+            .and_then(|lines| lines.into_iter().find(|l| !l.trim().is_empty()))
+            .and_then(|l| {
+                l.trim()
+                    .strip_prefix('$')
+                    .and_then(|r| r.parse::<u64>().ok())
+            });
+        let Some(displayed) = displayed else {
+            return;
+        };
+        // The cached directory may predate the switch: resolve the id
+        // against a live listing of this window's daemon. A session the
+        // listing does not carry keeps the toast's switch and skips the
+        // follow rather than attaching blind.
+        let daemon = self.tmux_state.mux_daemon.clone().unwrap_or_default();
+        let socket = self.tmux_state.mux_attach_socket.clone().or_else(|| {
+            self.mux_socket_dir()
+                .map(|dir| dir.join(format!("par-mux-{daemon}.sock")))
+        });
+        let Some(socket) = socket else {
+            return;
+        };
+        let row = par_term_mux::MuxSessionClient::connect(&socket)
+            .and_then(|mut c| c.list_sessions())
+            .ok()
+            .and_then(|sessions| {
+                sessions.into_iter().find(|s| s.id == displayed).map(|s| {
+                    crate::session_picker_mux::MuxSessionRow {
+                        socket: socket.clone(),
+                        daemon: daemon.clone(),
+                        id: s.id,
+                        name: s.name,
+                        workspace_name: s.workspace_name,
+                    }
+                })
+            });
+        let Some(row) = row else {
+            return;
+        };
+        self.handle_mux_session_request(MuxPickerAction::Attach(row));
+    }
+
+    /// Rename a listed workspace (`rename-workspace -t +N`).
+    fn rename_mux_workspace(&mut self, ws: &MuxWorkspaceRow, new_name: &str) {
+        if let Some(reason) = crate::session_picker_mux::workspace_name_refusal(new_name) {
+            self.show_toast(format!("par-mux: {reason}"));
+            return;
+        }
+        let command = format!(
+            "rename-workspace -t +{} {}",
+            ws.id,
+            par_term_mux::quote_env_value(new_name)
+        );
+        match self.send_to_daemon(&ws.socket, &ws.daemon, &command) {
+            Ok(_) => {
+                self.show_toast(format!(
+                    "par-mux: renamed workspace '{}' to '{new_name}'",
+                    ws.name
+                ));
+                self.refresh_mux_directory();
+            }
+            Err(e) => self.record_mux_error(format!("par-mux: rename-workspace failed — {e}")),
+        }
+    }
+
+    /// End a listed workspace (`kill-workspace -t +N`). When this window's
+    /// own session dies with it, the daemon's `%window-close` /
+    /// `%sessions-changed` pushes tear the view down, as for End session.
+    fn kill_mux_workspace(&mut self, ws: &MuxWorkspaceRow) {
+        match self.send_to_daemon(
+            &ws.socket,
+            &ws.daemon,
+            &format!("kill-workspace -t +{}", ws.id),
+        ) {
+            Ok(_) => {
+                self.show_toast(format!("par-mux: ended workspace '{}'", ws.name));
+                self.refresh_mux_directory();
+            }
+            Err(e) => self.record_mux_error(format!("par-mux: kill-workspace failed — {e}")),
         }
     }
 
@@ -413,6 +576,7 @@ mod tests {
             daemon: daemon.to_string(),
             id: 0,
             name: name.to_string(),
+            workspace_name: String::new(),
         }
     }
 
@@ -420,6 +584,7 @@ mod tests {
     fn attach_ids_round_trip_through_the_directory() {
         let dir = MuxDirectory {
             sessions: vec![row("work", "work"), row("default", "scratch")],
+            workspaces: vec![],
             errors: vec![],
         };
         let id = attach_action_id(&dir.sessions[1]);

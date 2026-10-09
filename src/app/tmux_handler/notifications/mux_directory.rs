@@ -18,7 +18,9 @@ use std::time::{Duration, Instant};
 /// How long one daemon may take to answer `list-sessions`.
 pub(crate) const DAEMON_QUERY_DEADLINE: Duration = Duration::from_secs(2);
 
-pub(crate) use crate::session_picker_mux::{MuxDirectory, MuxSessionRow, daemon_name_of};
+pub(crate) use crate::session_picker_mux::{
+    MuxDirectory, MuxSessionRow, MuxWorkspaceRow, daemon_name_of,
+};
 
 /// The directory the default par-mux sockets live in.
 pub(crate) fn default_socket_dir() -> Option<PathBuf> {
@@ -41,24 +43,42 @@ pub(crate) fn socket_files(dir: &Path) -> Vec<PathBuf> {
     sockets
 }
 
-/// Ask one daemon for its sessions. Connect-only: a socket nothing serves
-/// fails here, and nothing is spawned in its place.
-fn query_daemon(socket: &Path) -> Result<Vec<MuxSessionRow>, String> {
+/// Ask one daemon for its workspaces and sessions. Connect-only: a socket
+/// nothing serves fails here, and nothing is spawned in its place. The two
+/// lists share one connection so a scan is two round trips per daemon.
+fn query_daemon(socket: &Path) -> Result<MuxDirectory, String> {
     let daemon = daemon_name_of(socket).unwrap_or_default();
     let mut client = par_term_mux::MuxSessionClient::connect(socket)
         .map_err(|e| format!("par-mux daemon '{daemon}': {e}"))?;
+    let workspaces = client
+        .list_workspaces()
+        .map_err(|e| format!("par-mux daemon '{daemon}': {e}"))?
+        .into_iter()
+        .map(|w| MuxWorkspaceRow {
+            socket: socket.to_path_buf(),
+            daemon: daemon.clone(),
+            id: w.id,
+            name: w.name,
+            active: w.active,
+        })
+        .collect();
     let sessions = client
         .list_sessions()
-        .map_err(|e| format!("par-mux daemon '{daemon}': {e}"))?;
-    Ok(sessions
+        .map_err(|e| format!("par-mux daemon '{daemon}': {e}"))?
         .into_iter()
         .map(|s| MuxSessionRow {
             socket: socket.to_path_buf(),
             daemon: daemon.clone(),
             id: s.id,
             name: s.name,
+            workspace_name: s.workspace_name,
         })
-        .collect())
+        .collect();
+    Ok(MuxDirectory {
+        sessions,
+        workspaces,
+        errors: Vec::new(),
+    })
 }
 
 /// Scan every daemon socket in `dir`, one thread per daemon, each bounded
@@ -90,7 +110,10 @@ pub(crate) fn scan(dir: &Path, deadline: Duration) -> MuxDirectory {
             Ok((socket, result)) => {
                 pending.retain(|p| p != &socket);
                 match result {
-                    Ok(rows) => dir_out.sessions.extend(rows),
+                    Ok(rows) => {
+                        dir_out.sessions.extend(rows.sessions);
+                        dir_out.workspaces.extend(rows.workspaces);
+                    }
                     Err(e) if is_dead_socket(&e) => {}
                     Err(e) => dir_out.errors.push(e),
                 }
