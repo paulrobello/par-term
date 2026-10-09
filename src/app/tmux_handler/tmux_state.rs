@@ -416,6 +416,28 @@ impl TmuxState {
     pub(crate) fn remove_tmux_pane_mapping(&mut self, tmux_id: TmuxPaneId) {
         self.tmux_pane_owners.remove(&tmux_id);
     }
+
+    /// Drop every daemon-pane mapping of a closing tab — the window-wide
+    /// map's teardown half. `TmuxSync::unmap_window` cleans the WINDOW map
+    /// when a window's last pane closes; the per-pane owner entries keyed
+    /// by daemon pane id are tab-scoped, so the closing tab owns their
+    /// cleanup. Also drops the held-exited entries of those panes: a pane
+    /// removed with its window is daemon-gone, and a stale `%pane-exited`
+    /// entry would otherwise live for the session (invisible in the
+    /// banner gather, but garbage).
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) fn remove_tab_pane_mappings(&mut self, tab_id: TabId) {
+        let dropped: Vec<TmuxPaneId> = self
+            .tmux_pane_owners
+            .iter()
+            .filter(|(_, (owner, _))| *owner == tab_id)
+            .map(|(&tmux, _)| tmux)
+            .collect();
+        for tmux in &dropped {
+            self.tmux_pane_owners.remove(tmux);
+            self.mux_exited_panes.remove(tmux);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -432,6 +454,38 @@ mod tests {
         assert_eq!(
             state.persisted_session_names(),
             (Some("work".to_string()), None)
+        );
+    }
+
+    /// A closing tab's teardown drops that tab's daemon-pane owner entries
+    /// (and their held-exited entries) and touches no other tab's (card
+    /// 01a122a3).
+    #[test]
+    fn closing_a_tab_drops_its_pane_owner_entries() {
+        let mut state = TmuxState::new(None);
+        // Panes 0 and 1 belong to the closing tab 1; pane 2 to tab 2.
+        state.tmux_pane_owners.insert(0, (1, 10));
+        state.tmux_pane_owners.insert(1, (1, 11));
+        state.tmux_pane_owners.insert(2, (2, 20));
+        state.mux_exited_panes.insert(0, Some(7));
+        state.mux_exited_panes.insert(2, Some(1));
+
+        state.remove_tab_pane_mappings(1);
+
+        assert_eq!(
+            state.tmux_pane_owners.get(&2),
+            Some(&(2, 20)),
+            "tab 2 untouched"
+        );
+        assert!(!state.tmux_pane_owners.contains_key(&0));
+        assert!(!state.tmux_pane_owners.contains_key(&1));
+        assert!(
+            !state.mux_exited_panes.contains_key(&0),
+            "held entry dropped"
+        );
+        assert!(
+            state.mux_exited_panes.contains_key(&2),
+            "other tabs' held entries stay"
         );
     }
 }

@@ -359,6 +359,12 @@ mod tests {
                 .unwrap_or_default();
             !daemon_panes.iter().any(|l| l.trim() == format!("%{first}"))
         });
+        // The removal cascade closes the dead window's tab, and the
+        // tab-scoped teardown (card 01a122a3) drops the pane's owner entry
+        // with it.
+        pump_until(&mut ws, "the dead pane's owner entry is gone", |ws| {
+            !ws.tmux_state.tmux_pane_owners.contains_key(&first)
+        });
         // No respawn affordance: the banner gather needs a LIVE mapping
         // (`tmux_pane_owner` + the pane's bounds in the ACTIVE tab), and
         // this window is showing a surviving window, not the dead one.
