@@ -106,7 +106,6 @@ impl SettingsWindow {
                 required_limits: par_term_render::texture_limits(
                     adapter.limits().max_texture_dimension_2d,
                 ),
-                memory_hints: wgpu::MemoryHints::MemoryUsage,
                 ..Default::default()
             })
             .await?;
