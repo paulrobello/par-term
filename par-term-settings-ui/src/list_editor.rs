@@ -95,15 +95,18 @@ pub fn row_actions(
     }
     if buttons.reorder {
         let last = row.index + 1 >= row.len;
+        // Nerd Font arrows (U+F063/U+F062): the classic arrows U+2191/U+2193
+        // are carried by NO font in the egui stack (egui's subsetted
+        // Ubuntu-Light, emoji-icon-font, SymbolsNerdFontMono) and render as □.
         if ui
-            .add_enabled(!last, egui::Button::new("\u{2193}").small())
+            .add_enabled(!last, egui::Button::new("\u{f063}").small())
             .on_hover_text("Move down")
             .clicked()
         {
             action = Some(RowAction::MoveDown(row.index));
         }
         if ui
-            .add_enabled(row.index > 0, egui::Button::new("\u{2191}").small())
+            .add_enabled(row.index > 0, egui::Button::new("\u{f062}").small())
             .on_hover_text("Move up")
             .clicked()
         {
