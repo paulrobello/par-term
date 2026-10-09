@@ -6,55 +6,53 @@
 /// Embedded Nerd Font Symbols (Mono variant, ~2.5MB).
 const NERD_FONT_BYTES: &[u8] = include_bytes!("../assets/fonts/SymbolsNerdFontMono-Regular.ttf");
 
-/// Configure egui to use Nerd Font Symbols as a fallback font.
-///
-/// Call this once after creating each `egui::Context` (main window and settings window).
-/// Adds the Nerd Font as the last fallback in the Proportional and Monospace families
-/// so that standard Latin text still uses egui's default font, but Nerd Font codepoints render.
-///
-/// Also attempts to load a system font that covers the Braille Patterns Unicode block
-/// (U+2800–U+28FF). These characters are used by CLI spinners such as Claude Code's thinking
-/// indicator (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏). None of egui's default fonts nor SymbolsNerdFontMono cover
-/// this block, so without this fallback they render as □.
-pub fn configure_nerd_font(ctx: &egui::Context) {
+/// The full fallback stack par-term ships on top of egui's defaults: the
+/// Braille fallback and the Nerd Font symbols, last in the Proportional and
+/// Monospace families. One builder so a late font install composes with it —
+/// `Context::set_fonts` replaces the whole stack, so a caller starting from
+/// `FontDefinitions::default()` silently drops these fallbacks (the IME CJK
+/// overlay once did; tab icons and spinner braille then rendered as □).
+pub fn font_definitions() -> egui::FontDefinitions {
     let mut fonts = egui::FontDefinitions::default();
     fonts.font_data.insert(
         "nerd_font_symbols".to_owned(),
         egui::FontData::from_static(NERD_FONT_BYTES).into(),
     );
 
-    // Add a system font that covers the Braille Patterns block (U+2800–U+28FF) so that
-    // CLI spinner characters render correctly in the tab bar.
+    // A system font covering the Braille Patterns block (U+2800–U+28FF) so
+    // CLI spinner characters (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏) render in the tab bar. None of
+    // egui's default fonts nor SymbolsNerdFontMono cover the block.
     if let Some(braille_bytes) = load_braille_font() {
         fonts.font_data.insert(
             "braille_fallback".to_owned(),
             egui::FontData::from_owned(braille_bytes).into(),
         );
-        fonts
-            .families
-            .entry(egui::FontFamily::Proportional)
-            .or_default()
-            .push("braille_fallback".to_owned());
-        fonts
-            .families
-            .entry(egui::FontFamily::Monospace)
-            .or_default()
-            .push("braille_fallback".to_owned());
+        for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+            fonts
+                .families
+                .entry(family)
+                .or_default()
+                .push("braille_fallback".to_owned());
+        }
     }
 
-    // Add Nerd Font as last fallback for Proportional family
+    // Nerd Font last, so Nerd Font codepoints render everywhere (profile
+    // and tab icons, badges) while standard Latin text keeps egui's default.
+    for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+        fonts
+            .families
+            .entry(family)
+            .or_default()
+            .push("nerd_font_symbols".to_owned());
+    }
     fonts
-        .families
-        .entry(egui::FontFamily::Proportional)
-        .or_default()
-        .push("nerd_font_symbols".to_owned());
-    // Also add as fallback for Monospace family (for tab bar, badges, etc.)
-    fonts
-        .families
-        .entry(egui::FontFamily::Monospace)
-        .or_default()
-        .push("nerd_font_symbols".to_owned());
-    ctx.set_fonts(fonts);
+}
+
+/// Configure egui to use Nerd Font Symbols as a fallback font.
+///
+/// Call this once after creating each `egui::Context` (main window and settings window).
+pub fn configure_nerd_font(ctx: &egui::Context) {
+    ctx.set_fonts(font_definitions());
 }
 
 /// Try to find a system font that covers the Braille Patterns Unicode block (U+2800–U+28FF).

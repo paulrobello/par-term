@@ -146,26 +146,37 @@ fn ensure_ime_fallback_font(ctx: &egui::Context) {
 }
 
 /// Try the system CJK font candidates and install the first readable one as
-/// an egui fallback family member. Returns whether a font was installed.
+/// an egui fallback family member. Builds on the full shipped stack
+/// (`nerd_font::font_definitions`) — `set_fonts` replaces everything — so
+/// the nerd and braille fallbacks survive. Returns whether a font was installed.
 fn install_cjk_fallback_font(ctx: &egui::Context) -> bool {
     for path in CJK_FONT_CANDIDATES {
         let Ok(bytes) = std::fs::read(path) else {
             continue;
         };
-        let mut fonts = egui::FontDefinitions::default();
-        fonts.font_data.insert(
-            "ime_cjk".into(),
-            std::sync::Arc::new(egui::FontData::from_owned(bytes)),
-        );
-        for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-            if let Some(list) = fonts.families.get_mut(&family) {
-                list.push("ime_cjk".into());
-            }
-        }
-        ctx.set_fonts(fonts);
+        ctx.set_fonts(cjk_font_definitions(bytes));
         return true;
     }
     false
+}
+
+/// The CJK fallback composed onto the full shipped stack — the pure half of
+/// [`install_cjk_fallback_font`], so a test can assert the nerd and braille
+/// fallbacks survive the install.
+fn cjk_font_definitions(bytes: Vec<u8>) -> egui::FontDefinitions {
+    let mut fonts = crate::settings_ui::nerd_font::font_definitions();
+    fonts.font_data.insert(
+        "ime_cjk".into(),
+        std::sync::Arc::new(egui::FontData::from_owned(bytes)),
+    );
+    for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+        fonts
+            .families
+            .entry(family)
+            .or_default()
+            .push("ime_cjk".into());
+    }
+    fonts
 }
 
 /// System fonts with CJK coverage, tried in order for the IME preedit overlay.
@@ -814,5 +825,24 @@ mod ime_tests {
             has_candidate,
             "a system CJK font exists, so composing text must not render as tofu"
         );
+    }
+
+    #[test]
+    fn cjk_composition_preserves_shipped_fallbacks() {
+        // The IME overlay's install composes onto the shipped stack instead
+        // of replacing it: the nerd font (tab icons) and, where the system
+        // provides one, the braille fallback must survive `set_fonts`.
+        let fonts = super::cjk_font_definitions(Vec::new());
+        assert!(fonts.font_data.contains_key("ime_cjk"));
+        assert!(fonts.font_data.contains_key("nerd_font_symbols"));
+        for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+            let list = &fonts.families[&family];
+            assert!(list.iter().any(|f| f == "ime_cjk"), "{family:?}");
+            assert!(list.iter().any(|f| f == "nerd_font_symbols"), "{family:?}");
+        }
+        let shipped = crate::settings_ui::nerd_font::font_definitions();
+        if shipped.font_data.contains_key("braille_fallback") {
+            assert!(fonts.font_data.contains_key("braille_fallback"));
+        }
     }
 }
