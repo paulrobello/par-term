@@ -453,13 +453,40 @@ impl WindowState {
     /// — daemon death is the disconnect path's job, not this one. `false`
     /// without an attach (no transport, no session id) keeps the drain a
     /// no-op.
-    fn attached_mux_session_is_gone(&self) -> bool {
+    ///
+    /// The status read is capability-gated (ENH-043): when the daemon
+    /// advertises `client-snapshot v1` on `list-commands` (asked once per
+    /// transport, lazily) the whole roster arrives in one round trip
+    /// (`client-snapshot -t <window>`); any other case — capability
+    /// absent, no mapped window, the target window just died with the
+    /// session — falls through to the per-fact `list-sessions` query, so a
+    /// daemon without the token never sees a `client-snapshot` line.
+    fn attached_mux_session_is_gone(&mut self) -> bool {
         let Some(session_id) = self.tmux_state.mux_session_id else {
             return false;
         };
         let Some(transport) = &self.tmux_state.transport else {
             return false;
         };
+        if self.tmux_state.mux_snapshot_supported.is_none() {
+            let supported = transport
+                .send_command("list-commands")
+                .map(|lines| par_term_mux::MuxSessionClient::snapshot_supported(&lines))
+                .unwrap_or(false);
+            self.tmux_state.mux_snapshot_supported = Some(supported);
+        }
+        // The snapshot carries every session regardless of which window
+        // names the query, but a mapped window still makes a better target
+        // (it marks the displayed session). When the target has just died
+        // with the session the reply is an error body — no `snapshot 1`
+        // header — and the per-fact query below answers instead.
+        if self.tmux_state.mux_snapshot_supported == Some(true)
+            && let Some(window) = self.a_mapped_mux_window()
+            && let Ok(lines) = transport.send_command(&format!("client-snapshot -t @{window}"))
+            && let Ok(snap) = par_term_mux::ClientSnapshot::parse(&lines)
+        {
+            return !snap.sessions.iter().any(|s| s.id == session_id);
+        }
         let Ok(lines) = transport.send_command("list-sessions") else {
             return false;
         };
@@ -481,6 +508,15 @@ impl WindowState {
             }
         }
         !ids.contains(&session_id)
+    }
+
+    /// A daemon window this window's tabs map, for a window-targeted
+    /// query. Local tabs map nothing, so the first mapped tab wins.
+    fn a_mapped_mux_window(&self) -> Option<u64> {
+        self.tab_manager
+            .tabs()
+            .iter()
+            .find_map(|tab| self.tmux_state.tmux_sync.get_window(tab.id))
     }
 
     /// Feed replayed screens to panes once their mappings exist — panes are

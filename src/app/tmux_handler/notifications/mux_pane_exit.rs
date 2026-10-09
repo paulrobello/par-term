@@ -261,6 +261,123 @@ mod tests {
         assert_eq!(respawn_command(5, false), "respawn-pane -k -t %5");
     }
 
+    /// The auto-remove half of the remain-on-exit criterion (core card
+    /// 01a1020b): under the product default (`remain-on-exit = false`, the
+    /// config the daemon binary publishes) a dead pane is REMOVED — the
+    /// daemon broadcasts `%pane-exited` ahead of the removal cascade, and
+    /// once the mapping drops the respawn banner has nothing to attach to:
+    /// no affordance, while the session view survives on its second window.
+    #[test]
+    fn auto_remove_daemon_shows_no_respawn_affordance() {
+        use super::super::mux::MuxAttachPending;
+        use super::super::mux::tests::{manners_state, socket_path};
+        use super::super::mux_test_seams::attach_until_installed;
+
+        let path = socket_path("pane-autoremove");
+        let mut server = par_term_emu_core_rust::mux::MuxServer::bind(&path).expect("daemon binds");
+        // The published-config default the daemon binary runs with.
+        server.set_config(std::sync::Arc::new(parking_lot::Mutex::new(
+            par_term_emu_core_rust::mux::config::EffectiveConfig {
+                remain_on_exit: false,
+                ..Default::default()
+            },
+        )));
+        std::thread::spawn(move || server.run());
+
+        let mut ws = manners_state();
+        attach_until_installed(
+            &mut ws,
+            || {
+                let core_client =
+                    par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+                let (tx, rx) = std::sync::mpsc::channel();
+                tx.send(Ok(core_client)).unwrap();
+                drop(tx);
+                MuxAttachPending {
+                    name: "doomed".to_string(),
+                    rx,
+                }
+            },
+            &path,
+        );
+        ws.handle_tmux_window_add(0);
+        wait_until("the layout consumer maps %0", || {
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_command_no_wait("refresh-client -t %0 -C 80x24")
+                .expect("size push");
+            ws.check_mux_notifications();
+            ws.tmux_state.tmux_pane_owners.contains_key(&0)
+        });
+        let send = |ws: &crate::app::window_state::WindowState, cmd: &str| {
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_settled(cmd)
+                .unwrap_or_else(|e| panic!("{cmd}: {e}"))
+        };
+
+        // A second window keeps the session (and the view) alive when the
+        // first pane dies; a keeper session keeps the daemon itself up.
+        send(&ws, "new-window");
+        wait_until("the second window's pane maps", || {
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_command_no_wait("refresh-client -t %1 -C 80x24")
+                .expect("size push");
+            ws.check_mux_notifications();
+            ws.tmux_state.tmux_pane_owners.contains_key(&1)
+        });
+        let mut probe = par_term_mux::MuxSessionClient::connect(&path).expect("probe");
+        probe.create_or_attach("keeper").expect("keeper session");
+
+        quiesce(&mut ws);
+
+        // The shell exits with a known code: auto-remove removes the pane
+        // (window @0 gone), with `%pane-exited` only ever broadcast ahead
+        // of the cascade.
+        send(&ws, "send-keys -t %0 -l 'exit 7'");
+        send(&ws, "send-keys -t %0 Enter");
+        pump_until(&mut ws, "the dead pane's mapping is gone", |ws| {
+            !ws.tmux_state.tmux_pane_owners.contains_key(&0)
+        });
+        assert!(
+            ws.tmux_state.mux_exited_panes.is_empty(),
+            "no respawn affordance survives the removal: {:?}",
+            ws.tmux_state.mux_exited_panes
+        );
+        assert!(
+            crate::app::render_pipeline::exited_pane_overlay::gather_exited_pane_banners(
+                &ws.tmux_state,
+                ws.tab_manager.active_tab(),
+                1.0,
+            )
+            .is_empty(),
+            "no respawn banner renders under auto-remove"
+        );
+        // The session view survived on its second window.
+        assert!(
+            ws.tmux_state.tmux_session_name.is_some(),
+            "the view lives on: the session has a second window"
+        );
+        let names: Vec<String> = probe
+            .list_sessions()
+            .expect("list after teardown")
+            .into_iter()
+            .map(|s| s.name)
+            .collect();
+        assert!(
+            names.contains(&"doomed".to_string()),
+            "the session survived its window: {names:?}"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Pump the drain until `done` holds.
     fn pump_until(
         ws: &mut crate::app::window_state::WindowState,

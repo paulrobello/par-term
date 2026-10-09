@@ -400,6 +400,7 @@ impl WindowState {
         match attach {
             Ok(outcome) => {
                 self.tmux_state.transport = Some(Box::new(transport));
+                self.tmux_state.mux_snapshot_supported = None;
                 self.tmux_state.mux_focused_pane = None;
                 self.tmux_state.tmux_session_name = Some(name.to_string());
                 self.tmux_state.mux_session_id = Some(match &outcome {
@@ -436,6 +437,7 @@ impl WindowState {
             return false;
         }
         // Mux-only state the shared cleanup below does not know about.
+        self.tmux_state.mux_snapshot_supported = None;
         self.tmux_state.mux_focused_pane = None;
         self.tmux_state.mux_screen_seeds.clear();
         self.tmux_state.mux_pane_titles.clear();
@@ -6437,11 +6439,28 @@ out.flush()
     /// itself keeps running.
     #[test]
     fn sessions_changed_ends_views_whose_session_is_gone() {
+        sessions_changed_ends_view(None);
+    }
+
+    /// The per-fact half of the capability gate (ENH-043): a daemon whose
+    /// `list-commands` does not advertise `client-snapshot v1` gets the
+    /// plain `list-sessions` re-query and never a `client-snapshot` line.
+    #[test]
+    fn sessions_changed_per_fact_fallback_still_ends_the_view() {
+        sessions_changed_ends_view(Some(false));
+    }
+
+    /// The shared body: kill the attached session from a second client and
+    /// pump until the view ends. `force_snapshot_supported` pre-seeds the
+    /// capability cache (`None` = let the drain probe the real daemon,
+    /// which advertises `client-snapshot v1` and takes the snapshot path).
+    fn sessions_changed_ends_view(force_snapshot_supported: Option<bool>) {
         // Capture the path once: `socket_path` UNLINKS on every call (it
         // is a spawn helper, not a getter), so re-calling it after
         // `attached_state` bound the daemon would delete the live socket.
         let path = socket_path("gone-session");
         let (mut ws, mut probe) = attached_state("gone-session", "doomed");
+        ws.tmux_state.mux_snapshot_supported = force_snapshot_supported;
         assert!(
             ws.tmux_state.transport.is_some() && ws.tmux_state.mux_session_id.is_some(),
             "precondition: the view is attached"

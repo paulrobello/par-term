@@ -40,6 +40,105 @@ pub struct WorkspaceSummary {
     pub active: bool,
 }
 
+/// What a `client-snapshot` reply carries that par-term reads: every
+/// workspace and every session, with the target window's owning session
+/// marked. `window`/`pane`/`agent` rows and any future row kind are
+/// ignored here — the drain's status read needs the two rosters only.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ClientSnapshot {
+    pub workspaces: Vec<WorkspaceSummary>,
+    pub sessions: Vec<SnapshotSession>,
+}
+
+/// One `session` row: `$N <*|-> +W <name>`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SnapshotSession {
+    pub id: u64,
+    pub name: String,
+    pub workspace_id: u64,
+    /// The session that owns the snapshot's target window.
+    pub displayed: bool,
+}
+
+impl ClientSnapshot {
+    /// Parse a `client-snapshot` reply: the `snapshot 1` header, then one
+    /// typed row per line. Unknown row kinds and unknown trailing tokens
+    /// are ignored; a header that is not `snapshot 1` is an error (the
+    /// positional contract may have moved under a bumped version).
+    pub fn parse(lines: &[String]) -> io::Result<Self> {
+        let mut snapshot = Self::default();
+        let mut header_seen = false;
+        for line in lines {
+            let mut words = line.splitn(2, ' ');
+            match words.next() {
+                Some("snapshot") => {
+                    if words.next() != Some("1") {
+                        return Err(invalid_line("snapshot version", line));
+                    }
+                    header_seen = true;
+                }
+                Some("workspace") => {
+                    // `workspace +W <*|-> <name>` — the name is the rest of
+                    // the line, so spaces survive.
+                    let err = || invalid_line("workspace row", line);
+                    let mut fields = line.splitn(4, ' ');
+                    let _kind = fields.next();
+                    let id = fields
+                        .next()
+                        .and_then(|w| w.strip_prefix('+'))
+                        .and_then(|w| w.parse().ok())
+                        .ok_or_else(err)?;
+                    let active = match fields.next().ok_or_else(err)? {
+                        "*" => true,
+                        "-" => false,
+                        _ => return Err(err()),
+                    };
+                    snapshot.workspaces.push(WorkspaceSummary {
+                        id,
+                        name: fields.next().unwrap_or_default().to_string(),
+                        active,
+                    });
+                }
+                Some("session") => {
+                    // `session $N <*|-> +W <name>`.
+                    let err = || invalid_line("session row", line);
+                    let mut fields = line.splitn(5, ' ');
+                    let _kind = fields.next();
+                    let id = fields
+                        .next()
+                        .and_then(|w| w.strip_prefix('$'))
+                        .and_then(|w| w.parse().ok())
+                        .ok_or_else(err)?;
+                    let displayed = match fields.next().ok_or_else(err)? {
+                        "*" => true,
+                        "-" => false,
+                        _ => return Err(err()),
+                    };
+                    let workspace_id = fields
+                        .next()
+                        .and_then(|w| w.strip_prefix('+'))
+                        .and_then(|w| w.parse().ok())
+                        .ok_or_else(err)?;
+                    snapshot.sessions.push(SnapshotSession {
+                        id,
+                        name: fields.next().unwrap_or_default().to_string(),
+                        workspace_id,
+                        displayed,
+                    });
+                }
+                _ => {}
+            }
+        }
+        if !header_seen {
+            return Err(invalid_line(
+                "snapshot header",
+                lines.first().map(String::as_str).unwrap_or(""),
+            ));
+        }
+        Ok(snapshot)
+    }
+}
+
 /// What [`MuxSessionClient::create_or_attach`] did.
 #[derive(Debug, Clone)]
 pub enum AttachOutcome {
@@ -176,6 +275,37 @@ impl MuxSessionClient {
             .and_then(|rest| rest.parse().ok())
             .map(Some)
             .ok_or_else(|| invalid_line("session id", line))
+    }
+
+    /// The daemon's dispatchable commands, one `name [feature …]` line per
+    /// command plus the daemon-level `features …` line. Capability
+    /// discovery: send once after `version`, then gate feature-specific
+    /// commands on the tokens.
+    pub fn list_commands(&mut self) -> io::Result<Vec<String>> {
+        Ok(self
+            .send("list-commands")?
+            .into_iter()
+            .filter(|line| !line.trim().is_empty())
+            .collect())
+    }
+
+    /// Whether `list-commands` output advertises the `client-snapshot v1`
+    /// capability — the only license to send `client-snapshot` on the
+    /// wire; a daemon without the token must never see the command.
+    pub fn snapshot_supported(list_commands: &[String]) -> bool {
+        list_commands.iter().any(|line| {
+            let mut words = line.split_whitespace();
+            words.next() == Some("client-snapshot") && words.any(|token| token == "v1")
+        })
+    }
+
+    /// The one-round-trip status read (`client-snapshot -t <window>`):
+    /// every workspace, every session (the target window's owner marked),
+    /// the owning session's windows, their panes, and the agent roster in
+    /// one reply. Sent only when [`Self::snapshot_supported`] passed.
+    pub fn client_snapshot(&mut self, window: TmuxWindowId) -> io::Result<ClientSnapshot> {
+        let lines = self.send(&format!("client-snapshot -t @{window}"))?;
+        ClientSnapshot::parse(&lines)
     }
 
     /// Attach to `name`, creating the session when it does not exist —
@@ -448,6 +578,69 @@ mod tests {
         assert_eq!(row.workspace_name, "$7: weird");
         assert_eq!(row.id, 1);
         assert_eq!(row.name, "dev");
+    }
+
+    #[test]
+    fn parses_a_client_snapshot_reply() {
+        let snap = ClientSnapshot::parse(&lines(&[
+            "snapshot 1",
+            "workspace +0 * main",
+            "workspace +1 - lab",
+            "session $0 - +0 work",
+            "session $1 * +1 spaced name",
+            "window @0 * main",
+            "pane %0 title with spaces",
+            "pane %1",
+            "agent %0 claude working hook",
+            "future-row-kind x y z",
+        ]))
+        .expect("snapshot parses");
+        assert_eq!(snap.workspaces.len(), 2);
+        assert_eq!(snap.workspaces[0].id, 0);
+        assert!(snap.workspaces[0].active);
+        assert_eq!(snap.workspaces[1].name, "lab");
+        assert_eq!(snap.sessions.len(), 2);
+        assert_eq!(snap.sessions[0].id, 0);
+        assert_eq!(snap.sessions[0].workspace_id, 0);
+        assert!(!snap.sessions[0].displayed);
+        // The name is the rest of the line, so spaces survive.
+        assert_eq!(snap.sessions[1].name, "spaced name");
+        assert!(snap.sessions[1].displayed);
+    }
+
+    #[test]
+    fn snapshot_rows_the_reader_does_not_need_are_ignored() {
+        // window/pane/agent rows and a future header-less garbage line do
+        // not break the two rosters the status read needs.
+        let snap =
+            ClientSnapshot::parse(&lines(&["snapshot 1", "window @0 * x", "agent %0 a s src"]))
+                .expect("snapshot parses");
+        assert!(snap.workspaces.is_empty());
+        assert!(snap.sessions.is_empty());
+    }
+
+    #[test]
+    fn snapshot_replies_without_a_v1_header_are_rejected() {
+        assert!(ClientSnapshot::parse(&lines(&["unknown command: client-snapshot"])).is_err());
+        assert!(ClientSnapshot::parse(&lines(&["snapshot 2", "workspace +0 * m"])).is_err());
+        assert!(ClientSnapshot::parse(&lines(&[])).is_err());
+    }
+
+    #[test]
+    fn the_snapshot_gate_needs_the_v1_token_on_the_client_snapshot_row() {
+        assert!(MuxSessionClient::snapshot_supported(&lines(&[
+            "capture-pane escape",
+            "client-snapshot v1",
+            "refresh-client cell-pixels chrome",
+            "features replay-held-state",
+        ])));
+        // No token, an unversioned row, or the token on another command
+        // all leave the gate shut.
+        assert!(!MuxSessionClient::snapshot_supported(&lines(&[
+            "client-snapshot",
+            "pane-info cmd v1",
+        ])));
+        assert!(!MuxSessionClient::snapshot_supported(&lines(&[])));
     }
 
     #[test]

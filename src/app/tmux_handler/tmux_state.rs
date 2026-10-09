@@ -129,6 +129,10 @@ pub(crate) struct TmuxState {
     /// The attached par-mux session's id (`$N`), the target of
     /// `set-environment`. `None` while no mux session is attached.
     pub(crate) mux_session_id: Option<u64>,
+    /// Capability probe for the attached daemon's transport (`list-commands`
+    /// asked once, lazily): whether it advertises `client-snapshot v1`.
+    /// `None` until probed; reset with the transport on attach and detach.
+    pub(crate) mux_snapshot_supported: Option<bool>,
     /// Replayed screens awaiting their pane mapping (reattach seeding:
     /// `refresh-client -t` replies, applied once the layout consumers
     /// create the panes)
@@ -246,6 +250,7 @@ impl TmuxState {
             tmux_prefix_key,
             mux_focused_pane: None,
             mux_session_id: None,
+            mux_snapshot_supported: None,
             mux_screen_seeds: std::collections::HashMap::new(),
             mux_pane_titles: std::collections::HashMap::new(),
             mux_exited_panes: std::collections::HashMap::new(),
