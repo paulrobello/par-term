@@ -6439,7 +6439,7 @@ out.flush()
     /// itself keeps running.
     #[test]
     fn sessions_changed_ends_views_whose_session_is_gone() {
-        sessions_changed_ends_view(None);
+        sessions_changed_ends_view(None, "gone-session");
     }
 
     /// The per-fact half of the capability gate (ENH-043): a daemon whose
@@ -6447,19 +6447,22 @@ out.flush()
     /// plain `list-sessions` re-query and never a `client-snapshot` line.
     #[test]
     fn sessions_changed_per_fact_fallback_still_ends_the_view() {
-        sessions_changed_ends_view(Some(false));
+        // A distinct socket tag: `socket_path` UNLINKS on every call, so a
+        // tag shared with the sibling variant would delete the other's
+        // live socket when the suite runs the two in parallel.
+        sessions_changed_ends_view(Some(false), "gone-session-perfact");
     }
 
     /// The shared body: kill the attached session from a second client and
     /// pump until the view ends. `force_snapshot_supported` pre-seeds the
     /// capability cache (`None` = let the drain probe the real daemon,
     /// which advertises `client-snapshot v1` and takes the snapshot path).
-    fn sessions_changed_ends_view(force_snapshot_supported: Option<bool>) {
+    fn sessions_changed_ends_view(force_snapshot_supported: Option<bool>, tag: &str) {
         // Capture the path once: `socket_path` UNLINKS on every call (it
         // is a spawn helper, not a getter), so re-calling it after
         // `attached_state` bound the daemon would delete the live socket.
-        let path = socket_path("gone-session");
-        let (mut ws, mut probe) = attached_state("gone-session", "doomed");
+        let path = socket_path(tag);
+        let (mut ws, mut probe) = attached_state(tag, "doomed");
         ws.tmux_state.mux_snapshot_supported = force_snapshot_supported;
         assert!(
             ws.tmux_state.transport.is_some() && ws.tmux_state.mux_session_id.is_some(),

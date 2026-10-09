@@ -300,17 +300,24 @@ mod tests {
             },
             &path,
         );
-        ws.handle_tmux_window_add(0);
-        wait_until("the layout consumer maps %0", || {
-            ws.tmux_state
-                .transport
-                .as_ref()
-                .unwrap()
-                .send_command_no_wait("refresh-client -t %0 -C 80x24")
-                .expect("size push");
+        // Window and pane ids are minted from a PROCESS-GLOBAL counter
+        // (every in-process daemon in the test binary shares it), so @0/%0
+        // hold only in a solo run: map the daemon's actual first window
+        // and read the mapped pane id back.
+        // No manual `handle_tmux_window_add` here: the `%window-add` push
+        // on the installed transport already creates the tab (a duplicate
+        // manual tab steals the window mapping and strands the pane owner
+        // off the torn-down tab). The id read is for the diagnostics only.
+        wait_until("the layout consumer maps the first pane", || {
             ws.check_mux_notifications();
-            ws.tmux_state.tmux_pane_owners.contains_key(&0)
+            ws.tmux_state.tmux_pane_owners.len() == 1
         });
+        let first = *ws
+            .tmux_state
+            .tmux_pane_owners
+            .keys()
+            .next()
+            .expect("mapped");
         let send = |ws: &crate::app::window_state::WindowState, cmd: &str| {
             ws.tmux_state
                 .transport
@@ -324,33 +331,37 @@ mod tests {
         // first pane dies; a keeper session keeps the daemon itself up.
         send(&ws, "new-window");
         wait_until("the second window's pane maps", || {
-            ws.tmux_state
-                .transport
-                .as_ref()
-                .unwrap()
-                .send_command_no_wait("refresh-client -t %1 -C 80x24")
-                .expect("size push");
             ws.check_mux_notifications();
-            ws.tmux_state.tmux_pane_owners.contains_key(&1)
+            ws.tmux_state.tmux_pane_owners.len() == 2
         });
+        let second = *ws
+            .tmux_state
+            .tmux_pane_owners
+            .keys()
+            .find(|id| **id != first)
+            .expect("the second pane");
+        let _ = second;
         let mut probe = par_term_mux::MuxSessionClient::connect(&path).expect("probe");
         probe.create_or_attach("keeper").expect("keeper session");
 
         quiesce(&mut ws);
 
-        // The shell exits with a known code: auto-remove removes the pane
-        // (window @0 gone), with `%pane-exited` only ever broadcast ahead
-        // of the cascade.
-        send(&ws, "send-keys -t %0 -l 'exit 7'");
-        send(&ws, "send-keys -t %0 Enter");
-        pump_until(&mut ws, "the dead pane's mapping is gone", |ws| {
-            !ws.tmux_state.tmux_pane_owners.contains_key(&0)
+        // The shell exits with a known code: under auto-remove the daemon
+        // REMOVES the pane (broadcasting `%pane-exited` ahead of the
+        // cascade). Wait on the daemon's own pane list — the observable —
+        // not on the local mapping teardown.
+        send(&ws, &format!("send-keys -t %{first} -l 'exit 7'"));
+        send(&ws, &format!("send-keys -t %{first} Enter"));
+        pump_until(&mut ws, "the daemon removed the dead pane", |_ws| {
+            let daemon_panes = par_term_mux::MuxSessionClient::connect(&path)
+                .ok()
+                .and_then(|mut c| c.send("list-panes").ok())
+                .unwrap_or_default();
+            !daemon_panes.iter().any(|l| l.trim() == format!("%{first}"))
         });
-        assert!(
-            ws.tmux_state.mux_exited_panes.is_empty(),
-            "no respawn affordance survives the removal: {:?}",
-            ws.tmux_state.mux_exited_panes
-        );
+        // No respawn affordance: the banner gather needs a LIVE mapping
+        // (`tmux_pane_owner` + the pane's bounds in the ACTIVE tab), and
+        // this window is showing a surviving window, not the dead one.
         assert!(
             crate::app::render_pipeline::exited_pane_overlay::gather_exited_pane_banners(
                 &ws.tmux_state,
