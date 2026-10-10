@@ -415,6 +415,7 @@ impl WindowState {
                     "par-mux: {verb} session '{name}' (sessions survive detach)"
                 ));
                 self.update_window_title_for_mux();
+                self.apply_mux_session_profile(name);
                 self.refresh_mux_directory();
                 Ok(outcome)
             }
@@ -6799,5 +6800,68 @@ out.flush()
         assert!(ws.tmux_state.tmux_session_name.is_none());
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The par-mux session rule: attaching to a session whose name matches a
+    /// profile's `mux_session_patterns` applies that profile to the attached
+    /// (active) tab, announced with the same Undo toast as the other rules.
+    #[test]
+    fn a_matching_mux_session_pattern_switches_the_active_tab() {
+        let mut ws = manners_state();
+        let tab_id = ws
+            .tab_manager
+            .new_tab(
+                &ws.config.load(),
+                std::sync::Arc::clone(&ws.runtime),
+                false,
+                None,
+            )
+            .expect("local tab");
+        ws.tab_manager.switch_to(tab_id);
+        let profile_id = uuid::Uuid::from_u128(0xA1);
+        let mut profile = crate::profile::Profile::new("MuxProf");
+        profile.id = profile_id;
+        profile.mux_session_patterns = vec!["PARMux".to_string()];
+        ws.overlay_ui.profile_manager.add(profile);
+
+        ws.apply_mux_session_profile("PARMux");
+
+        let tab = ws.tab_manager.get_tab(tab_id).expect("tab");
+        assert_eq!(tab.profile.auto_applied_profile_id, Some(profile_id));
+        let toast = ws.last_toast_text().unwrap_or_default();
+        assert!(
+            toast.contains("par-mux session PARMux"),
+            "the switch must announce its reason, got: {toast}"
+        );
+    }
+
+    /// A pinned active tab keeps its profile — and so does a tab whose
+    /// profile was just set explicitly (opening a profile pins the tab).
+    #[test]
+    fn a_pinned_active_tab_keeps_its_profile_on_mux_attach() {
+        let mut ws = manners_state();
+        let tab_id = ws
+            .tab_manager
+            .new_tab(
+                &ws.config.load(),
+                std::sync::Arc::clone(&ws.runtime),
+                false,
+                None,
+            )
+            .expect("local tab");
+        ws.tab_manager.switch_to(tab_id);
+        {
+            let tab = ws.tab_manager.get_tab_mut(tab_id).expect("tab");
+            tab.profile.pinned = true;
+        }
+        let mut profile = crate::profile::Profile::new("MuxProf");
+        profile.mux_session_patterns = vec!["PARMux".to_string()];
+        ws.overlay_ui.profile_manager.add(profile);
+
+        ws.apply_mux_session_profile("PARMux");
+
+        let tab = ws.tab_manager.get_tab(tab_id).expect("tab");
+        assert_eq!(tab.profile.auto_applied_profile_id, None);
+        assert!(ws.last_toast_text().is_none());
     }
 }

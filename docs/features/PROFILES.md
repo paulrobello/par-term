@@ -368,6 +368,20 @@ Add `tmux_session_patterns` to a profile:
 3. Find "Auto-Switch Tmux" field
 4. Enter comma-separated patterns: `work-*, *-production`
 
+### par-mux Session-Based Switching
+
+The par-mux analogue of the tmux rule: when the window attaches to a par-mux session — via the session picker, a profile's `mux_session_name` auto-connect, or the `mux_auto_attach` launch option — profiles with a matching `mux_session_patterns` entry apply to the attached tab.
+
+```yaml
+profiles:
+  - name: Production
+    mux_session_patterns:
+      - "*-prod"
+      - "PARMux"
+```
+
+Patterns are comma-separated globs in the profile editor, matched case-insensitively; the first matching profile wins (profile order decides). A pinned active tab keeps its profile, and opening a profile explicitly (which pins the tab) is never overridden by the rule.
+
 ### Hostname-Based Switching
 
 Profiles automatically apply when connecting to remote hosts with matching hostnames, detected via OSC 7 shell-integration sequences (`file://hostname/path`). Hostname patterns are matched against the host extracted from the OSC 7 URL; the local host is ignored.
@@ -380,8 +394,9 @@ When multiple auto-switch mechanisms could apply, the following priority order d
 2. **Hostname match** — remote host detection via OSC 7 (an SSH session reports its host this way; highest auto priority)
 3. **Directory match** — CWD-based matching via OSC 7
 4. **Tmux session match** — tmux session name pattern matching (applied via the tmux gateway separately)
+5. **par-mux session match** — par-mux session name pattern matching (applied at attach time; same independence as the tmux rule)
 
-Tmux session matching runs independently through the gateway tab and does not compete with hostname or directory switching.
+Tmux session matching runs independently through the gateway tab and does not compete with hostname or directory switching. par-mux session matching runs at attach time on the attached tab.
 
 Every tab is evaluated, not only the one you are looking at: a background tab that connects to a matching host switches too.
 

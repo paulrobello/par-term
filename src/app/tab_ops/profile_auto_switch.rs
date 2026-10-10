@@ -305,6 +305,48 @@ impl WindowState {
         true
     }
 
+    /// The par-mux analogue of the tmux gateway's session rule (UX.md PR5):
+    /// the window attached to a par-mux session, so a profile whose
+    /// `mux_session_patterns` match the session name applies to the attached
+    /// tab — the active tab at attach time. A pinned active tab keeps its
+    /// profile: an explicit pin outranks the rule, which also keeps an
+    /// explicit profile open (it pins the tab) from being overridden.
+    pub(crate) fn apply_mux_session_profile(&mut self, session_name: &str) {
+        if self
+            .tab_manager
+            .active_tab()
+            .is_some_and(|tab| tab.profile.pinned)
+        {
+            return;
+        }
+        let Some(tab_id) = self.tab_manager.active_tab_id() else {
+            return;
+        };
+        let Some(matched) = self
+            .overlay_ui
+            .profile_manager
+            .find_by_mux_session(session_name)
+            .map(|p| (p.id, p.name.clone()))
+        else {
+            crate::debug_info!(
+                "PROFILE",
+                "No profile matches par-mux session '{session_name}' - consider adding mux_session_patterns to a profile"
+            );
+            return;
+        };
+        crate::debug_info!(
+            "PROFILE",
+            "Auto-switching to profile '{}' for par-mux session '{session_name}'",
+            matched.1
+        );
+        self.apply_auto_profile(
+            tab_id,
+            AutoRule::Host,
+            matched.0,
+            format!("par-mux session {session_name}"),
+        );
+    }
+
     /// Re-point the window-wide profile surfaces (badge settings,
     /// `session.profile_name`) at the active tab's profile after it changed
     /// or reverted. `None` restores the configured badge.

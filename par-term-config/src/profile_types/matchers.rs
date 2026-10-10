@@ -199,6 +199,17 @@ impl ProfileManager {
         })
     }
 
+    /// Find profile matching a par-mux session name pattern for automatic switching
+    /// Uses glob-style pattern matching
+    pub fn find_by_mux_session(&self, session_name: &str) -> Option<&Profile> {
+        let session_lower = session_name.to_lowercase();
+        self.profiles_ordered().into_iter().find(|p| {
+            p.mux_session_patterns
+                .iter()
+                .any(|pattern| Self::pattern_matches(&session_lower, pattern))
+        })
+    }
+
     /// Find profile matching a directory pattern for automatic switching based on CWD
     /// Uses glob-style pattern matching against the current working directory
     pub fn find_by_directory(&self, cwd: &str) -> Option<&Profile> {
@@ -365,6 +376,11 @@ impl ProfileManager {
                 resolved_parent.tmux_session_patterns
             } else {
                 profile.tmux_session_patterns.clone()
+            },
+            mux_session_patterns: if profile.mux_session_patterns.is_empty() {
+                resolved_parent.mux_session_patterns
+            } else {
+                profile.mux_session_patterns.clone()
             },
             tmux_session_name: profile
                 .tmux_session_name

@@ -84,6 +84,7 @@ pub struct ProfileModalUI {
     pub(super) temp_keyboard_shortcut: String,
     pub(super) temp_hostname_patterns: String,
     pub(super) temp_tmux_session_patterns: String,
+    pub(super) temp_mux_session_patterns: String,
     pub(super) temp_directory_patterns: String,
     pub(super) temp_badge_text: String,
     // Badge appearance settings
@@ -174,6 +175,7 @@ impl ProfileModalUI {
             temp_keyboard_shortcut: String::new(),
             temp_hostname_patterns: String::new(),
             temp_tmux_session_patterns: String::new(),
+            temp_mux_session_patterns: String::new(),
             temp_directory_patterns: String::new(),
             temp_badge_text: String::new(),
             temp_badge_color: None,

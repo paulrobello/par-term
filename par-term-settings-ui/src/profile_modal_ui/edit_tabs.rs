@@ -113,6 +113,12 @@ impl ProfileModalUI {
                     );
                     text_row(
                         ui,
+                        "par-mux sessions:",
+                        &mut self.temp_mux_session_patterns,
+                        "(work-*, PARMux)",
+                    );
+                    text_row(
+                        ui,
                         "Directories:",
                         &mut self.temp_directory_patterns,
                         "(~/projects/work-*)",

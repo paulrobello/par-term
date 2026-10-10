@@ -97,6 +97,13 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tmux_session_patterns: Vec<String>,
 
+    /// par-mux session name patterns for automatic profile switching when this
+    /// window attaches to a par-mux session (session picker, profile
+    /// auto-connect, or launch auto-attach)
+    /// Supports glob patterns (e.g., "work-*", "PARMux")
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mux_session_patterns: Vec<String>,
+
     /// tmux session to auto-connect to when this profile is opened.
     /// Uses create-or-attach semantics (`tmux new-session -A -s <name>`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -381,6 +388,7 @@ impl Profile {
             keyboard_shortcut: None,
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
+            mux_session_patterns: Vec::new(),
             tmux_session_name: None,
             mux_session_name: None,
             tmux_connection_mode: TmuxConnectionMode::default(),
@@ -426,6 +434,7 @@ impl Profile {
             keyboard_shortcut: None,
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
+            mux_session_patterns: Vec::new(),
             tmux_session_name: None,
             mux_session_name: None,
             tmux_connection_mode: TmuxConnectionMode::default(),
@@ -540,6 +549,12 @@ impl Profile {
     /// Builder method to set the par-mux session name for create-or-attach
     pub fn mux_session_name(mut self, name: impl Into<String>) -> Self {
         self.mux_session_name = Some(name.into());
+        self
+    }
+
+    /// Builder method to set par-mux session patterns for auto-switching
+    pub fn mux_session_patterns(mut self, patterns: Vec<String>) -> Self {
+        self.mux_session_patterns = patterns;
         self
     }
 

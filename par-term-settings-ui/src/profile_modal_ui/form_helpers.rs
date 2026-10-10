@@ -28,6 +28,7 @@ impl ProfileModalUI {
         self.reset_shortcut_state();
         self.temp_hostname_patterns.clear();
         self.temp_tmux_session_patterns.clear();
+        self.temp_mux_session_patterns.clear();
         self.temp_directory_patterns.clear();
         self.temp_badge_text.clear();
         self.temp_badge_color = None;
@@ -74,6 +75,7 @@ impl ProfileModalUI {
         self.temp_keyboard_shortcut = profile.keyboard_shortcut.clone().unwrap_or_default();
         self.temp_hostname_patterns = profile.hostname_patterns.join(", ");
         self.temp_tmux_session_patterns = profile.tmux_session_patterns.join(", ");
+        self.temp_mux_session_patterns = profile.mux_session_patterns.join(", ");
         self.temp_directory_patterns = profile.directory_patterns.join(", ");
         self.temp_badge_text = profile.badge_text.clone().unwrap_or_default();
         // Badge appearance settings
@@ -158,6 +160,14 @@ impl ProfileModalUI {
         if !self.temp_tmux_session_patterns.is_empty() {
             profile.tmux_session_patterns = self
                 .temp_tmux_session_patterns
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+        if !self.temp_mux_session_patterns.is_empty() {
+            profile.mux_session_patterns = self
+                .temp_mux_session_patterns
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
