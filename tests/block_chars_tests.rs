@@ -203,22 +203,24 @@ fn test_snap_glyph_near_boundaries() {
         extension: 0.5,
     });
 
-    // Should snap to boundaries with extension
+    // Should snap to cell boundaries; the snapped quad is then pixel-aligned,
+    // so the 0.5px extension rounds into the edge (half away from zero → +1
+    // on right/bottom for integer cell edges).
     assert!(
-        (left - 9.5).abs() < 0.01,
-        "Left should snap to cell_x0 - extension"
+        (left - 10.0).abs() < 0.01,
+        "Left should snap to cell_x0 pixel"
     );
     assert!(
-        (top - 19.5).abs() < 0.01,
-        "Top should snap to cell_y0 - extension"
+        (top - 20.0).abs() < 0.01,
+        "Top should snap to cell_y0 pixel"
     );
     assert!(
-        (left + w - 20.5).abs() < 0.01,
-        "Right should snap to cell_x1 + extension"
+        (left + w - 21.0).abs() < 0.01,
+        "Right should snap past cell_x1"
     );
     assert!(
-        (top + h - 40.5).abs() < 0.01,
-        "Bottom should snap to cell_y1 + extension"
+        (top + h - 41.0).abs() < 0.01,
+        "Bottom should snap past cell_y1"
     );
 }
 

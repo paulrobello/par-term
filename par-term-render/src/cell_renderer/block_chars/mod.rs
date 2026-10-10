@@ -318,14 +318,13 @@ mod tests {
             extension: 0.5,
         });
 
-        // Should snap left to cell boundary minus extension
-        assert!((left - 9.5).abs() < 0.01);
-        // Should snap top to cell boundary minus extension
-        assert!((top - 19.5).abs() < 0.01);
-        // Width should extend to right cell boundary plus extension
-        assert!((left + w - 18.5).abs() < 0.01);
-        // Height should extend to bottom cell boundary plus extension
-        assert!((top + h - 36.5).abs() < 0.01);
+        // Should snap to the cell boundaries. Edges are pixel-aligned, so the
+        // 0.5px extension is absorbed: left/top round to the cell's first pixel
+        // (10, 20) and right/bottom to (19, 37).
+        assert!((left - 10.0).abs() < 0.01);
+        assert!((top - 20.0).abs() < 0.01);
+        assert!((left + w - 19.0).abs() < 0.01);
+        assert!((top + h - 37.0).abs() < 0.01);
     }
 
     #[test]

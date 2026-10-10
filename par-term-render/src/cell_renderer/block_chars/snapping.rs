@@ -98,5 +98,65 @@ pub fn snap_glyph_to_cell(p: SnapGlyphParams) -> (f32, f32, f32, f32) {
         new_w = right - new_left;
     }
 
+    // Pixel-align the snapped quad: fractional edges (fractional cell metrics,
+    // the 0.5px extension) make the GPU resample the bitmap's flat edge across
+    // two output columns, which reads as a thin line of the wrong color at
+    // powerline cap junctions. Rounding the absolute edges — not position and
+    // size independently — keeps shared cell boundaries consistent with the
+    // geometric block path's per-cell rounding.
+    let right = new_left + new_w;
+    let bottom = new_top + new_h;
+    new_left = new_left.round();
+    new_top = new_top.round();
+    new_w = right.round() - new_left;
+    new_h = bottom.round() - new_top;
+
     (new_left, new_top, new_w, new_h)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapped_quad_edges_are_pixel_aligned() {
+        // Fractional cell metrics (e.g. JetBrains Mono 13pt on a 2x display)
+        // put every snapped edge between pixels; the quad must not straddle.
+        let (l, t, w, h) = snap_glyph_to_cell(SnapGlyphParams {
+            glyph_left: 10.9,
+            glyph_top: 31.1,
+            render_w: 8.2,
+            render_h: 15.9,
+            cell_x0: 10.4,
+            cell_y0: 30.6,
+            cell_x1: 19.7,
+            cell_y1: 47.5,
+            snap_threshold: 3.0,
+            extension: 0.5,
+        });
+        for (name, v) in [("left", l), ("top", t), ("right", l + w), ("bottom", t + h)] {
+            assert_eq!(v, v.round(), "{name} edge must land on a pixel boundary");
+        }
+    }
+
+    #[test]
+    fn cap_flat_edge_reaches_cell_boundary() {
+        // A left-cap powerline glyph (U+E0B6) has its flat right edge inside
+        // the snap threshold of cell_x1; after pixel alignment the flat edge
+        // must end at the cell's rounded boundary, never short of it, so the
+        // solid pill fill takes over without a partial-coverage seam column.
+        let (l, _t, w, _h) = snap_glyph_to_cell(SnapGlyphParams {
+            glyph_left: 11.0,
+            glyph_top: 31.0,
+            render_w: 8.5,
+            render_h: 16.4,
+            cell_x0: 10.4,
+            cell_y0: 30.6,
+            cell_x1: 19.7,
+            cell_y1: 47.5,
+            snap_threshold: 3.0,
+            extension: 0.5,
+        });
+        assert_eq!(l + w, 20.0); // round(19.7 + 0.5)
+    }
 }
