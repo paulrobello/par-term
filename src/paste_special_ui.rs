@@ -232,11 +232,13 @@ impl crate::traits::OverlayComponent for PasteSpecialUI {
 
 /// Truncate content for preview display
 fn truncate_preview(content: &str, max_len: usize) -> String {
-    // Replace newlines with visible markers
+    // Replace newlines with visible markers. Nerd Font glyphs (U+F112
+    // reply/return, U+F061 arrow-right): the classic ↵/→ are in the
+    // U+219x block no font of the egui stack carries, and render as □.
     let single_line = content
-        .replace('\n', "↵")
+        .replace('\n', "\u{f112}")
         .replace('\r', "")
-        .replace('\t', "→");
+        .replace('\t', "\u{f061}");
 
     if single_line.chars().count() <= max_len {
         single_line
@@ -293,8 +295,8 @@ mod tests {
     fn test_truncate_preview() {
         assert_eq!(truncate_preview("hello", 10), "hello");
         assert_eq!(truncate_preview("hello world", 5), "hello...");
-        assert_eq!(truncate_preview("line1\nline2", 20), "line1↵line2");
-        assert_eq!(truncate_preview("tab\there", 20), "tab→here");
+        assert_eq!(truncate_preview("line1\nline2", 20), "line1\u{f112}line2");
+        assert_eq!(truncate_preview("tab\there", 20), "tab\u{f061}here");
     }
 
     #[test]
