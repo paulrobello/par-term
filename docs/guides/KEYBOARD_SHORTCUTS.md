@@ -210,7 +210,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 
 > **📝 Note:** In a par-mux tab, equalize works: par-term computes equal sizes and sends them to the daemon, so other clients see the change. Layout presets (`cycle_layout`, `layout:<name>`) are refused there with a message: the daemon has no `select-layout`, and every preset except an equalize of the existing arrangement needs panes moved between splits daemon-side. The same limit applies to `split_balance`, which the daemon's layout overrides. tmux gateway tabs refuse both, because tmux owns their layout.
 
-> **📝 Note:** Zoom fills the tab with the focused pane and shows ⛶ on the tab and the pane title; splitting, closing, or moving focus unzooms. In a par-mux tab the zoom is daemon-side (`resize-pane -Z`), so other clients see it.
+> **📝 Note:** Zoom fills the tab with the focused pane and shows the zoom badge (nf-fa-expand icon) on the tab and the pane title; splitting, closing, or moving focus unzooms. In a par-mux tab the zoom is daemon-side (`resize-pane -Z`), so other clients see it.
 
 > **📝 Note:** Broadcast input is per tab: every pane that receives it gets an amber outline, the tab shows 📡, the status bar (when enabled) shows how many panes receive it, and pastes are broadcast along with keystrokes.
 

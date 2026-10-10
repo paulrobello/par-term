@@ -156,7 +156,7 @@ While attached, par-term shows what agents are running in the session:
 
 - **Agent Roster status-bar widget** (`status_bar: agent_roster`, enabled by default; the status bar itself is off until `status_bar_enabled: true`): a summary like `👥 2 blocked, 1 done, 1~ working`, self-hides without an attached session, hover lists each agent with its provenance (reported by the agent itself vs detected), click opens the command palette.
 - **Roster picker in the command palette**: runtime rows, blocked and done-unseen first, each jumping to that agent's pane.
-- **Badges on tabs and pane title bars**: a tab shows its most urgent agent (🟠 blocked, 🟢 done and not yet seen, ⋯ working), and a pane's title bar leads with its own agent's badge.
+- **Badges on tabs and pane title bars**: a tab shows its most urgent agent (amber circle = blocked, green check-circle = done and not yet seen, ⋯ working), and a pane's title bar leads with its own agent's badge.
 - **Next agent needing attention** (`focus_next_attention_agent`, `Cmd + Opt + A` / `Ctrl + Alt + A`): jumps to the next blocked agent, then to agents that finished while you were elsewhere, across tabs and in tab order. Focusing a finished agent marks it seen, so the next press moves on.
 - **Done, unseen**: when an agent goes from `working` to `idle` in a pane you are not looking at, the roster shows it as `done` (widget), `done (unseen)` (hover), and `done ✓` (palette) until you focus that pane. Focusing the pane clears the mark; an agent that finishes in the pane you are watching is never marked.
 

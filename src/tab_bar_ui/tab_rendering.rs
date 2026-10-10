@@ -411,7 +411,8 @@ pub(super) fn mux_badges(
         width += 18.0;
     }
     if let Some(agent) = view.agent_badge() {
-        ui.label(agent.glyph()).on_hover_text(agent.describe());
+        ui.label(egui::RichText::new(agent.glyph()).color(agent.color(text_color)))
+            .on_hover_text(agent.describe());
         ui.add_space(2.0);
         width += 18.0;
     }

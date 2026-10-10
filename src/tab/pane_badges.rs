@@ -5,9 +5,10 @@
 
 use super::Tab;
 
-/// Zoom indicator glyph (V6). `⤢` is not in egui's default fonts, so the
-/// "maximize" frame glyph stands in for it.
-pub(crate) const ZOOM_BADGE: &str = "⛶";
+/// Zoom indicator glyph (V6): nf-fa-expand. `⤢` and its stand-in `⛶`
+/// (U+26F6) are both carried by no font in the egui stack (CoreText-
+/// verified), so the nerd PUA glyph is used instead.
+pub(crate) const ZOOM_BADGE: &str = "\u{f065}";
 
 /// Broadcast indicator glyph (V5).
 pub(crate) const BROADCAST_BADGE: &str = "📡";
@@ -99,12 +100,27 @@ impl AgentAttention {
         }
     }
 
-    /// The badge glyph: amber dot, green dot, working marker.
+    /// The badge glyph: amber circle, green check-circle, working marker.
+    /// The colored-dot emoji (U+1F7E0/U+1F7E2) are carried by no font in
+    /// the egui stack (CoreText-verified), so nerd PUA glyphs stand in;
+    /// [`Self::color`] restores the emoji's color at the draw site. The
+    /// working marker `⋯` (U+22EF) renders — Hack carries it — so it stays.
     pub(crate) fn glyph(self) -> &'static str {
         match self {
-            Self::Blocked => "🟠",
-            Self::DoneUnseen => "🟢",
+            Self::Blocked => "\u{f111}",
+            Self::DoneUnseen => "\u{f058}",
             Self::Working => "⋯",
+        }
+    }
+
+    /// The badge's color at the draw site: amber for blocked, green for
+    /// done-unseen, the tab's own text color for working. Matches the
+    /// session chip's health colors.
+    pub(crate) fn color(self, text_color: egui::Color32) -> egui::Color32 {
+        match self {
+            Self::Blocked => egui::Color32::from_rgb(255, 193, 7),
+            Self::DoneUnseen => egui::Color32::from_rgb(76, 175, 80),
+            Self::Working => text_color,
         }
     }
 
@@ -187,7 +203,10 @@ mod tests {
 
     #[test]
     fn a_zoomed_pane_title_carries_the_zoom_marker() {
-        assert_eq!(decorate_pane_title("vim".into(), true, None), "⛶ vim");
+        assert_eq!(
+            decorate_pane_title("vim".into(), true, None),
+            "\u{f065} vim"
+        );
         assert_eq!(decorate_pane_title("vim".into(), false, None), "vim");
     }
 
@@ -232,11 +251,11 @@ mod tests {
                 None,
                 Some(AgentAttention::Blocked)
             ),
-            "🟠 claude"
+            "\u{f111} claude"
         );
         assert_eq!(
             decorate_pane_title_with_agent("vim".into(), true, None, None),
-            "⛶ vim"
+            "\u{f065} vim"
         );
     }
 
@@ -245,6 +264,9 @@ mod tests {
     #[test]
     fn a_numbered_pane_title_leads_with_its_number() {
         assert_eq!(decorate_pane_title("vim".into(), false, Some(3)), "3: vim");
-        assert_eq!(decorate_pane_title("vim".into(), true, Some(1)), "⛶ 1: vim");
+        assert_eq!(
+            decorate_pane_title("vim".into(), true, Some(1)),
+            "\u{f065} 1: vim"
+        );
     }
 }
