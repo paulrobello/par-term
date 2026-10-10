@@ -65,11 +65,13 @@ impl TableKey {
 
     /// How the which-key overlay names the key.
     pub(crate) fn label(self) -> String {
+        // Nerd Font arrows (U+F060–F063): the classic arrows U+2190–2193 are
+        // carried by no font in the egui stack and render as □.
         let dir = |d: NavigationDirection| match d {
-            NavigationDirection::Left => "←",
-            NavigationDirection::Right => "→",
-            NavigationDirection::Up => "↑",
-            NavigationDirection::Down => "↓",
+            NavigationDirection::Left => "\u{f060}",
+            NavigationDirection::Right => "\u{f061}",
+            NavigationDirection::Up => "\u{f062}",
+            NavigationDirection::Down => "\u{f063}",
         };
         match self {
             TableKey::Char(c) => c.to_string(),

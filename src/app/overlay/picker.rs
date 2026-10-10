@@ -176,7 +176,9 @@ pub(crate) struct ListHooks<'a> {
 /// close keys — Escape, plus the live toggle chord when one is bound.
 pub(crate) fn footer_text(config: &ListConfig<'_>) -> String {
     let mut parts = vec![
-        "↑↓ PgUp/PgDn Home/End select".to_string(),
+        // Nerd Font arrows (U+F062/U+F063): the classic arrows U+2191/U+2193
+        // are carried by no font in the egui stack and render as □.
+        "\u{f062}\u{f063} PgUp/PgDn Home/End select".to_string(),
         format!("Enter {}", config.enter_verb),
     ];
     if config.alternates {
@@ -554,11 +556,11 @@ mod tests {
     fn the_footer_names_the_live_toggle_chord_and_drops_it_when_unbound() {
         assert_eq!(
             footer_text(&config(Some("Cmd+Shift+P"), false)),
-            "↑↓ PgUp/PgDn Home/End select · Enter run · Esc or Cmd+Shift+P close"
+            "\u{f062}\u{f063} PgUp/PgDn Home/End select · Enter run · Esc or Cmd+Shift+P close"
         );
         assert_eq!(
             footer_text(&config(None, false)),
-            "↑↓ PgUp/PgDn Home/End select · Enter run · Esc close"
+            "\u{f062}\u{f063} PgUp/PgDn Home/End select · Enter run · Esc close"
         );
     }
 
