@@ -337,7 +337,7 @@ Target: **the same key does the same thing** whether a tab is local or attached.
 
 ## 7. Visibility and discoverability
 
-- **V1. Session chip.** At the left of the tab bar (or top of the vertical bar): `⧉ work ▾` when attached, nothing when fully local. Shows health (connected, reconnecting, hung, stale daemon, error) and "N hidden". Click opens the session picker (A16). Also available as a status-bar widget, and as `session.mux_name` / `session.mux_state` variables. Today the name appears only in the OS title, which OSC titles can overwrite `[inferred]` (RT8; `gather_phases.rs:150-161`).
+- **V1. Session chip.** At the left of the tab bar (or top of the vertical bar): `<icon> work ▾` when attached (icon: nf-fa-clone U+F24D), nothing when fully local. Shows health (connected, reconnecting, hung, stale daemon, error) and "N hidden". Click opens the session picker (A16). Also available as a status-bar widget, and as `session.mux_name` / `session.mux_state` variables. Today the name appears only in the OS title, which OSC titles can overwrite `[inferred]` (RT8; `gather_phases.rs:150-161`).
 - **V2. Per-tab attached badge** decided by the tab, not the window (fixes U18). Tooltip: "Attached to par-mux session *work* — survives quit".
 - **V3. Agent badges on tabs and pane title bars.** Blocked = amber dot, done-unseen = green dot, working = subtle spinner. Today agent state appears only in an off-by-default status widget and palette rows (`par-term-config/src/status_bar.rs:309-313`). Turn the roster widget on by default when attached.
 - **V4. Fix the dead activity dot** (B2) so background tabs signal output.

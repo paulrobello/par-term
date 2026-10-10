@@ -68,12 +68,14 @@ impl SessionChip {
         self.session.is_some() || self.last_error.is_some()
     }
 
-    /// The chip's main text: `⧉ work`, plus `· 2 hidden` and the health
-    /// when it is not plain connected.
+    /// The chip's main text: a session icon + the name (e.g. `work`), plus
+    /// `· 2 hidden` and the health when it is not plain connected. The icon
+    /// is nf-fa-clone, not `⧉` (U+29C9): CoreText confirms no font in the
+    /// egui stack carries U+29C9, so it rendered as tofu.
     pub fn label(&self) -> String {
         let mut text = match &self.session {
-            Some(name) => format!("⧉ {name}"),
-            None => "⧉ par-mux".to_string(),
+            Some(name) => format!("\u{f24d} {name}"),
+            None => "\u{f24d} par-mux".to_string(),
         };
         if self.hidden_tabs > 0 {
             text.push_str(&format!(" · {} hidden", self.hidden_tabs));
@@ -170,7 +172,7 @@ mod tests {
     fn shows_the_session_name() {
         let c = chip(Some("work"));
         assert!(c.is_visible());
-        assert_eq!(c.label(), "⧉ work");
+        assert_eq!(c.label(), "\u{f24d} work");
     }
 
     #[test]
@@ -180,7 +182,7 @@ mod tests {
             health: MuxHealth::Unresponsive,
             ..chip(Some("work"))
         };
-        assert_eq!(c.label(), "⧉ work · 2 hidden · not responding");
+        assert_eq!(c.label(), "\u{f24d} work · 2 hidden · not responding");
     }
 
     #[test]
