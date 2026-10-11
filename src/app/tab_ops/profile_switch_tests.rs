@@ -288,8 +288,17 @@ fn the_palette_lists_each_profiles_rows_with_the_live_chord() {
     let mut config = Config::default();
     let profile = Profile::new("Work");
     let id = profile.id;
+    // A chord no platform's defaults claim: one that a default binding
+    // already holds loses the registry's duplicate-chord check and the
+    // palette shows no chord (Ctrl+Alt+W is close_tab on Linux/Windows).
+    assert!(
+        par_term_keybindings::KeybindingRegistry::from_config(&Config::default().keybindings)
+            .find_by_chord("Ctrl+Alt+F7")
+            .is_none(),
+        "test chord Ctrl+Alt+F7 must not be a default binding on this platform",
+    );
     config.keybindings.push(crate::config::KeyBinding {
-        key: "Ctrl+Alt+W".to_string(),
+        key: "Ctrl+Alt+F7".to_string(),
         action: format!("open_profile:{id}"),
     });
     let runtime = Arc::new(
@@ -324,7 +333,7 @@ fn the_palette_lists_each_profiles_rows_with_the_live_chord() {
         palette
             .row(&format!("open_profile:{id}"))
             .and_then(|r| r.chord.as_deref()),
-        Some("Ctrl+Alt+W"),
+        Some("Ctrl+Alt+F7"),
         "the migrated chord shows live"
     );
     assert!(
