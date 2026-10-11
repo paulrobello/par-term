@@ -562,8 +562,11 @@ impl WindowState {
         let mut zoomed_tmux_pane: Option<crate::tmux::TmuxPaneId> = None;
         let mut zoomed_resize_accepted = false;
 
-        // Get pane sizes from active tab's pane manager
-        let pane_sizes: Vec<(crate::tmux::TmuxPaneId, usize, usize)> = if let Some(tab) =
+        // Get pane sizes from active tab's pane manager, each pane with its
+        // daemon-fed grid: the grid holds the pane's SESSION-scale extent,
+        // which diverges from the window-scale bounds whenever the session
+        // is sized to a smaller attached client.
+        let pane_extents: Vec<(crate::tmux::TmuxPaneId, f32, f32, usize, usize)> = if let Some(tab) =
             self.tab_manager.active_tab()
             && let Some(pm) = tab.pane_manager()
         {
@@ -583,15 +586,60 @@ impl WindowState {
                     } else {
                         pane.bounds
                     };
-                    // Calculate size in columns/rows
-                    let cols = (bounds.width / cell_width).floor() as usize;
-                    let rows = (bounds.height / cell_height).floor() as usize;
-                    Some((tmux_pane_id, cols.max(1), rows.max(1)))
+                    let (grid_cols, grid_rows) = pane
+                        .terminal
+                        .try_read()
+                        .ok()
+                        .map(|t| t.dimensions())
+                        .unwrap_or((0, 0));
+                    Some((
+                        tmux_pane_id,
+                        bounds.width / cell_width,
+                        bounds.height / cell_height,
+                        grid_cols,
+                        grid_rows,
+                    ))
                 })
                 .collect()
         } else {
             return;
         };
+
+        // Map the window-scale extents into the daemon's session scale
+        // before sending: the session grid is the smallest attached
+        // client's, so raw bounds-derived cells overflow it and the daemon
+        // honors the oversized request by clamping the sibling pane to 1
+        // column (it renders as gone on every client). Scaling each request
+        // by the grids' share of the bounds keeps the requested layout's
+        // proportions at the size the session actually has. The zoomed pane
+        // is excluded from both sums: its mirror grid holds the full-window
+        // zoom size, not the extent of the tree cell its request sizes.
+        let zoomed = zoomed_tmux_pane;
+        let laid_out = pane_extents.iter().filter(|p| Some(p.0) != zoomed);
+        let grid_cols_total: f32 = laid_out.clone().map(|p| p.3 as f32).sum();
+        let grid_rows_total: f32 = laid_out.clone().map(|p| p.4 as f32).sum();
+        let bounds_cols_total: f32 = laid_out.clone().map(|p| p.1).sum();
+        let bounds_rows_total: f32 = laid_out.map(|p| p.2).sum();
+        let cols_scale = if grid_cols_total > 0.0 && bounds_cols_total > 0.0 {
+            grid_cols_total / bounds_cols_total
+        } else {
+            1.0
+        };
+        let rows_scale = if grid_rows_total > 0.0 && bounds_rows_total > 0.0 {
+            grid_rows_total / bounds_rows_total
+        } else {
+            1.0
+        };
+        let pane_sizes: Vec<(crate::tmux::TmuxPaneId, usize, usize)> = pane_extents
+            .into_iter()
+            .map(|(tmux_pane_id, bounds_cols, bounds_rows, _, _)| {
+                (
+                    tmux_pane_id,
+                    (bounds_cols * cols_scale).round().max(1.0) as usize,
+                    (bounds_rows * rows_scale).round().max(1.0) as usize,
+                )
+            })
+            .collect();
 
         // Send resize commands for each pane, but only for the dimension that changed
         // Horizontal divider: changes height (rows) - use -y

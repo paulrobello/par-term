@@ -548,6 +548,54 @@ fn attached_equalize_evens_the_daemon_panes() {
     let _ = std::fs::remove_file(&path);
 }
 
+/// A divider drag in an attached tab must map into the daemon's SESSION
+/// scale, not the desktop window's. Native bounds live at the window's
+/// scale while the daemon grid is the smallest attached client's, so
+/// sending bounds-derived cells as absolute `resize-pane -x` overflows the
+/// session and the daemon clamps the dragged pane to 1 column — it renders
+/// as gone on every client.
+#[test]
+fn attached_divider_drag_maps_to_the_daemon_session_scale() {
+    let (mut ws, _second, path) = attached_split("p3-divider-scale");
+    send(&ws, "refresh-client -t %0 -C 80x24");
+    drain_until(&mut ws, "mirror adopts the daemon grid", |ws| {
+        ws.tmux_state
+            .tmux_pane_owner(0)
+            .is_some_and(|(tab, native)| {
+                ws.tab_manager
+                    .get_tab(tab)
+                    .and_then(|t| t.pane_manager())
+                    .and_then(|pm| pm.get_pane(native))
+                    .and_then(|p| p.terminal.try_read().ok().map(|t| t.dimensions().0))
+                    == Some(daemon_size(ws, 0).0 as usize)
+            })
+    });
+    let before = daemon_size(&ws, 0).0;
+    // Drag divider 0 to a quarter of the 800px mirror: the left pane's
+    // bounds shrink to ~25% while its grid still holds the daemon's ~50%.
+    if let Some(pm) = ws
+        .tab_manager
+        .active_tab_mut()
+        .and_then(|t| t.pane_manager_mut())
+    {
+        pm.drag_divider(0, 200.0, 0.0);
+    }
+    ws.sync_pane_resize_to_tmux(false);
+    wait_until("the daemon applies the drag", || {
+        daemon_size(&ws, 0).0 < before.saturating_sub(3)
+    });
+    let (left, _) = daemon_size(&ws, 0);
+    let (right, _) = daemon_size(&ws, 1);
+    // A quarter of the 80-column session is ~20; 1 means the unscaled
+    // request overflowed and the daemon collapsed the pane.
+    assert!(
+        left >= 15,
+        "the dragged pane collapsed to {left} columns (right {right})"
+    );
+    assert!(right > left, "the sibling grew: {left} vs {right}");
+    let _ = std::fs::remove_file(&path);
+}
+
 /// Layout presets (A4) are refused in an attached tab with a toast, and
 /// the daemon layout is untouched: core 0.57 has no `select-layout`, and
 /// a structural preset needs panes moved daemon-side (documented bound).
