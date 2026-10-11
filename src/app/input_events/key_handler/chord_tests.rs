@@ -344,7 +344,9 @@ fn exited_tab_keypress_closes_the_tab_not_the_app() {
 /// whole app (all windows) on a stray keypress.
 #[test]
 fn stray_keypress_cannot_exit_the_event_loop_outside_the_last_tab_arm() {
-    let source = include_str!("mod.rs");
+    // CRLF checkouts (Windows) shift every byte position below by one per
+    // line; normalize once so the math matches the LF join it assumes.
+    let source = include_str!("mod.rs").replace("\r\n", "\n");
 
     // Code lines only — this test's own comments name the call.
     let exit_lines: Vec<usize> = source

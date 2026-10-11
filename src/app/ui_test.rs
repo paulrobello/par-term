@@ -1627,7 +1627,7 @@ mod tests {
             &script_path,
             format!(
                 r#"{{"steps": [{{"assert_eq": ["file_bytes", "{}:0a"]}}]}}"#,
-                bytes_sink.display()
+                bytes_sink.display().to_string().replace('\\', "\\\\")
             ),
         )
         .expect("write script");
@@ -1643,7 +1643,7 @@ mod tests {
             &script_path,
             format!(
                 r#"{{"steps": [{{"assert_eq": ["file_empty", "{}"]}}]}}"#,
-                empty_sink.display()
+                empty_sink.display().to_string().replace('\\', "\\\\")
             ),
         )
         .expect("write script");

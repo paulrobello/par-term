@@ -108,7 +108,8 @@ fn escape_dismisses_a_rename_opened_with_the_bar_hidden() {
 /// menu, so the same Escapes leave it open — the lock this guards against.
 #[test]
 fn nothing_else_closes_the_menu_when_the_bar_is_hidden() {
-    let source = include_str!("mod.rs");
+    // The guard spans a line break, so a CRLF checkout would hide it.
+    let source = include_str!("mod.rs").replace("\r\n", "\n");
     let guard = [
         "if let Some(context_tab_id) = self.context_menu_tab {\n",
         "                return self.render_context_menu",

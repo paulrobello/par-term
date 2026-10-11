@@ -323,7 +323,9 @@ fn model_matches_the_shipped_menu_structure() {
         outline(&section.entries, section.title, &mut lines);
     }
     let text = lines.join("\n");
-    let expected = include_str!("model_snapshot.txt").trim_end();
+    // CRLF checkouts (Windows) must compare equal to the LF join above.
+    let snapshot = include_str!("model_snapshot.txt").replace("\r\n", "\n");
+    let expected = snapshot.trim_end();
     if cfg!(target_os = "macos") {
         // The macOS model adds Bring All to Front after the window list.
         assert_eq!(
