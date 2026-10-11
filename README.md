@@ -186,7 +186,9 @@ The result of a full security, architecture, quality and documentation audit —
 - **Window Transparency**: True per-pixel alpha with macOS blur support and text clarity options.
 - **Visual Bell**: Flash-based alerts for terminal bell events.
 - **Dynamic Themes**: Support for iTerm2-style color schemes (Dracula, Monokai, Solarized, etc.).
-- **Standalone Settings**: Dedicated settings window (F12) for live configuration editing.
+- **Standalone Settings**: iTerm2-style settings window (F12) with 12 organized tabs, live search over every control, and a real save model.
+- **Leader Key**: tmux-style `Cmd+B` leader arms a one-key table of window, tab, pane, and par-mux session actions, with a which-key overlay listing every key ([LEADER_KEY.md](docs/features/LEADER_KEY.md)).
+- **Profiles & Open Profiles**: one keyboard-first launcher for every profile (`Cmd+O`), per-profile shortcuts, automatic profile switching by host or par-mux session — announced and undoable ([PROFILES.md](docs/features/PROFILES.md)).
 - **Command Palette**: Fuzzy launcher over every bindable action with ranked matching and keyboard navigation (bind `toggle_command_palette`; [guide](docs/guides/KEYBOARD_SHORTCUTS.md)).
 
 ### Extensibility & Agents
@@ -194,7 +196,7 @@ The result of a full security, architecture, quality and documentation audit —
 - **Agent Skill**: A shipped SKILL.md that teaches coding agents to configure and extend par-term — config, keybindings, plugins, agent commands, par-mux, and UI verification (`skills/par-term/`; install with `cp -r skills/par-term ~/.claude/skills/`).
 - **Agent Usage Panel**: Status-bar widget and popup summarizing coding-agent token/cost usage ([AGENT_USAGE.md](docs/features/AGENT_USAGE.md)).
 - **Agent Roster**: See at a glance which coding agents are working or blocked across a par-mux session, with a picker to jump to any agent's pane.
-- **par-mux Sessions**: Attach a window to a daemon-owned par-mux session (one tab per session window); sessions survive closing the tab, the window, or par-term itself; reattach anywhere ([MUX.md](docs/features/MUX.md)).
+- **par-mux Sessions**: Attach a window to a daemon-owned par-mux session (one tab per session window); sessions survive closing the tab, the window, or par-term itself; reattach anywhere. The session picker attaches, switches, creates, renames, and ends sessions and workspaces without touching a profile ([MUX.md](docs/features/MUX.md)).
 
 ### Typography & Fonts
 - **Styled Font Variants**: Explicit support for separate Bold, Italic, and Bold-Italic font families.

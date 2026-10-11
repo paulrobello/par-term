@@ -18,7 +18,7 @@ Complete reference for all par-term keyboard shortcuts.
 > to disable it.
 
 > **📝 Upgrading:** these defaults changed in the iTerm2 alignment (see
-> [Migration](MIGRATION.md#unreleased--default-shortcuts-aligned-with-iterm2)).
+> [Migration](MIGRATION.md#v0480--default-shortcuts-aligned-with-iterm2)).
 > A chord you had already bound keeps its old action; a moved default reaches
 > an existing config only once its chord is free (delete the saved row).
 

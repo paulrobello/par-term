@@ -100,7 +100,7 @@ These keys are top-level in `config.yaml`, and are edited in **Settings › Keys
 | `leader_overlay_delay_ms` | `400` | How long after the leader the which-key overlay appears. |
 | `leader_vim_keys` | `false` | Add `h j k l` / `H J K L` and move last-used tab to `Tab`. |
 
-On Linux and Windows the leader displaced the background-shader toggle, which moved from `Ctrl + Shift + B` to `Ctrl + Alt + B`. A saved config that still binds the old chord is moved automatically when `Ctrl + Alt + B` is free. See [Migration](../guides/MIGRATION.md#unreleased--leader-key).
+On Linux and Windows the leader displaced the background-shader toggle, which moved from `Ctrl + Shift + B` to `Ctrl + Alt + B`. A saved config that still binds the old chord is moved automatically when `Ctrl + Alt + B` is free. See [Migration](../guides/MIGRATION.md#v0480--leader-key).
 
 ## Related Documentation
 

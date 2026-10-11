@@ -4,13 +4,13 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
-- [Unreleased — Leader Key](#unreleased--leader-key)
-- [Unreleased — Profile Shortcuts and the Open Profiles Launcher](#unreleased--profile-shortcuts-and-the-open-profiles-launcher)
-- [Unreleased — Session Picker, Window Actions, and Detach](#unreleased--session-picker-window-actions-and-detach)
-- [Unreleased — Pane Dimming, Splits, and Restart](#unreleased--pane-dimming-splits-and-restart)
-- [Unreleased — Default Shortcuts Aligned with iTerm2](#unreleased--default-shortcuts-aligned-with-iterm2)
-- [Unreleased — Close-Safety Defaults Aligned with iTerm2](#unreleased--close-safety-defaults-aligned-with-iterm2)
-- [Unreleased — Renamed Labels, Stable Tab Numbers, and Tab Behavior](#unreleased--renamed-labels-stable-tab-numbers-and-tab-behavior)
+- [v0.48.0 — Leader Key](#v0480--leader-key)
+- [v0.48.0 — Profile Shortcuts and the Open Profiles Launcher](#v0480--profile-shortcuts-and-the-open-profiles-launcher)
+- [v0.48.0 — Session Picker, Window Actions, and Detach](#v0480--session-picker-window-actions-and-detach)
+- [v0.48.0 — Pane Dimming, Splits, and Restart](#v0480--pane-dimming-splits-and-restart)
+- [v0.48.0 — Default Shortcuts Aligned with iTerm2](#v0480--default-shortcuts-aligned-with-iterm2)
+- [v0.48.0 — Close-Safety Defaults Aligned with iTerm2](#v0480--close-safety-defaults-aligned-with-iterm2)
+- [v0.48.0 — Renamed Labels, Stable Tab Numbers, and Tab Behavior](#v0480--renamed-labels-stable-tab-numbers-and-tab-behavior)
 - [v0.45.0 — Core 0.48 and Kitty Placement Geometry (Library Consumers)](#v0450--core-048-and-kitty-placement-geometry-library-consumers)
 - [v0.43.0 — MSRV 1.98 and wgpu 30 for Library Consumers](#v0430--msrv-198-and-wgpu-30-for-library-consumers)
 - [v0.39.0 — MSRV 1.97 and the `mermaid` Feature Removed](#v0390--msrv-197-and-the-mermaid-feature-removed)
@@ -32,13 +32,13 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ---
 
-## Unreleased — Leader Key
+## v0.48.0 — Leader Key
 
 - **`Cmd + B` (macOS) and `Ctrl + Shift + B` (Linux/Windows) are the leader key.** The leader is checked before keybindings, so a binding of yours on that chord stops running. Rebind it, or set `leader_key` to another chord (empty turns the leader off). See [Leader Key](../features/LEADER_KEY.md).
 - **The background-shader toggle moved to `Ctrl + Alt + B` on Linux and Windows.** A saved config that binds `toggle_background_shader` to `Ctrl + Shift + B` is moved to `Ctrl + Alt + B` on load when that chord is free; otherwise it is left alone and the leader takes the key. macOS keeps `Cmd + Shift + B`.
 - **The tmux prefix arms the leader in a tmux gateway tab.** The keys tmux's prefix table knows still go to tmux. The ones that open par-term overlays (`:`, `?`, `w`, `s`, `q`, `,`) now open par-term's palette, help, tree picker, session picker, pane letters, and tab rename instead of tmux's prompt or choose-tree. Tab navigation (`n`, `p`, `l`, `1`–`9`) switches par-term's tab, as the tab chords do, instead of tmux's current window, which par-term did not follow. In a local tab beside a gateway, the tmux prefix now reaches the shell.
 
-## Unreleased — Profile Shortcuts and the Open Profiles Launcher
+## v0.48.0 — Profile Shortcuts and the Open Profiles Launcher
 
 - **Profile shortcuts move into your keybindings.** On first launch, each profile's **Keyboard Shortcut** (`keyboard_shortcut` in `profiles.yaml`) becomes a keybinding to `open_profile:<id>` with the same chord, saved to `config.yaml`, and the profile field is cleared. Nothing to do unless the log reports a shortcut that was not migrated: one that does not parse, or whose chord another binding already holds, stays on the profile and does nothing. Record it in the profile editor's **Keyboard Shortcut** field (Settings › Profiles) or in Settings › Keys › Key Bindings instead. Child profiles no longer inherit a parent's shortcut.
 - **The tab bar's "New Tab" profile window is gone.** The chevron next to `+`, and the new-tab shortcut with `new_tab_shortcut_shows_profiles: true`, open the Open Profiles launcher instead. The window's **Assistant Panel** entry is not in the launcher; use the assistant keybinding or the View menu.
@@ -47,14 +47,14 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 >
 ---
 
-## Unreleased — Session Picker, Window Actions, and Detach
+## v0.48.0 — Session Picker, Window Actions, and Detach
 
 - **`close_window` closes the whole window.** A keybinding bound to `close_window` used to close the active tab when the window had several and the window only on its last tab. It now closes the window with all its tabs, asking first when the window holds more than one tab. The previous behavior is `close_tab_or_window`; rebind to that id to keep it.
 - **`detach` is the detach action.** `mux-detach` keeps working as an alias; configs that use it need no change.
 
 ---
 
-## Unreleased — Pane Dimming, Splits, and Restart
+## v0.48.0 — Pane Dimming, Splits, and Restart
 
 - **Inactive panes darken instead of fading.** With `dim_inactive_panes: true`, unfocused panes now scale their colors toward black and keep text solid (`inactive_pane_dim_mode: darken`, the new default). `inactive_pane_opacity` sets the brightness in that mode. The previous look, where the whole pane including its text turned transparent over a background image or shader, is `inactive_pane_dim_mode: fade`.
 - **Splits of a profile tab run the profile's program.** Splitting a tab opened from a profile with an SSH host, command, or shell starts that program in the new pane instead of the default shell. Set `split_inherits_profile: false` to keep the old behavior.
@@ -62,7 +62,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ---
 
-## Unreleased — Default Shortcuts Aligned with iTerm2
+## v0.48.0 — Default Shortcuts Aligned with iTerm2
 
 The default keybindings follow iTerm2 on macOS, and the same letters through the `Ctrl+Shift` / `Ctrl+Alt` family on Linux and Windows. See [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) for the full table.
 
@@ -104,7 +104,7 @@ The default keybindings follow iTerm2 on macOS, and the same letters through the
 
 ---
 
-## Unreleased — Close-Safety Defaults Aligned with iTerm2
+## v0.48.0 — Close-Safety Defaults Aligned with iTerm2
 
 Window-close behavior changes for configs that do not set these keys (saved configs that set them keep their values):
 
@@ -124,7 +124,7 @@ session_undo_preserve_shell: false
 
 ---
 
-## Unreleased — Renamed Labels, Stable Tab Numbers, and Tab Behavior
+## v0.48.0 — Renamed Labels, Stable Tab Numbers, and Tab Behavior
 
 "Session" now means only a par-mux or tmux session in every label and doc. No config key or action id changed; only the words did:
 
