@@ -123,6 +123,21 @@ fn resolve_sink_var(operand: &str) -> anyhow::Result<String> {
     }
 }
 
+/// Split a `file_bytes` operand into `(path, hex, exact)`: `<path>:<hex>`
+/// matches exactly, `<path>*<hex>` as a suffix. The split runs from the
+/// END and a `:` tail must be pure hex, so a Windows drive colon
+/// (`C:\...`) stays part of the path instead of being read as a delimiter.
+fn split_file_bytes_operand(operand: &str) -> Option<(&str, &str, bool)> {
+    if let Some(star) = operand.rfind('*') {
+        return Some((&operand[..star], &operand[star + 1..], false));
+    }
+    let (path, hex) = operand.rsplit_once(':')?;
+    if hex.is_empty() || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some((path, hex, true))
+}
+
 /// The files a script's `file_bytes`/`file_empty` operands name (path
 /// portion only, before `:`/`*`).
 fn sink_paths(steps: &[UiTestStep]) -> Vec<PathBuf> {
@@ -133,7 +148,7 @@ fn sink_paths(steps: &[UiTestStep]) -> Vec<PathBuf> {
                 assert_eq: (what, operand),
             } => match (what.as_str(), operand.as_str()) {
                 ("file_empty", path) => Some(path),
-                ("file_bytes", path) => path.split([':', '*']).next(),
+                ("file_bytes", path) => split_file_bytes_operand(path).map(|(p, _, _)| p),
                 _ => None,
             },
             _ => None,
@@ -1282,12 +1297,11 @@ impl WindowManager {
             // Unlike file_empty, a missing file is a failure — a delivery
             // proof must show the bytes arrived.
             "file_bytes" => {
-                let (path, expected_hex, exact) = if let Some((p, h)) = expected.split_once(':') {
-                    (p, h, true)
-                } else if let Some((p, h)) = expected.split_once('*') {
-                    (p, h, false)
-                } else {
-                    return Err("file_bytes: expected '<path>:<hex>' or '<path>*<hex>'".into());
+                let (path, expected_hex, exact) = match split_file_bytes_operand(expected) {
+                    Some(split) => split,
+                    None => {
+                        return Err("file_bytes: expected '<path>:<hex>' or '<path>*<hex>'".into());
+                    }
                 };
                 let expected_hex = expected_hex.to_ascii_lowercase();
                 let actual = std::fs::read(path)
@@ -1598,6 +1612,28 @@ mod tests {
             "/tmp/literal.bin:0a"
         );
         unsafe { std::env::remove_var(SINK_ENV_VAR) };
+    }
+
+    #[test]
+    fn file_bytes_operand_splits_from_the_end() {
+        // A Windows drive colon is part of the path, not a delimiter.
+        assert_eq!(
+            split_file_bytes_operand(r"C:\tmp\sink.bin:0a"),
+            Some((r"C:\tmp\sink.bin", "0a", true))
+        );
+        assert_eq!(
+            split_file_bytes_operand("/tmp/sink.bin:0a"),
+            Some(("/tmp/sink.bin", "0a", true))
+        );
+        assert_eq!(
+            split_file_bytes_operand(r"C:\tmp\sink*5aa1"),
+            Some((r"C:\tmp\sink", "5aa1", false))
+        );
+        assert_eq!(
+            split_file_bytes_operand("/tmp/capture"),
+            None,
+            "no suffix: the file_bytes caller must reject it"
+        );
     }
 
     #[test]
