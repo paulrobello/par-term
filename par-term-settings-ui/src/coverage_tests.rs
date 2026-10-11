@@ -207,12 +207,19 @@ fn homes() -> BTreeMap<String, BTreeSet<String>> {
     homes
 }
 
+/// Controls drawn only on macOS (`#[cfg(target_os = "macos")]` or a
+/// `cfg!` guard in the section files): off macOS they have no rendered
+/// home by design. On macOS they are still required to render.
+const MACOS_ONLY: &[&str] = &["blur_enabled", "blur_radius", "target_space"];
+
 #[test]
 fn every_config_field_is_rendered_once_or_listed() {
     let keys = config_keys();
     let homes = homes();
     let listed = |key: &str| {
-        YAML_ONLY.iter().any(|(k, _)| *k == key) || INTERNAL.iter().any(|(k, _)| *k == key)
+        YAML_ONLY.iter().any(|(k, _)| *k == key)
+            || INTERNAL.iter().any(|(k, _)| *k == key)
+            || (cfg!(not(target_os = "macos")) && MACOS_ONLY.contains(&key))
     };
 
     let mut unrendered = Vec::new();
