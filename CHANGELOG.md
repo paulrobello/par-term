@@ -11,6 +11,9 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Changed
+- The par-mux agent skill is now owned and installed by the par-mux binary itself: the integrations dialog checkbox runs `par-mux --install-skill` (resolving the binary beside par-term, then on `PATH`) instead of writing a copy embedded in par-term, and `skills/par-mux/SKILL.md` is removed from this repository. The installed skill can no longer drift from the shipped par-mux CLI — it documents the binary you actually have. Requires the bundled par-mux to be a build with the flag (this release bundles one).
+
 ---
 
 ## [0.48.0] - 2026-10-10
