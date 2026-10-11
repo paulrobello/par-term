@@ -9,7 +9,7 @@ members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input"
 # ---------------------------------------------------------------------------
 [workspace.dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.59", default-features = false, features = ["rust-only", "pty_session", "screenshot"] }
+par-term-emu-core-rust = { version = "0.60", default-features = false, features = ["rust-only", "pty_session", "screenshot"] }
 
 # Async runtime
 tokio = { version = "1.52", features = ["full"] }
@@ -101,7 +101,7 @@ serial_test = { version = "4.0.1", default-features = false }
 name = "par-term"
 version = "0.48.0"
 edition = "2024"
-rust-version = "1.98"
+rust-version = "1.99"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Cross-platform GPU-accelerated terminal emulator with inline graphics support (Sixel, iTerm2, Kitty)"
 readme = "README.md"

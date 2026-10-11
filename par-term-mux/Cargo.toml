@@ -2,7 +2,7 @@
 name = "par-term-mux"
 version = "0.3.0"
 edition = "2024"
-rust-version = "1.98"
+rust-version = "1.99"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "par-mux control-mode client for par-term terminal emulator"
 license = "MIT"
