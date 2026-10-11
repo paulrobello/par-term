@@ -66,7 +66,7 @@ fn parse_installed_path(stdout: &str) -> io::Result<PathBuf> {
 /// executable first, then on `PATH` — the bundled binary (shipped beside
 /// the par-term binary in releases) wins over whatever an older install
 /// left on `PATH`.
-fn par_mux_binary_candidates() -> io::Result<Vec<PathBuf>> {
+pub(crate) fn par_mux_binary_candidates() -> io::Result<Vec<PathBuf>> {
     #[cfg(unix)]
     let file_name = "par-mux";
     #[cfg(windows)]

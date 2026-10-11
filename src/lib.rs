@@ -82,7 +82,6 @@ pub mod macos_space; // macOS Space (virtual desktop) targeting using private SL
 /// MCP server — whole-crate re-export of `par-term-mcp`.
 pub use par_term_mcp as mcp_server;
 pub mod menu;
-pub mod mux_extension_installer;
 pub mod mux_hook_installer;
 pub mod mux_last_tab_ui;
 pub mod pane;

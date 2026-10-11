@@ -469,24 +469,13 @@ pub fn install_integrations_cli(skip_prompt: bool) -> anyhow::Result<()> {
 
 /// Install the par-mux agent-state extensions for pi and omp (CLI version)
 pub fn install_mux_extensions_cli(skip_prompt: bool) -> anyhow::Result<()> {
-    use crate::mux_extension_installer;
-
     println!("=============================================");
     println!("  par-term par-mux Extension Installer");
     println!("=============================================");
     println!();
     println!("This installs the par-mux agent-state extension into each");
-    println!("installed agent's extension directory:");
-    println!(
-        "  pi:  {}",
-        dir_display(mux_extension_installer::pi_extension_dir())
-    );
-    println!(
-        "  omp: {}",
-        dir_display(mux_extension_installer::omp_extension_dir())
-    );
-    println!();
-    println!("An agent that is not installed is reported and skipped.");
+    println!("installed agent extension directory (pi, omp). An agent that is");
+    println!("not installed is reported and skipped by par-mux.");
 
     if !skip_prompt {
         println!();
@@ -504,35 +493,18 @@ pub fn install_mux_extensions_cli(skip_prompt: bool) -> anyhow::Result<()> {
     }
     println!();
 
-    let pi_result = mux_extension_installer::install_pi_extension();
-    report_install("pi", &pi_result);
-    let omp_result = mux_extension_installer::install_omp_extension();
-    report_install("omp", &omp_result);
-
-    if pi_result.is_ok() || omp_result.is_ok() {
-        println!();
-        println!("At least one extension installed successfully.");
-        Ok(())
-    } else {
-        println!();
-        Err(anyhow::anyhow!("No extension installed (see errors above)"))
-    }
+    crate::mux_hook_installer::run_flag_inheriting("--install-agent-extensions")?;
+    Ok(())
 }
 
 /// Uninstall the par-mux agent-state extensions (CLI version)
 pub fn uninstall_mux_extensions_cli() -> anyhow::Result<()> {
-    use crate::mux_extension_installer;
-
     println!("=============================================");
     println!("  par-term par-mux Extension Uninstaller");
     println!("=============================================");
     println!();
 
-    let pi_result = mux_extension_installer::uninstall_pi_extension();
-    report_removal("pi", &pi_result);
-    let omp_result = mux_extension_installer::uninstall_omp_extension();
-    report_removal("omp", &omp_result);
-
+    crate::mux_hook_installer::run_flag_inheriting("--uninstall-agent-extensions")?;
     println!();
     println!("Done.");
     Ok(())
@@ -584,76 +556,8 @@ pub fn install_mux_hooks_cli(skip_prompt: bool) -> anyhow::Result<()> {
     }
     println!();
 
-    let claude_result = mux_hook_installer::install_claude_hook();
-    match &claude_result {
-        Ok(result) if result.settings_changed => {
-            println!(
-                "claude: hook entry added to {} (script at {})",
-                result.settings_path.display(),
-                result.hook_path.display()
-            );
-        }
-        Ok(result) => {
-            println!(
-                "claude: already installed ({} unchanged, script refreshed)",
-                result.settings_path.display()
-            );
-        }
-        Err(err) => println!("claude: FAILED — {err}"),
-    }
-
-    // codex reads claude-format hooks from hooks.json gated by a
-    // `[features] hooks = true` flag in config.toml.
-    let codex_result = mux_hook_installer::install_codex_hook();
-    match &codex_result {
-        Ok(result) => {
-            let summary = match (result.hooks_changed, result.config_changed) {
-                (true, true) => format!(
-                    "hook entry added to {} and features.hooks enabled in {} (script at {})",
-                    result.hooks_path.display(),
-                    result.config_path.display(),
-                    result.hook_path.display()
-                ),
-                (true, false) => format!(
-                    "hook entry added to {} (features.hooks already enabled; script at {})",
-                    result.hooks_path.display(),
-                    result.hook_path.display()
-                ),
-                (false, true) => format!(
-                    "features.hooks enabled in {} (hook entry already present; script at {})",
-                    result.config_path.display(),
-                    result.hook_path.display()
-                ),
-                (false, false) => format!(
-                    "already installed ({} unchanged, script refreshed)",
-                    result.hooks_path.display()
-                ),
-            };
-            println!("codex:  {summary}");
-        }
-        Err(err) => println!("codex:  FAILED — {err}"),
-    }
-
-    // grok merges every <config>/hooks/*.json, so its arm writes an owned
-    // config file instead of merging.
-    let grok_result = mux_hook_installer::install_grok_hook();
-    match &grok_result {
-        Ok(result) => println!(
-            "grok:  hook config written to {} (script at {})",
-            result.config_path.display(),
-            result.hook_path.display()
-        ),
-        Err(err) => println!("grok:  FAILED — {err}"),
-    }
-
-    if claude_result.is_ok() || codex_result.is_ok() || grok_result.is_ok() {
-        println!();
-        println!("At least one hook installed successfully.");
-        Ok(())
-    } else {
-        println!();
-        Err(anyhow::anyhow!("No hook installed (see errors above)"))
-    }
+    mux_hook_installer::run_flag_inheriting("--install-agent-hooks")?;
+    Ok(())
 }
 
 /// Uninstall the par-mux session hooks (CLI version)
@@ -665,119 +569,14 @@ pub fn uninstall_mux_hooks_cli() -> anyhow::Result<()> {
     println!("=============================================");
     println!();
 
-    let claude_result = mux_hook_installer::uninstall_claude_hook();
-    match &claude_result {
-        Ok(result) => {
-            if result.settings_changed {
-                println!(
-                    "claude: entries removed from {}",
-                    result.settings_path.display()
-                );
-            }
-            if result.hook_removed {
-                println!("claude: removed {}", result.hook_path.display());
-            }
-            if !result.settings_changed && !result.hook_removed {
-                if result.hook_path.is_file() {
-                    println!(
-                        "claude: {} exists but is not par-term's (left untouched)",
-                        result.hook_path.display()
-                    );
-                } else {
-                    println!("claude: not installed");
-                }
-            }
-        }
-        Err(err) => println!("claude: FAILED — {err}"),
-    }
-
-    let codex_result = mux_hook_installer::uninstall_codex_hook();
-    match &codex_result {
-        Ok(result) => {
-            if result.hooks_changed {
-                println!(
-                    "codex:  entries removed from {}",
-                    result.hooks_path.display()
-                );
-            }
-            if result.hook_removed {
-                println!("codex:  removed {}", result.hook_path.display());
-            }
-            if !result.hooks_changed && !result.hook_removed {
-                if result.hook_path.is_file() {
-                    println!(
-                        "codex:  {} exists but is not par-term's (left untouched)",
-                        result.hook_path.display()
-                    );
-                } else {
-                    println!("codex:  not installed");
-                }
-            }
-            if result.hooks_changed || result.hook_removed {
-                println!(
-                    "codex:  note: [features] hooks = true left in {} — inert while no hooks remain; remove it manually if unwanted",
-                    result.config_path.display()
-                );
-            }
-        }
-        Err(err) => println!("codex:  FAILED — {err}"),
-    }
-
-    let grok_result = mux_hook_installer::uninstall_grok_hook();
-    match &grok_result {
-        Ok(result) => {
-            if result.config_removed {
-                println!("grok:  removed {}", result.config_path.display());
-            }
-            if result.hook_removed {
-                println!("grok:  removed {}", result.hook_path.display());
-            }
-            if !result.config_removed && !result.hook_removed {
-                if result.hook_path.is_file() {
-                    println!(
-                        "grok:  {} exists but is not par-term's (left untouched)",
-                        result.hook_path.display()
-                    );
-                } else {
-                    println!("grok:  not installed");
-                }
-            }
-        }
-        Err(err) => println!("grok:  FAILED — {err}"),
-    }
-
+    mux_hook_installer::run_flag_inheriting("--uninstall-agent-hooks")?;
     println!();
     println!("Done.");
     Ok(())
 }
-
 fn dir_display(dir: std::io::Result<std::path::PathBuf>) -> String {
     match dir {
         Ok(path) => path.display().to_string(),
         Err(err) => format!("<unresolved: {err}>"),
-    }
-}
-
-fn report_install(agent: &str, result: &std::io::Result<std::path::PathBuf>) {
-    match result {
-        Ok(path) => println!("{agent}: installed at {}", path.display()),
-        Err(err) => println!("{agent}: FAILED — {err}"),
-    }
-}
-
-fn report_removal(
-    agent: &str,
-    result: &std::io::Result<crate::mux_extension_installer::ExtensionRemoval>,
-) {
-    match result {
-        Ok(removal) if removal.removed => {
-            println!("{agent}: removed {}", removal.path.display());
-        }
-        Ok(removal) if removal.path.is_file() => println!(
-            "{agent}: {} exists but is not par-term's (left untouched)",
-            removal.path.display()
-        ),
-        Ok(_) => println!("{agent}: not installed"),
-        Err(err) => println!("{agent}: FAILED — {err}"),
     }
 }
