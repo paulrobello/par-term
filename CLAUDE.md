@@ -36,6 +36,7 @@ make lint           # Run clippy
 make typecheck      # Type-check entire workspace (cargo check --workspace)
 make checkall       # fmt-check, lint, typecheck, test — verification only, never rewrites files
 make doc-check      # Validate markdown links and anchors (needs lychee)
+make docs-settings  # Regenerate the CONFIG_REFERENCE.md settings tables (GENERATED — never hand-edit; the settings-ui doc-freshness test fails on drift)
 make check-line-counts  # Fail on production .rs files over 800 lines (warn over 500)
 make check-nomux    # cargo check --workspace --no-default-features (the no-mux build; only ci and push CI run it)
 make check-terminology  # UX.md T1-T8 vocabulary gate: "session" only means a par-mux/tmux session in UI text and docs
@@ -94,12 +95,7 @@ make bundle            # Create macOS .app bundle (macOS only)
 
 ## Task Tracking Requirements
 
-**IMPORTANT**: Always use the task system (TaskCreate/TaskUpdate) for ALL work, even small jobs. This enables external monitoring of progress.
-
-1. **Create tasks** at the start of any request using `TaskCreate`
-2. **Mark in_progress** when starting work using `TaskUpdate`
-3. **Mark completed** when done
-4. Break multi-step work into individual tasks for visibility
+**IMPORTANT**: Track work on the kanban board (the `kanban` CLI / kanban-board skill), not Claude Code's TaskCreate/TaskUpdate tools — those are not used in this workspace. File an item per planned unit of work at the start, move it to `in_progress` when actually started, and mark it `done` only after the repo's gate passes and every acceptance criterion is checked.
 
 ## Architecture Overview
 
@@ -184,7 +180,7 @@ Layer 2 — Depend on par-term-config (bump after Layer 1):
 Layer 3 — Depend on Layer 2 crates (bump after Layer 2):
   par-term-mux          → par-term-config, par-term-tmux   [+ emu-core]
   par-term-render       → par-term-config, par-term-fonts  [+ emu-core]
-  par-term-settings-ui  → par-term-config, par-term-scripting
+  par-term-settings-ui  → par-term-config, par-term-keybindings, par-term-scripting
 
 Layer 4 — Root crate (bump last):
   par-term              → all of the above  [+ emu-core]
@@ -202,7 +198,7 @@ Layer 4 — Root crate (bump last):
 
 ### par-mux daemon for local runs
 
-The pin is on the published crates.io line (`0.51`), `mux` is a default root feature, and every manifest forwards the core's `mux` feature normally. Never commit a pin on a core version that is not on crates.io.
+The pin is on the published crates.io line (see the `par-term-emu-core-rust` version in the root `Cargo.toml` `[workspace.dependencies]` for the current pin), `mux` is a default root feature, and every manifest forwards the core's `mux` feature normally. Never commit a pin on a core version that is not on crates.io.
 
 To work against unpublished core changes locally, run `scripts/with-local-core.sh <cmd>` (or `make with-local-core CMD="<cmd>"`, default `cargo check --workspace`). It patches the root `Cargo.toml` with `[patch.crates-io]` pointing at `../par-term-emu-core-rust` (or `$PAR_TERM_LOCAL_CORE_DIR`), raises the pin if needed, stages the core's `par-mux` daemon next to the built binary, and restores `Cargo.toml`/`Cargo.lock` on exit. Never commit the patched state: stage explicit paths and check `grep patch.crates-io Cargo.toml` before committing.
 
@@ -329,6 +325,8 @@ Everything below lives under `docs/` except where the path says otherwise.
 | Progress bars | `docs/features/PROGRESS_BARS.md` |
 | Scrollback buffer | `docs/features/SCROLLBACK.md` |
 | Semantic history | `docs/features/SEMANTIC_HISTORY.md` |
+| Inline graphics (Sixel/iTerm2/Kitty) | `docs/features/INLINE_GRAPHICS.md` |
+| Settings UI pages (generated) | `docs/features/SETTINGS.md` |
 | iTerm2 feature-comparison matrix | `MATRIX.md` (repo root) |
 
 ## Quick Debugging Checklist by Category
