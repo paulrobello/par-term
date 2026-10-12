@@ -53,7 +53,7 @@ status_bar_enabled: true
 
 ## Built-in Widgets
 
-par-term includes 13 built-in widgets plus custom widgets:
+par-term includes 15 built-in widgets plus custom and plugin widgets:
 
 | Widget | YAML ID | Description | Default Section | Default State |
 |--------|---------|-------------|-----------------|---------------|
@@ -344,16 +344,25 @@ status_bar_disk_follow_cwd: false        # false = launch disk; true = active ta
 # Widgets (array of widget configurations)
 # Widget IDs use snake_case format: clock, username_hostname, current_directory,
 # git_branch, cpu_usage, memory_usage, network_status, disk_free, bell_indicator,
-# current_command, update_available. Custom widgets use `custom:<name>`.
+# current_command, update_available, agent_usage, agent_roster, broadcast_input,
+# profile. Custom widgets use `custom:<name>`; plugin widgets use `plugin:<id>`.
 # Each entry may also carry an optional `format:` override using \(variable)
 # placeholders; when set, it replaces the widget's built-in formatting.
 status_bar_widgets:
+  - id: broadcast_input
+    enabled: true
+    section: left
+    order: 0
   - id: username_hostname
     enabled: true
     section: left
     order: 0
   - id: current_directory
     enabled: true
+    section: left
+    order: 1
+  - id: profile
+    enabled: false
     section: left
     order: 1
   - id: git_branch
@@ -392,6 +401,14 @@ status_bar_widgets:
     enabled: true
     section: right
     order: 6
+  - id: agent_usage
+    enabled: false
+    section: right
+    order: 7
+  - id: agent_roster
+    enabled: true
+    section: right
+    order: 8
   # Example: built-in widget with a format override (replaces built-in formatting)
   - id: git_branch
     enabled: true
@@ -402,7 +419,7 @@ status_bar_widgets:
   - id: custom: Build Stats
     enabled: true
     section: right
-    order: 7
+    order: 9
     format: CPU \(system.cpu) · \(git.branch)
 ```
 

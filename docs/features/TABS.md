@@ -135,8 +135,8 @@ For full details on reopen closed tab configuration and keeping the shell runnin
 
 | Action | Shortcut |
 |--------|----------|
-| Next tab | `Cmd+Shift+]` or `Ctrl+Tab` |
-| Previous tab | `Cmd+Shift+[` or `Ctrl+Shift+Tab` |
+| Next tab | `Cmd+Shift+]` (macOS) / `Ctrl+Shift+]` or `Ctrl+Tab` |
+| Previous tab | `Cmd+Shift+[` (macOS) / `Ctrl+Shift+[` or `Ctrl+Shift+Tab` |
 | Go to tab 1-9 | `Cmd+1` through `Cmd+9` (macOS) / `Alt+1` through `Alt+9` |
 | Last-used tab | `last_tab` (no default chord) |
 | Rightmost tab | `go_to_last_tab` (no default chord) |

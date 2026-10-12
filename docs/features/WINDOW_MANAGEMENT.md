@@ -359,7 +359,7 @@ Save and restore complete window layouts as named arrangements. This provides iT
 
 ### Settings UI
 
-The **Window** tab in Settings includes Arrangements sections at the bottom for saving, restoring, renaming, deleting, and reordering arrangements. Set any arrangement as the default to auto-restore on startup.
+Settings > Sessions > Arrangements saves, restores, renames, deletes, and reorders arrangements. The default arrangement to auto-restore on startup is set in Settings > General > Startup & Restore.
 
 ### Keybinding Support
 
@@ -382,7 +382,7 @@ keybindings:
 
 ### Menu Integration
 
-The View menu includes a "Save Window Arrangement..." item for saving the current layout.
+The **Window > Arrangements** submenu has **Save or Manage Arrangements...** (opens Settings > Sessions > Arrangements) and a **Restore** submenu with one item per saved arrangement.
 
 ### Persistence
 
@@ -465,7 +465,7 @@ dark_tab_style: dark
 
 When `tab_style` is set to `"automatic"`, par-term uses `light_tab_style` when the OS is in light mode and `dark_tab_style` when the OS is in dark mode. This pairs with [Auto Dark Mode](#auto-dark-mode) for a fully theme-aware interface.
 
-**Settings UI:** Settings > Windows & Tabs > Tab Bar > "Tab Style" (select "Automatic" from the dropdown)
+**Settings UI:** Settings > Windows & Tabs > Tab Bar > "Tab style" (select "Automatic" from the dropdown)
 
 ## macOS Target Space
 

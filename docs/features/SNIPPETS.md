@@ -30,7 +30,7 @@ Snippets are saved text blocks that can be quickly inserted into the terminal. T
 ### Creating Snippets
 
 1. Open Settings (`F12` or `⌘+,` on macOS)
-2. Navigate to the **Snippets & Actions** tab
+2. Navigate to **Automation** → **Snippets**
 3. Click **+ Add Snippet**
 4. Fill in the snippet details:
    - **Title**: A human-readable name (e.g., "Git Commit Message")
@@ -67,8 +67,8 @@ Snippets support dynamic variable substitution using the `\(variable)` syntax. W
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `\(date)` | Current date (YYYY-MM-DD) | `2026-02-06` |
-| `\(time)` | Current time (HH:MM:SS) | `23:45:30` |
-| `\(datetime)` | Current date and time | `2026-02-06 23:45:30` |
+| `\(time)` | Current time (HH:MM:SS), in UTC | `23:45:30` |
+| `\(datetime)` | Local date followed by the UTC time | `2026-02-06 23:45:30` |
 | `\(hostname)` | System hostname | `my-computer` |
 | `\(user)` | Current username | `alice` |
 | `\(path)` | Current working directory | `/home/alice/projects` |
@@ -296,8 +296,8 @@ Split percent: 33%
 ### Creating Actions
 
 1. Open Settings (`F12` or `⌘+,` on macOS)
-2. Navigate to the **Snippets & Actions** tab
-3. Scroll to the **Custom Actions** section and click **+ Add Action**
+2. Navigate to **Automation** → **Custom Actions**
+3. Click **+ Add Action**
 4. Fill in the action details:
    - **Title**: A human-readable name (e.g., "Run Tests")
    - **Type**: Select from Shell Command, New Tab, Insert Text, Key Sequence, Split Pane, Sequence, Condition, or Repeat
@@ -308,15 +308,15 @@ Split percent: 33%
      - Conflict warnings appear if the keybinding is already in use (⚠️)
    - **Type-specific fields**: Enter command, text, or key sequence based on type
 
-To duplicate an existing action, click the **Clone** button next to the action in the list. The clone receives a fresh unique ID so editing it does not affect the original.
+To copy an existing action, click the **Duplicate** button next to it in the list. The copy receives a fresh unique ID and a `-copy` title suffix, and its keybinding and prefix char are cleared so no chord is shared with the original.
 
 ### Using Actions
 
 Actions are triggered via keyboard shortcuts. You can assign keybindings in two ways:
 
 **Via Action Editor (Recommended):**
-1. Open Settings → **Automation** → **Snippets**
-2. Scroll to the **Custom Actions** section and edit or create an action
+1. Open Settings → **Automation** → **Custom Actions**
+2. Edit or create an action
 3. Click the **🎤 Record** button in the Keybinding field
 4. Press the desired key combination
 5. Save the action

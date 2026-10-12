@@ -94,6 +94,8 @@ The Quick Connect dialog provides fast access to all discovered SSH hosts.
 5. The SSH command is sent to the active terminal (e.g., `ssh -p 2222 user@example.com`)
 6. The SSH session begins in the current tab
 
+> **Note:** Before the command is written to the shell, par-term validates the hostname, user, identity file, and ProxyJump host. A host whose fields contain shell metacharacters or begin with `-` (for example, a hostile mDNS advertisement) is rejected, and safe values are shell-quoted.
+
 ## Host Discovery
 
 par-term automatically discovers SSH hosts from four sources. Hosts are deduplicated across sources with priority: SSH Config > Known Hosts > History.
@@ -185,6 +187,8 @@ The profile builds the SSH command from its fields:
 ```
 ssh -p 2222 -i ~/.ssh/id_work deploy@example.com
 ```
+
+**Extra-argument filtering:** `ssh_extra_args` is tokenized with shell-style quoting, and tokens that enable command execution, forwarding, or tunnels (`-A`, `-D`, `-R`, `-L`, `-W`, `-w`, and denied `-o` options such as `ProxyCommand`) are dropped with a logged warning. If the string cannot be parsed, all extra arguments are dropped.
 
 **Field Priority:** The `ssh_host` field takes precedence over `command`. If both are set, par-term launches the SSH connection and ignores `command`.
 
@@ -297,7 +301,7 @@ The **SSH** page of the **Profiles** tab in Settings (`F12`) has a section with 
 - Scan timeout slider (1-10 seconds)
 
 **Quick Connect:**
-- Shortcut reminder (`Cmd+Shift+S`)
+- Shows the currently bound chord for `ssh_quick_connect`, or a hint to bind the action under Keys > Key Bindings if none is bound
 - Info about host sources
 
 ## Troubleshooting
