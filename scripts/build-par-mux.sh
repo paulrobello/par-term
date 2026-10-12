@@ -69,5 +69,11 @@ if [ "$(uname -s)" = "Msys" ] || [[ "$OUT" == *.exe ]]; then
 else
   cp "$ROOT/bin/par-mux" "$OUT"
 fi
+# The cp'd copy keeps the linker's adhoc signature, which macOS taskgated
+# rejects on first run (SIGKILL, "Taskgated Invalid Signature", measured
+# 2026-10-11 on macOS 27). Re-signing adhoc makes the copy launchable.
+if [ "$(uname -s)" = "Darwin" ]; then
+  codesign --force --sign - "$OUT"
+fi
 
 echo "par-mux daemon written to $OUT"
