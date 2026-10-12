@@ -26,7 +26,7 @@ action:                       # one CustomActionConfig variant, serde-tagged
 
 - **script** (`type: shell_command`) runs a shell command as a subprocess.
 - **macro** (any other variant: `new_tab`, `insert_text`, `split_pane`,
-  `key_sequence`, `sequence`) replays built-in actions.
+  `key_sequence`, `sequence`, `condition`, `repeat`) replays built-in actions.
 
 `id` and `title` live inside `action` — every variant embeds both as required
 fields. Validation on load: id charset (`[a-z0-9-]+`, ≤64 bytes) and

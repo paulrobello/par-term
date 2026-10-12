@@ -59,11 +59,10 @@ graph TD
 
 **Method 1: Settings UI**
 
-1. Press `F12` to open Settings
-2. Navigate to the **Appearance** tab
-3. Scroll to the **Badge** sections at the bottom
-4. Enable "Enable badge"
-5. Configure format, appearance, and position
+1. Press `F12` (or `Cmd + ,` on macOS) to open Settings
+2. Navigate to the **Appearance** tab and select the **Badge** page
+3. Enable "Enable badge" in the general section
+4. Configure format, appearance, and position in the sections below it (an "Available Variables" section lists clickable variables)
 
 **Method 2: Configuration File**
 

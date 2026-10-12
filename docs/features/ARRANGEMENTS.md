@@ -4,7 +4,7 @@ Save and restore complete window layouts, including window positions, sizes, tab
 
 ## Table of Contents
 - [Overview](#overview)
-- [tmux Session Capture and Restore](#tmux-session-capture-and-restore)
+- [tmux and par-mux Session Capture and Restore](#tmux-and-par-mux-session-capture-and-restore)
 - [Saving Arrangements](#saving-arrangements)
   - [Via Settings UI](#via-settings-ui)
   - [Via Window Menu](#via-window-menu)
@@ -78,7 +78,7 @@ graph TD
     classDef accent fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
 ```
 
-## tmux Session Capture and Restore
+## tmux and par-mux Session Capture and Restore
 
 When saving an arrangement, par-term captures the active tmux session name for each window (if connected in control mode). When restoring the arrangement, each window automatically reconnects to its saved tmux session.
 
@@ -87,6 +87,8 @@ When saving an arrangement, par-term captures the active tmux session name for e
 **Restore**: On restore, if `tmux_session_name` is set and `tmux_enabled = true`, a single empty gateway shell tab is created and `initiate_tmux_gateway(Some(session_name))` is called. The real tmux window tabs are then re-created by the tmux session via normal layout-change notifications — they are never reconstructed from the saved tab list. Failures to connect are logged as warnings but do not prevent the window from opening.
 
 **Why only one shell tab**: The saved tab list contains the tmux display tabs from the previous session. If those CWDs were used to spawn new shell processes on restore, you would end up with duplicate tabs (the ghost shells plus the real tmux windows). By passing only one empty CWD, the gateway shell is the only process spawned; the rest of the tab bar is populated by tmux itself.
+
+**par-mux sessions**: A window attached to a par-mux session is captured the same way, with the session name stored as `mux_session_name` (separate from `tmux_session_name`). On restore, that window gets a single placeholder tab and reattaches to the named par-mux session through the daemon, never through the tmux gateway. In a build without the `mux` feature, the reattach is skipped and a warning is logged.
 
 **Normal mode sessions**: Sessions connected in Normal mode (plain tmux in PTY) are not captured — par-term has no visibility into their session name. Only control-mode sessions are preserved across arrangement save/restore.
 
@@ -117,7 +119,7 @@ keybindings:
     action: "save_arrangement"
 ```
 
-Like the View menu item, this opens the Settings window at **Sessions > Arrangements** with the **Save Current Layout** section expanded and highlighted.
+Like the Window menu item, this opens the Settings window at **Sessions > Arrangements** with the **Save Current Layout** section expanded and highlighted.
 
 ### Duplicate Name Handling
 
@@ -125,7 +127,7 @@ When saving an arrangement with a name that already exists (matched case-insensi
 
 ## Restoring Arrangements
 
-Restoring an arrangement closes all current windows and recreates the saved layout. Each window is placed on the correct monitor with its saved position, size, tabs, and active tab index. Per-tab customizations -- user-set names, custom colors, and custom icons -- are faithfully reapplied to the correct tabs in each window. A tab saved with split panes comes back with the same layout, each pane starting a fresh shell in its saved directory. Arrangements saved before pane layouts were stored load unchanged, with one pane per tab. Windows with a saved tmux session are the exception: their tab bar is repopulated by tmux itself (see [tmux Session Capture and Restore](#tmux-session-capture-and-restore)).
+Restoring an arrangement closes all current windows and recreates the saved layout. Each window is placed on the correct monitor with its saved position, size, tabs, and active tab index. Per-tab customizations -- user-set names, custom colors, and custom icons -- are faithfully reapplied to the correct tabs in each window. A tab saved with split panes comes back with the same layout, each pane starting a fresh shell in its saved directory. Arrangements saved before pane layouts were stored load unchanged, with one pane per tab. Windows with a saved tmux session are the exception: their tab bar is repopulated by tmux itself (see [tmux and par-mux Session Capture and Restore](#tmux-and-par-mux-session-capture-and-restore)).
 
 In multi-window layouts, par-term uses the exact `WindowId` returned from each window creation to apply tab properties, ensuring that custom colors, icons, and user titles are never misapplied to the wrong window.
 
@@ -299,6 +301,7 @@ Example structure:
       position_relative: [100, 200]
       size: [800, 600]
       tmux_session_name: "work-session"
+      # mux_session_name: "dev"   # set instead when the window was attached to a par-mux session
       tabs:
         - cwd: "/home/user/projects"
           title: "zsh"
@@ -326,7 +329,7 @@ graph TD
     Mod[mod.rs<br/>src/arrangements<br/>Re-exports from settings-ui]
     WinMgr[WindowManager<br/>Orchestration]
     SettingsUI[Sessions Tab<br/>Arrangements Page<br/>egui UI]
-    Menu[View Menu<br/>Save Item]
+    Menu[Window Menu<br/>Arrangements Submenu]
     Input[Input Events<br/>Keybinding Actions]
 
     WinMgr --> Capture
@@ -359,7 +362,7 @@ graph TD
 **Key types in `par-term-settings-ui/src/arrangements.rs`:**
 
 - `MonitorInfo`: Captures monitor name, index, position, size, and scale factor at save time
-- `WindowSnapshot`: Stores a window's monitor, relative position, size, tabs, and active tab index
+- `WindowSnapshot`: Stores a window's monitor, relative position, size, tabs, active tab index, and optional tmux and par-mux session names
 - `WindowArrangement`: A named collection of window snapshots with monitor layout and metadata
 - `ArrangementManager`: Manages the collection of saved arrangements with ordering, lookup by name, and CRUD operations
 
