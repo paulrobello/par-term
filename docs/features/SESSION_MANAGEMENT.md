@@ -66,14 +66,14 @@ When a tab closes, par-term captures its metadata (working directory, title, whe
 
 ### Keeping the Shell Running
 
-When `session_undo_preserve_shell` is enabled, closing a tab hides the shell process instead of killing it. Undoing restores the live tab including:
+When `session_undo_preserve_shell` is enabled (the default), closing a tab hides the shell process instead of killing it. Undoing restores the live tab including:
 
 - Scrollback buffer content
 - Running processes
 - Complete pane layout
 - User-set tab name and custom icon
 
-When disabled (default), undo starts a new shell in the tab's original working directory.
+When disabled, undo starts a new shell in the tab's original working directory.
 
 Expired undo entries automatically kill hidden shell processes to prevent resource leaks.
 
@@ -86,11 +86,11 @@ session_undo_timeout_secs: 5
 # Maximum number of undo entries in the queue
 session_undo_max_entries: 10
 
-# Keep the shell process running on tab close so reopening restores it live
-session_undo_preserve_shell: false
+# Keep the shell process running on tab close so reopening restores it live (default: true)
+session_undo_preserve_shell: true
 ```
 
-**Settings UI:** Settings > General > Closing & Quitting
+**Settings UI:** Settings > General > Closing & Quitting ("Reopen Closed Tab")
 
 ## Restore Windows on Launch
 

@@ -124,6 +124,10 @@ Specify a custom editor command with placeholder support:
 
 If no `{file}` placeholder is found, the file path is appended to the command.
 
+**How the command is run:** when the command contains `{file}` and no shell metacharacters (pipes, `&`, `;`, `$`, backticks, parentheses, braces, redirects, `~`, backslashes, or single quotes outside the placeholders), it is split into arguments and spawned directly, with no shell involved. Otherwise the command runs through your login shell (`$SHELL -lc`, or `cmd /C` on Windows) with the substituted values shell-escaped. A bare `$EDITOR` value such as `vim` has no `{file}` placeholder, so it takes the shell path with the file appended.
+
+If Custom mode is selected but the command is empty, the file opens with the system default application.
+
 ### System Default
 
 Opens files with the operating system's default application for that file type. Ignores custom editor settings.
@@ -137,7 +141,7 @@ semantic_history_enabled: true
 # Editor selection mode: environment_variable, custom, system_default
 semantic_history_editor_mode: environment_variable
 
-# Custom editor command (only used with "custom" mode)
+# Custom editor command (only used with "custom" mode; default: empty)
 # Supports {file}, {line}, {col} placeholders
 semantic_history_editor: "code -g {file}:{line}"
 
@@ -153,6 +157,9 @@ link_highlight_underline: true
 
 # Underline style: solid or stipple (default: stipple)
 link_underline_style: stipple
+
+# Allow Cmd/Ctrl+Click to open file:// hyperlinks via the OS handler (default: false)
+allow_file_scheme_urls: false
 ```
 
 ## Link Handler
@@ -164,7 +171,9 @@ By default, clicking a URL in the terminal opens it in the system's default brow
 link_handler_command: ""
 ```
 
-The `{url}` placeholder in the command is replaced with the clicked URL at runtime.
+The command is split into arguments before `{url}` is substituted, so the URL always stays a single argument. Clicked URLs without a scheme (for example `www.example.com`) get `https://` prepended.
+
+Only `http`, `https`, and `mailto` URLs are opened. `file://` links are refused unless `allow_file_scheme_urls` is enabled (default: false), and other schemes such as `ftp://` are always refused.
 
 **Examples:**
 

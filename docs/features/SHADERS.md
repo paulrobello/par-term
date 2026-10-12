@@ -171,6 +171,7 @@ Located in `shaders/textures/cubemaps/`:
 | Texture | Description |
 |---------|-------------|
 | `metalic1.jpg` | Metallic surface texture for bump mapping |
+| `env-outside.png` | Single-image outdoor environment texture (the cubemap faces live in `cubemaps/`) |
 
 ### Included Texture Packs
 

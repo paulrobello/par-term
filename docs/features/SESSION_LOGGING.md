@@ -138,9 +138,8 @@ The Advanced > Logging page in Settings provides:
 | Option | Description |
 |--------|-------------|
 | **Record every tab's output automatically** | Auto-start recording for new tabs |
-| **Log format** | Dropdown: Plain Text, HTML, Asciicast (asciinema) |
+| **Log format** | Dropdown: Plain Text, HTML, Asciicast (asciinema), Asciicast v3 (graphics) |
 | **Log directory** | Path to log storage directory |
-| **Archive recording on tab close** | Ensure clean file write on close |
 | **Redact passwords in recordings** | Detect password prompts and replace input with redaction marker |
 
 ## Security: Sensitive Data Redaction
@@ -270,7 +269,7 @@ The `.cast` files follow the asciinema v2 specification:
 - `r` - Resize (terminal dimensions changed)
 - `m` - Marker (annotation)
 
-par-term writes `o` (output), `i` (input — subject to password/echo redaction), and `r` (resize) events. `m` (marker) is part of the asciinema v2 specification and is handled by the writer, but par-term never constructs one today.
+par-term writes `o` (output) and `r` (resize) events. The logger has a redaction-aware `i` (input) path (`SessionLogger::record_input`), but no caller feeds it keyboard input, so `i` events are not produced today. `m` (marker) is part of the asciinema v2 specification and is handled by the writer, but par-term never constructs one either.
 
 In **asciicast v3**, event times become per-event relative intervals, resize payloads become `"COLSxROWS"` strings, and the `g` event carries a JSON object per inline graphic (protocol, placement, dimensions, base64 `data`). `g` events are keyed to the moment each image entered the terminal's graphics store, re-anchored to the recording start so they stay aligned with the text stream.
 
