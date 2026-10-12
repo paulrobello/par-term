@@ -310,7 +310,7 @@ echo "   ← → ↑ ↓ ⇐ ⇒ ⇑ ⇓"
 echo "   ✓ ✗ ★ ☆ ♠ ♣ ♥ ♦"
 echo ""
 
-echo "10. OSC 8 Hyperlink (click with Ctrl+Click):"
+echo "10. OSC 8 Hyperlink (click with Cmd+Click on macOS, Ctrl+Click elsewhere):"
 printf "    Visit \e]8;;https://github.com/paulrobello/par-term\e\\GitHub\e]8;;\e\\ for more info\n"
 echo ""
 
