@@ -1242,6 +1242,15 @@ impl WindowManager {
                 };
                 Ok((actual.clone(), actual == expected))
             }
+            // The active tab's profile name — the MP3 open-profiles proof
+            // asserts the tab the launcher created carries the profile.
+            "tab_profile" => {
+                let Some(ws) = self.ui_test_window_state() else {
+                    return Err("tab_profile: no terminal window".into());
+                };
+                let actual = ws.active_tab_profile_name();
+                Ok((actual.clone(), actual == expected))
+            }
             // The selected command's text — the B70 navigation proof pairs
             // it with arrow presses (selection moved to the expected row).
             "command_history_selected" => {

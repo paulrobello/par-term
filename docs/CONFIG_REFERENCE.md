@@ -733,8 +733,8 @@ See [PROFILES.md](features/PROFILES.md) for full documentation.
 
 | Field | Type | Default | Description | Settings |
 |-------|------|---------|-------------|--------|
-| `mux_session_name` | `string?` | `null` | par-mux session to create-or-attach when this profile opens. Detaching drops the socket; the session keeps running in the daemon. No spaces, quotes, or backslashes | Profiles › Profiles (profile editor, Session sub-tab) |
-| `mux_session_patterns` | `string[]` | `[]` | Glob patterns (e.g. `work-*`, `PARMux`) matched against the par-mux session name when the window attaches (session picker, profile auto-connect, or `mux_auto_attach`) to switch to this profile | Profiles › Profiles (profile editor, Auto-Switch sub-tab) |
+| `mux_session_name` | `string?` | `null` | par-mux session to create-or-attach when this profile opens. Detaching drops the socket; the session keeps running in the daemon. No spaces, quotes, or backslashes |  |
+| `mux_session_patterns` | `string[]` | `[]` | Glob patterns (e.g. `work-*`, `PARMux`) matched against the par-mux session name when the window attaches (session picker, profile auto-connect, or `mux_auto_attach`) to switch to this profile |  |
 
 Dynamic profiles can be fetched from remote URLs:
 

@@ -96,6 +96,7 @@ A JSON object with a `steps` array. Each step is one object with an optional
 - `["window_count", "N"]` — the app's open-window count (manager-level; works with zero terminal windows)
 - `["tab_count", "N"]` / `["pane_count", "N"]` — the first terminal window's visible tab count / its active tab's pane count
 - `["active_tab", "N"]` — the 1-based active tab (the leader proof)
+- `["tab_profile", "Work"]` — the active tab's profile name, `Default` for a plain tab (the MP3 open-profiles proof)
 - `["file_bytes", "/path:HEX"]` — the file's bytes, as lowercase hex, equal `HEX` exactly. `"/path*HEX"` asserts the file *ends with* the hex run. A missing file fails (unlike `file_empty`), and a `$PAR_TERM_UI_TEST_SINK` reference in the path is expanded
 - `["mux_pane_grid", "97x29"]` — the grid of every par-mux-attached pane: bare `WxH` for one pane, `%id=WxH` joined by commas in ascending pane order for more. Fails when no par-mux panes are attached
 
@@ -310,7 +311,7 @@ defaults it off and run B restores nothing. Before the TW2 fix, run B reports
 `tests/ui/mp3_open_profiles.json` proves the profile launcher end to end
 from a config with a legacy per-profile `keyboard_shortcut`: the startup
 migration turns it into an `open_profile:<id>` binding and the chord opens
-the profile in a new tab (`tab_count` 2); Open Profiles
+the profile in a new tab (`tab_count` 2, `tab_profile` `Work`); Open Profiles
 (Enter) opens another tab; `Cmd+d` and `Cmd+Shift+d` split the active tab
 (`pane_count` 2 then 3); `Shift+Enter` opens a second window
 (`window_count` 2); Escape closes the launcher. The chords ride the
