@@ -104,12 +104,14 @@ impl AgentAttention {
     /// The colored-dot emoji (U+1F7E0/U+1F7E2) are carried by no font in
     /// the egui stack (CoreText-verified), so nerd PUA glyphs stand in;
     /// [`Self::color`] restores the emoji's color at the draw site. The
-    /// working marker `⋯` (U+22EF) renders — Hack carries it — so it stays.
+    /// working marker is nerd spinner — U+22EF is Hack-only and the tab
+    /// bar draws in the Proportional family, which has no Hack, so `⋯`
+    /// rendered tofu.
     pub(crate) fn glyph(self) -> &'static str {
         match self {
             Self::Blocked => "\u{f111}",
             Self::DoneUnseen => "\u{f058}",
-            Self::Working => "⋯",
+            Self::Working => "\u{f110}",
         }
     }
 
@@ -200,6 +202,32 @@ pub(crate) fn decorate_pane_title_with_agent(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_badge_glyph_is_carried_by_the_egui_stack() {
+        // The tab bar draws in the Proportional family; nerd PUA is the only
+        // vocabulary guaranteed there (nerd_font_covers is the in-repo oracle).
+        for glyph in [
+            AgentAttention::Blocked.glyph(),
+            AgentAttention::DoneUnseen.glyph(),
+            AgentAttention::Working.glyph(),
+            ZOOM_BADGE,
+        ] {
+            for ch in glyph.chars() {
+                assert!(
+                    crate::settings_ui::nerd_font::nerd_font_covers(ch),
+                    "badge glyph {ch:?} (U+{:04X}) is in no egui-stack font — it will render as tofu",
+                    ch as u32
+                );
+            }
+        }
+        for (name, emoji) in [("broadcast", BROADCAST_BADGE), ("attached", ATTACHED_BADGE)] {
+            assert!(
+                emoji.chars().count() == 1,
+                "{name} badge must be a single codepoint"
+            );
+        }
+    }
 
     #[test]
     fn a_zoomed_pane_title_carries_the_zoom_marker() {

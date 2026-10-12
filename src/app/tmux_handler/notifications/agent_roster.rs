@@ -237,7 +237,7 @@ impl AgentRoster {
     /// - priority — 2 for blocked agents and unseen-done finishers, 1 for
     ///   the rest, so the picker answers "who owes you a look" first; pane
     ///   order is preserved within each tier (stable sort over the
-    ///   pane-ordered cache). Unseen-done rows read `done ✓`.
+    ///   pane-ordered cache). Unseen-done rows read `done ` + nerd check.
     ///
     /// `visible` scopes the rows to the attached session (the module doc's
     /// rule): a row the picker offers must be a pane `focus_agent_roster_pane`
@@ -253,7 +253,8 @@ impl AgentRoster {
             .map(|entry| {
                 let unseen_done = self.done_unseen.contains(&entry.pane);
                 let mut state = if unseen_done {
-                    "done ✓".to_string()
+                    // nerd check (U+2713 sits in no egui-stack font)
+                    "done \u{f00c}".to_string()
                 } else {
                     entry.state.clone()
                 };
@@ -617,7 +618,7 @@ mod tests {
         );
         let rows = roster.palette_rows(&all_panes);
         assert_eq!(
-            rows[0].label, "kimi: done ✓",
+            rows[0].label, "kimi: done \u{f00c}",
             "the picker leads with the unseen finisher"
         );
         assert_eq!(rows[0].action_id, "agent-roster-focus:0");

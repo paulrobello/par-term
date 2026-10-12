@@ -40,12 +40,18 @@ impl ToastKind {
         }
     }
 
+    /// Icon glyphs must be carried by a font in the egui stack — nerd PUA
+    /// (`nerd_font_covers`) or a verified emoji carrier. U+2713/U+2715 sit
+    /// in NO stack font and rendered as tofu.
     fn icon(self) -> &'static str {
         match self {
+            // ℹ / ⚠ render via NotoEmoji / emoji-icon-font (verified 2026-10-12).
             ToastKind::Info => "ℹ",
-            ToastKind::Success => "✓",
+            // nerd check
+            ToastKind::Success => "\u{f00c}",
             ToastKind::Warning => "⚠",
-            ToastKind::Error => "✕",
+            // nerd close/times
+            ToastKind::Error => "\u{f00d}",
         }
     }
 }
@@ -164,6 +170,9 @@ impl ToastQueue {
     }
 }
 
+/// The dismiss button glyph — nerd close/times (U+2715 sits in no stack font).
+pub(crate) const DISMISS_GLYPH: &str = "\u{f00d}";
+
 /// Draw the stack top-right, `top_inset` points below the window top (the
 /// tab bar's height when it sits at the top), newest on top. Returns what
 /// the user clicked.
@@ -201,7 +210,11 @@ pub(crate) fn render_toasts(
                                     action_id: action.action_id.clone(),
                                 });
                             }
-                            if ui.small_button("✕").on_hover_text("Dismiss").clicked() {
+                            if ui
+                                .small_button(DISMISS_GLYPH)
+                                .on_hover_text("Dismiss")
+                                .clicked()
+                            {
                                 events.push(ToastEvent::Dismissed(toast.id));
                             }
                         });
@@ -237,6 +250,35 @@ pub(crate) fn render_mode_banner(ctx: &egui::Context, text: Option<&str>, top_in
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Glyphs verified to render from the emoji fonts of the egui stack
+    /// (CoreText/cmap-verified against the shipped fonts 2026-10-12).
+    const EMOJI_CARRIED: &[char] = &['ℹ', '⚠'];
+
+    #[test]
+    fn every_toast_icon_and_dismiss_glyph_is_carried_by_the_stack() {
+        for kind in [
+            ToastKind::Info,
+            ToastKind::Success,
+            ToastKind::Warning,
+            ToastKind::Error,
+        ] {
+            for ch in kind.icon().chars() {
+                assert!(
+                    par_term_settings_ui::nerd_font::nerd_font_covers(ch)
+                        || EMOJI_CARRIED.contains(&ch),
+                    "toast icon {ch:?} (U+{:04X}, {kind:?}) is in no egui-stack font — it will render as tofu",
+                    ch as u32
+                );
+            }
+        }
+        for ch in DISMISS_GLYPH.chars() {
+            assert!(
+                par_term_settings_ui::nerd_font::nerd_font_covers(ch),
+                "dismiss glyph {ch:?} is in no egui-stack font"
+            );
+        }
+    }
 
     #[test]
     fn at_most_three_toasts_and_the_oldest_non_error_drops_first() {

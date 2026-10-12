@@ -149,7 +149,12 @@ impl SettingsUI {
                             .wrap(),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("✕").on_hover_text("Dismiss").clicked() {
+                        // nerd close/times (U+2715 sits in no egui-stack font)
+                        if ui
+                            .small_button("\u{f00d}")
+                            .on_hover_text("Dismiss")
+                            .clicked()
+                        {
                             dismiss = true;
                         }
                         if self.disk_config_pending.is_some()

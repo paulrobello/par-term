@@ -55,6 +55,118 @@ pub fn configure_nerd_font(ctx: &egui::Context) {
     ctx.set_fonts(font_definitions());
 }
 
+/// Whether the embedded nerd-font symbols fallback carries `ch`.
+///
+/// The in-repo coverage oracle for icon glyphs drawn in egui text: nerd PUA
+/// is the only icon vocabulary every shipped stack carries, and glyphs like
+/// U+2713/U+2715 sit in NO font of the stack (egui defaults, braille fallback,
+/// this font) and render as tofu. Icon-code tests assert against this instead
+/// of trusting a literal looks right.
+pub fn nerd_font_covers(ch: char) -> bool {
+    static COVERED: std::sync::OnceLock<std::collections::HashSet<char>> =
+        std::sync::OnceLock::new();
+    COVERED.get_or_init(parse_cmap_codepoints).contains(&ch)
+}
+
+/// Every codepoint the embedded TTF maps to a non-.notdef glyph (cmap
+/// formats 4 and 12, exact glyph-id resolution). An empty set means the
+/// bytes failed to parse — tests then fail loudly rather than pass vacuously.
+fn parse_cmap_codepoints() -> std::collections::HashSet<char> {
+    let mut covered = std::collections::HashSet::new();
+    let data = NERD_FONT_BYTES;
+    let be16 = |off: usize| -> Option<u16> {
+        data.get(off..off + 2)
+            .map(|b| u16::from_be_bytes([b[0], b[1]]))
+    };
+    let be32 = |off: usize| -> Option<u32> {
+        data.get(off..off + 4)
+            .map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
+    };
+    let Some(num_tables) = be16(4) else {
+        return covered;
+    };
+    let mut cmap_off = None;
+    for i in 0..num_tables as usize {
+        let rec = 12 + 16 * i;
+        if data.get(rec..rec + 4) == Some(b"cmap")
+            && let Some(off) = be32(rec + 8)
+        {
+            cmap_off = Some(off as usize);
+            break;
+        }
+    }
+    let Some(cmap) = cmap_off else {
+        return covered;
+    };
+    let Some(num_sub) = be16(cmap + 2) else {
+        return covered;
+    };
+    for i in 0..num_sub as usize {
+        let rec = cmap + 4 + 8 * i;
+        let (Some(_platform), Some(_encoding), Some(sub_off)) =
+            (be16(rec), be16(rec + 2), be32(rec + 4))
+        else {
+            continue;
+        };
+        let b = cmap + sub_off as usize;
+        let Some(fmt) = be16(b) else { continue };
+        if fmt == 4 {
+            let Some(seg_x2) = be16(b + 6) else { continue };
+            let seg = seg_x2 as usize / 2;
+            let ends_off = b + 14;
+            let starts_off = ends_off + seg_x2 as usize + 2;
+            let deltas_off = starts_off + seg_x2 as usize;
+            let ranges_off = deltas_off + seg_x2 as usize;
+            for si in 0..seg {
+                let (Some(s), Some(e), Some(delta), Some(ro)) = (
+                    be16(starts_off + 2 * si),
+                    be16(ends_off + 2 * si),
+                    be16(deltas_off + 2 * si),
+                    be16(ranges_off + 2 * si),
+                ) else {
+                    continue;
+                };
+                if s == 0xFFFF {
+                    continue;
+                }
+                for cp in s..=e {
+                    let gid = if ro == 0 {
+                        cp.wrapping_sub(s).wrapping_add(delta)
+                    } else {
+                        // idRangeOffset is relative to THIS entry's address.
+                        let addr = ranges_off + 2 * si + ro as usize + 2 * (cp - s) as usize;
+                        let Some(raw) = be16(addr) else { continue };
+                        if raw == 0 { 0 } else { raw.wrapping_add(delta) }
+                    };
+                    if gid != 0
+                        && let Some(ch) = char::from_u32(cp as u32)
+                    {
+                        covered.insert(ch);
+                    }
+                }
+            }
+        } else if fmt == 12 {
+            let Some(n_groups) = be32(b + 12) else {
+                continue;
+            };
+            for g in 0..n_groups as usize {
+                let go = b + 16 + 12 * g;
+                let (Some(s), Some(e), Some(gs)) = (be32(go), be32(go + 4), be32(go + 8)) else {
+                    continue;
+                };
+                for cp in s..=e {
+                    if gs + (cp - s) != 0
+                        && let Some(ch) = char::from_u32(cp)
+                    {
+                        covered.insert(ch);
+                    }
+                }
+            }
+        }
+    }
+    covered
+}
+
 /// Try to find a system font that covers the Braille Patterns Unicode block (U+2800–U+28FF).
 ///
 /// Returns the font file bytes if a suitable font is found, or `None` if no font is available.
@@ -379,3 +491,50 @@ pub const NERD_FONT_PRESETS: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oracle_carries_the_nerd_glyphs_used_as_replacements() {
+        for ch in [
+            '\u{f00c}', // check (toast Success, tab-title ✅ sub)
+            '\u{f00d}', // close/times (toast Error, dismiss buttons, ❌ sub)
+            '\u{f002}', // search (tab-title 🔍 sub)
+            '\u{f005}', // star (tab-title ✨ sub)
+            '\u{f0c3}', // flask (tab-title 🧪 sub)
+            '\u{f24d}', // clone (session chip, prior fix)
+        ] {
+            assert!(
+                nerd_font_covers(ch),
+                "U+{:04X} must be nerd-covered",
+                ch as u32
+            );
+        }
+    }
+
+    #[test]
+    fn oracle_lacks_the_dead_glyphs_and_any_latin() {
+        // Verified against the shipped stack 2026-10-12: these five sit in NO
+        // font (egui defaults, braille fallback, nerd symbols) — using any of
+        // them in egui text renders tofu. The font is symbols-only, so Latin
+        // is absent too — the negative control that keeps the parser honest.
+        for ch in [
+            '\u{2713}', '\u{2715}', '\u{2726}', '\u{2315}', '\u{2697}', 'A',
+        ] {
+            assert!(
+                !nerd_font_covers(ch),
+                "U+{:04X} unexpectedly covered; oracle is wrong",
+                ch as u32
+            );
+        }
+    }
+
+    #[test]
+    fn settings_ui_close_button_glyphs_are_carried() {
+        // The dismiss buttons in settings_ui/banner.rs and
+        // snippets_tab/editor.rs use U+F00D — never revert them to ✕.
+        assert!(nerd_font_covers('\u{f00d}'));
+    }
+}

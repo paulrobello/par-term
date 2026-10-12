@@ -193,18 +193,20 @@ pub(super) fn map_title_grapheme_to_monochrome(grapheme: &str) -> Option<&'stati
         "🌐" => Some("\u{f0ac}"), // nerd-font globe
         "☁" | "☁️" => Some("\u{ebaa}"), // nerd-font cloud
         "⭐" | "🌟" => Some("★"),
-        "✨" | "💫" => Some("✦"),
-        "🔥" => Some("\u{f06d}"), // nerd-font fire
-        "✅" => Some("✓"),
-        "❌" => Some("✕"),
-        "🔍" | "🔎" => Some("⌕"),
+        "✨" | "💫" => Some("\u{f005}"), // nerd star (U+2726 sits in no stack font)
+        "🔥" => Some("\u{f06d}"),        // nerd-font fire
+        "✅" => Some("\u{f00c}"),        // nerd check (U+2713 sits in no stack font)
+        "❌" => Some("\u{f00d}"),        // nerd close (U+2715 sits in no stack font)
+        "🔍" | "🔎" => Some("\u{f002}"), // nerd search (U+2315 sits in no stack font)
         "🔗" => Some("⛓"),
         "📌" | "📍" => Some("•"),
-        "🧪" => Some("⚗"),
-        "🟢" | "🟩" | "🔵" | "🟦" | "🟣" | "🟪" | "🟡" | "🟨" | "🟠" | "🟧" | "🔴" | "🟥" => {
-            Some("●")
+        "🧪" => Some("\u{f0c3}"), // nerd flask (U+2697 sits in no stack font)
+        "🟢" | "🟩" | "🔵" | "🟦" | "🟣" | "🟪" | "🟡" | "🟨" | "🟠" | "🟧" | "🔴" | "🟥" =>
+        {
+            // nerd circle (U+25CF is Hack-only; the tab bar draws Proportional)
+            Some("\u{f111}")
         }
-        "⚪" | "⚫" | "⬜" | "⬛" => Some("●"),
+        "⚪" | "⚫" | "⬜" | "⬛" => Some("\u{f111}"),
         _ => None,
     }
 }
@@ -455,6 +457,90 @@ pub(super) fn parse_span_color(tag: &str) -> Option<[u8; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Substitution targets verified to render in the tab bar's Proportional
+    /// family (cmap-verified against the shipped fonts 2026-10-12); everything
+    /// else in the table must be nerd-covered. Hack carries `●`/`⋯` but Hack
+    /// is Monospace-only, so Hack-only glyphs still tofu in tab titles.
+    const PROPORTIONAL_CARRIED: &[char] = &['★', '⛓', '•'];
+
+    #[test]
+    fn every_title_substitution_target_is_carried_by_the_egui_stack() {
+        for grapheme in [
+            "👨‍💻",
+            "👩‍💻",
+            "🧑‍💻",
+            "🤖",
+            "🧠",
+            "🚀",
+            "💡",
+            "🎯",
+            "🎛",
+            "🎛️",
+            "🎚",
+            "🎚️",
+            "🛠",
+            "🛠️",
+            "🔧",
+            "🔨",
+            "🧰",
+            "🔒",
+            "🔓",
+            "🔔",
+            "📁",
+            "🗂",
+            "🗂️",
+            "📂",
+            "📄",
+            "📦",
+            "📝",
+            "✍",
+            "✍️",
+            "🌐",
+            "☁",
+            "☁️",
+            "⭐",
+            "🌟",
+            "✨",
+            "💫",
+            "🔥",
+            "✅",
+            "❌",
+            "🔍",
+            "🔎",
+            "🔗",
+            "📌",
+            "📍",
+            "🧪",
+            "🟢",
+            "🟩",
+            "🔵",
+            "🟦",
+            "🟣",
+            "🟪",
+            "🟡",
+            "🟨",
+            "🟠",
+            "🟧",
+            "🔴",
+            "🟥",
+            "⚪",
+            "⚫",
+            "⬜",
+            "⬛",
+        ] {
+            if let Some(target) = map_title_grapheme_to_monochrome(grapheme) {
+                for ch in target.chars() {
+                    assert!(
+                        crate::settings_ui::nerd_font::nerd_font_covers(ch)
+                            || PROPORTIONAL_CARRIED.contains(&ch),
+                        "{grapheme} → {ch:?} (U+{:04X}) is nerd-uncovered and not a verified Proportional carrier — tab titles will render tofu",
+                        ch as u32
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn parse_html_title_basic_tags() {

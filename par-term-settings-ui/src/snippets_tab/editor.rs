@@ -224,7 +224,8 @@ pub(super) fn show_snippet_edit_form(
 
                                 if ui
                                     .small_button(
-                                        egui::RichText::new("✕")
+                                        // nerd close/times (U+2715 sits in no egui-stack font)
+                                        egui::RichText::new("\u{f00d}")
                                             .color(egui::Color32::from_rgb(200, 80, 80)),
                                     )
                                     .on_hover_text("Remove variable")

@@ -223,15 +223,16 @@ impl ProfileLauncherUI {
     }
 
     /// Draw the pinned view into a docked panel's `ui`. Returns what was
-    /// chosen and whether the panel should close (its ✕, or Escape while
-    /// its filter is focused).
+    /// chosen and whether the panel should close (its close button, or
+    /// Escape while its filter is focused).
     pub fn show_pinned(&mut self, ui: &mut egui::Ui) -> (Option<LauncherChoice>, bool) {
         let mut close = false;
         let mut manage = false;
         ui.horizontal(|ui| {
             ui.heading("Profiles");
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                close = ui.small_button("✕").on_hover_text("Close").clicked();
+                // nerd close/times (U+2715 sits in no egui-stack font)
+                close = ui.small_button("\u{f00d}").on_hover_text("Close").clicked();
                 manage = ui.small_button("Manage").clicked();
             });
         });
@@ -476,6 +477,14 @@ pub fn launcher_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_close_button_glyph_is_carried_by_the_egui_stack() {
+        assert!(
+            crate::settings_ui::nerd_font::nerd_font_covers('\u{f00d}'),
+            "profile launcher close glyph is in no egui-stack font"
+        );
+    }
 
     fn rows() -> Vec<LauncherRow> {
         let mut manager = ProfileManager::new();
