@@ -174,21 +174,17 @@ The 3-phase draw ordering (`emit_three_phase_draw_calls`) ensures cursor overlay
 
 ### macOS Metal Layer Configuration
 
-On macOS, the compositor configures the CAMetalLayer for per-pixel transparency and performance:
+On macOS, wgpu owns the CAMetalLayer: every `Surface::configure` rewrites the layer's opacity, display sync, and colorspace from the `SurfaceConfiguration`. par-term therefore sets these through the renderer, never by poking the layer directly (`par-term-render/src/cell_renderer/surface.rs`, `src/macos_metal.rs`):
 
-```rust
-// Allow per-pixel transparency (content only)
-setOpaque: false
-// Keep global layer opacity at 1.0; per-pixel alpha controls transparency
-setOpacity: 1.0
-// Disable VSync throttling for improved frame rates
-setDisplaySyncEnabled: false
-```
+- **Alpha mode**: `select_alpha_mode` picks `Opaque` when `window_opacity` is 1.0 (wgpu then sets `CAMetalLayer.opaque = true`). Otherwise it prefers `PreMultiplied`, then `PostMultiplied`, then `Auto`. `sync_alpha_mode_to_opacity` reconfigures the surface when opacity crosses 1.0.
+- **Display sync**: follows the configured `VsyncMode` (`Immediate`, `Mailbox`, or `Fifo`, default `Fifo`), mapped to `wgpu::PresentMode`. Frame rates exceed the display refresh rate only with `Immediate`.
+- **Colorspace**: `configure_surface` is the single entry point for `Surface::configure`. It re-tags the layer as sRGB after each configure, because wgpu resets the colorspace to nil.
+- **Titlebar**: `set_window_background_for_translucency` in `src/macos_metal.rs` keeps the NSWindow background clear while translucent and installs an opaque backing bar under the titlebar, so the content area stays see-through.
 
 This configuration ensures:
 - Alpha values written by shaders control window transparency
 - The desktop shows through transparent pixels
-- Frame rates can exceed the display refresh rate when VSync is disabled
+- An opaque window is drawn directly by macOS, without blending against what sits behind it
 
 ### Alpha Flow Through Pipeline
 

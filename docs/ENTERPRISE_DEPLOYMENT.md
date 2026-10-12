@@ -57,6 +57,10 @@ Supported platform suffixes:
 | Linux (x86_64) | `linux-x86_64` |
 | Linux (ARM64) | `linux-aarch64` |
 | Windows (x86_64) | `windows-x86_64.exe` |
+| Linux bundle (binary + `par-mux`) | `bundle-linux-x86_64.tar.gz`, `bundle-linux-aarch64.tar.gz` |
+| Windows bundle (binary + `par-mux`) | `bundle-windows-x86_64.zip` |
+
+The bare Linux and Windows binaries are what the self-updater consumes and do not include the `par-mux` daemon. Deploy the `par-term-bundle-*` archive instead when users need par-mux sessions, and keep `par-mux` in the same directory as `par-term` (or on `PATH`). The macOS `.app` bundle already contains `par-mux` in `Contents/MacOS/`, so installing only the extracted `par-term` binary omits it. See [par-mux sessions](features/MUX.md).
 
 **Install to a system-wide location:**
 ```bash
@@ -103,7 +107,7 @@ cargo install --locked par-term
 cargo build --profile dev-release --locked
 ```
 
-`--locked` ensures the exact dependency versions from the committed `Cargo.lock` are used.
+A `cargo install` build ships the library only and does not include the `par-mux` daemon; use `scripts/build-par-mux.sh <dest>` to build it pinned to the `Cargo.lock` core version. `--locked` ensures the exact dependency versions from the committed `Cargo.lock` are used.
 
 ---
 
@@ -115,7 +119,7 @@ cargo build --profile dev-release --locked
 #!/usr/bin/env bash
 set -euo pipefail
 
-PAR_TERM_VERSION="0.44.0"
+PAR_TERM_VERSION="0.48.0"
 INSTALL_DIR="/usr/local/bin"
 PLATFORM="macos-aarch64"   # adjust: macos-universal, macos-x86_64, linux-x86_64, linux-aarch64
 BINARY="par-term-${PLATFORM}"
@@ -162,7 +166,7 @@ echo "par-term ${PAR_TERM_VERSION} installed successfully."
 
 ```powershell
 # deploy-par-term.ps1
-$Version  = "0.44.0"
+$Version  = "0.48.0"
 $Platform = "windows-x86_64"
 $InstDir  = "C:\Program Files\par-term"
 $Url      = "https://github.com/paulrobello/par-term/releases/download/v$Version/par-term-$Platform.exe"
@@ -192,10 +196,10 @@ par-term uses the [XDG Base Directory Specification](https://specifications.free
 
 | Platform | Default Path |
 |----------|-------------|
-| macOS / Linux | `~/.config/par-term/config.yaml` |
+| macOS / Linux | `$XDG_CONFIG_HOME/par-term/config.yaml` (default `~/.config/par-term/config.yaml`) |
 | Windows | `%APPDATA%\par-term\config.yaml` |
 
-The config directory is also created automatically on first launch if it does not exist.
+Only `XDG_CONFIG_HOME` is honored (it must be an absolute path), and it is ignored on Windows. All per-user data (profiles, arrangements, command history) is kept beside the config file. See [Environment Variables](guides/ENVIRONMENT_VARIABLES.md#xdg-base-directories). The config directory is also created automatically on first launch if it does not exist.
 
 ### Deploying a Managed Config
 
@@ -274,7 +278,7 @@ Valid values: `hourly`, `daily`, `weekly`, `monthly`, `never`.
 |----------------|-------------|
 | Homebrew (cask) | Skip `brew upgrade --cask par-term` during upgrade windows (casks cannot be `brew pin`-ned) |
 | Standalone binary | Replace binary file only during planned maintenance windows |
-| Cargo | `cargo install --locked --version 0.44.0 par-term` |
+| Cargo | `cargo install --locked --version 0.48.0 par-term` |
 
 ### Managed Update Workflow
 
@@ -305,9 +309,9 @@ chmod 755 /tmp/par-term-pkg/usr/local/bin/par-term
 pkgbuild \
   --root /tmp/par-term-pkg \
   --identifier com.paulrobello.par-term \
-  --version 0.44.0 \
+  --version 0.48.0 \
   --install-location / \
-  par-term-0.44.0.pkg
+  par-term-0.48.0.pkg
 ```
 
 Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target computer group.

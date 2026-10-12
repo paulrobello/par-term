@@ -72,6 +72,7 @@ graph TB
         Core[Core Emulation Library]
         PTY[PTY Process]
         Tmux[tmux Integration]
+        MuxC[par-mux Client<br>par-term-mux]
     end
 
     subgraph "Presentation Layer (par-term-render, par-term-fonts)"
@@ -96,6 +97,8 @@ graph TB
     PaneMgr --> Pane
     Pane --> TM
     Tab --> Tmux
+    Tab --> MuxC
+    MuxC --> Tmux
     Profile --> Tab
     SSH --> Tab
     StatusBar --> WS
@@ -128,6 +131,7 @@ graph TB
     style Pane fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style TM fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Tmux fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style MuxC fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Renderer fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style Search fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style PTY fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
@@ -154,6 +158,7 @@ graph TD
     MCP[par-term-mcp<br>MCP Stdio Server]
     SSH[par-term-ssh<br>SSH Host Discovery]
     Tmux[par-term-tmux<br>tmux Control Mode]
+    Mux[par-term-mux<br>par-mux Daemon Client]
 
     Main --> ACP
     Main --> Config
@@ -168,11 +173,18 @@ graph TD
     Main --> MCP
     Main --> SSH
     Main --> Tmux
+    Main --> Mux
 
     Terminal --> Config
     Render --> Config
     Render --> Fonts
+    Fonts --> Config
     Settings --> Config
+    Settings --> Keybind
+    Settings --> Scripting
+    MCP --> Config
+    Mux --> Config
+    Mux --> Tmux
     Input --> Config
     Keybind --> Config
     Scripting --> Config
@@ -193,6 +205,7 @@ graph TD
     style MCP fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style SSH fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Tmux fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Mux fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
 ```
 
 ### Crate Responsibilities
@@ -205,14 +218,15 @@ graph TD
 | **par-term-fonts** | Font discovery, loading, and fallback chain (`FontManager`, `FontData`). Text shaping via `TextShaper` (HarfBuzz/rustybuzz). |
 | **par-term-terminal** | Terminal session management (`TerminalManager`), scrollback buffer extraction, and PTY interaction wrappers. |
 | **par-term-render** | GPU rendering engine: cell renderer, graphics renderer (Sixel/iTerm2/Kitty), custom shader renderer, WGSL shaders, and glyph atlas management. |
-| **par-term-settings-ui** | 13 consolidated settings tabs (Appearance (includes Badge and Progress Bar), Window (includes Arrangements), Input, Terminal, Effects (includes Background), Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Assistant, Advanced), sidebar navigation, and section helper utilities. |
+| **par-term-settings-ui** | 12 settings tabs (General, Appearance, Windows & Tabs, Panes, Sessions, Profiles, Keys, Pointer, Effects & Shaders, Automation, Assistant & Agents, Advanced), sidebar navigation, Settings search, and section helper utilities. |
 | **par-term-input** | Input sequence generation — translates keyboard/mouse events into VT escape sequences for terminal input. |
 | **par-term-keybindings** | Keybinding parsing, matching, and registry with platform-aware modifier handling (`CmdOrCtrl`). |
 | **par-term-scripting** | Observer pattern and scripting system for event-driven automation. |
 | **par-term-update** | Self-update system and update checker with manifest parsing and version comparison. |
-| **par-term-mcp** | MCP (Model Context Protocol) stdio server for AI agent integration. Independently publishable with zero internal crate dependencies. |
+| **par-term-mcp** | MCP (Model Context Protocol) stdio server for AI agent integration. Depends only on `par-term-config` (the agent-command file format). |
 | **par-term-ssh** | SSH host discovery via config parsing, known hosts scanning, history scanning, and mDNS/Bonjour discovery. |
 | **par-term-tmux** | tmux control mode integration — session lifecycle, bidirectional state sync, and control protocol command builders. |
+| **par-term-mux** | Client for the core library's par-mux daemon, speaking tmux control mode over a local socket (`MuxSessionClient`). Reuses `par-term-tmux`'s sync layer unmodified. Gated on the `mux` feature, on by default. |
 
 ### Backward Compatibility
 
@@ -231,7 +245,7 @@ Key types from workspace crates are re-exported from the main `par-term` crate: 
 *   **Menu (`src/menu/`)**: One menu model (`model.rs`) rendered two ways. `muda` builds a native macOS global menu and a Windows per-window menu by walking it; Linux renders the same model in egui (`egui_menu.rs`), because `muda` needs a `gtk::Window` and winit's X11/Wayland backends create a raw surface instead. Menu clicks and keybindings both enter through the action queue in `bridge.rs`, so the two cannot drift.
 *   **Configuration (`par-term-config`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`). Includes shader metadata caching and file watching.
 *   **Settings Window (`src/settings_window/`)**: Standalone egui window for configuration, separate from the main terminal window for better usability.
-*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with 13 consolidated tabs: Appearance (includes Badge and Progress Bar), Window (includes Arrangements), Input, Terminal, Effects (includes Background), Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Assistant, and Advanced.
+*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with 12 tabs: General, Appearance, Windows & Tabs, Panes, Sessions, Profiles, Keys, Pointer, Effects & Shaders, Automation, Assistant & Agents, and Advanced. Which tab and sub-page draws a section is set in `layout.rs`.
 *   **Profile Manager (`src/profile/`)**: iTerm2-style profile system for saving terminal session configurations (working directory, custom commands, tab names). Profiles stored in `~/.config/par-term/profiles.yaml`.
 *   **Scripting (`par-term-scripting`)**: Observer pattern implementation for event-driven automation and shell integration callbacks.
 *   **Update System (`par-term-update`)**: Self-update mechanism with manifest parsing, version comparison, and download/extraction logic.
@@ -264,6 +278,13 @@ Key types from workspace crates are re-exported from the main `par-term` crate: 
 *   **TmuxCommand**: Command builders for the tmux control protocol.
 *   **ParserBridge**: Bridges the core library's control mode parser with par-term's pane system.
 *   **Types**: Core data types including `TmuxWindow`, `TmuxPane`, `TmuxLayout`.
+
+### par-mux Client (`par-term-mux`)
+
+*   **MuxSessionClient (`par-term-mux/src/client.rs`)**: Connects to the core's par-mux daemon over a local socket and speaks tmux control mode, so no `tmux -CC` gateway shell or hidden gateway tab is needed. Notifications flow through the same `ParserBridge` and `TmuxSync` pipeline from `par-term-tmux`.
+*   **Resync (`resync.rs`)**: Reattach queries (list sessions/windows/panes, create-or-attach, per-pane screen seeding).
+*   **Agent roster (`agents.rs`)**: The `list-agents` query and `%agent-state-changed` push payload.
+*   **App wiring**: `src/app/tmux_handler/notifications/mux_attach.rs` and `agent_roster.rs`. See [MUX.md](../features/MUX.md).
 
 ### Rendering Engine
 
@@ -304,9 +325,10 @@ Key types from workspace crates are re-exported from the main `par-term` crate: 
 ### Status Bar
 
 *   **StatusBarUI (`src/status_bar/mod.rs`)**: egui-based status bar renderer with three-section layout (left/center/right).
-*   **Widget System (`src/status_bar/widgets.rs`)**: Match-based dispatch on `WidgetId` (defined in `par-term-config/src/status_bar.rs`) for 11 built-in widgets (clock, git branch, CPU/memory usage, network status, disk free, etc.).
+*   **Widget System (`src/status_bar/widgets.rs`)**: Match-based dispatch on `WidgetId` (defined in `par-term-config/src/status_bar.rs`) for 15 built-in widgets (clock, git branch, CPU/memory usage, network status, disk free, agent usage, agent roster, broadcast input, profile, etc.) plus `Custom` and `Plugin` widgets.
 *   **System Monitor (`src/status_bar/system_monitor.rs`)**: Background thread polling CPU, memory, and network metrics at configurable intervals.
 *   **Git Poller (`src/status_bar/git_poller.rs`)**: Background thread for git repository status polling.
+*   **Disk Monitor (`src/status_bar/disk_monitor.rs`)**: Background polling of free disk space.
 *   **Configuration**: Per-widget enable/disable, section assignment, and styling options with auto-hide on fullscreen or mouse inactivity.
 
 ## Data Flow
@@ -523,9 +545,9 @@ Tab and pane refresh tasks apply exponential backoff only to inactive tabs; the 
 
 ### Event Loop Sleep on macOS
 
-An explicit `thread::sleep` in the `about_to_wait` handler prevents the macOS event loop from spinning at approximately 250K iterations/sec. This spin occurs despite using `ControlFlow::WaitUntil` due to interactions between CVDisplayLink and NSRunLoop on macOS. The sleep duration is capped at the frame interval when no redraw is needed, ensuring the loop remains responsive to incoming events while avoiding unnecessary CPU burn.
+An explicit `thread::sleep` in the `about_to_wait` handler prevents the macOS event loop from spinning at approximately 250K iterations/sec. This spin occurs despite using `ControlFlow::WaitUntil` due to interactions between CVDisplayLink and NSRunLoop on macOS. The sleep is capped so the loop stays responsive to incoming events while avoiding unnecessary CPU burn. The logic lives in `src/app/handler/wake.rs`.
 
-With several windows open the loop sleeps **once per iteration, not once per window**. Each window returns a wake request instead of setting the control flow itself; the manager reduces them — minimum deadline, and any window wanting `Poll` settles it for all — and applies the result once. The sleep therefore runs after the per-window work rather than between windows, and is measured from a fresh instant, so that work shortens it instead of stacking on top of it.
+With several windows open the loop sleeps **once per iteration, not once per window**. Each window returns a `WakeRequest` instead of setting the control flow itself; `reduce_wake_requests` folds them — minimum deadline, any window wanting `Poll` settles it for all, and one window with a frame in flight suppresses the sleep — and `apply_wake_decision` applies the result once. The sleep therefore runs after the per-window work rather than between windows, and is measured from a fresh instant, so that work shortens it instead of stacking on top of it.
 
 ### Status Bar Skip Updates When Hidden
 
@@ -558,7 +580,7 @@ overflow is handled by evicting the least-recently-used glyphs.
 
 Sixel, iTerm2, and Kitty graphics are decoded to RGBA on the CPU and uploaded to GPU
 textures during the Graphics Pass. Textures are cached by graphic id in an LRU cache
-capped at 100 entries; when the cache is full, the least-recently-used texture is evicted. Kitty images are composited at their placement geometry -- source crop, destination pixel offsets, and cell footprint -- with signed-pixel clipping while scrolling.
+bounded by a 256 MiB byte budget (primary) and 100 entries (secondary); when either bound would be exceeded, the least-recently-used textures are evicted (`par-term-render/src/graphics_renderer/upload.rs`). Kitty images are composited at their placement geometry -- source crop, destination pixel offsets, and cell footprint -- with signed-pixel clipping while scrolling.
 
 ### Custom Shader Resources
 
@@ -584,3 +606,5 @@ not persisted and resets on window close.
 - [Status Bar](../features/STATUS_BAR.md) - Status bar widgets and system monitoring.
 - [State Lifecycle](STATE_LIFECYCLE.md) - When state objects are created, updated, and destroyed.
 - [Concurrency Guide](CONCURRENCY.md) - Mutex strategy and threading model.
+- [Crate Structure](CRATE_STRUCTURE.md) - Workspace crate layers and dependency graph.
+- [par-mux Integration](../features/MUX.md) - par-mux sessions, agent roster, and attach/detach.

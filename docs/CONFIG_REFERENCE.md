@@ -728,6 +728,13 @@ See [PROFILES.md](features/PROFILES.md) for full documentation.
 | `tmux_session_name` | `string?` | `null` | tmux session to auto-connect when this profile opens. Uses create-or-attach semantics (`tmux new-session -A -s <name>`). Requires `tmux_enabled: true`. | Profiles › Profiles (profile editor, Session sub-tab) |
 | `tmux_connection_mode` | `enum` | `control_mode` | How to connect: `control_mode` (full par-term integration via `tmux -CC`) or `normal` (plain tmux UI in the PTY) | Profiles › Profiles (profile editor, Session sub-tab) |
 
+**Per-profile par-mux fields** (in `profiles.yaml`):
+
+| Field | Type | Default | Description | Settings |
+|-------|------|---------|-------------|--------|
+| `mux_session_name` | `string?` | `null` | par-mux session to create-or-attach when this profile opens. Detaching drops the socket; the session keeps running in the daemon. No spaces, quotes, or backslashes | Profiles › Profiles (profile editor, Session sub-tab) |
+| `mux_session_patterns` | `string[]` | `[]` | Glob patterns (e.g. `work-*`, `PARMux`) matched against the par-mux session name when the window attaches (session picker, profile auto-connect, or `mux_auto_attach`) to switch to this profile | Profiles › Profiles (profile editor, Auto-Switch sub-tab) |
+
 Dynamic profiles can be fetched from remote URLs:
 
 ```yaml

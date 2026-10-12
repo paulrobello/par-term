@@ -153,7 +153,7 @@ par-term log session started at 1738864215.123456 (debug_level=Off, rust_log=inf
 
 ## Settings UI
 
-Debug logging is configured in **Settings > Advanced > Logging**:
+Debug logging is configured in **Settings > Advanced > Debug Logging**:
 
 - **Log level dropdown** - Select from Off, Error, Warn, Info, Debug, Trace
 - **Log file path** - Displays the current log file location
@@ -251,7 +251,9 @@ Custom debug macros use category tags for selective filtering. The following cat
 | `GRAPHICS` | Graphics surface setup and adapter selection |
 | `INPUT` | Input dispatch and PTY write failures from input handlers |
 | `KEYBINDING` | Keybinding dispatch and rebinding |
+| `LEADER` | Leader key arming and action dispatch |
 | `MOUSE` | Mouse event handling |
+| `MUX` | par-mux gateway operations (paste, set-buffer, resize-pane) |
 | `PANE_CHECK` | Pane health and lifecycle checks |
 | `PANE_CLOSE` | Pane closure lifecycle |
 | `PANE_EXIT` | Pane exit handling |
