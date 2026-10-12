@@ -567,6 +567,7 @@ directory written by external collectors — see
 | `agent_usage_update_command` | `string` | (none) | Optional command run through `sh -c` on the refresh interval and manual refresh, expected to rewrite the records directory; absent = pure watch mode | Assistant & Agents › Agent Usage › Agent Usage |
 | `agent_usage_refresh_interval_sec` | `u64` | `300` | Seconds between periodic rescans (clamped to a 30 s floor) | Assistant & Agents › Agent Usage › Agent Usage |
 | `agent_usage_hidden_agents` | `array` | `[]` | Agent ids to hide from the widget and panel | Assistant & Agents › Agent Usage › Agent Usage |
+| `agent_usage_extra_records_dirs` | `array` | `[]` | Extra records directories merged into the panel (e.g. a synced folder holding other machines' records); records for the same agent id merge by widest value, never summed | Assistant & Agents › Agent Usage › Agent Usage |
 
 ---
 
