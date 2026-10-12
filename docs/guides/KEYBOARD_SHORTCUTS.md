@@ -155,11 +155,11 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 
 ## Font & Text Sizing
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + +` or `Cmd/Ctrl + =` | Increase font size |
-| `Cmd/Ctrl + -` | Decrease font size |
-| `Cmd/Ctrl + 0` | Reset font size to default |
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| Increase font size | `Cmd + +` or `Cmd + =` | `Ctrl + Shift + =` (also `Ctrl + Shift + +`) |
+| Decrease font size | `Cmd + -` | `Ctrl + Shift + -` |
+| Reset font size to default | `Cmd + 0` | `Ctrl + Shift + 0` |
 
 ## UI Toggles & Display
 

@@ -77,6 +77,7 @@ A JSON object with a `steps` array. Each step is one object with an optional
 - `plugin_widget_set` — some plugin has published a non-empty widget text (runnable recipe in [PLUGINS.md](../features/PLUGINS.md))
 - `plugin_panel_set` — some panel plugin has pushed a `SetPanel` (runnable recipe in [PLUGINS.md](../features/PLUGINS.md))
 - `plugin_overlay_set` — some overlay plugin has pushed a `SetOverlay` (runnable recipe in [PLUGINS.md](../features/PLUGINS.md))
+- `plugin_overlay_interactive` / `plugin_overlay_focused` / `plugin_overlay_event` / `plugin_action_dispatched` — some overlay is interactive / an overlay holds focus / an overlay event reached a running overlay process / a plugin action was dispatched (see [PLUGINS.md](../features/PLUGINS.md))
 - `settings_window_open` — the standalone settings window is open
 - `modal_guard` — `any_modal_ui_visible()`: the guard that blocks keys from the PTY. Covers in-window overlays only: the standalone settings window is a separate OS window with its own focus, so `settings_window_open` with `modal_guard=false` is the expected reading (terminal-window keys keep flowing while it floats), not a leak.
 - `pane_hint_mode_active` — the built-in pane-hint selection mode is armed (`select_pane_hint` chord on a multi-pane tab)
@@ -94,8 +95,9 @@ A JSON object with a `steps` array. Each step is one object with an optional
 - `["file_empty", "/path"]` — file is absent or zero bytes (a missing file counts as empty)
 - `["window_count", "N"]` — the app's open-window count (manager-level; works with zero terminal windows)
 - `["tab_count", "N"]` / `["pane_count", "N"]` — the first terminal window's visible tab count / its active tab's pane count
-- `["tab_profile", "Name"]` — the active tab's profile name (`Default` for a plain tab)
-- `["tab_count", "N"]` / `["active_tab", "N"]` — visible tabs and the 1-based active tab (the leader proof)
+- `["active_tab", "N"]` — the 1-based active tab (the leader proof)
+- `["file_bytes", "/path:HEX"]` — the file's bytes, as lowercase hex, equal `HEX` exactly. `"/path*HEX"` asserts the file *ends with* the hex run. A missing file fails (unlike `file_empty`), and a `$PAR_TERM_UI_TEST_SINK` reference in the path is expanded
+- `["mux_pane_grid", "97x29"]` — the grid of every par-mux-attached pane: bare `WxH` for one pane, `%id=WxH` joined by commas in ascending pane order for more. Fails when no par-mux panes are attached
 
 Capture-capable operands (usable with `capture`/`assert_eq_captured`):
 
@@ -308,7 +310,7 @@ defaults it off and run B restores nothing. Before the TW2 fix, run B reports
 `tests/ui/mp3_open_profiles.json` proves the profile launcher end to end
 from a config with a legacy per-profile `keyboard_shortcut`: the startup
 migration turns it into an `open_profile:<id>` binding and the chord opens
-the profile in a new tab (`tab_count` 2, `tab_profile` Work); Open Profiles
+the profile in a new tab (`tab_count` 2); Open Profiles
 (Enter) opens another tab; `Cmd+d` and `Cmd+Shift+d` split the active tab
 (`pane_count` 2 then 3); `Shift+Enter` opens a second window
 (`window_count` 2); Escape closes the launcher. The chords ride the

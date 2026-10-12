@@ -199,7 +199,7 @@ par-term install-shaders
 2. Open **Effects & Shaders** and go to the **Background & Shader** page
 3. Click **Install** in the Custom Shaders section
 
-Once installed, enable a background shader in Settings under **Effects & Shaders**, or toggle the active shader with `Cmd/Ctrl + Shift + B`.
+Once installed, enable a background shader in Settings under **Effects & Shaders**, or toggle the active shader with `Cmd + Shift + B` (macOS) or `Ctrl + Alt + B` (Linux/Windows).
 
 > **✅ Tip:** The `custom_shader_brightness` setting controls shader intensity (default 0.15 for readability; raise it to 0.3-0.5 for more vivid effects). You can also install both shell integration and shaders at once with `par-term install-integrations`.
 

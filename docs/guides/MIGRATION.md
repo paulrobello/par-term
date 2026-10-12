@@ -44,7 +44,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - **The tab bar's "New Tab" profile window is gone.** The chevron next to `+`, and the new-tab shortcut with `new_tab_shortcut_shows_profiles: true`, open the Open Profiles launcher instead. The window's **Assistant Panel** entry is not in the launcher; use the assistant keybinding or the View menu.
 - **`toggle_profile_drawer` opens Open Profiles.** The id is unchanged, so existing bindings keep working, but the chord now opens the launcher popup. The docked drawer is `toggle_profiles_panel`, or its button on the window edge.
 - **Automatic profile switching runs on every tab and can be undone.** A background tab that connects to a matching host switches too; each switch shows a toast with **Undo**. Pin a tab (tab context menu) to keep it from switching.
->
+
 ---
 
 ## v0.48.0 — Session Picker, Window Actions, and Detach

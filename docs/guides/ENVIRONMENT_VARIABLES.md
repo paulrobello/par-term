@@ -11,6 +11,7 @@ This document lists all environment variables recognized by par-term. Variables 
 - [Editor and Pager](#editor-and-pager)
 - [Display and Windowing](#display-and-windowing)
 - [MCP IPC (Internal)](#mcp-ipc-internal)
+- [Mux, Agents and Commands](#mux-agents-and-commands)
 - [Git and Badge Variables](#git-and-badge-variables)
 - [Config Variable Substitution](#config-variable-substitution)
 
@@ -152,6 +153,23 @@ par-term supplies `PAR_TERM_CONFIG_UPDATE_PATH`, `PAR_TERM_SCREENSHOT_REQUEST_PA
 
 ---
 
+## Mux, Agents and Commands
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PAR_MUX_ENV` | unset | Set (to `1`) by par-mux in pane environments. par-term reads it, with `PAR_MUX_SOCKET`, to detect that it is running inside a par-mux session and refuses to attach that session inside itself. |
+| `PAR_MUX_SOCKET` | unset | Socket path of the par-mux daemon that owns the current pane. Compared with the attach target; see [Mux](../features/MUX.md). |
+| `PAR_TERM_COMMAND_ID` | — | Set by par-term in the environment of agent-authored command scripts: the command's id. See [Agent Commands](../features/AGENT_COMMANDS.md). |
+| `PAR_TERM_COMMAND_SOURCE_AGENT` | — | Set alongside `PAR_TERM_COMMAND_ID` for commands an agent authored: the authoring agent's name. |
+| `PAR_TERM_IPC_DIR` | unset | Root directory the MCP server uses for agent command files (`<dir>/commands`) instead of the config directory. Used by tests. |
+| `PAR_TERM_AGENT_USAGE_RECORDS_DIR` | `~/.local/state/par-term/agents/usage/` (Linux/macOS), `%LOCALAPPDATA%\par-term\agents\usage\` (Windows) | Overrides the agent-usage records directory. Used for hermetic `--ui-test` runs and debugging; see [Agent Usage](../features/AGENT_USAGE.md). |
+| `PAR_TERM_UI_TEST_SINK` | — | Path of the PTY capture sink for `--ui-test` scripts; expanded in `file_bytes` operands and visible to the config's shell command. See [Agent UI Verification](AGENT_UI_VERIFICATION.md). |
+| `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code config home; the mux hook installer shows `$CLAUDE_CONFIG_DIR/settings.json` as the settings file it edits. |
+| `CODEX_HOME` | `~/.codex` | Codex config home, used by the mux hook installer. |
+| `GROK_HOME` | `~/.grok` | Grok config home, used by the mux hook installer. |
+
+---
+
 ## Git and Badge Variables
 
 These optional environment variables can be set by external scripts or shell integrations to provide contextual information displayed in the tab bar and status line.
@@ -204,10 +222,3 @@ allow_all_env_vars: true
 - [Configuration Reference](../CONFIG_REFERENCE.md) — All configuration options
 - [Getting Started](GETTING_STARTED.md) — Installation and first-launch walkthrough
 - [Debug Logging](../LOGGING.md) — Detailed logging documentation
-
-## `PAR_TERM_AGENT_USAGE_RECORDS_DIR`
-
-Overrides the agent-usage records directory (default
-`~/.local/state/par-term/agents/usage/` on Linux/macOS,
-`%LOCALAPPDATA%\par-term\agents\usage\` on Windows). Used for hermetic
-`--ui-test` runs and debugging; see [Agent Usage](../features/AGENT_USAGE.md).
