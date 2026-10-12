@@ -9,8 +9,8 @@ on an explicit click. Nothing is sent anywhere until you activate the offer.
 
 | Trigger | Source |
 |---------|--------|
-| A pane's process exits non-zero | `src/app/handler/window_state_impl/shell_exit.rs` (per-frame capture pass) |
-| A plugin entry crash-loops or fails to respawn past the restart cap (5 attempts in the 5 s grace window) | `PluginHost` supervision → `drain_crash_caps` → `egui_submit.rs` |
+| A pane's process exits non-zero (panes in tmux/par-mux tabs are skipped) | `src/app/handler/window_state_impl/shell_exit.rs` (`capture_crash_offers`, per-frame pass) |
+| A plugin entry crash-loops or fails to respawn past the restart cap (5 attempts in the 5 s grace window) | `PluginHost::drain_crash_caps` → `status_bar_ui.drain_plugin_crash_caps()` → `src/app/render_pipeline/egui_submit.rs` |
 | The previous run ended in a panic | the crash snapshot consumed when windows are restored on launch (`src/session/crash_guard.rs`), plus the rotated debug log tail where the panic report lives |
 
 Clean exits (`exit 0`), plugin policy stops (a `never` restart policy doing
@@ -50,7 +50,11 @@ A terminal process crashed: <label> exited with status <code>.
 Diagnose it using the facts in <payload path> (process, exit status, recent output).
 ```
 
-Always a plain launch — triage never arms an agent's autonomous variant.
+Always a plain launch — triage never arms an agent's autonomous variant. The launch
+opens a new tab running the agent (or goes through the par-mux session when the
+window is a mux window). With no default agent configured, a toast says so and
+the offer is consumed (`triage_crash_by_id` in
+`src/app/input_events/keybinding_actions.rs`).
 
 ## Configuration
 

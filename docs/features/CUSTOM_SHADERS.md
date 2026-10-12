@@ -137,11 +137,11 @@ The directory is created automatically when par-term first starts.
 
 ## Configuration
 
-All shader settings can be configured via the YAML config file or through the **Settings UI** (press `F12` or use the menu). The Settings UI provides in the **Effects** tab:
+All shader settings can be configured via the YAML config file or through the **Settings UI** (press `F12` or use the menu). The Settings UI provides in the **Effects & Shaders** tab (**Background & Shader** page):
 - **Background** section: Background shader selection, animation controls, brightness, texture channels, and cubemap settings
 - **Cursor Shader** section: Cursor shader selection and effect parameters
 
-Power saving options (pause shaders on blur) are in the **Window** tab. The UI also supports per-shader overrides and saving settings directly to shader metadata.
+Power saving options (pause shaders on blur) are in the **Advanced** tab, on the **Performance & Power** page. The UI also supports per-shader overrides and saving settings directly to shader metadata.
 
 ### Background Shader Settings
 
@@ -213,7 +213,7 @@ custom_shader_readability_brightness: 0.35
 
 ### Shader Linting and Readability Scoring
 
-Use `shader-lint` to validate a custom shader file before installing or sharing it. The same lint/readability report is also available from the **Effects** tab of the Settings UI by selecting a background shader and clicking **Run Lint**; use **Clear Lint** to clear the current result or error.
+Use `shader-lint` to validate a custom shader file before installing or sharing it. The same lint/readability report is also available from the **Effects & Shaders** tab of the Settings UI by selecting a background shader and clicking **Run Lint**; use **Clear Lint** to clear the current result or error.
 
 ```bash
 par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl
@@ -312,7 +312,7 @@ custom_shader_channel3: null  # Not used
 - `iChannel4` is the terminal content texture (par-term specific)
 - Channels without a configured texture use a 1x1 transparent placeholder
 - Supports common image formats: PNG, JPEG, BMP, etc.
-- Textures can also be configured via Settings UI under "Shader Channel Textures"
+- Textures can also be configured via Settings UI under "Shader Channel Textures (iChannel0-3)"
 - Sample textures are included in `shaders/textures/` directory
 
 ### Built-in Noise Textures

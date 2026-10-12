@@ -77,13 +77,16 @@ The search uses the Skim fuzzy matching algorithm for ranked results:
 
 | Key | Action |
 |-----|--------|
-| `Arrow Up` | Move selection up |
-| `Arrow Down` | Move selection down |
+| `Arrow Up` / `Arrow Down` | Move selection up or down |
+| `PageUp` / `PageDown` | Move selection a page at a time |
+| `Home` / `End` | Jump to the first or last result |
 | `Enter` | Insert selected command into terminal |
-| Double-click | Insert clicked command into terminal |
-| `Escape` | Close overlay without inserting |
+| Click | Insert clicked command into terminal |
+| `Escape` or the toggle chord | Close overlay without inserting |
 
-The overlay also exposes **Insert Selected** and **Close** buttons beneath the results list for mouse-driven use.
+The list shows 14 rows at a time and scrolls to keep the selection visible. A count above the list reads `N / M commands` (matches / total), and a footer line names the live keys, including the current toggle chord. The overlay uses the shared picker component, so these keys match the other pickers.
+
+Inserting pastes the command text at the prompt. It does not press Enter, so you can edit the command before running it.
 
 ## Entry Details
 
@@ -91,18 +94,22 @@ Each history entry displays:
 
 - **Command text** with fuzzy match highlighting
 - **Exit code indicator**: green check-circle icon for success (exit 0), red times-circle icon for failure (non-zero), gray question mark for unknown
-- **Relative timestamp**: how long ago the command was executed (e.g., "2m ago", "1h ago", "3d ago")
+- **Relative timestamp**: how long ago the command was executed (e.g., "30s ago", "2m ago", "1h ago", "3d ago")
 
-Hover over an entry to see a tooltip with full details including command duration (when available).
+Commands longer than 120 characters are truncated with `...` in the list. The tooltip shows the full text.
+
+Hover over an entry to see a tooltip with the full command, exit code, duration (when available), and relative time.
 
 ## History Capture
 
 Commands are captured from two sources:
 
-1. **OSC 133 shell integration markers**: When shell integration is installed, par-term captures commands as they execute via the standard shell integration protocol
+1. **OSC 133 shell integration markers**: When shell integration is installed, par-term captures commands (with exit code and duration) from scrollback marks as they execute via the standard shell integration protocol
 2. **Core library history**: The terminal emulation core tracks command input independently
 
-**Deduplication**: Re-executing a command moves it to the top of the history list rather than creating a duplicate entry.
+Capture runs only when the scrollback has grown since the last sync.
+
+**Deduplication**: History is keyed by trimmed command text, and empty commands are ignored. Re-executing a command moves it to the top of the list with updated metadata rather than creating a duplicate entry. Within a session, a command is added once. Later runs of the same command only refresh its stored exit code and duration.
 
 ## Configuration
 
@@ -113,7 +120,7 @@ command_history_max_entries: 1000
 
 **Settings UI:** Settings > General > Search & Links
 
-**Persistence:** History is saved across restarts to `~/.config/par-term/command_history.yaml`.
+**Persistence:** History is saved across restarts to `~/.config/par-term/command_history.yaml`. The file is written atomically with owner-only permissions (`0o600`) because command lines can contain secrets. It is saved in a background thread on shutdown.
 
 ## Related Documentation
 

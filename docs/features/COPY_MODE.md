@@ -72,7 +72,7 @@ stateDiagram-v2
 |--------|-------|---------------|
 | Toggle copy mode | `Cmd + Shift + C` | `Ctrl + Shift + Space` |
 
-The keybinding is configurable via Settings > Keys > Key Bindings using the `toggle_copy_mode` action.
+The keybinding is configurable via Settings > Keys > Key Bindings using the `toggle_copy_mode` action. `enter_copy_mode` is an alias for the same toggle action. Nothing happens when `copy_mode_enabled` is `false`.
 
 **Exiting:**
 - `q` exits copy mode immediately
@@ -149,6 +149,7 @@ Press `y` while in any visual mode to copy the selection to the clipboard.
 
 - If `copy_mode_auto_exit_on_yank` is enabled (default), copy mode exits after yanking
 - If disabled, the selection clears but copy mode stays active
+- A toast reports the yank size (for example, `3 lines yanked`)
 
 ## Search
 
@@ -156,12 +157,13 @@ Press `y` while in any visual mode to copy the selection to the clipboard.
 |-----|--------|
 | `/` | Start forward search |
 | `?` | Start backward search |
+| Type text / `Backspace` | Edit the query |
 | `Enter` | Execute search |
 | `Escape` | Cancel search |
 | `n` | Find next match |
 | `N` | Find previous match |
 
-Search is case-insensitive and wraps around the entire buffer.
+Search is case-insensitive and wraps around the entire buffer. A "Pattern not found" toast appears when there is no match.
 
 ## Marks
 
@@ -176,11 +178,11 @@ Marks persist across uses of copy mode for the lifetime of the window.
 
 ## Status Bar
 
-When copy mode is active, a status bar overlay appears at the bottom of the terminal showing:
+When copy mode is active, a status bar overlay appears at the bottom-left of the window showing:
 
-- **Current mode**: COPY, VISUAL, V-LINE, V-BLOCK, or SEARCH
-- **Cursor position**: Screen row:column and absolute line number (e.g., `5:10 (abs 105)`)
-- **Search query**: When searching (prefixed with `/` or `?`)
+- **Current mode**: COPY, VISUAL, V-LINE, V-BLOCK, or SEARCH (the mode badge is colored per mode)
+- **Cursor position**: Screen row:column and absolute line number (e.g., `-- COPY -- 5:10 (abs 105)`)
+- **Search query**: While typing a search, the text reads `/query` or `?query` in place of the position
 
 The status bar can be hidden via Settings > Pointer > Copy Mode.
 
