@@ -124,6 +124,8 @@ Marks are color-coded based on command exit status:
 | **Red** | Failure | Non-zero |
 | **Gray** | Unknown | Not available |
 
+A mark that carries its own explicit color uses that color instead of the exit-code color.
+
 ### Mark Tooltips
 
 Hover over scrollbar marks to see command details:
@@ -137,7 +139,7 @@ Hover over scrollbar marks to see command details:
 **Enabling Tooltips:**
 
 1. Press `F12` to open Settings
-2. Navigate to **Window** → Scrollbar section
+2. Open **Windows & Tabs** and go to the **Scrollbar** page
 3. Enable "Show command markers" (if not already enabled)
 4. Enable "Show tooltips on hover"
 

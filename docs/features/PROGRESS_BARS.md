@@ -57,7 +57,7 @@ The standard protocol for simple progress bars. Supported states:
 | **Hidden** | `0` | Remove progress bar | Bar disappears |
 | **Normal** | `1` | Standard progress | Blue bar |
 | **Error** | `2` | Error occurred | Red bar |
-| **Indeterminate** | `3` | Unknown progress | Gray animated oscillating bar |
+| **Indeterminate** | `3` | Unknown progress | Gray bar with an animated scrolling brightness wave |
 | **Warning** | `4` | Warning state | Yellow bar |
 
 **Sequence format:**
@@ -100,7 +100,7 @@ ESC ] 934 ; action ; id [ ; key=value ... ] ST
 **Parameters (key=value):**
 - `state` — Progress state: `normal`, `error`, `indeterminate`, `warning`, `hidden`
 - `percent` — Progress percentage (0-100)
-- `label` — Optional text label displayed in `barwithtext` style
+- `label` — Optional text label, drawn only in `barwithtext` style and only when `progress_bar_height` is at least 10 pixels
 
 **Examples:**
 
@@ -119,18 +119,18 @@ printf "\033]934;remove;compile\007"
 printf "\033]934;remove_all\007"
 ```
 
-Multiple concurrent bars stack vertically at the configured position (top or bottom of the terminal window).
+Multiple concurrent bars stack vertically at the configured position (top or bottom of the terminal window), below the tab bar at the top or above the status bar at the bottom. The OSC 9;4 bar is drawn first, followed by named bars sorted by ID.
 
 ## Configuration
 
-All progress bar settings are available in the Settings UI under the **Appearance** tab (scroll to the **Progress Bar** sections at the bottom).
+All progress bar settings are available in the Settings UI under **Appearance** > **Progress Bar**, which has a General section (enable, style, position, height, opacity) and a Colors section.
 
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `progress_bar_enabled` | Enable progress bar rendering | `true` |
 | `progress_bar_style` | Display style: `bar` or `barwithtext` (lowercased, no underscore) | `bar` |
 | `progress_bar_position` | Position: `top` or `bottom` | `top` |
-| `progress_bar_height` | Bar height in pixels | `4.0` |
+| `progress_bar_height` | Bar height in pixels (text labels need 10.0 or more) | `4.0` |
 | `progress_bar_opacity` | Opacity (0.0-1.0) | `0.8` |
 | `progress_bar_normal_color` | Color for normal state (RGB) | `[80, 180, 255]` (blue) |
 | `progress_bar_warning_color` | Color for warning state (RGB) | `[255, 200, 50]` (yellow) |
@@ -157,10 +157,10 @@ The `iProgress` vec4 uniform exposes progress bar state to custom GLSL shaders, 
 
 | Component | Description | Range |
 |-----------|-------------|-------|
-| `iProgress.x` | State: 0=hidden, 1=normal, 2=error, 3=indeterminate, 4=warning | 0.0-4.0 |
-| `iProgress.y` | Progress percentage | 0.0-1.0 |
+| `iProgress.x` | State of the OSC 9;4 bar: 0=hidden, 1=normal, 2=error, 3=indeterminate, 4=warning | 0.0-4.0 |
+| `iProgress.y` | Progress percentage of the OSC 9;4 bar | 0.0-1.0 |
 | `iProgress.z` | Active flag (any bar visible) | 0.0 or 1.0 |
-| `iProgress.w` | Active bar count | 0.0+ |
+| `iProgress.w` | Active bar count (OSC 9;4 plus named bars) | 0.0+ |
 
 **Example shader usage:**
 

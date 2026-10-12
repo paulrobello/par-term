@@ -17,11 +17,13 @@ par-term provides a profile system for saving and quickly launching shells with 
 - [Auto-Switching](#auto-switching)
   - [Directory-Based Profile Switching](#directory-based-profile-switching)
   - [Tmux Profile Auto-Switching](#tmux-profile-auto-switching)
+  - [par-mux Session-Based Switching](#par-mux-session-based-switching)
   - [Hostname-Based Switching](#hostname-based-switching)
   - [Auto-Switch Priority](#auto-switch-priority)
   - [Auto-Switch Visual Application](#auto-switch-visual-application)
   - [Profile Commands and Confirmation](#profile-commands-and-confirmation)
 - [Tmux Auto-Connect](#tmux-auto-connect)
+- [par-mux Auto-Attach](#par-mux-auto-attach)
 - [Default Startup Directory](#default-startup-directory)
 - [Per-Profile Badge Configuration](#per-profile-badge-configuration)
 - [Per-Profile Shader Settings](#per-profile-shader-settings)
@@ -98,6 +100,8 @@ Each profile can customize the following:
 | **Tmux Session Patterns** | Glob patterns for auto-switching (e.g., `work-*`) | No |
 | **Tmux Session** | tmux session to auto-connect when this profile opens (uses create-or-attach) | No |
 | **Tmux Mode** | Connection mode: Control Mode (full integration) or Normal (plain tmux in PTY) | No |
+| **par-mux Session Patterns** | Glob patterns for auto-switching when the window attaches to a matching par-mux session | No |
+| **par-mux Session** | par-mux session to create-or-attach when this profile opens (see [par-mux Auto-Attach](#par-mux-auto-attach)) | No |
 | **Badge Text** | Custom badge format for this profile | No |
 | **Badge Appearance** | Override badge color, font, position, size | No |
 | **Background Shader** | Custom shader path/name override | No |
@@ -171,16 +175,16 @@ Related actions: `open_profile_window:<id>`, `split_profile:<id>:right`, `split_
 
 1. Open Settings › Profiles (**Profiles › Manage Profiles...** in the menu bar, the drawer's **Manage** button, or **Manage Profiles** in the command palette)
 2. Click **+ New Profile**
-4. Fill in the profile settings:
+3. Fill in the profile settings:
    - **Name** (required): Give your profile a descriptive name
    - **Icon**: Add a Nerd Font icon for visual identification
    - **Working Directory**: Set the starting directory
    - **Command**: Override the default shell (optional)
    - **Arguments**: Space-separated command arguments
-   - **Tab Name**: Custom tab title (optional)
-5. Optionally click the icon picker button to choose a Nerd Font icon
-6. Click **Done** to return to the profile list
-7. Click **Save** at the bottom of the Settings window. It writes profile and configuration changes together; **Revert** drops them
+   - **Tab Name**: Custom tab title (optional, on the Text & Badge sub-tab)
+4. Optionally click the icon picker button to choose a Nerd Font icon
+5. Click **Done** to return to the profile list
+6. Click **Save** at the bottom of the Settings window. It writes profile and configuration changes together; **Revert** drops them
 
 ### Profile Icon Picker
 
@@ -326,8 +330,8 @@ Add `directory_patterns` to a profile:
 
 1. Open Settings > Profiles
 2. Edit a profile
-3. Find the "Auto-Switch Dirs" field
-4. Enter comma-separated glob patterns
+3. Open the **Auto-Switch** sub-tab
+4. Enter comma-separated glob patterns in the **Directories** field
 
 ### Tmux Profile Auto-Switching
 
@@ -365,8 +369,8 @@ Add `tmux_session_patterns` to a profile:
 
 1. Open Settings > Profiles
 2. Edit a profile
-3. Find "Auto-Switch Tmux" field
-4. Enter comma-separated patterns: `work-*, *-production`
+3. Open the **Auto-Switch** sub-tab
+4. Enter comma-separated patterns in the **tmux sessions** field: `work-*, *-production`
 
 ### par-mux Session-Based Switching
 
@@ -380,11 +384,11 @@ profiles:
       - "PARMux"
 ```
 
-Patterns are comma-separated globs in the profile editor, matched case-insensitively; the first matching profile wins (profile order decides). A pinned active tab keeps its profile, and opening a profile explicitly (which pins the tab) is never overridden by the rule.
+Patterns are comma-separated globs in the **par-mux sessions** field of the Auto-Switch sub-tab, matched case-insensitively; the first matching profile wins (profile order decides). A pinned active tab keeps its profile, and opening a profile explicitly (which pins the tab) is never overridden by the rule.
 
 ### Hostname-Based Switching
 
-Profiles automatically apply when connecting to remote hosts with matching hostnames, detected via OSC 7 shell-integration sequences (`file://hostname/path`). Hostname patterns are matched against the host extracted from the OSC 7 URL; the local host is ignored.
+Profiles automatically apply when connecting to remote hosts with matching hostnames, detected via OSC 7 shell-integration sequences (`file://hostname/path`). Hostname patterns are matched against the host extracted from the OSC 7 URL; the local host is ignored. Enter them in the **Hosts** field of the profile editor's Auto-Switch sub-tab.
 
 ### Auto-Switch Priority
 
@@ -406,7 +410,7 @@ Every tab is evaluated, not only the one you are looking at: a background tab th
 
 ### Auto-Switch Visual Application
 
-When a profile is auto-applied via any switching mechanism (directory, hostname, or tmux session), the following settings are applied to that tab:
+When a profile is auto-applied via any switching mechanism (directory, hostname, tmux session, or par-mux session), the following settings are applied to that tab:
 
 | Setting | Description |
 |---------|-------------|
@@ -453,7 +457,7 @@ profiles:
 
 ### UI
 
-In the profile editor (Settings → Profiles → Profiles), the **Tmux Auto-Connect** collapsible section appears on the **Session** sub-tab:
+In the profile editor (Settings → Profiles), the **Tmux Auto-Connect** collapsible section appears on the **Session** sub-tab:
 
 - **Session Name** — leave empty to disable auto-connect
 - **Connection Mode** — radio buttons for Control Mode vs Normal
@@ -463,6 +467,18 @@ In the profile editor (Settings → Profiles → Profiles), the **Tmux Auto-Conn
 - Auto-connect only fires when `tmux_enabled = true` in global config
 - If the window is already connected to tmux (gateway active), the auto-connect is skipped silently
 - Errors are logged via the debug log (`make tail-log`)
+
+## par-mux Auto-Attach
+
+Set `mux_session_name` on a profile to create-or-attach a par-mux daemon session when the profile opens. Sessions keep running in the daemon after par-term closes.
+
+```yaml
+profiles:
+  - name: Work
+    mux_session_name: work
+```
+
+In the profile editor, the **par-mux Auto-Attach** section on the **Session** sub-tab has a **Session Name** field (empty disables it). The name may not contain spaces, quotes, or backslashes, because the daemon command grammar has no quoting.
 
 ## Per-Profile Badge Configuration
 

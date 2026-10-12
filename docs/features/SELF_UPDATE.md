@@ -140,7 +140,7 @@ The CLI workflow:
 
 ## Settings UI
 
-The Settings window provides graphical controls for update management under **Advanced > Updates**.
+The Settings window provides graphical controls for update management under **General > Updates**.
 
 **Update frequency dropdown**: Select how often par-term checks for updates (Never, Hourly, Daily, Weekly, Monthly).
 
@@ -322,7 +322,7 @@ Standalone binary updates use an atomic replacement strategy:
 4. Sets executable permissions on Unix systems (`chmod 755`)
 5. Performs the replacement:
    - **Unix (Linux/macOS)**: Uses `rename()` which is atomic on the same filesystem. The running process continues using the old inode until it exits
-   - **Windows**: Renames the current executable to `.old`, then renames the new binary to the original name. The old file cannot be deleted while running, so cleanup happens on the next startup
+   - **Windows**: Renames the current executable to `.old`, then renames the new binary to the original name, restoring the original if the second rename fails. The old file cannot be deleted while running, so cleanup happens on the next startup
 
 ### Windows Binary Cleanup
 
@@ -346,7 +346,7 @@ skipped_version: null
 last_notified_version: null
 ```
 
-All update settings are accessible through Settings (`F12`) under **Advanced > Updates**.
+All update settings are accessible through Settings (`F12`) under **General > Updates**.
 
 ## Security Considerations
 
