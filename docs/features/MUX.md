@@ -157,6 +157,10 @@ The daemon (`par-mux`) outlives clients and can serve multiple clients at once. 
 
 par-term queries the daemon's build when attaching. If the daemon predates the client (an old daemon left running from before an upgrade), attach **surfaces the stale daemon** instead of attaching into mysterious breakage — quit the old daemon and retry.
 
+### When the daemon dies
+
+If the daemon stops while a window is attached, its sessions die with it (panes are its children), and par-term reports the loss on the session chip while the attached tabs close. With **Settings → Sessions → par-mux → Reconnect when the daemon is lost** (`mux_auto_reconnect`) enabled, par-term instead relaunches the daemon, re-creates the session, and restores the window set — the same tabs, with their names, back in the window. The restored windows hold fresh shells: pane content cannot survive the daemon's death. A crash-looping daemon is capped at 3 reconnects per 60 s, after which par-term gives up and reports on the chip.
+
 ## Agent roster
 
 While attached, par-term shows what agents are running in the session:

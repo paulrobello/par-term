@@ -237,6 +237,19 @@ pub(crate) struct TmuxState {
     /// default directory, so tests never touch the user's live daemons.
     #[cfg(feature = "mux")]
     pub(crate) mux_socket_dir_override: Option<std::path::PathBuf>,
+    /// Pending par-mux auto-reconnect (`mux_auto_reconnect` on, daemon lost):
+    /// the session to recreate and the window titles to restore, plus the
+    /// reconnect timestamps driving the crash-loop guard. Consumed by the
+    /// attach install (`apply_mux_reconnect_on_attach`).
+    #[cfg(feature = "mux")]
+    pub(crate) mux_reconnect: Option<super::notifications::mux_reconnect::MuxReconnect>,
+    /// Restored reconnect window titles awaiting their tab: a window's
+    /// rename push cannot title its own tab (same-batch drop, see
+    /// [`super::notifications::mux_reconnect::restore_windows`]), so the
+    /// drain applies these when it adopts each window. Bounded by the
+    /// restore's window count; leftovers clear with the view.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_reconnect_titles: std::collections::HashMap<par_term_tmux::TmuxWindowId, String>,
 }
 
 impl TmuxState {
@@ -282,6 +295,10 @@ impl TmuxState {
             mux_directory_scan: None,
             #[cfg(feature = "mux")]
             mux_socket_dir_override: None,
+            #[cfg(feature = "mux")]
+            mux_reconnect: None,
+            #[cfg(feature = "mux")]
+            mux_reconnect_titles: std::collections::HashMap::new(),
         }
     }
 

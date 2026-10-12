@@ -184,6 +184,10 @@ impl WindowState {
             // end-of-session cleanup exactly once.
             let _ = self.tmux_state.transport.take();
             self.tmux_state.mux_focused_pane = None;
+            // Auto-reconnect: capture what the reconnect restores while the
+            // tab↔window mappings still exist — the `SessionEnded` teardown
+            // below closes the tabs. Fires at the end of this poll.
+            self.capture_mux_reconnect();
         }
         // A delayed mux paste sends its due chunk here — before the
         // empty-drain early return below, or a quiet daemon would stall
@@ -278,6 +282,7 @@ impl WindowState {
         {
             self.tmux_state.agent_roster.clear();
             self.tmux_state.mux_pane_titles.clear();
+            self.tmux_state.mux_reconnect_titles.clear();
             self.tmux_state.mux_exited_panes.clear();
             self.tmux_state.clear_mux_seed_holds();
         }
@@ -379,10 +384,17 @@ impl WindowState {
             .process_notifications(&session_sync);
         needs_redraw |= self.process_sync_actions(session_actions);
         // A window added mid-session gets no layout broadcast of its own:
-        // pump one so its panes map (see `mux_pane_moves`).
+        // pump one so its panes map (see `mux_pane_moves`). A restored
+        // reconnect window takes its captured title here too — its rename
+        // push landed before the tab mapped and was dropped by the sync.
         for window_id in added_windows {
-            if self.tmux_state.tmux_sync.get_tab(window_id).is_some() {
+            if let Some(tab_id) = self.tmux_state.tmux_sync.get_tab(window_id) {
                 self.adopt_new_mux_window(window_id);
+                if let Some(name) = self.tmux_state.mux_reconnect_titles.remove(&window_id)
+                    && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                {
+                    tab.set_title(&name);
+                }
             }
         }
 
@@ -443,6 +455,11 @@ impl WindowState {
 
         self.apply_pending_mux_screen_seeds();
         self.apply_pending_mux_pane_titles();
+
+        // Auto-reconnect fires last: the `SessionEnded` teardown above has
+        // closed the mux tabs and cleared the attach state, so
+        // `begin_mux_session_attach` sees a free window.
+        self.trigger_mux_reconnect();
 
         needs_redraw
     }

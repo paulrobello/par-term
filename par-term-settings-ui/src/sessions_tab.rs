@@ -73,6 +73,26 @@ pub(crate) fn show_par_mux_section(
             });
 
             ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let mut reconnect = settings.config.tmux.mux_auto_reconnect;
+                let response = ui
+                    .checkbox(&mut reconnect, "Reconnect when the daemon is lost")
+                    .search_tag(&["mux_auto_reconnect", "auto reconnect", "daemon"])
+                    .on_hover_text(
+                        "When the par-mux daemon connection is lost, re-launch the daemon, \
+                         re-create the session, and restore the window set (tab count and \
+                         titles). Pane content cannot survive the daemon's death, so the \
+                         restored windows hold fresh shells. A crash-looping daemon is \
+                         capped at 3 reconnects per 60 s.",
+                    );
+                if response.changed() {
+                    settings.config.tmux.mux_auto_reconnect = reconnect;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(8.0);
             show_hook_status(ui, settings);
 
             ui.add_space(8.0);

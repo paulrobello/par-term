@@ -18,6 +18,7 @@
 
 pub(crate) use super::mux_attach::{AttachSequence, attach_sequence, mux_attach_refusal};
 pub(crate) use super::mux_panes::MuxLaunchOutcome;
+pub(crate) use super::mux_reconnect::restore_windows;
 pub(crate) use super::mux_transport::MuxTransport;
 use crate::app::tmux_handler::tmux_state::{TmuxState, TmuxTransport};
 use crate::app::window_state::WindowState;
@@ -399,6 +400,20 @@ impl WindowState {
         );
         match attach {
             Ok(outcome) => {
+                // Auto-reconnect install tail — runs BEFORE the transport
+                // moves into the boxed trait object, because the daemon
+                // client is reachable only through the concrete
+                // `MuxTransport`, and BEFORE the first drain, so the
+                // restore's rename pushes queue after each window's
+                // `%window-add` and title their tabs in order.
+                let reconnect_windows = self.consume_mux_reconnect_windows(name, &outcome);
+                if let Some(windows) = reconnect_windows {
+                    let titled = restore_windows(&mut transport.client(), &windows);
+                    // The tabs these name do not exist until the first
+                    // drain maps the windows; the drain applies the titles
+                    // as it adopts each one.
+                    self.tmux_state.mux_reconnect_titles = titled.into_iter().collect();
+                }
                 self.tmux_state.transport = Some(Box::new(transport));
                 self.tmux_state.mux_snapshot_supported = None;
                 self.tmux_state.mux_focused_pane = None;
@@ -442,6 +457,7 @@ impl WindowState {
         self.tmux_state.mux_focused_pane = None;
         self.tmux_state.mux_screen_seeds.clear();
         self.tmux_state.mux_pane_titles.clear();
+        self.tmux_state.mux_reconnect_titles.clear();
         self.tmux_state.mux_exited_panes.clear();
         self.tmux_state.clear_mux_seed_holds();
         self.tmux_state.agent_roster.clear();

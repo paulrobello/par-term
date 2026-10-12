@@ -418,6 +418,7 @@ No `config.yaml` keys. Actions and display only.
 #### par-mux
 
 - Attach on launch: — `mux_auto_attach`
+- Reconnect when the daemon is lost — `mux_auto_reconnect`
 
 ### tmux
 

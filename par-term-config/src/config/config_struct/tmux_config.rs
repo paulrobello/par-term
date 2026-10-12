@@ -41,6 +41,15 @@ pub struct TmuxConfig {
     #[serde(default = "crate::defaults::bool_true")]
     pub tmux_clipboard_sync: bool,
 
+    /// Re-launch the par-mux daemon and re-create the attached session when
+    /// the daemon connection is lost, restoring the window set (tab count
+    /// and titles). Pane content cannot survive the daemon's death, so the
+    /// recreated windows hold fresh shells. A crash-looping daemon is
+    /// capped: at most 3 reconnects per 60 s, then par-term gives up and
+    /// reports. Default: false
+    #[serde(default = "crate::defaults::bool_false")]
+    pub mux_auto_reconnect: bool,
+
     /// Hide the tmux control-mode gateway tab while tmux windows are active.
     /// When enabled, the tab running `tmux -CC` is hidden from the tab bar once
     /// the first tmux window tab appears. It is restored when the session ends.
@@ -113,6 +122,7 @@ impl Default for TmuxConfig {
             tmux_auto_attach_session: crate::defaults::tmux_auto_attach_session(),
             mux_auto_attach: None,
             tmux_clipboard_sync: crate::defaults::bool_true(),
+            mux_auto_reconnect: crate::defaults::bool_false(),
             tmux_hide_gateway_tab: crate::defaults::bool_false(),
             tmux_profile: None,
             tmux_show_status_bar: crate::defaults::bool_false(),

@@ -460,6 +460,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `tmux_auto_attach` | `bool` | `false` | Auto-attach to existing tmux session on startup | Sessions › tmux › tmux Integration |
 | `tmux_auto_attach_session` | `string?` | `null` | Session name to auto-attach to | Sessions › tmux › tmux Integration |
 | `mux_auto_attach` | `string?` | `null` | par-mux session the first window attaches to on launch, created when missing; works with tmux integration off. The `--attach <session>` flag overrides it | Sessions › par-mux › par-mux |
+| `mux_auto_reconnect` | `bool` | `false` | Re-launch the par-mux daemon and re-create the attached session when the daemon connection is lost, restoring the window set (the restored windows hold fresh shells; capped at 3 reconnects per 60 s) | Sessions › par-mux › par-mux |
 | `tmux_default_session` | `string?` | `null` | Session used when a tmux session is started without a name (auto-attach with no session name, session picker "new"); attaches if it already exists, creates it otherwise | Sessions › tmux › tmux Integration |
 | `tmux_clipboard_sync` | `bool` | `true` | Sync clipboard with tmux paste buffer | Sessions › tmux › tmux Integration |
 | `tmux_hide_gateway_tab` | `bool` | `false` | Hide the control-mode gateway tab from the tab bar while tmux windows are active; the tab is restored when the session ends | Sessions › tmux › tmux Integration |
