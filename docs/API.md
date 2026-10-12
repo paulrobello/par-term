@@ -11,7 +11,7 @@ This index is maintained by hand and is **not** enforced by CI — it is a navig
 - **Authoritative reference:** `make doc` (or `make doc-open`) generates the complete rustdoc site under `target/doc/`. When this index disagrees with the generated docs, the generated docs win.
 - **Existing gate:** `make doc-check` validates documentation *links* — it runs `lychee` over every Markdown file and fails on broken relative paths and broken `#anchor` fragments. The check is local-only; CI does not run it.
 - **Not yet gated:** nothing diffs this index against `cargo doc`'s public-item list, so a renamed or newly added public type will not be flagged. Reviewers should spot-check coverage when public types change.
-- **Stable coverage:** the foundational crates (`par-term-config`, `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-terminal`, `par-term-tmux`, `par-term-update`, `par-term-acp`, `par-term-ssh`, `par-term-mcp`, `par-term-scripting`) are documented at the public-type level and are not pending reorganization.
+- **Stable coverage:** the foundational crates (`par-term-config`, `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-terminal`, `par-term-tmux`, `par-term-mux`, `par-term-update`, `par-term-acp`, `par-term-ssh`, `par-term-mcp`, `par-term-scripting`) are documented at the public-type level and are not pending reorganization.
 - **Intentionally non-exhaustive:** the `par-term-settings-ui` and `par-term-render` sections are deliberately left lighter. Both are blocked behind the ARC-001 (root-crate extraction) and ARC-002 (`WindowState` decomposition) migrations — their module layouts and public surfaces are expected to move. Rewriting these entries now would immediately drift. They will be (re)written once those refactor lands and the public surface settles.
 
 ## Table of Contents
@@ -25,6 +25,7 @@ This index is maintained by hand and is **not** enforced by CI — it is a navig
 - [par-term-settings-ui](#par-term-settings-ui)
 - [par-term-scripting](#par-term-scripting)
 - [par-term-tmux](#par-term-tmux)
+- [par-term-mux](#par-term-mux)
 - [par-term-update](#par-term-update)
 - [par-term-acp](#par-term-acp)
 - [par-term-ssh](#par-term-ssh)
@@ -415,7 +416,7 @@ egui-based settings interface decoupled from the main terminal crate via traits.
 | `SettingsUI` | Main settings window UI component. |
 | `SettingsTab` | Enum of settings tabs (Appearance, Terminal, Profiles, etc.). |
 | `ProfileModalUI` | Modal dialog for creating and editing profiles. |
-| `ProfileModalAction` | Actions returned by the profile modal: `None`, `Save`, `Cancel`, `OpenProfile`, `List`, `Edit`, `Create`. |
+| `ProfileModalAction` | Actions returned by the profile modal: `None`, `Save`, or `Cancel`. |
 | `WindowArrangement` | A saved window layout (positions, sizes, tab configurations). |
 | `ArrangementManager` | Loads and saves window arrangements to disk. |
 | `ArrangementId` | UUID identifier for a saved arrangement. |
@@ -491,6 +492,29 @@ tmux control mode integration.
 | `TmuxSessionInfo` | Metadata about a tmux session (name, ID, attached, window count). |
 | `TmuxWindowId` | `u64` window identifier (e.g., `@0`). |
 | `TmuxPaneId` | `u64` pane identifier (e.g., `%0`). |
+
+---
+
+## par-term-mux
+
+Control-mode client for the core library's par-mux daemon. Compiles only under the `mux` feature (on by default in the root crate), which forwards `par-term-emu-core-rust/mux`. The sync layer (`ParserBridge`, `TmuxSync`, `SyncAction`, id types) is reused unmodified from `par-term-tmux`.
+
+| Type | Description |
+|------|-------------|
+| `MuxSessionClient` | Connection to the daemon (`connect`, `connect_or_spawn`, `connect_or_spawn_at`). Sends control-mode commands (`send`, `send_keys`, `send_keys_literal`, `send_keys_hex`, `resize_pane_absolute`, `set_client_size`), drains notifications (`drain_core_notifications`, `poll_actions`), and runs the reattach queries (`list_sessions`, `list_windows`, `list_panes`, `list_workspaces`, `client_snapshot`, `create_or_attach`, `list_agents`). |
+| `AttachOutcome` | Result of `create_or_attach`: `Attached(SessionSummary)` or `Created(SessionSummary)`. |
+| `SessionSummary` | One `list-sessions` row: session id, name, owning workspace id and name. |
+| `WindowSummary` | One `list-windows` row: `TmuxWindowId` and name. |
+| `WorkspaceSummary` | One `list-workspaces` row: id, name, and whether it is the daemon's active workspace. |
+| `ClientSnapshot` | Workspaces and sessions parsed from a `client-snapshot` reply. |
+| `SnapshotSession` | One `session` row in a snapshot (id, name, workspace id, `displayed`). |
+| `AgentEntry` | One pane's rostered agent state, from a `list-agents` row or an `%agent-state-changed` push. |
+| `AgentSource` | Who asserted an agent state: `Hook` (claim) or `Scrape` (guess). |
+| `VersionCheck` | Result of comparing daemon and client build stamps: `Match`, `Mismatch { daemon, client }`, or `Unknown`. |
+| `check_daemon_version(daemon_reply, client_stamp)` | Compare the daemon `version` reply against the linked core's build stamp. |
+| `parse_session_row(line)` | Parse a `+W: wname: $N: name` session row. |
+| `pane_foreground_command(reply, pane)` | Extract a pane's foreground command from a reply. |
+| `new_session_env_args(...)` / `quote_env_value(value)` / `is_wire_safe(name, value)` | Build and quote `new-session -e` environment arguments for the wire. |
 
 ---
 

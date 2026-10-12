@@ -42,6 +42,17 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.48.0
+
+The leader key, Open Profiles, and iTerm2-aligned shortcuts and menus. Core library 0.59 is required (the tree now pins 0.60 and Rust 1.99); `par-term-config` moves to 0.15.0, `par-term-render` 0.12.0, `par-term-input` 0.2.0, `par-term-keybindings` 0.2.0, `par-term-terminal` 0.6.1, `par-term-tmux` 0.3.0, `par-term-mux` 0.3.0, `par-term-scripting` 0.2.1, and `par-term-settings-ui` 0.19.0.
+
+- **Leader key** — `Cmd+B` (macOS) or `Ctrl+Shift+B` arms a tmux-style one-key table with a which-key overlay. See [LEADER_KEY.md](docs/features/LEADER_KEY.md).
+- **Open Profiles launcher** — one keyboard-first list for every profile (`Cmd+O` on macOS); per-profile shortcuts are now `open_profile:<id>` keybindings, and automatic profile switches are announced with Undo. Profiles can also switch on par-mux attach (`mux_session_patterns`). See [PROFILES.md](docs/features/PROFILES.md).
+- **Default shortcuts and menu bar follow iTerm2** — `Cmd+D` splits right, `Cmd+Shift+D` splits down, `Cmd+Shift+P` opens the command palette, the background-shader toggle moves to `Ctrl+Alt+B` on Linux/Windows, and splits are renamed `split_right`/`split_down`. See [MIGRATION.md](docs/guides/MIGRATION.md).
+- **par-mux** — workspace ops in the session picker, a confirmation before closing the last attached tab, hidden-tab handling for last-pane close, and close-safety defaults (`prompt_on_quit`, `confirm_close_multiple_tabs`). See [MUX.md](docs/features/MUX.md).
+- **Keyboard encoding** now comes from the core's shared encoder (Home/End under DECCKM and Alt+Space change).
+- **Unreleased** — the par-mux agent skill and agent-state hooks are now installed by the `par-mux` binary itself.
+
 ### 0.47.0
 
 Crash triage, an agent launcher, pane renaming, and a broad par-mux hardening pass. Core library 0.53 is required; `par-term-config` moves to 0.14.6, `par-term-render` 0.11.3, `par-term-update` 0.5.2, `par-term-scripting` 0.2.0, `par-term-settings-ui` 0.18.0, `par-term-terminal` 0.6.0, `par-term-tmux` 0.2.0, and `par-term-mux` 0.2.0.
@@ -59,7 +70,7 @@ par-mux sessions, a command palette, plugins, and agent tooling. par-term can no
 
 - **par-mux client** — attach a tab or profile to a par-mux session that survives detach and reconnect; the `par-mux` daemon is bundled in the macOS app and in new `par-term-bundle-*` Linux/Windows archives. See [MUX.md](docs/features/MUX.md).
 - **Agent roster** — a status-bar widget and palette picker for agents running in par-mux panes, fed by hook installers for Claude Code, Codex, and Grok plus extensions for pi and omp.
-- **Command palette** — a fuzzy launcher over every bindable action (bind `toggle_command_palette`; no default chord).
+- **Command palette** — a fuzzy launcher over every bindable action (`Cmd/Ctrl + Shift + P`).
 - **Plugin system** — git-installed plugins that add status-bar widgets, custom actions, Settings panels, and interactive overlays. See [PLUGINS.md](docs/features/PLUGINS.md).
 - **Agent usage panel** and **agent-authored commands** — usage/cost snapshots in the status bar, and commands agents create over MCP that appear in the palette.
 - **Asciicast v3 output recording**, a renderer fix for strobing after display changes, and a `warn` default log level.
@@ -189,7 +200,7 @@ The result of a full security, architecture, quality and documentation audit —
 - **Standalone Settings**: iTerm2-style settings window (F12) with 12 organized tabs, live search over every control, and a real save model.
 - **Leader Key**: tmux-style `Cmd+B` leader arms a one-key table of window, tab, pane, and par-mux session actions, with a which-key overlay listing every key ([LEADER_KEY.md](docs/features/LEADER_KEY.md)).
 - **Profiles & Open Profiles**: one keyboard-first launcher for every profile (`Cmd+O`), per-profile shortcuts, automatic profile switching by host or par-mux session — announced and undoable ([PROFILES.md](docs/features/PROFILES.md)).
-- **Command Palette**: Fuzzy launcher over every bindable action with ranked matching and keyboard navigation (bind `toggle_command_palette`; [guide](docs/guides/KEYBOARD_SHORTCUTS.md)).
+- **Command Palette**: Fuzzy launcher over every bindable action with ranked matching and keyboard navigation (`Cmd/Ctrl + Shift + P`; [guide](docs/guides/KEYBOARD_SHORTCUTS.md)).
 
 ### Extensibility & Agents
 - **Plugins**: Status-bar widgets, custom actions, and Settings panels contributed by user scripts, with event subscriptions, restart policy, and git-URL distribution (`par-term plugin add|update|remove`; [PLUGINS.md](docs/features/PLUGINS.md)).
@@ -293,7 +304,7 @@ This builds and installs the binary to `~/.cargo/bin/par-term`.
 
 ### From Source
 
-Requires Rust 1.98+ (stable, 2024 edition) and modern graphics drivers:
+Requires Rust 1.99+ (stable, 2024 edition) and modern graphics drivers:
 
 ```bash
 # Clone the repository
@@ -460,12 +471,14 @@ Essential shortcuts to get started. On macOS, keybindings use `Cmd`; on Linux/Wi
 | Shortcut | Action |
 |----------|--------|
 | `Cmd/Ctrl + T` | New tab |
-| `Cmd/Ctrl + W` | Close tab (or window if single tab) |
+| `Cmd + W` / `Ctrl + Shift + W` | Close pane, then tab, then window |
 | `Cmd/Ctrl + N` | New window |
 | `Cmd/Ctrl + C` | Copy selection |
 | `Cmd/Ctrl + V` | Paste from clipboard |
 | `Cmd/Ctrl + F` | Open search |
-| `Cmd/Ctrl + D` | Split pane horizontally |
+| `Cmd + D` / `Ctrl + Shift + E` | Split pane right |
+| `Cmd + Shift + D` / `Ctrl + Shift + O` | Split pane down |
+| `Cmd/Ctrl + Shift + P` | Command palette |
 | `F5` | Reload configuration |
 | `F11` | Toggle fullscreen |
 | `F12` / `Cmd + ,` | Open Settings |

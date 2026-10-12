@@ -79,7 +79,7 @@ graph LR
 | macOS | `Cmd+I` |
 | Linux / Windows | `Ctrl+Shift+I` |
 
-You can also toggle the panel using the keybinding action `toggle_ai_inspector` in your keybindings configuration. When `ai_inspector_enabled` is true, the new tab dropdown menu includes an **Assistant Panel** toggle item, providing an additional way to open and close the panel.
+You can also toggle the panel using the keybinding action `toggle_ai_inspector` in your keybindings configuration. When `ai_inspector_enabled` is true, the toggle is also available as **View > Assistant Panel** in the menu bar and as **Toggle Assistant Panel** in the command palette.
 
 Press `Escape` while no input widget has focus to close the panel, or click the **X** button in the panel title bar. If the chat input or another widget is focused, `Escape` releases focus from that widget instead of closing the panel.
 
@@ -637,7 +637,7 @@ graph TD
 
 ## Configuration
 
-All Assistant Panel settings are available in the Settings UI under the **Assistant** tab. The custom ACP agent editor in this tab manages `ai_inspector_custom_agents` (including per-agent environment variables) and writes the entries to `config.yaml`. The Agent section manages extra agent roots; par-term always adds `~/.config/par-term/shaders` so supported agents can edit shader files directly.
+All Assistant Panel settings are available in the Settings UI under the **Assistant & Agents** tab. The custom ACP agent editor in this tab manages `ai_inspector_custom_agents` (including per-agent environment variables) and writes the entries to `config.yaml`. The Agent section manages extra agent roots; par-term always adds `~/.config/par-term/shaders` so supported agents can edit shader files directly.
 
 The following configuration options are supported in `config.yaml`:
 

@@ -13,6 +13,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Mouse Features](features/MOUSE_FEATURES.md) | Text selection, URL handling, cursor positioning, and semantic history via mouse |
 | [Integrations](features/INTEGRATIONS.md) | Shell integration setup, shader collection, and third-party tool support |
 | [Profiles](features/PROFILES.md) | Profile system for saving and launching shells with custom configurations |
+| [Leader Key](features/LEADER_KEY.md) | One key reaching window, tab, pane, and par-mux session actions, with a which-key overlay |
 | [Agent Skill](../skills/par-term/SKILL.md) | SKILL.md teaching coding agents to configure and extend par-term (install: `cp -r skills/par-term ~/.claude/skills/`) |
 
 ## User Guides
@@ -69,10 +70,11 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Assistant Panel](ASSISTANT_PANEL.md) | DevTools-style panel for terminal inspection and ACP agent chat (Claude, Ollama) |
 | [Notifications](features/NOTIFICATIONS.md) | Desktop notifications for the bell, tab activity/silence, and OSC 9/777/99 escape sequences |
 | [Settings Reference](features/SETTINGS.md) | Every Settings control by tab, page, and section with the config key it edits (generated) |
+| [Agent-Authored Commands](features/AGENT_COMMANDS.md) | Commands that agents (MCP clients and the built-in ACP agent) create at runtime without a restart |
 | [Plugins](features/PLUGINS.md) | Status-bar widgets, custom actions, and Settings panels contributed by user scripts |
 | [Agent Usage](features/AGENT_USAGE.md) | Coding-agent token/cost usage panel driven by snapshot files in a watched directory |
 | [Crash Triage](features/CRASH_TRIAGE.md) | Captures crashed panes, plugin crash-caps, and the previous run's panic as palette rows that hand the context to an agent |
-| [par-mux Hooks & Extensions](features/INTEGRATIONS.md#par-mux-agent-extensions) | Session hooks (Claude/Codex/Grok) and pi/omp agent-state extensions that feed the agent roster |
+| [par-mux Hooks & Extensions](features/MUX.md#agent-roster) | Session hooks (Claude/Codex/Grok) and pi/omp agent-state extensions that feed the agent roster; pi/omp install details in [Integrations](features/INTEGRATIONS.md#par-mux-agent-extensions) |
 
 ## Architecture & Development
 
@@ -89,6 +91,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Environment Variables](guides/ENVIRONMENT_VARIABLES.md) | Runtime environment variable reference |
 | [API](API.md) | Public types across all workspace crates |
 | [Logging](LOGGING.md) | Debug logging configuration, log levels, and custom debug macros |
+| [Agent UI Verification](guides/AGENT_UI_VERIFICATION.md) | Drive par-term's UI and observe overlay state with `--ui-test`, without host permissions |
 | [ACP Harness](ACP_HARNESS.md) | CLI debugging tool for reproducing ACP agent behavior outside the GUI |
 | [Troubleshooting](guides/TROUBLESHOOTING.md) | Solutions for common issues and error messages |
 | [Enterprise Deployment](ENTERPRISE_DEPLOYMENT.md) | Managed deployment, configuration distribution, and fleet management |
