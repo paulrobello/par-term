@@ -79,13 +79,17 @@ graph TD
 
 A `WindowState` is created when the application starts or when a new window is opened
 via the menu. Configuration is loaded in `App::new` (`src/app/mod.rs`) and passed to
-`WindowManager::new`, which calls `WindowState::new` (`src/app/window_state/impl_init.rs`):
+`WindowManager::new`, which only stores it. Each window is built later by
+`WindowManager::create_window` (`src/app/window_manager/window_lifecycle.rs`), which
+reloads the config from disk, calls `WindowState::new` and then
+`WindowState::initialize_async` (both in `src/app/window_state/impl_init.rs`):
 
-1. The renderer is initialized against the wgpu surface for the OS window.
-2. A `TabManager` is created and the first tab is opened.
-3. Input handler, keybinding registry, status bar, and tab bar UI are initialized.
-4. Config file watcher and shader watcher are started.
-5. ACP agents are discovered and the AI inspector is initialized.
+1. `WindowState::new` builds the input handler, keybinding registry, status bar, tab bar
+   UI, and an empty `TabManager`, and discovers ACP agents for the AI inspector.
+2. `initialize_async` initializes the renderer against the wgpu surface for the OS window.
+3. The shader, config, and other request watchers are started.
+4. The first tab is opened (unless `skip_default_tab` is set, as when a tab is moved
+   into a new window) and its refresh task is started.
 
 ### Updates
 
@@ -102,10 +106,15 @@ When the last tab in a window is closed (or the window is closed directly),
 `WindowState::perform_shutdown` is called:
 
 1. The last working directory is saved (if `startup_directory_mode` is `Previous`).
-2. The shutdown flag is set and all tab refresh tasks are aborted.
+2. The `is_shutting_down` flag is set and all tab refresh tasks are aborted.
 
-`WindowState` implements `Drop` for fast-path cleanup. The `Drop` implementation hides
-the OS window for instant visual feedback, drains all tabs via
+`WindowManager` then closes every window with `is_shutting_down` set
+(`WindowManager::close_window`, `src/app/window_manager/window_close.rs`), which drops the
+`WindowState`.
+
+`WindowState` implements `Drop` for fast-path cleanup. The `Drop` implementation
+signals status bar threads to stop, saves command history in the background, hides
+the OS window for instant visual feedback, drops the egui state, drains all tabs via
 `TabManager::drain_tabs()`, collects terminal `Arc`s and session loggers, pre-kills
 PTY processes, and spawns background threads for the remaining cleanup (session log
 finalization and terminal `Arc` drops, which release the PTY sessions). This avoids
@@ -120,6 +129,8 @@ Tabs are created through `TabManager` via:
 - **Default shell**: `Tab::new` — spawns the configured shell with optional working directory.
 - **Profile**: `Tab::new_from_profile` — uses profile-specified command, shell, or SSH
   connection.
+- **Moved pane**: `Tab::new_from_pane` — wraps an existing `Pane` as the root of a new
+  tab's `PaneManager`.
 
 During `Tab::new`:
 
@@ -137,10 +148,12 @@ During `Tab::new`:
 
 When a tab becomes active (user switches to it):
 
-1. `TabManager::switch_to` updates the active tab ID.
-2. The renderer's cell cache is cleared to force a full redraw.
-3. The tab's `is_active` atomic flag is set, which raises the refresh task's polling rate
-   from the `inactive_tab_fps` rate back to the normal frame rate.
+1. `TabManager::switch_to` clears the tab's activity indicator and updates the active tab
+   ID. `set_active_tab` clears `is_active` on the old tab and its panes and sets it on the
+   new tab and its panes, which raises the refresh task's polling rate from the
+   `inactive_tab_fps` rate back to the normal frame rate.
+2. `WindowState::clear_and_invalidate` clears the renderer's cells and invalidates the
+   tab cache to force a full redraw.
 
 ### Refresh Loop
 
@@ -149,7 +162,9 @@ Each tab runs a background async task (`src/tab/refresh_task.rs`) that polls the
 rate derived from `max_fps` (default 60 Hz, ~16ms). Inactive tabs poll at
 `inactive_tab_fps` (default 2 Hz) and apply exponential backoff, doubling the interval
 per idle tick up to a 250ms cap. Whenever new output is detected the task calls
-`window.request_redraw()`.
+`window.request_redraw()`. It also redraws once when the terminal's child process dies
+without producing output (a running-to-dead edge from `poll_liveness()`), so the shell-exit
+handling runs.
 
 ### Title Updates
 
@@ -207,8 +222,10 @@ Panes are destroyed when:
 - The shell exits and the pane auto-closes based on config.
 - The owning tab is closed (all panes are dropped with the `PaneManager`).
 
-Each `Pane` runs the same cleanup sequence as a `Tab`: the refresh task is stopped,
-session logging is finalized, and the terminal is killed.
+Each `Pane` runs the same cleanup sequence as a `Tab`: session logging is finalized, the
+refresh task is stopped, and the terminal is killed. Because `JoinHandle::abort` is
+asynchronous, `Pane::drop` retries the terminal write lock briefly (up to 20 attempts, 1 ms
+apart) before killing the shell.
 
 ## Data Flow: Input to Screen
 
@@ -303,37 +320,50 @@ directory. The CWD is read from the OSC 7 URI stored in `Tab.detected_cwd`.
 
 ### Profile Auto-Switch
 
-When an OSC 7 URI reveals a new hostname (detected in `profile_tracking.rs`),
-`check_auto_hostname_switch` in `src/app/tab_ops/profile_auto_switch.rs` scans all
-profiles for SSH hostname matches. If a match is found:
+Each frame, `about_to_wait()` calls `check_auto_profile_switch` in
+`src/app/tab_ops/profile_auto_switch.rs`, which evaluates every tab (not only the active
+one) against hostname rules (OSC 7, usually over SSH, detected in `src/tab/profile_tracking.rs`)
+and directory rules. A hostname match outranks a directory match, and a pinned tab never
+switches. When a rule matches:
 
-1. The current tab title and profile ID are saved to `pre_profile_title` and
-   `pre_ssh_switch_profile`.
-2. The new profile is applied to the tab (title, badge override, icon).
-3. On SSH disconnect (shell returns to original hostname), the pre-switch state is
+1. The current tab title, icon, and badge override are saved to `pre_profile_title`,
+   `pre_profile_icon`, and `pre_badge_override` in `TabProfileState`
+   (`src/tab/profile_state.rs`).
+2. The new profile is applied to the tab (title, badge override, icon) and a toast with an
+   Undo button is shown. Undo reverts the tab and sets `declined_profile_id` so the rule
+   does not immediately re-apply it.
+3. When the rule stops matching (for example on SSH disconnect), the saved state is
    restored.
 
 ### Config Live Reload
 
 When `~/.config/par-term/config.yaml` changes on disk, the `ConfigWatcher` (file system
 watcher initialized in `WindowState::init_config_watcher`) detects the change. The
-`check_config_reload()` method in `about_to_wait()` reads the updated config, and the
-`WindowManager` propagates it to all windows via `apply_config_to_windows()`. Each window
-applies the update without requiring a restart.
+`check_config_reload()` method in `about_to_wait()` reloads the config, stores it in that
+window's `ArcSwap`, and applies the shader, keybinding, and renderer changes without
+requiring a restart. Edits made in the Settings window take a different route:
+`WindowManager::apply_config_to_windows()` pushes the new config to all windows.
 
 ## Shutdown Sequence
 
 When the user quits par-term (Cmd+Q / Alt+F4):
 
 1. `WindowState::handle_window_event()` receives the `CloseRequested` event (routed through `WindowManager` from the winit event loop).
-2. If `prompt_on_quit` is enabled, a confirmation dialog is shown first.
-3. `WindowState::perform_shutdown()` is called: refresh tasks are aborted, the shutdown flag is set.
-4. The `WindowState` `Drop` implementation drains all tabs, pre-kills PTY processes, and spawns a background thread for cleanup.
-5. The renderer releases GPU resources.
-6. The Tokio runtime is shut down.
+2. `request_window_close()` shows a confirmation dialog first when `should_confirm_window_close`
+   says so: with `confirm_close_multiple_tabs` on, only when the window has more than one
+   tab, otherwise when `prompt_on_quit` is set and any tab is open.
+3. `WindowState::perform_shutdown()` is called (immediately, or when the user confirms):
+   the last working directory is saved if configured, refresh tasks are aborted, and
+   `is_shutting_down` is set.
+4. `WindowManager` closes the flagged windows (`close_window`), saving session state first
+   when `restore_session` is enabled. The `WindowState` `Drop` implementation drains all
+   tabs, pre-kills PTY processes, and spawns background threads for cleanup.
+5. When the last window closes, `should_exit` is set and the event loop exits. The renderer
+   releases GPU resources as the windows drop.
+6. `main` shuts the Tokio runtime down with a 2-second timeout.
 7. The process exits.
 
-During application exit, `shutdown_fast = true` is set on all tabs and panes before
+During window drop, `shutdown_fast = true` is set on all tabs and panes before
 dropping them. This causes the `Drop` implementations to return immediately, deferring
 actual PTY process cleanup to the OS. This avoids blocking the event loop on slow shell
 teardowns during quit.

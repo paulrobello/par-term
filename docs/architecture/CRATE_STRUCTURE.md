@@ -10,7 +10,7 @@ Reference guide for the par-term Cargo workspace: how the workspace is split, wh
   - [Layer 0 — Independent Utilities](#layer-0--independent-utilities)
   - [Layer 1 — Foundation](#layer-1--foundation)
   - [Layer 2 — Feature Crates](#layer-2--feature-crates)
-  - [Layer 3 — Rendering](#layer-3--rendering)
+  - [Layer 3 — Composite Crates](#layer-3--composite-crates)
   - [Layer 4 — Root Binary](#layer-4--root-binary)
 - [Crate Reference](#crate-reference)
 - [Version Bump Order](#version-bump-order)
@@ -25,7 +25,7 @@ par-term uses a Cargo workspace to decompose the application into focused, indep
 - **Explicit dependency boundaries** — a crate can only use what it declares; layering is enforced by the compiler.
 - **Independent publishing** — utility crates such as `par-term-mcp` and `par-term-ssh` can be published to crates.io and consumed by other projects without pulling in the full terminal stack.
 
-The workspace contains 13 sub-crates plus the root binary. They form a directed acyclic graph with four distinct layers.
+The workspace contains 14 sub-crates plus the root binary. They form a directed acyclic graph with five layers (0 to 4).
 
 ## Dependency Diagram
 
@@ -36,7 +36,6 @@ graph TD
     subgraph "Layer 0 — Independent Utilities"
         ACP[par-term-acp<br>ACP Agent Protocol]
         SSH[par-term-ssh<br>SSH Host Discovery]
-        MCP[par-term-mcp<br>MCP Stdio Server]
     end
 
     subgraph "Layer 1 — Foundation"
@@ -47,28 +46,35 @@ graph TD
         Fonts[par-term-fonts<br>Font Management & Text Shaping]
         Input[par-term-input<br>Input Sequence Generation]
         Keybind[par-term-keybindings<br>Keybinding Registry]
+        MCP[par-term-mcp<br>MCP Stdio Server]
         Scripting[par-term-scripting<br>Observer & Scripting]
-        Settings[par-term-settings-ui<br>Settings Tabs & Sidebar]
         Terminal[par-term-terminal<br>Terminal Manager]
         Tmux[par-term-tmux<br>tmux Control Mode]
         Update[par-term-update<br>Self-Update System]
     end
 
-    subgraph "Layer 3 — Rendering"
+    subgraph "Layer 3 — Composite Crates"
         Render[par-term-render<br>GPU Rendering Engine]
+        Mux[par-term-mux<br>par-mux Daemon Client]
+        Settings[par-term-settings-ui<br>Settings Tabs & Sidebar]
     end
 
     Config --> Fonts
     Config --> Input
     Config --> Keybind
+    Config --> MCP
     Config --> Scripting
-    Config --> Settings
     Config --> Terminal
     Config --> Tmux
     Config --> Update
 
     Fonts --> Render
     Config --> Render
+    Tmux --> Mux
+    Config --> Mux
+    Keybind --> Settings
+    Scripting --> Settings
+    Config --> Settings
 
     Main --> ACP
     Main --> Config
@@ -76,6 +82,7 @@ graph TD
     Main --> Input
     Main --> Keybind
     Main --> MCP
+    Main --> Mux
     Main --> Render
     Main --> Scripting
     Main --> Settings
@@ -87,16 +94,17 @@ graph TD
     style Main fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
     style ACP fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
     style SSH fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style MCP fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style MCP fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Config fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Fonts fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style Input fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Keybind fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Scripting fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Settings fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Terminal fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Tmux fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Update fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Mux fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Settings fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style Render fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
 ```
 
@@ -110,7 +118,6 @@ These crates carry zero internal workspace dependencies. They can be built, test
 |-------|---------------|
 | `par-term-acp` | Agent Communication Protocol (ACP) — JSON-RPC-based protocol for integrating AI agents. Handles agent lifecycle, tool-call dispatch, and transcript management. No internal deps means it can be embedded in other tools. |
 | `par-term-ssh` | SSH host discovery — parses `~/.ssh/config`, `~/.ssh/known_hosts`, and shell history; performs mDNS/Bonjour network scanning. Produces a deduplicated list of SSH targets for the quick-connect UI. |
-| `par-term-mcp` | MCP stdio server — implements the Model Context Protocol over stdin/stdout for AI agent integration. Independently publishable; reads par-term config paths via `dirs` but carries no crate-level dep on `par-term-config`. |
 
 ### Layer 1 — Foundation
 
@@ -124,26 +131,27 @@ One crate forms the root of the internal dependency graph. All Layer 2 crates de
 
 ### Layer 2 — Feature Crates
 
-These eight crates each depend on `par-term-config` and implement a distinct feature area. They can be built in parallel after Layer 1 is ready.
+These nine crates each depend on `par-term-config` and implement a distinct feature area. They can be built in parallel after Layer 1 is ready.
 
 | Crate | Responsibility |
 |-------|---------------|
 | `par-term-fonts` | Font discovery, loading, and fallback chain using `fontdb`. Text shaping via `rustybuzz` (HarfBuzz port). Glyph rasterization via `swash`. Provides `FontManager` and `TextShaper` to `par-term-render` and the root binary. |
 | `par-term-input` | Translates `winit` keyboard events into VT escape byte sequences by mapping them onto `par-term-emu-core-rust`'s shared key encoder (`keyboard::encode_key_with`). Owns modifier and Alt-side tracking, the per-side Option-key modes, and clipboard access. |
 | `par-term-keybindings` | Parses keybinding definitions from config, matches key combos against incoming events, and maintains a named action registry. Supports platform-aware `CmdOrCtrl` modifier shorthand. |
+| `par-term-mcp` | MCP stdio server — implements the Model Context Protocol over stdin/stdout for AI agent integration, including the agent-command file tools. Depends on `par-term-config` for the agent-command file format (`par_term_config::agent_commands`). |
 | `par-term-scripting` | Observer pattern implementation for event-driven automation. Integrates with `par-term-emu-core-rust`'s terminal event observer trait to trigger shell callbacks and automation scripts on terminal output events. |
-| `par-term-settings-ui` | 13 settings tabs: Appearance (includes Badge + Progress Bar), Window (includes Arrangements), Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts and Plugins), Snippets & Actions, Assistant, Advanced. Sidebar navigation component and section search. Built on egui; depends on `par-term-config` and `par-term-scripting` (plugin manifest types for the Plugins section). |
 | `par-term-terminal` | `TerminalManager` — the thread-safe wrapper around `PtySession` from `par-term-emu-core-rust`. Manages the PTY process, scrollback extraction, clipboard OSC 52, hyperlink tracking, and inline graphics metadata. |
 | `par-term-tmux` | tmux control mode integration: session lifecycle, bidirectional state sync between par-term panes and tmux windows/panes, and control protocol command builders. Bridges the core library's control mode parser to par-term's pane system. |
 | `par-term-update` | Self-update system: fetches release manifests, compares semantic versions, downloads and verifies binary archives (SHA-256 and Ed25519 `.minisig` signatures), and extracts updates in place. Tracks last-check timestamps against the configured `UpdateCheckFrequency`. |
 
-### Layer 3 — Rendering
+### Layer 3 — Composite Crates
 
-Two crates sit above Layer 2: `par-term-render` depends on both `par-term-config` and `par-term-fonts`; `par-term-mux` depends on `par-term-config` and `par-term-tmux`.
+Three crates sit above Layer 2: `par-term-render` depends on `par-term-config` and `par-term-fonts`; `par-term-mux` depends on `par-term-config` and `par-term-tmux`; `par-term-settings-ui` depends on `par-term-config`, `par-term-keybindings`, and `par-term-scripting`.
 
 | Crate | Responsibility |
 |-------|---------------|
 | `par-term-mux` | Client for the core's par-mux daemon, speaking tmux control mode over a local socket. Reuses `par-term-tmux`'s sync layer (`ParserBridge`, `TmuxSync`, `SyncAction`) unmodified — the reuse is the protocol-compatibility proof. Gated on its `mux` feature, which is on by default (forwards the core's `mux` feature, shipped in core 0.50). |
+| `par-term-settings-ui` | 12 sidebar tabs (`SettingsTab` in `sidebar.rs`): General, Appearance, Windows & Tabs, Panes, Sessions, Profiles, Keys, Pointer, Effects & Shaders, Automation, Assistant & Agents, Advanced. Sidebar navigation, section layout (`layout.rs`), and harvested section search. Built on egui. |
 | `par-term-render` | GPU rendering engine built on `wgpu`. Owns the cell renderer (glyph atlas, instanced draw calls, WGSL shaders), the graphics renderer (Sixel/iTerm2/Kitty texture cache), the custom shader renderer (GLSL-to-WGSL via `naga`, iChannel textures), and the egui overlay integration. |
 
 ### Layer 4 — Root Binary
@@ -164,13 +172,13 @@ Quick lookup table with each crate's primary public types and where they are con
 | `par-term-input` | `InputHandler` | `par-term` |
 | `par-term-keybindings` | `KeybindingRegistry`, `KeyCombo` | `par-term` |
 | `par-term-mcp` | `tools`, `jsonrpc`, `ipc`, `TerminalScreenshotRequest` | `par-term` |
-| `par-term-mux` | `MuxSessionClient`, `AttachOutcome`, `SessionSummary`, `WindowSummary` | `par-term` (app wiring, T4.4) |
+| `par-term-mux` | `MuxSessionClient`, `AttachOutcome`, `SessionSummary`, `WindowSummary`, `AgentEntry` | `par-term` (mux wiring) |
 | `par-term-render` | `Renderer`, `CellRenderer`, `GraphicsRenderer`, `CustomShaderRenderer` | `par-term` |
 | `par-term-scripting` | `ScriptManager`, `ScriptEventForwarder` | `par-term` |
 | `par-term-settings-ui` | `SettingsUI`, `SettingsTab`, all tab structs | `par-term` (settings window) |
 | `par-term-ssh` | `SshHost`, `SshHostSource`, `discover_local_hosts` | `par-term` (quick connect UI) |
 | `par-term-terminal` | `TerminalManager`, `ScrollbackMetadata` | `par-term` |
-| `par-term-tmux` | `TmuxSession`, `TmuxSync`, `TmuxCommand` | `par-term` |
+| `par-term-tmux` | `TmuxSession`, `TmuxSync`, `TmuxCommand` | `par-term`, `par-term-mux` |
 | `par-term-update` | `UpdateChecker`, `Manifest`, `UpdateInfo` | `par-term` |
 
 ## Version Bump Order
@@ -183,32 +191,34 @@ When cutting a release for crates.io, bump crate versions in dependency order. B
 Step 1 — Bump par-term-config
   Update version in: par-term-config/Cargo.toml
   Update references in: par-term-fonts, par-term-input, par-term-keybindings,
-                        par-term-scripting, par-term-settings-ui,
-                        par-term-terminal, par-term-tmux, par-term-update, par-term-render,
-                        Cargo.toml (root)
+                        par-term-mcp, par-term-scripting, par-term-settings-ui,
+                        par-term-terminal, par-term-tmux, par-term-update,
+                        par-term-render, par-term-mux, Cargo.toml (root)
 
 Step 2 — Bump Layer 0 crates (any order, no cross-deps)
   par-term-acp
   par-term-ssh
-  par-term-mcp
   Update references in: Cargo.toml (root)
 
 Step 3 — Bump Layer 2 crates (any order within the step)
   par-term-fonts
   par-term-input
   par-term-keybindings
+  par-term-mcp
   par-term-scripting
-  par-term-settings-ui
   par-term-terminal
   par-term-tmux
   par-term-update
   Update references in: par-term-render/Cargo.toml (for par-term-fonts),
-                        Cargo.toml (root)
+                        par-term-mux/Cargo.toml (for par-term-tmux),
+                        par-term-settings-ui/Cargo.toml (for par-term-keybindings
+                        and par-term-scripting), Cargo.toml (root)
 
-Step 4 — Bump par-term-render
-  Update version in: par-term-render/Cargo.toml
-  Update par-term-fonts ref in: par-term-render/Cargo.toml
-  Update reference in: Cargo.toml (root)
+Step 4 — Bump Layer 3 crates (any order within the step)
+  par-term-render
+  par-term-mux
+  par-term-settings-ui
+  Update references in: Cargo.toml (root)
 
 Step 5 — Bump par-term (root)
   Update version in: Cargo.toml
@@ -222,8 +232,8 @@ Step 6 — Verify
 
 1. Bump `par-term-config` version, update all references.
 2. Bump Layer 0 crate versions, update root references.
-3. Bump Layer 2 crate versions, update render (for fonts) and root references.
-4. Bump `par-term-render` version, update root reference.
+3. Bump Layer 2 crate versions, update render (fonts), mux (tmux), settings-ui (keybindings, scripting), and root references.
+4. Bump Layer 3 crate versions (`par-term-render`, `par-term-mux`, `par-term-settings-ui`), update root references.
 5. Bump root `par-term` version.
 6. Run `cargo check --workspace` to confirm no version mismatches.
 7. Run `make checkall` before publishing.
@@ -276,7 +286,7 @@ Before adding internal deps, decide which layer the crate belongs to:
 - **Layer 0**: The crate needs no internal workspace deps. Keep it that way.
 - **Layer 1**: Only if creating a new shared foundation (rare — `par-term-config` already fills this role).
 - **Layer 2**: The crate depends on `par-term-config` only.
-- **Layer 3**: The crate depends on `par-term-config` and at least one Layer 2 crate.
+- **Layer 3**: The crate depends on `par-term-config` and at least one Layer 2 crate other than config.
 
 > **Avoid adding deps that create cycles.** Run `cargo check --workspace` immediately after adding any new internal dependency.
 

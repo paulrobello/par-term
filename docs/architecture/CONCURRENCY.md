@@ -27,7 +27,7 @@ sharing state:
 |---|---|---|
 | **Main thread** — OS event loop, rendering, UI, OSC 52 clipboard sync | winit `EventLoop` | `parking_lot::Mutex` |
 | **Tokio runtime** — PTY writes, timers, ACP agent tasks | `Arc<tokio::runtime::Runtime>` | `tokio::sync::Mutex` |
-| **std threads** — PTY reader (core `PtySession`), system/git/disk monitors, shader watcher, audio | `std::thread::spawn` | `parking_lot::Mutex` |
+| **std threads** — PTY reader (core `PtySession`), system/git/disk monitors, shader watcher, audio, par-mux transport worker | `std::thread::spawn` | `parking_lot::Mutex` (`std::sync::Mutex` in the mux transport) |
 
 The rule is simple: use `tokio::sync::Mutex` when a value is shared with any async task;
 use `parking_lot::Mutex` when all callers are sync threads.
@@ -57,6 +57,7 @@ graph TD
         DiskMonitor[Disk Monitor]
         ShaderWatcher[Shader File Watcher]
         AudioBell[Audio Bell Player]
+        MuxTransport[par-mux Transport Worker]
     end
 
     EventLoop --> Render
@@ -78,7 +79,7 @@ graph TD
     class EventLoop primary
     class InputSender,RefreshTasks,Timers active
     class AgentTask external
-    class PTYReader,SystemMonitor,GitCheck,DiskMonitor,ShaderWatcher,AudioBell neutral
+    class PTYReader,SystemMonitor,GitCheck,DiskMonitor,ShaderWatcher,AudioBell,MuxTransport neutral
     class Render,Input,EguiUI info
 ```
 
@@ -149,6 +150,7 @@ WindowManager                   ← owns all WindowState instances
 | `DebugLogger` (static) | `OnceLock<parking_lot::Mutex<DebugLogger>>` | Any-thread log writes |
 | `AudioBell.sink` | `Option<Arc<parking_lot::Mutex<Player>>>` | Rodio std thread |
 | `BadgeState.variables` | `Arc<parking_lot::RwLock<SessionVariables>>` | Frequent reads, infrequent writes, all sync |
+| `MuxTransport.client` (`mux_transport.rs`) | `Arc<std::sync::Mutex<MuxSessionClient>>` | Event loop + mux transport worker thread; uses `std::sync::Mutex`, not `parking_lot` |
 | `ActiveUpload.error` | `Arc<parking_lot::Mutex<Option<String>>>` | Upload std thread writes, event loop reads |
 
 ## Adding New Shared State

@@ -76,7 +76,7 @@ minimum_contrast: 0.0
 
 The minimum contrast slider is located in **Settings > Appearance > Text & Fonts**:
 
-- **Slider range**: 0.0 to 0.99
+- **Slider range**: 0 % to 99 % (stored in the config as 0.0 to 0.99); you can also type a value such as `40` or `40 %`
 - **Dynamic label** shows the current level:
   - "Disabled" when set to 0.0
   - "Low" for values between 0.0 and 0.5
