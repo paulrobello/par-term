@@ -53,6 +53,8 @@ graph TD
 
 **Keyboard Shortcut:** `Cmd+Shift+V` (macOS) or `Ctrl+Alt+V` (Windows/Linux)
 
+**Menu:** Edit > Paste Special...
+
 **Alternative:** From Clipboard History (`Cmd+Shift+H` on macOS, `Ctrl+Shift+H` on Windows/Linux), press `Shift+Enter` on an entry.
 
 ## Transformations
@@ -65,12 +67,17 @@ graph TD
 | **Shell: Double Quotes** | Wrap in double quotes, escape special chars | `$PATH` → `"\$PATH"` |
 | **Shell: Backslash Escape** | Escape shell special characters | `hello world` → `hello\ world` |
 
-**Shell escaping handles:**
+**Backslash escaping handles:**
 - Spaces, tabs, newlines
-- Quotes (single and double)
-- Shell operators (`&`, `|`, `;`, etc.)
+- Quotes (single, double, backtick)
+- Variable expansion and history (`$`, `!`)
+- Shell operators (`&`, `|`, `;`)
+- Grouping (`(`, `)`, `{`, `}`, `[`, `]`)
 - Redirections (`<`, `>`)
-- Glob patterns (`*`, `?`, `[`, `]`)
+- Glob patterns (`*`, `?`)
+- Other specials (`\`, `#`, `~`, `^`)
+
+**Double quotes escape** only `$`, `` ` ``, `\`, `"`, and `!`. **Single quotes** rewrite an internal `'` as `'\''`.
 
 ### Case Category
 
@@ -132,11 +139,14 @@ graph TD
 - Invalid Base64: Shows error message
 - Invalid hex: Shows error message
 - Invalid URL encoding: Shows error message
+- Odd-length hex: Shows error message
 - Malformed JSON `\u` escapes: Shows error message (other unknown escapes are preserved as-is)
+
+When the selected transformation fails, the preview shows the error in red and `Enter` does nothing, so the dialog stays open.
 
 ## Paste Delay
 
-For slow terminals or remote connections that cannot handle rapid paste, a configurable delay can be added between pasted lines.
+For slow terminals or remote connections that cannot handle rapid paste, a configurable delay can be added between pasted lines. The delay applies to local panes and to par-mux daemon panes; bracketed-paste markers still wrap the whole paste.
 
 **Config option:** `paste_delay_ms` (0-500ms, default: 0)
 
@@ -158,25 +168,20 @@ paste_delay_ms: 50  # Add 50ms delay between pasted lines
 ```mermaid
 graph TB
     subgraph Window["Paste Special Window"]
-        Search["Search: [_____________]"]
-        subgraph Columns["Two-Column Layout"]
-            Transforms["Transformations List<br/>Shell: Single Quotes<br/>Shell: Double Quotes<br/>..."]
-            Preview["Preview Panel<br/>Original: [content]<br/>Result: [transformed]"]
-        end
-        Buttons["[Apply & Paste] [Cancel]    123 chars"]
-        Hints["Navigation: Enter Apply | Esc Cancel"]
+        Search["Search transformations: [_____________]"]
+        Transforms["Transformations List<br/>Shell: Single Quotes<br/>Shell: Double Quotes<br/>..."]
+        Preview["Preview Panel (below the list)<br/>Original: [content]<br/>Result: [transformed]<br/>N chars"]
+        Hints["Footer: Enter apply, Esc close"]
     end
 
     Search --> Transforms
     Transforms --> Preview
-    Preview --> Buttons
-    Buttons --> Hints
+    Preview --> Hints
 
     class Window neutral
     class Search neutral
     class Transforms data
     class Preview external
-    class Buttons active
     class Hints neutral
 
     classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
@@ -191,13 +196,15 @@ graph TB
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` | Navigate transformations |
-| `Enter` | Apply and paste |
+| `PageUp` / `PageDown` | Move a page at a time |
+| `Home` / `End` | Jump to first / last |
+| `Enter` or click | Apply and paste |
 | `Escape` | Cancel |
 | Type | Filter transformations |
 
 ### Search/Filter
 
-Type in the search box to filter transformations:
+Type in the search box to filter transformations by case-insensitive substring match on the name:
 - `base64` → Shows Base64 transforms
 - `shell` → Shows shell escaping
 - `upper` → Shows uppercase transform
@@ -205,10 +212,10 @@ Type in the search box to filter transformations:
 
 ### Preview
 
-The right panel shows:
-- **Original:** First part of clipboard content (newlines shown as `↵`, tabs as `→`)
-- **Result:** Transformed content or error message
-- **Content length:** Character count
+The panel below the list shows:
+- **Original:** First 100 characters of clipboard content (newlines and tabs shown as visible marker glyphs)
+- **Result:** Transformed content (first 100 characters) or error message
+- **Content length:** Size of the clipboard content in `chars`
 
 ## Related Documentation
 

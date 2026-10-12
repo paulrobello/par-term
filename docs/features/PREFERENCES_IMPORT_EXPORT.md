@@ -51,9 +51,9 @@ graph TD
 Export the current configuration to a YAML file:
 
 1. Open Settings (`F12` or `Cmd + ,` on macOS)
-2. Navigate to **Advanced** > **Import/Export Preferences**
+2. Navigate to **Advanced** > **Import/Export** and open the **Import/Export Preferences** section
 3. Click **Export Preferences to File**
-4. Choose a location in the native file dialog
+4. Choose a location in the native file dialog (the suggested name is `par-term-config.yaml`)
 5. The current configuration saves as a `.yaml` file
 
 The exported file contains all configuration values.
@@ -62,18 +62,18 @@ The exported file contains all configuration values.
 
 ### Import from File
 
-1. Open Settings > **Advanced** > **Import/Export Preferences**
-2. Click **Import & Replace** to completely replace your config, or **Import & Merge** to preserve existing customizations
+1. Open Settings > **Advanced** > **Import/Export** > **Import/Export Preferences**
+2. Click **Import & Replace** to completely replace your config (the button asks for a second click on **Confirm import & replace**; **Cancel** disarms it), or **Import & Merge** to preserve existing customizations
 3. Select a `.yaml` or `.yml` configuration file in the native file dialog
 4. The configuration loads into the settings panel as unsaved changes (the panel shows "* Unsaved changes")
 5. Click **Save** to persist the configuration to disk and apply it to the running terminal
 
 ### Import from URL
 
-1. Open Settings > **Advanced** > **Import/Export Preferences**
+1. Open Settings > **Advanced** > **Import/Export** > **Import/Export Preferences**
 2. Enter the URL of a configuration file. It must use the `https://` scheme (case-insensitive, so `HTTPS://` is accepted) -- there is no HTTP opt-in on this path, and every other scheme (`http:`, `file:`, `ftp:`, `data:`) is rejected with the reason shown in the status line
    - The response is capped at 1 MB and the request times out after 30 seconds. The fetch runs on the UI thread, so the window is unresponsive while it is in flight
-3. Click **Fetch & Replace** to completely replace your config, or **Fetch & Merge** to preserve existing customizations
+3. Click **Fetch & Replace** to completely replace your config (also needs a confirming second click), or **Fetch & Merge** to preserve existing customizations
 4. The configuration downloads and loads into the settings panel as unsaved changes
 5. Click **Save** to persist the configuration to disk and apply it to the running terminal
 
@@ -86,11 +86,11 @@ The exported file contains all configuration values.
 
 **Merge mode** is recommended when importing partial configurations or when you want to preserve your existing settings while adding specific overrides from the imported file.
 
-**Validation**: All imported configurations are validated before applying. Malformed or invalid YAML files are rejected with an error message displayed in the settings UI.
+**Validation**: All imported configurations are validated before applying. Malformed or invalid YAML files are rejected, the current configuration is left unchanged, and the error appears in the section's status line and the settings error banner.
 
 ## Settings UI
 
-All import/export controls are located in **Settings > Advanced > Import/Export**.
+All import/export controls are located in **Settings > Advanced > Import/Export**, in the **Import/Export Preferences** section (implementation: `par-term-settings-ui/src/advanced_tab/import_export.rs`).
 
 ## Related Documentation
 

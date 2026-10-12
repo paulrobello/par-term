@@ -1,9 +1,9 @@
 # Plugins
 
 Plugins are local, user-installed subprocesses that can publish a status-bar
-widget, contribute actions to the command palette, or push panel content.
-v1 ships three plugin kinds: `status-bar-widget`, `action-contributor`, and
-`panel`.
+widget, contribute actions to the command palette, push panel content, or draw
+an overlay over the terminal. v1 ships four plugin kinds: `status-bar-widget`,
+`action-contributor`, `panel`, and `overlay`.
 
 ## Table of Contents
 
@@ -15,13 +15,16 @@ v1 ships three plugin kinds: `status-bar-widget`, `action-contributor`, and
 - [Contributing palette actions](#contributing-palette-actions)
 - [Pushing panel content](#pushing-panel-content)
 - [Drawing an overlay](#drawing-an-overlay)
+  - [Interactive overlays](#interactive-overlays)
 - [Event subscriptions](#event-subscriptions)
 - [Settings](#settings)
 - [Lifecycle and restarts](#lifecycle-and-restarts)
 - [Diagnostics](#diagnostics)
 - [v1 limits](#v1-limits)
 - [The example clock plugin](#the-example-clock-plugin)
+- [The example theme-swatch plugin](#the-example-theme-swatch-plugin)
 - [Agent ui-test recipe](#agent-ui-test-recipe)
+- [See also](#see-also)
 
 ## What a plugin is
 
@@ -130,12 +133,13 @@ back restores the plugin with its settings and placement intact.
 | `author` | string? | Author, shown at the enable toggle. |
 | `license` | string? | License, shown at the enable toggle. |
 | `description` | string? | What the plugin does, shown in Settings. |
-| `kinds` | string[] | Kinds provided; each must be known to the host (v1: `status-bar-widget`, `action-contributor`, `panel`). A manifest naming an unknown kind is not loaded. |
+| `kinds` | string[] | Kinds provided; each must be known to the host (v1: `status-bar-widget`, `action-contributor`, `panel`, `overlay`). A manifest naming an unknown kind is not loaded. |
 | `activation` | string? | `manual` (default; enabled in Settings) or `on_startup`. Either way nothing runs before the enable toggle. |
-| `entryPoints` | object | Map of kind → executable: `statusBarWidget`, `actionContributor`, and/or `panel` → `{ "command": "...", "args": [...] }`. |
+| `entryPoints` | object | Map of kind → executable: `statusBarWidget`, `actionContributor`, `panel`, and/or `overlay` → `{ "command": "...", "args": [...] }`. |
 | `statusBarWidget` | object? | Required when `kinds` includes `status-bar-widget`; see below. |
 | `actions` | array? | Required when `kinds` includes `action-contributor`; see [Contributing palette actions](#contributing-palette-actions). |
 | `subscriptions` | string[]? | Terminal event kinds delivered to the plugin's stdin; empty or absent means none (self-scheduled). Each name must be a known event kind — see [Event subscriptions](#event-subscriptions). |
+| `overlay` | object? | Overlay capability block, `{ "interactive": true }`; see [Interactive overlays](#interactive-overlays). Absent means display-only. |
 | `restart` | string? | When the host restarts an exited process: `on_failure` (default), `never`, or `always`. Mode-only — backoff stays host-owned; see [Lifecycle and restarts](#lifecycle-and-restarts). |
 
 The `statusBarWidget` block:
@@ -165,7 +169,8 @@ be executable by that name relative to the plugin directory.
 - **Land-disabled** — discovery never spawns anything. Only plugins whose
   `plugins:` state entry says `enabled: true` run, and only the Settings
   toggle writes that bit.
-- **Display-only commands** — a v1 plugin may only send `SetWidget`.
+- **Display-only commands** — a v1 plugin may only send its kind's display
+  commands (`SetWidget`, `SetPanel`/`ClearPanel`, `SetOverlay`/`ClearOverlay`).
   Anything else on its stdout is refused with an error line and ignored.
 - **Installs are explicit** — plugin code reaches the disk only through an
   action the user took: `plugin add` cloning a URL they named, or a
@@ -416,7 +421,7 @@ Focus and input follow the mode stack:
 ```
 
 The plugin owns state: react to events by pushing a new full scene (the
-`text_input` reports `text_changed` and the host renders whatever value
+`text_input` reports `TextChanged` and the host renders whatever value
 the scene carries). Focused overlays sit below the built-in pane-hint
 selection mode — that modal mode always owns the keys and draws above
 every overlay. A plugin without the capability, or an upsert that drops
@@ -465,8 +470,8 @@ Semantics worth knowing before declaring one:
   is duplicated, but events carry no tab attribution in v1 — a plugin
   cannot tell which tab rang the bell.
 - **Every kind's process hears them.** Subscriptions are plugin-level: a
-  multi-kind manifest delivers to the widget, action, and panel processes
-  alike.
+  multi-kind manifest delivers to the widget, action, panel, and overlay
+  processes alike.
 - **Backpressure is the script policy.** Each subscribed plugin gets its
   own event forwarder carrying its own kind filter — the same machinery
   tab scripts use: at most 1024 events buffered per plugin, evicting the
@@ -481,7 +486,8 @@ Semantics worth knowing before declaring one:
   (`command_complete`, `trigger_matched`) already reach tab scripts
   ungated, and a plugin remains strictly narrower than a script: outbound
   it may only send its kind's display commands — `SetWidget` for the
-  widget and action kinds, `SetPanel`/`ClearPanel` for the panel kind.
+  widget and action kinds, `SetPanel`/`ClearPanel` for the panel kind,
+  `SetOverlay`/`ClearOverlay` for the overlay kind.
   Adding a raw-output event kind is
   the point where a permission gate becomes mandatory; that seam is
   deliberate and unforged.

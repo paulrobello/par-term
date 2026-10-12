@@ -50,9 +50,9 @@ par-term adopts the Kitty desktop-notification spec. The supported keys are:
 | Platform | Backend |
 |----------|---------|
 | **macOS (bundled app)** | `UNUserNotificationCenter` via `objc2` — native same-id replacement, click delegate, foreground presentation. |
-| **macOS (`cargo run`, unbundled)** | Automatic fallback to `osascript`, since `UNUserNotificationCenter` requires a signed/bundled app. |
-| **Linux** | freedesktop DBus notifications (via `notify-rust`), with `replaces_id` for identity-based replacement. |
-| **Windows** | Existing `notify-rust` behavior. |
+| **macOS (`cargo run`, unbundled)** | Automatic fallback to `osascript`, since `UNUserNotificationCenter` requires a signed/bundled app. Identity replacement and click actions are ignored on this path (also used if the native path errors at runtime). |
+| **Linux** | freedesktop DBus notifications (via `notify-rust`), with a hashed numeric id for identity-based replacement and click callbacks via `wait_for_action`. |
+| **Windows** | `notify-rust`, without urgency, identity-based replacement, or click callbacks. |
 
 ## Click actions
 
