@@ -302,7 +302,7 @@ The Pointer > Mouse page in Settings (Settings > Pointer > Mouse) provides the o
 | **Auto-copy selection** | Copy to clipboard on selection |
 | **Include trailing newline when copying** | Include newlines when copying |
 | **Middle-click paste** | Enable middle-click paste |
-| **Option+Click moves cursor** | Alt/Option+click cursor positioning |
+| **Option+Click moves the cursor** | Alt/Option+click cursor positioning |
 | **Focus follows mouse** | Auto-focus window on cursor enter |
 | **Pane focus follows mouse** | Focus the split pane under the pointer as it moves |
 | **Report horizontal scroll events** | Forward horizontal scroll to applications |

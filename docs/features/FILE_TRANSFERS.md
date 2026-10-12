@@ -100,7 +100,7 @@ The download process:
 
 1. The terminal emulator core parses the OSC 1337 `File` escape sequence from the PTY output
 2. The transfer appears in the progress overlay with a progress bar
-3. When the transfer completes, a native save dialog opens with the suggested filename
+3. When the transfer completes, a native save dialog opens (after a brief 750 ms delay so the overlay can render) with the suggested filename
 4. The default directory in the save dialog is determined by your save location preference
 5. After saving, a desktop notification confirms the download with the filename and size
 
@@ -166,7 +166,7 @@ If you dismiss the file picker without selecting a file, par-term cancels the up
 
 A semi-transparent progress overlay appears at the bottom-right corner of the terminal window whenever file transfers are active. The overlay:
 
-- Shows all active transfers with directional indicators (down arrow for downloads, up arrow for uploads)
+- Shows active transfers and transfers completed within the last 3 seconds, with directional indicators (down arrow for downloads, up arrow for uploads)
 - Displays a progress bar for each transfer when the total size is known
 - Shows an animated indeterminate bar when the total size is unknown
 - Indicates how many completed downloads are waiting for the save dialog
@@ -260,7 +260,7 @@ The utilities are installed automatically as part of shell integration. There ar
 
 **From par-term Settings:**
 
-Open Settings (F12) > Integrations > Shell Integration > **Install**
+Open Settings (F12) > General > Integration & Files > Shell Integration > **Install**
 
 **Via curl on a remote host:**
 
@@ -306,10 +306,10 @@ Kitty-format output (`--format kitty`) is wrapped the same way, with every ESC i
 
 ### Settings UI
 
-File transfer settings are accessible in the Settings window under **Advanced > File Transfers**:
+File transfer settings are accessible in the Settings window under **General > Integration & Files > File Transfers**:
 
 1. Open Settings with **F12** (or **Cmd+,** on macOS)
-2. Navigate to the **Advanced** tab in the sidebar
+2. Navigate to the **General** tab in the sidebar and open the **Integration & Files** page
 3. Expand the **File Transfers** section
 4. Select your preferred download save location from the dropdown
 5. If "Custom directory" is selected, enter a path or use the browse button to pick a folder

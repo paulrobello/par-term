@@ -102,7 +102,7 @@ See the [Config Reference](../CONFIG_REFERENCE.md) for the complete field list.
 
 ## Troubleshooting
 
-If images do not appear, start with [Inline Graphics Not Displaying](../guides/TROUBLESHOOTING.md#inline-graphics-not-displaying) in the troubleshooting guide. When an image renders blank but is present, run with `--log-level debug`: the terminal layer logs bounded inline-image payload diagnostics at the upload boundary (first/middle/last RGBA samples and nonzero-alpha counts), which distinguishes a decode or transparency problem from a placement problem. See [Debug Logging](../LOGGING.md).
+If images do not appear, start with [Inline Graphics Not Displaying](../guides/TROUBLESHOOTING.md#inline-graphics-not-displaying) in the troubleshooting guide. When an image renders blank but is present, run with `--log-level debug`: both layers log bounded inline-image payload diagnostics: the terminal layer logs the first, middle, and last RGBA pixel samples (`par-term-terminal/src/terminal/graphics.rs`), and the renderer logs the buffer length, non-zero-alpha pixel count, and first RGBA sample at upload (`par-term-render/src/renderer/graphics.rs`). Together they distinguish a decode or transparency problem from a placement problem. See [Debug Logging](../LOGGING.md).
 
 ## Related Documentation
 
