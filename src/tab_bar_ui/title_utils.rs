@@ -137,7 +137,16 @@ pub(super) fn sanitize_styled_segments_for_egui(
 }
 
 pub(super) fn is_egui_title_suspect_char(ch: char) -> bool {
-    is_egui_title_ignorable_char(ch) || is_regional_indicator(ch) || is_smp_pictograph(ch)
+    is_egui_title_ignorable_char(ch)
+        || is_regional_indicator(ch)
+        || is_smp_pictograph(ch)
+        // BMP symbol blocks that feed the substitution table (◐/◑ busy
+        // frames, ✅/❌, ⭐/✨, ☁ …): without these the fast path below
+        // returns a title untouched and the mappings never apply.
+        || matches!(ch as u32, 0x2300..=0x23FF // Misc Technical (⏳ ⏵ ⏸)
+            | 0x25A0..=0x25FF // Geometric Shapes (◐ ◑ ● ⬛)
+            | 0x2600..=0x27BF // Misc Symbols + Dingbats (✳ ⚠ ☁ ⭐ ✅ ❌ ✨ ✍)
+            | 0x2B00..=0x2BFF) // Misc Symbols and Arrows (⭐)
 }
 
 pub(super) fn is_egui_title_ignorable_char(ch: char) -> bool {
@@ -207,6 +216,12 @@ pub(super) fn map_title_grapheme_to_monochrome(grapheme: &str) -> Option<&'stati
             Some("\u{f111}")
         }
         "⚪" | "⚫" | "⬜" | "⬛" => Some("\u{f111}"),
+        // Claude Code's title busy frames (U+25D0/U+25D1, alternated ~960ms
+        // while working): carried by NO font in the egui stack (cmap-verified),
+        // so both map to the nerd spinner — the same working mark the tab's
+        // own agent badge uses. The idle/waiting prefix ✳ (U+2733) stays
+        // unmapped: NotoEmoji (in egui's default Proportional stack) carries it.
+        "◐" | "◑" => Some("\u{f110}"),
         _ => None,
     }
 }
@@ -528,6 +543,8 @@ mod tests {
             "⚫",
             "⬜",
             "⬛",
+            "◐",
+            "◑",
         ] {
             if let Some(target) = map_title_grapheme_to_monochrome(grapheme) {
                 for ch in target.chars() {
@@ -628,5 +645,24 @@ mod tests {
     #[test]
     fn sanitize_egui_title_text_falls_back_for_unknown_smp_emoji() {
         assert_eq!(sanitize_egui_title_text("face 😀 ok"), "face • ok");
+    }
+
+    /// Claude Code prefixes its terminal titles with busy frames ◐/◑
+    /// (U+25D0/U+25D1, alternated ~960ms while working) and ✳ (U+2733,
+    /// idle/waiting/done). The circle frames sit in NO font of the egui
+    /// stack (cmap-verified 2026-10-16) and pass the BMP sanitizer raw,
+    /// so the tab rendered a tofu box before the title. ✳ stays unmapped:
+    /// NotoEmoji (in egui's default Proportional stack) carries it.
+    #[test]
+    fn sanitize_maps_claude_busy_frames_to_the_spinner_and_keeps_the_idle_mark() {
+        assert_eq!(
+            sanitize_egui_title_text("◐ hex-world"),
+            "\u{f110} hex-world"
+        );
+        assert_eq!(
+            sanitize_egui_title_text("◑ hex-world"),
+            "\u{f110} hex-world"
+        );
+        assert_eq!(sanitize_egui_title_text("✳ hex-world"), "✳ hex-world");
     }
 }
