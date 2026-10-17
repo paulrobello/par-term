@@ -35,6 +35,7 @@ make fmt            # Format code with rustfmt
 make lint           # Run clippy
 make typecheck      # Type-check entire workspace (cargo check --workspace)
 make checkall       # fmt-check, lint, typecheck, test — verification only, never rewrites files
+make checkall-ci    # CI-parity gate: `ci` + cargo-deny — the gate that must pass before a push-safe claim
 make doc-check      # Validate markdown links and anchors (needs lychee)
 make docs-settings  # Regenerate the CONFIG_REFERENCE.md settings tables (GENERATED — never hand-edit; the settings-ui doc-freshness test fails on drift)
 make check-line-counts  # Fail on production .rs files over 800 lines (warn over 500)
