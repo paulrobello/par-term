@@ -6,6 +6,16 @@
 use super::TerminalManager;
 
 impl TerminalManager {
+    /// The OSC 22 pointer shape the terminal most recently requested
+    /// (`Some("ew-resize")`, …), or `None` when the terminal's own
+    /// pointer applies (see the core's `Terminal::pointer_shape`).
+    pub fn pointer_shape(&self) -> Option<String> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.read();
+        term.pointer_shape().map(|s| s.to_string())
+    }
+
     /// Register a terminal observer and return its unique ID
     pub fn add_observer(
         &self,

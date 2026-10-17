@@ -74,6 +74,9 @@ impl WindowState {
         // Check for bell events and play audio/visual feedback
         self.check_bell();
 
+        // Apply the focused terminal's OSC 22 pointer-shape request
+        self.check_pointer_shape();
+
         // Withdraw queued confirmations whose target tab has been closed, then
         // perform the writes the user already approved for a specific tab.
         // Both run before `check_trigger_actions`, which resolves everything

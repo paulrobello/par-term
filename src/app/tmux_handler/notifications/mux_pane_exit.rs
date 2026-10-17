@@ -712,4 +712,42 @@ mod tests {
         assert!(ws.apply_pane_lifecycle(vec![PaneLifecycle::Respawned { pane: 2 }]));
         assert!(ws.tmux_state.mux_exited_panes.is_empty());
     }
+
+    /// Card 01a1418d, the cascade-landing contract: when the session's
+    /// last live pane exits, the 0.61 daemon HOLDS it (keep-one-tab reap
+    /// path) instead of auto-removing — so the window survives and the
+    /// client LANDS on the held window (exit cue, restart affordance)
+    /// rather than tearing down through the exit cascade into a detach.
+    #[test]
+    fn last_panes_exit_lands_the_client_on_the_held_window() {
+        let (mut ws, path) = attached_with_pane_zero("held-land");
+
+        // The session's only pane exits: the daemon holds it.
+        exit_and_hold(&mut ws, 0);
+        // LANDS, not detaches: the transport stays installed, the session
+        // view survives, and the held pane's tab and mapping are intact.
+        assert!(
+            ws.tmux_state.transport.is_some(),
+            "the client stays attached — no SessionEnded teardown"
+        );
+        assert!(
+            ws.tmux_state.mux_reconnect.is_none(),
+            "no reconnect was captured (the daemon did not die)"
+        );
+        assert!(
+            ws.tmux_state.tmux_session_name.is_some(),
+            "the session view survives on the held window"
+        );
+        assert!(ws.tmux_state.tmux_pane_owners.contains_key(&0));
+        assert_eq!(daemon_windows(&ws), vec![0], "the window was not killed");
+        // The landing is USEFUL: the held pane offers the restart cue.
+        let banners = crate::app::render_pipeline::exited_pane_overlay::gather_exited_pane_banners(
+            &ws.tmux_state,
+            ws.tab_manager.active_tab(),
+            1.0,
+        );
+        assert_eq!(banners.len(), 1, "the held pane shows the exit cue");
+
+        let _ = std::fs::remove_file(&path);
+    }
 }

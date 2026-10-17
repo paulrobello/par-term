@@ -5461,6 +5461,7 @@ out.flush()
             agent: agent.to_string(),
             state: state.to_string(),
             source: source.to_string(),
+            ws: String::new(),
         }
     }
 
@@ -6021,18 +6022,20 @@ out.flush()
     #[test]
     fn launch_agent_via_mux_types_into_a_fresh_daemon_pane() {
         let (mut ws, mut probe) = attached_state("agent-launch", "agent-launch");
-        // A background window's layout is not pushed on its own — the
-        // refresh-client -C pump forces the %layout-change that maps the
-        // panes (the detach-fast pattern).
-        let deadline = Instant::now() + DAEMON_DEADLINE;
-        while ws.tmux_state.tmux_pane_owners.is_empty() {
-            assert!(Instant::now() < deadline, "no daemon pane ever mapped");
-            for pane in listed_panes(&mut probe) {
-                let _ = probe.send(&format!("refresh-client -t %{pane} -C 80x24"));
-            }
+        // 0.61 sizing contract (see closing_a_tab_kills_the_daemon_window):
+        // the mapping is pumped by reporting a size that moves the window
+        // through the app's own connection.
+        let first_pane = listed_panes(&mut probe).remove(0);
+        wait_until("no daemon pane ever mapped", || {
+            let _ = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .expect("attached")
+                .send_settled(&format!("refresh-client -t %{first_pane} -C 60x20"));
             ws.check_mux_notifications();
-            std::thread::sleep(Duration::from_millis(25));
-        }
+            !ws.tmux_state.tmux_pane_owners.is_empty()
+        });
         let before = listed_panes(&mut probe);
 
         quiesce(&mut ws);
@@ -6187,22 +6190,23 @@ out.flush()
             .tmux_sync
             .get_tab(window_id)
             .expect("tab mapped to the window");
-        // Background windows' layouts are not pushed on their own — the
-        // refresh-client -C pump forces a %layout-change broadcast so the
-        // layout consumer maps the panes (the detach-fast pattern).
-        for pane in probe.list_panes().expect("list panes") {
-            probe
-                .send(&format!("refresh-client -t %{pane} -C 80x24"))
-                .expect("refresh-client");
-        }
-        // The layout consumer maps the window's panes only once the
-        // %layout-change has been pumped — wait for it so mapping
-        // cleanliness after the close is observable.
-        pump_until(
-            &mut ws,
-            |ws| !ws.tmux_state.tab_tmux_pane_ids(tab_id).is_empty(),
-            "the window's pane mappings",
-        );
+        // 0.61 sizing contract: a size report that does not move the
+        // window broadcasts nothing to the other clients (the two-client
+        // size-war fix — the geometry goes to the issuer's reply alone),
+        // so the mapping is pumped by reporting a smaller size through
+        // the app's own connection: the re-fit moves, and the broadcast
+        // `%layout-change` maps the panes.
+        let first_pane = probe.list_panes().expect("list panes").remove(0);
+        wait_until("the window's pane mappings", || {
+            let _ = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .expect("attached")
+                .send_settled(&format!("refresh-client -t %{first_pane} -C 60x20"));
+            ws.check_mux_notifications();
+            !ws.tmux_state.tab_tmux_pane_ids(tab_id).is_empty()
+        });
         let panes: Vec<_> = ws
             .tmux_state
             .tab_tmux_pane_ids(tab_id)

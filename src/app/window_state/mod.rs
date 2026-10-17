@@ -76,6 +76,7 @@ mod menu_state;
 mod notifications;
 mod overlay_state;
 pub(crate) mod overlay_ui_state;
+mod pointer_shape;
 mod render_loop_state;
 pub(crate) mod renderer_init;
 mod renderer_ops;
@@ -264,6 +265,9 @@ pub struct WindowState {
     pub(crate) clipboard_image_click_guard: Option<ClipboardImageClickGuard>,
     /// Last OSC 52 clipboard content applied to the system clipboard (dedup).
     pub(crate) last_osc52_clipboard: Option<String>,
+    /// The OSC 22 pointer shape last seen on the focused terminal (card
+    /// 01a1476e) — the change-detection cache for `check_pointer_shape`.
+    pub(crate) osc22_pointer_shape: Option<String>,
     /// Shared transient context for chained workflow actions (Sequence / Condition / Repeat).
     /// Written by background ShellCommand threads (capture_output=true); read by Condition checks.
     pub(crate) last_workflow_context: std::sync::Arc<std::sync::Mutex<Option<WorkflowContext>>>,

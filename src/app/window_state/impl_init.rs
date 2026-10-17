@@ -105,6 +105,8 @@ impl WindowState {
 
             last_osc52_clipboard: None,
 
+            osc22_pointer_shape: None,
+
             overlay_state: OverlayState::default(),
 
             keybinding_registry,

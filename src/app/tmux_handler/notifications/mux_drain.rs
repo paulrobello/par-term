@@ -63,6 +63,8 @@ impl WindowState {
                 agent,
                 state,
                 source,
+                // The roster is pane-keyed; `ws` groups the core's own side panel.
+                ws: _,
             } = push
             {
                 match AgentEntry::from_push(&pane_id, &agent, &state, &source) {
