@@ -74,7 +74,7 @@ jobs:
     - name: Install cargo-deny
       # Pinned: new cargo-deny releases can change the deny.toml schema and
       # break CI without any repo change (bump deliberately with deny.toml).
-      run: cargo install cargo-deny --locked --version 0.19.9
+      run: cargo install cargo-deny --locked --version 0.20.2
 
     - name: Run cargo-deny
       run: cargo deny check

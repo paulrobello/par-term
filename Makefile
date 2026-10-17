@@ -379,6 +379,11 @@ pre-commit: secret-scan fmt-check lint test
 ci: fmt-check lint-all check-nomux test check-all check-line-counts check-terminology
 	@echo "CI checks passed!"
 
+# CI-parity gate: `ci` plus cargo-deny (push-CI's license/vulnerability/ban
+# check). The gate to pass before a push-safe claim; `checkall` stays fast.
+checkall-ci: ci deny
+	@echo "CI-parity checks passed!"
+
 # Update dependencies
 update:
 	@echo "Updating dependencies..."
