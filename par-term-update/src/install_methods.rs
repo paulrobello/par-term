@@ -411,7 +411,10 @@ fn find_app_prefix(
         let file = archive
             .by_index(i)
             .map_err(|e| format!("Failed to read zip entry: {}", e))?;
-        let name = file.name().to_string();
+        let name = file
+            .name()
+            .map_err(|e| format!("Failed to read zip entry name: {}", e))?
+            .to_string();
         // Look for paths like "par-term.app/" or "par-term.app/Contents/..."
         if let Some(app_end) = name.find(".app/") {
             let prefix = &name[..app_end + 5]; // includes ".app/"

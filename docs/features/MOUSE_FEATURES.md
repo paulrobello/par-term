@@ -8,6 +8,7 @@ par-term provides comprehensive mouse support for text selection, URL handling, 
 - [URL Handling](#url-handling)
 - [Semantic History](#semantic-history)
 - [Cursor Positioning](#cursor-positioning)
+- [Pointer Shape (OSC 22)](#pointer-shape-osc-22)
 - [Scrolling](#scrolling)
 - [Pane Interaction](#pane-interaction)
 - [Configuration](#configuration)
@@ -211,6 +212,19 @@ Configure:
 ```yaml
 option_click_moves_cursor: true
 ```
+
+## Pointer Shape (OSC 22)
+
+A program can change the pane's mouse pointer with OSC 22 (`ESC ] 22 ; shape ST`), the same sequence some TUIs and editors emit when they want a crosshair or grab cursor. par-term recognizes the CSS cursor names (`crosshair`, `pointer`, `text`, `move`, `not-allowed`, …) and the X11 synonyms some clients emit (`sb_h_double_arrow`, `sb_v_double_arrow`, …). An empty shape or an unrecognized name clears it.
+
+The shape applies to the pane's area while it is set; par-term's own pointers (the hand over a URL, the resize dividers) take precedence. No configuration is needed — the pane program drives it:
+
+```sh
+printf '\033]22;crosshair\007'   # set
+printf '\033]22;\007'            # clear
+```
+
+Requires core library 0.61 or later (OSC 22 parsing).
 
 ## Scrolling
 

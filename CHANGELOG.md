@@ -11,9 +11,31 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+---
+
+## [0.49.0] - 2026-10-17
+
+### Added
+- **OSC 22 pointer shape.** A program can set the pane's mouse pointer with OSC 22 (CSS cursor names such as `crosshair` or `text`, plus the X11 synonyms TUIs emit, like `sb_h_double_arrow`); par-term applies the shape while it is set and returns to the text cursor when the program clears it. URL hover still wins when a shape is not set. Enabled by core 0.61's `Terminal::pointer_shape()`. See [Mouse Features](docs/features/MOUSE_FEATURES.md).
+- **par-mux auto-reconnect** (opt-in). The new `mux_auto_reconnect` setting (Settings › Sessions › par-mux, default off) relaunches the daemon when its connection is lost, re-creates the attached session, and restores the window set — the same tabs with their titles, holding fresh shells (pane content dies with the daemon). A crash-looping daemon is capped at 3 reconnects per 60 s, after which the session chip reports the give-up. See [MUX.md](docs/features/MUX.md).
+
 ### Changed
 - The par-mux agent-state integrations are now owned and installed by the par-mux binary, like the agent skill before them: `src/mux_hook_installer/` collapses to a thin delegator (Settings status rows parse `par-mux --agent-hooks-status`; startup heal runs `--heal-agent-hooks`; the CLI verbs stream `--(un)install-agent-hooks` / `--(un)install-agent-extensions`), `mux_extension_installer.rs`, the claude/codex/grok installer arms, the `mux_hooks/` scripts, and the `mux_extensions/` TypeScript assets are removed, and the bun-driven extension e2e moves with them (port tracked on the core repo board). Hook assets install under par-mux config directory now; entries par-term installed under its own hooks directory keep working (the scripts are self-guarding) — run `par-term uninstall-mux-hooks` with a pre-migration binary first if you want the old entries cleaned, or reinstall with the new one. Requires the bundled par-mux to be a build with the integration flags (this release bundles one).
 - The par-mux agent skill is now owned and installed by the par-mux binary itself: the integrations dialog checkbox runs `par-mux --install-skill` (resolving the binary beside par-term, then on `PATH`) instead of writing a copy embedded in par-term, and `skills/par-mux/SKILL.md` is removed from this repository. The installed skill can no longer drift from the shipped par-mux CLI — it documents the binary you actually have. Requires the bundled par-mux to be a build with the flag (this release bundles one).
+- **Core bumped to `par-term-emu-core-rust` 0.61** (via 0.60): OSC 22 pointer-shape parsing; a daemon size report that does not move the window no longer broadcasts `%layout-change` to other clients; `AgentStateChanged` gained a workspace field. Rust toolchain/MSRV is 1.99.0.
+- **Local CI-parity gate.** `make checkall-ci` now runs `make ci` plus `cargo deny check`, matching the push-CI workflow; `checkall` stays the fast gate.
+- **Sub-crate versions**: `par-term-config` 0.16.0 (new `mux_auto_reconnect` field), `par-term-terminal` 0.7.0 (`pointer_shape()`), `par-term-settings-ui` 0.20.0.
+- Docs across `docs/` synced to the current implementation.
+
+### Fixed
+- Claude Code's busy title frames (U+25D0/U+25D1, idle U+2733) render as carried glyphs instead of a tofu box — the tab-title sanitizer's fast path now maps BMP symbols, not only SMP emoji.
+- Toast kind icons and dismiss buttons, and the tab-title substitutions, use nerd PUA glyphs the embedded symbols fallback always carries (U+F00C/U+F00D family) instead of codepoints no font in the egui stack has.
+- Divider-drag resize in an attached tab scales its request to the daemon's session grid (the smallest attached client), so a drag no longer collapses a pane to one column.
+- macOS: the staged `par-mux` daemon is re-signed adhoc after being copied next to par-term, so its first launch is not killed by taskgated (SIGKILL, exit 137, CODESIGNING namespace).
+- A daemon size report that does not move the window no longer bounces layouts between two attached clients.
+
+### Security
+- **`zip` 8.6.0 → 9.0.4** (RUSTSEC-2026-0367, -0368, -0369: SUID/SGID bits preserved during extraction, symlink targets escaping the destination, permissions applied through symlinks). par-term extracts archives entry-by-entry with its own path validation rather than `ZipArchive::extract()`, but the self-updater and shader installer unpack downloaded archives, so the dependency moves to the patched line. The stale quick-xml advisory ignores were retired (the lockfile already sits at 0.41.0), and CI's cargo-deny pin moves to 0.20.2, which flags ignore entries that match no crate.
 
 ---
 

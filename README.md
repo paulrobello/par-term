@@ -42,6 +42,16 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.49.0
+
+par-mux auto-reconnect, OSC 22 pointer shapes, and par-mux-owned agent integrations. Core library 0.61 is required; `par-term-config` moves to 0.16.0, `par-term-terminal` 0.7.0, and `par-term-settings-ui` 0.20.0. Security: `zip` 8.6.0 → 9.0.4 (RUSTSEC-2026-0367..0369).
+
+- **par-mux auto-reconnect** — opt-in `mux_auto_reconnect` relaunches a lost daemon and restores the window set (fresh shells; capped at 3 reconnects per 60 s). See [MUX.md](docs/features/MUX.md).
+- **OSC 22 pointer shape** — programs can set the pane's mouse pointer (`crosshair`, `text`, X11 synonyms), and par-term applies it. See [MOUSE_FEATURES.md](docs/features/MOUSE_FEATURES.md).
+- **par-mux-owned integrations** — the agent skill and agent-state hooks install through the bundled `par-mux` binary, so they can no longer drift from the shipped CLI.
+- **Glyph fixes** — Claude Code's busy title frames and toast icons render instead of tofu; divider-drag resize no longer collapses panes in attached tabs.
+- **CI** — a local `make checkall-ci` parity gate (tests + cargo-deny), job timeouts, and cargo-deny 0.20.2 in push CI.
+
 ### 0.48.0
 
 The leader key, Open Profiles, and iTerm2-aligned shortcuts and menus. Core library 0.59 is required (the tree now pins 0.60 and Rust 1.99); `par-term-config` moves to 0.15.0, `par-term-render` 0.12.0, `par-term-input` 0.2.0, `par-term-keybindings` 0.2.0, `par-term-terminal` 0.6.1, `par-term-tmux` 0.3.0, `par-term-mux` 0.3.0, `par-term-scripting` 0.2.1, and `par-term-settings-ui` 0.19.0.
@@ -51,7 +61,6 @@ The leader key, Open Profiles, and iTerm2-aligned shortcuts and menus. Core libr
 - **Default shortcuts and menu bar follow iTerm2** — `Cmd+D` splits right, `Cmd+Shift+D` splits down, `Cmd+Shift+P` opens the command palette, the background-shader toggle moves to `Ctrl+Alt+B` on Linux/Windows, and splits are renamed `split_right`/`split_down`. See [MIGRATION.md](docs/guides/MIGRATION.md).
 - **par-mux** — workspace ops in the session picker, a confirmation before closing the last attached tab, hidden-tab handling for last-pane close, and close-safety defaults (`prompt_on_quit`, `confirm_close_multiple_tabs`). See [MUX.md](docs/features/MUX.md).
 - **Keyboard encoding** now comes from the core's shared encoder (Home/End under DECCKM and Alt+Space change).
-- **Unreleased** — the par-mux agent skill and agent-state hooks are now installed by the `par-mux` binary itself.
 
 ### 0.47.0
 

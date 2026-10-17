@@ -1,6 +1,6 @@
 [package]
 name = "par-term-config"
-version = "0.15.0"
+version = "0.16.0"
 edition = "2024"
 rust-version = "1.99"
 authors = ["Paul Robello <probello@gmail.com>"]
