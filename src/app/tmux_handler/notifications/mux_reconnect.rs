@@ -171,10 +171,7 @@ pub(crate) fn restore_windows(
             // The fresh session's own first window: give it the captured
             // title. Its daemon-side name is the session name until told.
             if !name.is_empty() {
-                send_restore(
-                    client,
-                    &format!("rename-window -t @{} {}", window.id, quote(name)),
-                );
+                send_restore(client, &format!("rename-window -t @{} {}", window.id, name));
                 titled.push((window.id, name.clone()));
             }
             continue;
@@ -200,7 +197,7 @@ pub(crate) fn restore_windows(
             continue; // window created; the tab keeps its placeholder title
         };
         if !name.is_empty() {
-            send_restore(client, &format!("rename-window -t @{id} {}", quote(name)));
+            send_restore(client, &format!("rename-window -t @{id} {name}"));
             titled.push((id, name.clone()));
         }
     }
@@ -215,8 +212,10 @@ fn send_restore(client: &mut MuxSessionClient, command: &str) {
     }
 }
 
-/// Quote a window title for the daemon's command grammar
-/// (`quoted_flag`/`trailing_after` both read this form).
+/// Quote a name for a daemon value flag: `quoted_flag` reads the value
+/// as a shell word and strips the quotes. Not for `rename-window` — its
+/// name is the RAW trailing text of the line, so quoting would become
+/// part of the name.
 fn quote(name: &str) -> String {
     par_term_mux::quote_env_value(name)
 }
@@ -283,10 +282,11 @@ mod tests {
             ws.config.store(std::sync::Arc::new(cfg));
         }
 
-        /// Rename every mapped daemon window `title-<n>` and pump until
-        /// the tabs carry the names — the real titles a daemon loss
-        /// captures.
-        fn name_windows_and_wait(ws: &mut crate::app::window_state::WindowState) {
+        /// Rename every mapped daemon window to the given names and pump
+        /// until the tabs carry them — the real titles a daemon loss
+        /// captures. The rename travels raw: `rename-window` takes its
+        /// name as trailing text.
+        fn name_windows_and_wait(ws: &mut crate::app::window_state::WindowState, names: &[&str]) {
             let rows = ws
                 .tmux_state
                 .transport
@@ -303,22 +303,20 @@ mod tests {
                         .and_then(|id| id.parse().ok())
                 })
                 .collect();
-            for (i, id) in ids.iter().enumerate() {
+            assert_eq!(ids.len(), names.len(), "the seam's window count");
+            for (id, name) in ids.iter().zip(names) {
                 ws.tmux_state
                     .transport
                     .as_ref()
                     .expect("attached")
-                    .send_settled(&format!("rename-window -t @{id} title-{i}"))
+                    .send_settled(&format!("rename-window -t @{id} {name}"))
                     .expect("rename");
             }
             wait_until("tabs carry the renamed titles", || {
                 ws.check_tmux_notifications();
-                ws.tab_manager
-                    .tabs()
-                    .iter()
-                    .filter(|t| t.title.starts_with("title-"))
-                    .count()
-                    == ids.len()
+                let tabs = ws.tab_manager.tabs();
+                tabs.len() == names.len()
+                    && tabs.iter().zip(names).all(|(t, name)| t.title == *name)
             });
         }
 
@@ -329,7 +327,7 @@ mod tests {
         fn capture_holds_the_window_set_and_titles() {
             let (mut ws, _path) = attached_window_with_tabs("recon-capture", 3);
             enable_reconnect(&mut ws);
-            name_windows_and_wait(&mut ws);
+            name_windows_and_wait(&mut ws, &["title-0", "title-1", "title-2"]);
 
             // The drain calls this at its `disconnected` site, before the
             // teardown closes the tabs; the loss itself is the drain's
@@ -364,7 +362,7 @@ mod tests {
         fn the_reconnect_restores_the_window_set_on_a_fresh_daemon() {
             let (mut ws, _old) = attached_window_with_tabs("recon-flow", 3);
             enable_reconnect(&mut ws);
-            name_windows_and_wait(&mut ws);
+            name_windows_and_wait(&mut ws, &["title-0", "title-1", "title-2"]);
 
             // Daemon loss, in the drain's order: the dead socket drops,
             // capture, then the shared teardown (the synthesized
@@ -413,6 +411,75 @@ mod tests {
                         .filter(|t| t.title.starts_with("title-"))
                         .count()
                         == 3
+            });
+        }
+
+        /// The restore round trip keeps names verbatim: `rename-window`
+        /// takes its name as RAW trailing text and the daemon never strips
+        /// quotes, so a shell-quoted name would come back with the quote
+        /// characters as part of the restored window's name. Pinned here
+        /// with a spaced name and one holding a single quote.
+        #[test]
+        fn restored_window_names_survive_the_round_trip_without_quotes() {
+            let names = ["title with spaces", "it's quoted"];
+            let (mut ws, _old) = attached_window_with_tabs("recon-quote", names.len());
+            enable_reconnect(&mut ws);
+            name_windows_and_wait(&mut ws, &names);
+
+            // Daemon loss, in the drain's order: drop the dead socket,
+            // capture, then the shared teardown closes the tabs.
+            let _ = ws.tmux_state.transport.take();
+            ws.capture_mux_reconnect();
+            ws.tmux_state.mux_last_error = Some("par-mux: daemon connection lost".to_string());
+            ws.handle_tmux_session_ended_for_test();
+
+            // The reconnect attach against a FRESH daemon, armed the same
+            // way the by-name worker delivers its client.
+            let fresh = socket_path("recon-quote-fresh");
+            spawn_daemon(&fresh);
+            let core = par_term_emu_core_rust::mux::MuxClient::connect(&fresh).expect("connect");
+            let (tx, rx) = std::sync::mpsc::channel();
+            tx.send(Ok(core)).unwrap();
+            drop(tx);
+            ws.tmux_state.mux_attach_pending = Some(super::super::super::mux::MuxAttachPending {
+                name: "recon-quote".to_string(),
+                rx,
+            });
+            ws.poll_mux_attach();
+
+            // The captured titles come back exactly as they left — no
+            // quote characters added around or inside them. The daemon's
+            // canonical window names are the oracle: the tabs take their
+            // titles from the restore's return value (the rename pushes
+            // drop before the tab maps), so only `list-windows` shows
+            // what the daemon actually stored.
+            wait_until("the restored names round-trip verbatim", || {
+                ws.check_tmux_notifications();
+                let tabs = ws.tab_manager.tabs();
+                if !(tabs.len() == names.len()
+                    && tabs
+                        .iter()
+                        .zip(names.iter())
+                        .all(|(t, name)| t.title == *name))
+                {
+                    return false;
+                }
+                let rows = ws
+                    .tmux_state
+                    .transport
+                    .as_ref()
+                    .expect("attached")
+                    .send_settled("list-windows")
+                    .expect("list-windows");
+                let daemon_names: Vec<&str> = rows
+                    .iter()
+                    .filter_map(|row| row.trim().split_once(": ").map(|(_, name)| name))
+                    .collect();
+                daemon_names.len() == names.len()
+                    && daemon_names
+                        .iter()
+                        .zip(names)
+                        .all(|(got, want)| *got == want)
             });
         }
 
