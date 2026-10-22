@@ -12,7 +12,7 @@ par-term provides optional integrations to enhance your terminal experience, inc
   - [Troubleshooting](#troubleshooting-shell)
 - [Remote Shell Integration](#remote-shell-integration)
 - [par-mux Agent Extensions](#par-mux-agent-extensions)
-  - [Session Hooks](#session-hooks-claude-codex-grok)
+  - [Session Hooks](#session-hooks)
 - [Shader Installation](#shader-installation)
   - [Included Shaders](#included-shaders)
   - [Installation Methods](#shader-installation-methods)
@@ -197,7 +197,7 @@ Behavior notes:
 - The extension is inert outside par-mux panes: it only reports when `PAR_MUX_ENV=1` and the pane's `PAR_MUX_SOCKET`/`PAR_MUX_PANE_ID` are set, which only happens inside a par-mux session.
 - Uninstall removes only par-term's own file (identified by its `PAR_MUX_INTEGRATION_ID` header marker); a same-named file without the marker is left untouched.
 
-### Session Hooks (claude, codex, grok)
+### Session Hooks
 
 Agents without an extension directory get a hook entry merged into their existing config instead of a file drop:
 
@@ -209,6 +209,12 @@ par-term uninstall-mux-hooks
 - **claude**: `$CLAUDE_CONFIG_DIR/settings.json`, else `~/.claude/settings.json`
 - **codex**: `$CODEX_HOME`, else `~/.codex`
 - **grok**: `$GROK_HOME/hooks`, else `~/.grok/hooks`
+- **muse**: `$XDG_CONFIG_HOME/muse/settings.json`, else `~/.config/muse/settings.json`
+- **droid**: `~/.factory/settings.json`
+- **copilot**: `$COPILOT_HOME/settings.json`, else `~/.copilot/settings.json`
+- **cursor**: `$CURSOR_CONFIG_DIR/hooks.json`, else `~/.cursor/hooks.json`
+
+These seven agents are the bulk `--install-agent-hooks` targets in par-mux 0.63. All have POSIX shell and Windows PowerShell assets. Additional agents recognized through scrape patterns are not necessarily hook-install targets.
 
 The merge leaves your other settings, comments, and formatting untouched. Reinstalling is a no-op, and uninstalling removes only par-term's entries. All of the install, uninstall, status, and startup self-heal work is delegated to the shipped `par-mux` binary (`--install-agent-hooks`, `--uninstall-agent-hooks`, `--agent-hooks-status`, `--heal-agent-hooks`; the extensions use `--install-agent-extensions` and `--uninstall-agent-extensions`). Settings > Sessions shows the per-agent hook install status. See [MUX.md](MUX.md).
 

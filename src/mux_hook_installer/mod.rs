@@ -122,6 +122,44 @@ pub fn grok_config_dir() -> io::Result<PathBuf> {
     Ok(home_dir()?.join(".grok"))
 }
 
+/// Config targets of the shipped par-mux 0.63 bulk hook installer.
+/// This is the CLI's arm set, not every arm exposed by its library.
+pub fn hook_install_targets() -> Vec<(&'static str, io::Result<PathBuf>)> {
+    vec![
+        ("claude", claude_settings_path()),
+        ("codex", codex_config_dir()),
+        ("grok", grok_config_dir().map(|dir| dir.join("hooks"))),
+        (
+            "muse",
+            std::env::var_os("XDG_CONFIG_HOME")
+                .filter(|dir| !dir.is_empty())
+                .map(PathBuf::from)
+                .map(Ok)
+                .unwrap_or_else(|| home_dir().map(|dir| dir.join(".config")))
+                .map(|dir| dir.join("muse/settings.json")),
+        ),
+        (
+            "droid",
+            home_dir().map(|dir| dir.join(".factory/settings.json")),
+        ),
+        (
+            "copilot",
+            agent_config_dir("COPILOT_HOME", ".copilot").map(|dir| dir.join("settings.json")),
+        ),
+        (
+            "cursor",
+            agent_config_dir("CURSOR_CONFIG_DIR", ".cursor").map(|dir| dir.join("hooks.json")),
+        ),
+    ]
+}
+
+fn agent_config_dir(env: &str, fallback: &str) -> io::Result<PathBuf> {
+    if let Some(dir) = std::env::var_os(env).filter(|dir| !dir.is_empty()) {
+        return Ok(PathBuf::from(dir));
+    }
+    home_dir().map(|dir| dir.join(fallback))
+}
+
 fn home_dir() -> io::Result<PathBuf> {
     dirs::home_dir().ok_or_else(|| io::Error::other("home directory not found"))
 }

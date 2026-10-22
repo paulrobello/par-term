@@ -526,18 +526,7 @@ pub fn install_mux_hooks_cli(skip_prompt: bool) -> anyhow::Result<()> {
     println!("removes only par-term's entries.");
     println!();
     println!("Agents:");
-    println!(
-        "  claude: {}",
-        dir_display(mux_hook_installer::claude_settings_path())
-    );
-    println!(
-        "  codex:  {}",
-        dir_display(mux_hook_installer::codex_config_dir())
-    );
-    println!(
-        "  grok:  {}",
-        dir_display(mux_hook_installer::grok_config_dir().map(|dir| dir.join("hooks")))
-    );
+    print!("{}", mux_hook_agents_prompt());
     println!();
 
     if !skip_prompt {
@@ -574,9 +563,36 @@ pub fn uninstall_mux_hooks_cli() -> anyhow::Result<()> {
     println!("Done.");
     Ok(())
 }
+fn mux_hook_agents_prompt() -> String {
+    crate::mux_hook_installer::hook_install_targets()
+        .into_iter()
+        .map(|(agent, path)| format!("  {agent}: {}\n", dir_display(path)))
+        .collect()
+}
+
 fn dir_display(dir: std::io::Result<std::path::PathBuf>) -> String {
     match dir {
         Ok(path) => path.display().to_string(),
         Err(err) => format!("<unresolved: {err}>"),
+    }
+}
+
+#[cfg(test)]
+mod mux_hook_prompt_tests {
+    use super::mux_hook_agents_prompt;
+
+    #[test]
+    fn mux_hook_installer_prompt_names_exact_bulk_agent_set() {
+        let prompt = mux_hook_agents_prompt();
+        let agents: Vec<&str> = prompt
+            .lines()
+            .map(|line| line.trim_start().split_once(':').unwrap().0)
+            .collect();
+        assert_eq!(
+            agents,
+            [
+                "claude", "codex", "grok", "muse", "droid", "copilot", "cursor"
+            ]
+        );
     }
 }

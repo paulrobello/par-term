@@ -141,7 +141,7 @@ pub enum Commands {
     /// Uninstall par-mux agent-state extensions
     UninstallMuxExtensions,
 
-    /// Install par-mux session hooks for config-entry agents (claude)
+    /// Install par-mux session hooks (claude, codex, grok, muse, droid, copilot, cursor)
     InstallMuxHooks {
         /// Skip confirmation prompt
         #[arg(short = 'y', long)]
