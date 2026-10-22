@@ -106,9 +106,10 @@ impl TmuxCommand {
         Self::new(format!("kill-window -t @{}", window_id))
     }
 
-    /// Rename a window
+    /// Rename a window. The daemon takes the name as raw trailing text —
+    /// quoting would become part of the name.
     pub fn rename_window(window_id: TmuxWindowId, name: &str) -> Self {
-        Self::new(format!("rename-window -t @{} {}", window_id, quote(name)))
+        Self::new(format!("rename-window -t @{} {}", window_id, name))
     }
 
     // =========================================================================
@@ -403,9 +404,20 @@ mod tests {
             TmuxCommand::new_window(Some("it's mine")).as_str(),
             "new-window -n 'it'\\''s mine'"
         );
+    }
+
+    /// The one name-taking command whose daemon grammar is raw trailing text,
+    /// not a quoted argument — quoting would become part of the name.
+    /// mux_reconnect's restore sender shares this contract.
+    #[test]
+    fn rename_window_sends_the_raw_trailing_name() {
         assert_eq!(
             TmuxCommand::rename_window(3, "it's mine").as_str(),
-            "rename-window -t @3 'it'\\''s mine'"
+            "rename-window -t @3 it's mine"
+        );
+        assert_eq!(
+            TmuxCommand::rename_window(7, "two words").as_str(),
+            "rename-window -t @7 two words"
         );
     }
 
