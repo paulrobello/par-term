@@ -31,12 +31,17 @@ pub fn hook_status() -> Vec<par_term_settings_ui::sessions_tab::MuxHookStatus> {
     parse_status(&stdout)
 }
 
-/// Parse the `<agent> installed|absent` lines par-mux prints.
+/// Parse the `<agent> installed|absent [currency]` lines par-mux prints.
+/// The verb is the second whitespace token, never the whole remainder of
+/// the line: the daemon appends asset version currency after it (`v2`,
+/// `v1 → v2 outdated`, `asset missing`) and that text is ignored here.
 fn parse_status(stdout: &str) -> Vec<par_term_settings_ui::sessions_tab::MuxHookStatus> {
     stdout
         .lines()
         .filter_map(|line| {
-            let (agent, state) = line.split_once(' ')?;
+            let mut tokens = line.split_whitespace();
+            let agent = tokens.next()?;
+            let state = tokens.next()?;
             if !matches!(state, "installed" | "absent") {
                 return None;
             }
@@ -127,8 +132,23 @@ mod tests {
 
     #[test]
     fn status_lines_parse_into_rows() {
-        let rows = parse_status("claude installed\ncodex absent\ngrok installed\n");
-        assert_eq!(rows.len(), 3);
+        let rows =
+            parse_status("claude installed\ncodex absent\ngrok installed\ncursor installed v2\n");
+        assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0].agent, "claude");
+        assert!(rows[0].installed);
+        assert_eq!(rows[1].agent, "codex");
+        assert!(!rows[1].installed);
+        assert_eq!(rows[3].agent, "cursor");
+        assert!(rows[3].installed);
+    }
+
+    #[test]
+    fn version_suffix_after_the_verb_is_ignored() {
+        // The daemon appends asset version currency after the verb; only
+        // the second token is the verb (see parse_status's contract).
+        let rows = parse_status("claude installed v1.2.3\ncodex absent v9.9.9\n");
+        assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].agent, "claude");
         assert!(rows[0].installed);
         assert_eq!(rows[1].agent, "codex");
