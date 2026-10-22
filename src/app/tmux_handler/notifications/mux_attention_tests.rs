@@ -78,8 +78,9 @@ fn next_attention_cycles_blocked_then_done_unseen_and_badges_match_the_roster() 
     // %0 in tab 1, %1 in tab 2, %2 in tab 3. Start on tab 1.
     ws.switch_to_tab_id(tab_of(&ws, 0));
 
-    // %2 finishes while the user is on tab 1: working → idle marks it
-    // done-unseen. %1 blocks. %0 works.
+    // %2 finishes while the user is on tab 1: working → idle on a pane no
+    // client views arrives as the daemon's derived `done` (core 0.63).
+    // %1 blocks. %0 works.
     report(&path, 2, "claude", "working");
     pump(&mut ws, "%2 working", |ws| {
         roster_state(ws, 2).as_deref() == Some("working")
@@ -88,7 +89,7 @@ fn next_attention_cycles_blocked_then_done_unseen_and_badges_match_the_roster() 
     report(&path, 1, "codex", "blocked");
     report(&path, 0, "pi", "working");
     pump(&mut ws, "roster pushes", |ws| {
-        roster_state(ws, 2).as_deref() == Some("idle")
+        roster_state(ws, 2).as_deref() == Some("done")
             && roster_state(ws, 1).as_deref() == Some("blocked")
             && roster_state(ws, 0).as_deref() == Some("working")
     });
@@ -127,6 +128,11 @@ fn next_attention_cycles_blocked_then_done_unseen_and_badges_match_the_roster() 
     assert!(ws.execute_keybinding_action("focus_next_attention_agent"));
     assert_eq!(ws.tab_manager.active_tab_id(), Some(tab_of(&ws, 2)));
     assert_eq!(focused_mux_pane(&ws), Some(2));
+    // Focusing the pane selects its daemon window; the daemon demotes its
+    // derived `done` to `idle` once a client views the pane (core 0.63).
+    pump(&mut ws, "%2 demoted to idle", |ws| {
+        roster_state(ws, 2).as_deref() == Some("idle")
+    });
     assert!(
         !ws.tmux_state.agent_roster.is_done_unseen(2),
         "seen once focused"

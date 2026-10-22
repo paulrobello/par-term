@@ -127,10 +127,23 @@ impl AgentRoster {
         self.done_unseen.clear();
     }
 
+    /// Done-unseen as every surface renders it: par-term's own focus mark,
+    /// or the daemon's own derived `done` state (core 0.63 derives
+    /// idle-while-unseen server-side and demotes it to `idle` when a client
+    /// views the pane). The daemon word is the authority on view; the mark
+    /// covers sources that still report a raw `idle` finish.
+    fn shows_done_unseen(&self, pane: TmuxPaneId) -> bool {
+        self.done_unseen.contains(&pane)
+            || self
+                .entries
+                .get(&pane)
+                .is_some_and(|e| e.state.eq_ignore_ascii_case("done"))
+    }
+
     /// Whether `pane`'s agent finished and has not been seen since
     /// (UX.md A17/V3 read the same mark the widget does).
     pub(crate) fn is_done_unseen(&self, pane: TmuxPaneId) -> bool {
-        self.done_unseen.contains(&pane)
+        self.shows_done_unseen(pane)
     }
 
     /// The rostered entries, pane-ordered, for surfaces to render.
@@ -153,7 +166,7 @@ impl AgentRoster {
         for entry in self.iter().filter(|e| visible(e.pane)) {
             // done-unseen renders as its own group, herdr-style — the
             // "who owes you a look" count the widget exists for.
-            let state = if self.done_unseen.contains(&entry.pane) {
+            let state = if self.shows_done_unseen(entry.pane) {
                 "done"
             } else {
                 entry.state.as_str()
@@ -203,7 +216,7 @@ impl AgentRoster {
                     AgentSource::Hook => "reported",
                     AgentSource::Scrape => "detected",
                 };
-                let state = if self.done_unseen.contains(&entry.pane) {
+                let state = if self.shows_done_unseen(entry.pane) {
                     "done (unseen)"
                 } else {
                     entry.state.as_str()
@@ -251,7 +264,7 @@ impl AgentRoster {
             .iter()
             .filter(|e| visible(e.pane))
             .map(|entry| {
-                let unseen_done = self.done_unseen.contains(&entry.pane);
+                let unseen_done = self.shows_done_unseen(entry.pane);
                 let mut state = if unseen_done {
                     // nerd check (U+2713 sits in no egui-stack font)
                     "done \u{f00c}".to_string()
@@ -636,6 +649,32 @@ mod tests {
             "kimi: idle",
             "pane order resumes once the mark clears (both idle, pane order)"
         );
+    }
+
+    /// The daemon's own derived `done` state (core 0.63): a push whose
+    /// state word is `done` — no par-term-side transition observed —
+    /// renders done-unseen on every surface and sits in the picker's
+    /// attention tier, and a later `idle` clears it the way the daemon's
+    /// seen-demotion does.
+    #[test]
+    fn daemon_done_state_renders_done_unseen() {
+        let mut roster = AgentRoster::new();
+        roster.apply_push(entry(2, "claude", "done", AgentSource::Hook));
+        assert!(
+            marked_done_unseen(&roster, 2),
+            "the daemon word alone marks it"
+        );
+        assert_eq!(
+            roster.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 1 done")
+        );
+        assert!(roster.is_done_unseen(2));
+        let rows = roster.palette_rows(&all_panes);
+        assert_eq!(rows[0].priority, 2, "daemon-done is an attention tier");
+
+        // `idle` clears it the way the daemon's seen-demotion does.
+        roster.apply_push(entry(2, "claude", "idle", AgentSource::Hook));
+        assert!(!roster.is_done_unseen(2));
     }
 
     #[test]

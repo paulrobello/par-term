@@ -5462,6 +5462,7 @@ out.flush()
             state: state.to_string(),
             source: source.to_string(),
             ws: String::new(),
+            msg: String::new(),
         }
     }
 

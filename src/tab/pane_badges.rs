@@ -88,7 +88,7 @@ impl AgentAttention {
     /// Map a roster entry's verbatim state (plus par-term's own
     /// done-unseen mark) onto a badge. `None`: no badge (idle, unknown).
     pub(crate) fn from_roster(state: &str, done_unseen: bool) -> Option<Self> {
-        if done_unseen {
+        if done_unseen || state.eq_ignore_ascii_case("done") {
             return Some(Self::DoneUnseen);
         }
         if state.eq_ignore_ascii_case("blocked") {
@@ -250,6 +250,10 @@ mod tests {
             Some(A::Working)
         );
         assert_eq!(AgentAttention::from_roster("idle", false), None);
+        assert_eq!(
+            AgentAttention::from_roster("done", false),
+            Some(A::DoneUnseen)
+        );
         assert_eq!(
             AgentAttention::from_roster("idle", true),
             Some(A::DoneUnseen)

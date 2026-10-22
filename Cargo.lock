@@ -3884,9 +3884,9 @@ dependencies = [
 
 [[package]]
 name = "par-mux"
-version = "0.61.0"
+version = "0.63.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bde1e54c4152ec0571333e6e2a7df82156ef4db89d00760e445a578f3d8cfa03"
+checksum = "e2c8364ca8f2c07cf1a38ae5609d8ed18c45d259ef8ecb1ce89e8b29331bb8f1"
 dependencies = [
  "base64 0.22.1",
  "dirs 6.0.0",
@@ -4026,9 +4026,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core"
-version = "0.61.0"
+version = "0.63.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ce4b76d165778ff25c51345856929017e2cee8271049400647ccba6f80850be"
+checksum = "2d24b078c45b73ac346763b5f2be629cf3379810c826ed71f179391209c89dc1"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.2",
@@ -4055,9 +4055,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.61.0"
+version = "0.63.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "117576475d47380b435d1ac535a187b7f24a29ae3bd1569bb2a33ae6b1ee8263"
+checksum = "db52379c9d8ba9a6778d8f1ff8a5ff26be842d26a4bdc0736f95cfadac876cd6"
 dependencies = [
  "base64 0.22.1",
  "flate2",
@@ -6604,9 +6604,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-root-certs"
-version = "1.0.9"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b"
+checksum = "58ec80e73fd8baf57bf0d9615554c75348bda990d6d5bbeab964dd068319fecb"
 dependencies = [
  "rustls-pki-types",
 ]
