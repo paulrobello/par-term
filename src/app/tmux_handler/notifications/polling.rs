@@ -166,7 +166,8 @@ impl WindowState {
                 | TmuxNotification::SessionStarted(_)
                 | TmuxNotification::SessionRenamed(_)
                 | TmuxNotification::PaneFocusChanged { .. }
-                | TmuxNotification::Error(_) => {
+                | TmuxNotification::Error(_)
+                | TmuxNotification::Notification { .. } => {
                     direct_notifications.push(notification);
                 }
                 TmuxNotification::WindowAdd(_)
@@ -199,6 +200,10 @@ impl WindowState {
                 }
                 TmuxNotification::SessionRenamed(session_name) => {
                     self.handle_tmux_session_renamed(&session_name);
+                    needs_redraw = true;
+                }
+                TmuxNotification::Notification { title, body } => {
+                    self.deliver_notification(&title, &body);
                     needs_redraw = true;
                 }
                 TmuxNotification::Error(msg) => {

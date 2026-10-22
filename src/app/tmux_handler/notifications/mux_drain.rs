@@ -161,6 +161,15 @@ impl WindowState {
     /// structure before layout before output. Called from the shared poll
     /// loop while a transport is installed.
     pub(crate) fn check_mux_notifications(&mut self) -> bool {
+        self.check_mux_notifications_with(|state, title, body| {
+            state.deliver_notification(title, body);
+        })
+    }
+
+    fn check_mux_notifications_with(
+        &mut self,
+        mut notify: impl FnMut(&WindowState, &str, &str),
+    ) -> bool {
         // Daemon liveness first: while a send waits on a hung daemon the
         // drain below comes back empty, so this transition toast is the
         // only feedback the UI gets that input is queuing, not landing.
@@ -308,7 +317,8 @@ impl WindowState {
                 | TmuxNotification::SessionStarted(_)
                 | TmuxNotification::SessionRenamed(_)
                 | TmuxNotification::PaneFocusChanged { .. }
-                | TmuxNotification::Error(_) => {
+                | TmuxNotification::Error(_)
+                | TmuxNotification::Notification { .. } => {
                     direct_notifications.push(notification);
                 }
                 TmuxNotification::WindowAdd(_)
@@ -348,6 +358,10 @@ impl WindowState {
                 }
                 TmuxNotification::PaneFocusChanged { pane_id } => {
                     deferred_focus = Some(pane_id);
+                    needs_redraw = true;
+                }
+                TmuxNotification::Notification { title, body } => {
+                    notify(self, &title, &body);
                     needs_redraw = true;
                 }
                 TmuxNotification::Error(msg) => {
@@ -705,5 +719,45 @@ impl WindowState {
             }
         }
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::app::tmux_handler::tmux_state::TmuxTransport;
+    use par_term_emu_core_rust::tmux_control::{TmuxControlParser, TmuxNotification as Core};
+    use std::cell::RefCell;
+
+    struct NotificationTransport(RefCell<Vec<Core>>);
+
+    impl TmuxTransport for NotificationTransport {
+        fn drain(&self) -> (Vec<Core>, bool) {
+            (self.0.take(), false)
+        }
+
+        fn send_command(&self, _command: &str) -> std::io::Result<Vec<String>> {
+            panic!("an untargeted notification must not send a pane command")
+        }
+    }
+
+    #[test]
+    fn mux_notification_drain_delivers_decoded_text_once_without_a_pane() {
+        let mut parser = TmuxControlParser::new(true);
+        let mut ws = super::super::mux::tests::manners_state();
+        ws.tmux_state.transport = Some(Box::new(NotificationTransport(RefCell::new(
+            parser.parse(b"%notification YnVpbGQgZmFpbGVk body=c2VlIGxvZw==\n%notification ZG9uZQ==\n%notification %%%\n"),
+        ))));
+        let mut delivered = Vec::new();
+        assert!(ws.check_mux_notifications_with(|_, title, body| {
+            delivered.push((title.to_owned(), body.to_owned()));
+        }));
+        assert_eq!(
+            delivered,
+            [
+                ("build failed".into(), "see log".into()),
+                ("done".into(), String::new())
+            ]
+        );
+        assert!(!ws.check_mux_notifications_with(|_, _, _| panic!("delivered twice")));
     }
 }

@@ -94,6 +94,8 @@ pub enum TmuxNotification {
     Output { pane_id: TmuxPaneId, data: Vec<u8> },
     /// Pane focus changed (user selected different pane in external tmux)
     PaneFocusChanged { pane_id: TmuxPaneId },
+    /// Ad-hoc daemon notification, with decoded text and no pane target.
+    Notification { title: String, body: String },
     /// Session ended
     SessionEnded,
     /// Error occurred

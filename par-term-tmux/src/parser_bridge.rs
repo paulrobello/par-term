@@ -175,6 +175,10 @@ impl ParserBridge {
             CoreNotification::PasteBufferChanged { .. }
             | CoreNotification::PasteBufferDeleted { .. } => None,
 
+            CoreNotification::Notification { title, body } => {
+                Some(TmuxNotification::Notification { title, body })
+            }
+
             // Unknown notifications
             CoreNotification::Unknown { line } => {
                 log::trace!("[TMUX] Unknown notification: {}", line);
@@ -266,6 +270,43 @@ mod tests {
                 assert_eq!(zoomed, Some(2));
             }
             other => panic!("expected LayoutChange, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn mux_notification_lines_decode_title_and_optional_body() {
+        use par_term_emu_core_rust::tmux_control::TmuxControlParser;
+        for (line, expected_body) in [
+            (
+                "%notification YnVpbGQgZmFpbGVk body=c2VlIGxvZw==\n",
+                "see log",
+            ),
+            ("%notification YnVpbGQgZmFpbGVk\n", ""),
+            ("%notification YnVpbGQgZmFpbGVk body=%%%\n", ""),
+        ] {
+            let mut parser = TmuxControlParser::new(true);
+            let converted = ParserBridge::convert_all(parser.parse(line.as_bytes()));
+            assert!(
+                matches!(converted.as_slice(),
+                    [TmuxNotification::Notification { title, body }]
+                        if title == "build failed" && body == expected_body
+                ),
+                "{converted:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn mux_notification_malformed_titles_are_skipped() {
+        use par_term_emu_core_rust::tmux_control::TmuxControlParser;
+        for line in ["%notification", "%notification %%%", "%notification /w=="] {
+            let mut parser = TmuxControlParser::new(true);
+            let converted =
+                ParserBridge::convert_all(parser.parse(format!("{line}\n%exit\n").as_bytes()));
+            assert!(matches!(
+                converted.as_slice(),
+                [TmuxNotification::SessionEnded]
+            ));
         }
     }
 

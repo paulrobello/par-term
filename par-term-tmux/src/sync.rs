@@ -202,6 +202,7 @@ impl TmuxSync {
                 | TmuxNotification::SessionStarted(_)
                 | TmuxNotification::SessionRenamed(_)
                 | TmuxNotification::Error(_)
+                | TmuxNotification::Notification { .. }
                 | TmuxNotification::PaneFocusChanged { .. } => {
                     // These are handled elsewhere (directly in tmux_handler.rs)
                 }
