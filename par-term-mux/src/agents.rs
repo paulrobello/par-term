@@ -12,10 +12,10 @@
 //!   base64>`, `telemetry=`, `host_telemetry=`, …) or free reason words
 //!   from a pre-ARC-060 daemon. Panes without either are absent outright
 //!   — `unknown` means no report ever happened, never "idle".
-//! - `%agent-state-changed` pushes `{pane} {agent} {state} source={s}`;
-//!   core's parser extracts the fields (the pane id keeps its `%` sigil,
-//!   the state may be multi-word, `source` is empty when the line carried
-//!   no `source=` token).
+//! - `%agent-state-changed` pushes `{pane} {agent} {state} source={s}`
+//!   with an optional `msg=<standard base64>` blocked reason; core's parser
+//!   extracts the fields (the pane id keeps its `%` sigil, the state may
+//!   be multi-word, `source` and `msg` are empty when their tokens are absent).
 //!
 //! Malformed shapes are skipped and logged, never guessed into entries:
 //! a wrong roster entry would render a false state with a claim's
@@ -64,10 +64,9 @@ pub struct AgentEntry {
     pub source: AgentSource,
     /// Why a blocked agent is waiting. `list-agents` rows carry it as
     /// `reason=<standard base64>` (the ARC-060 grammar; decoded here) or,
-    /// from a pre-ARC-060 daemon, as free trailing words. The
-    /// `%agent-state-changed` push carries no reason — core's
-    /// `AgentStateChanged` has no such field — so an entry built by
-    /// [`Self::from_push`] holds `None`.
+    /// from a pre-ARC-060 daemon, as free trailing words. Pushes carry it
+    /// as `msg=<standard base64>`. Missing or malformed push messages
+    /// produce `None`.
     pub reason: Option<String>,
 }
 
@@ -121,13 +120,30 @@ impl AgentEntry {
     /// that cannot be trusted as-is: an unparsable pane id, or a
     /// missing/unknown source — an unattributed state must not be
     /// relabelled `hook` by the reader.
-    pub fn from_push(pane_id: &str, agent: &str, state: &str, source: &str) -> Option<Self> {
+    pub fn from_push(
+        pane_id: &str,
+        agent: &str,
+        state: &str,
+        source: &str,
+        msg: &str,
+    ) -> Option<Self> {
+        use base64::Engine as _;
+        use base64::engine::general_purpose::STANDARD;
+
+        let reason = if msg.is_empty() {
+            None
+        } else {
+            STANDARD
+                .decode(msg)
+                .ok()
+                .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+        };
         Some(Self {
             pane: parse_pane_id(pane_id)?,
             agent: agent.to_string(),
             state: state.to_string(),
             source: AgentSource::parse(source)?,
-            reason: None,
+            reason,
         })
     }
 }
@@ -224,11 +240,32 @@ mod tests {
     }
 
     #[test]
+    fn from_push_decodes_msg_reason() {
+        let entry = AgentEntry::from_push(
+            "%3",
+            "claude",
+            "blocked",
+            "hook",
+            "d2FpdGluZyBvbiBvd25lcg==",
+        )
+        .unwrap();
+        assert_eq!(entry.reason.as_deref(), Some("waiting on owner"));
+    }
+
+    #[test]
+    fn from_push_missing_or_malformed_msg_has_no_reason() {
+        for msg in ["", "not-base64!"] {
+            let entry = AgentEntry::from_push("%3", "claude", "blocked", "hook", msg).unwrap();
+            assert_eq!(entry.reason, None);
+        }
+    }
+
+    #[test]
     fn push_entries_parse_and_reject_the_same_way() {
-        let entry = AgentEntry::from_push("%0", "claude", "blocked", "hook").unwrap();
+        let entry = AgentEntry::from_push("%0", "claude", "blocked", "hook", "").unwrap();
         assert_eq!((entry.pane, entry.state.as_str()), (0, "blocked"));
         // An empty source (no `source=` token on the wire) must not
         // silently become a hook claim.
-        assert!(AgentEntry::from_push("%0", "claude", "blocked", "").is_none());
+        assert!(AgentEntry::from_push("%0", "claude", "blocked", "", "").is_none());
     }
 }

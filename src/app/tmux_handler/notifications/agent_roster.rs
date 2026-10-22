@@ -65,10 +65,9 @@ impl AgentRoster {
     /// is per pane and a later push replaces the earlier state. A
     /// `working` → `idle` transition marks the pane done-unseen; the drain
     /// clears the mark for the pane the user is watching (the watching
-    /// case has no focus event to clear it later). The push carries no
-    /// reason field, so a push that refreshes a still-blocked agent keeps
-    /// the reason the last `list-agents` refetch recorded — dropping it
-    /// would blank the "why is it blocked" line until the next refetch.
+    /// case has no focus event to clear it later). A reason-less push
+    /// that refreshes a still-blocked agent keeps the last reason from
+    /// either a push or `list-agents`.
     pub(crate) fn apply_push(&mut self, mut entry: AgentEntry) {
         let finished = self.entries.get(&entry.pane).is_some_and(|prev| {
             prev.state.eq_ignore_ascii_case("working") && entry.state.eq_ignore_ascii_case("idle")
@@ -403,10 +402,9 @@ mod tests {
         assert_eq!(rendered.reason, None, "no reason on the wire yet");
     }
 
-    /// The `%agent-state-changed` push carries no reason field, so a push
-    /// that refreshes a still-blocked agent must not wipe the reason the
-    /// last `list-agents` refetch recorded; leaving blocked ends the wait,
-    /// and the now-stale reason goes with it.
+    /// A reason-less push must not wipe the reason the last `list-agents`
+    /// refetch recorded; leaving blocked ends the wait, and the now-stale
+    /// reason goes with it.
     #[test]
     fn push_preserves_a_fetched_blocked_reason() {
         let mut roster = AgentRoster::new();
@@ -425,6 +423,34 @@ mod tests {
             None,
             "a state change away from blocked must not keep the old reason"
         );
+    }
+
+    #[test]
+    fn push_reason_reaches_tooltip_without_refetch_and_survives_reasonless_push() {
+        let mut roster = AgentRoster::new();
+        roster.apply_push(
+            AgentEntry::from_push(
+                "%3",
+                "claude",
+                "blocked",
+                "hook",
+                "d2FpdGluZyBvbiBvd25lcg==",
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            roster.iter().next().unwrap().reason.as_deref(),
+            Some("waiting on owner")
+        );
+        let expected = "claude · blocked · reported (pane 3) — waiting on owner";
+        assert_eq!(roster.tooltip_text(&all_panes).as_deref(), Some(expected));
+
+        roster.apply_push(AgentEntry::from_push("%3", "claude", "blocked", "hook", "").unwrap());
+        assert_eq!(
+            roster.iter().next().unwrap().reason.as_deref(),
+            Some("waiting on owner")
+        );
+        assert_eq!(roster.tooltip_text(&all_panes).as_deref(), Some(expected));
     }
 
     #[test]

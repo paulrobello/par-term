@@ -65,16 +65,11 @@ impl WindowState {
                 source,
                 // The roster is pane-keyed; `ws` groups the core's own side panel.
                 ws: _,
-                // The blocked-reason payload rides `msg=`; adoption is a
-                // follow-up card, the roster still reads `reason=` extras.
-                msg: _,
+                msg,
             } = push
             {
-                match AgentEntry::from_push(&pane_id, &agent, &state, &source) {
+                match AgentEntry::from_push(&pane_id, &agent, &state, &source, &msg) {
                     Some(entry) => {
-                        // Explicit field reads (reason included) keep the
-                        // entry honest in the log while the wire cannot
-                        // carry a reason yet.
                         crate::debug_info!(
                             "MUX",
                             "agent roster push: %{} {} {} source={:?} reason={:?}",
