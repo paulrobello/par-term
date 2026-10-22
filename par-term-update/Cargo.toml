@@ -36,7 +36,7 @@ sha2.workspace = true
 # but cannot produce one, so no private key handling exists in par-term.
 # Not centralised in [workspace.dependencies] because par-term-update is its
 # only consumer.
-minisign-verify = "0.2.5"
+minisign-verify = "0.3.0"
 
 # ZIP archive extraction for binary updates
 zip.workspace = true

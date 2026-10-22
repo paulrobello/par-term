@@ -43,7 +43,7 @@ jobs:
     - name: Install Rust toolchain
       # Pinned to the 1.99.0 branch of the action, matching rust-toolchain.toml.
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/1.99.0
-      uses: dtolnay/rust-toolchain@fb523f40495206854c36b250850817ae0f83e3d1
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
 
     - name: Install ACP bridge
       shell: pwsh

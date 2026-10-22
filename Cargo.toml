@@ -220,7 +220,7 @@ shell-words.workspace = true   # Safe shell command parsing (prevents argument i
 url.workspace = true           # URL parsing for shader download validation
 
 # Audio playback for bell sound (feature-gated: `audio`)
-rodio = { version = "0.22.2", features = ["mp3"], optional = true }
+rodio = { version = "0.23.0", features = ["mp3"], optional = true }
 
 # Desktop notifications
 notify-rust = "4.18"
@@ -245,7 +245,7 @@ half.workspace = true
 naga.workspace = true
 
 # Native window menus
-muda = "0.20"
+muda = "0.21"
 libc = "0.2.186"
 clap = { version = "4.6.1", features = ["derive"] }
 ureq.workspace = true
