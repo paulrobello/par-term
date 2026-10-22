@@ -12,6 +12,7 @@ On top of sessions, par-mux carries an **agent roster**: what coding agents (Cla
   - [How par-mux maps onto par-term](#how-par-mux-maps-onto-par-term)
 - [Requirements](#requirements)
 - [Setup](#setup)
+- [Shell completions](#shell-completions)
 - [Attaching](#attaching)
 - [Working in a mux pane](#working-in-a-mux-pane)
 - [Pane environment](#pane-environment)
@@ -97,6 +98,18 @@ profiles:
 ```
 
 Window arrangements also persist `mux_session_name`, so restoring an arrangement reattaches the session rather than opening a plain tab.
+
+## Shell completions
+
+The `par-mux` CLI prints a completion script for its shells (`par-mux completion <shell>` — bash, zsh, fish, powershell, elvish). `make completions-install` writes the bash, zsh, and fish scripts into the per-user completion directories, and prints exactly the one-liners below when no completion-capable `par-mux` is on `PATH`:
+
+```bash
+par-mux completion bash > "${BASH_COMPLETION_USER_DIR:-$HOME/.local/share/bash-completion}/completions/par-mux"
+par-mux completion zsh  > "$HOME/.zfunc/_par-mux"
+par-mux completion fish > "$HOME/.config/fish/completions/par-mux.fish"
+```
+
+On zsh, make sure `~/.zfunc` is in your `fpath` (`fpath=(~/.zfunc $fpath)` before `compinit` in `~/.zshrc`), then restart the shell for the new script to load.
 
 ## Attaching
 
