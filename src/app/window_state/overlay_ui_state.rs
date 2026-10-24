@@ -95,6 +95,8 @@ pub(crate) struct OverlayUiState {
     pub(crate) pending_tree_jump: Option<crate::tree_picker_ui::TreeTarget>,
     /// Right-click menu in a pane body (UX.md V10).
     pub(crate) pane_context_menu: crate::pane_context_menu_ui::PaneContextMenuUI,
+    /// Kind-picker popup for `adopt-pane` (the `adopt_pane_agent` action).
+    pub(crate) pane_adopt_ui: crate::pane_adopt_ui::PaneAdoptUI,
 }
 
 impl OverlayUiState {
@@ -158,6 +160,7 @@ impl OverlayUiState {
             tree_picker_ui: crate::tree_picker_ui::TreePickerUI::new(),
             pending_tree_jump: None,
             pane_context_menu: Default::default(),
+            pane_adopt_ui: Default::default(),
         }
     }
 }

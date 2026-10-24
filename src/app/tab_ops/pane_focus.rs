@@ -224,4 +224,54 @@ impl WindowState {
             }
         }
     }
+
+    /// Label a hand-launched agent pane: one `adopt-pane -t %N <kind>`
+    /// round trip, the popup's choice applied. Unlike the empty-body pane
+    /// commands `send_mux_pane_command` covers, an adopt ok reply carries
+    /// the immediate classification (`%N <kind> <state> scrape`) or the
+    /// legal `unknown none`, so this goes through the transport's
+    /// `send_command_checked`. Returns whether the daemon accepted it.
+    #[cfg(feature = "mux")]
+    pub(crate) fn adopt_pane_agent(&mut self, kind: &str) -> bool {
+        let mux_pane = self.tab_manager.active_tab().and_then(|tab| {
+            let pm = tab.pane_manager.as_ref()?;
+            let native = pm.focused_pane_id()?;
+            self.tmux_state.tmux_pane_in_tab(tab.id, native)
+        });
+        let Some(mux_pane) = mux_pane else {
+            let msg = "Adopt as Agent: the focused pane is not a par-mux pane";
+            log::warn!("{msg}");
+            self.show_toast(msg);
+            return false;
+        };
+        let Some(transport) = &self.tmux_state.transport else {
+            return false;
+        };
+        let reply = transport.send_command_checked(&format!("adopt-pane -t %{mux_pane} {kind}"));
+        match reply {
+            Ok((body, true)) => {
+                // The daemon broadcast `%agent-state-changed` (classified
+                // adoption) or classifies on its tick later (unknown);
+                // the fill/push path owns the roster cache either way.
+                let state = par_term_mux::adopt_reply_state(true, &body);
+                let state_note = match state {
+                    Ok(Some(s)) => format!(" ({s})"),
+                    _ => " — awaiting first state".to_string(),
+                };
+                self.show_toast(format!("Adopted %{mux_pane} as {kind}{state_note}"));
+                true
+            }
+            Ok((body, false)) => {
+                let text = body.join("\n");
+                log::error!("par-mux adopt-pane -t %{mux_pane} {kind} rejected: {text}");
+                self.record_mux_error(format!("par-mux: adopt-pane failed — {text}"));
+                false
+            }
+            Err(e) => {
+                log::error!("par-mux adopt-pane -t %{mux_pane} {kind} failed: {e}");
+                self.record_mux_error(format!("par-mux: adopt-pane failed — {e}"));
+                false
+            }
+        }
+    }
 }

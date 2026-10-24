@@ -169,6 +169,34 @@ impl MuxSessionClient {
     }
 }
 
+/// The agent kinds a daemon accepts for `adopt-pane`: the ids of the
+/// daemon's bundled scrape pattern sets (the daemon refuses any kind whose
+/// set is missing — `adopt-pane` labels a pane visible only through the
+/// scrape tier's rules). pi and omp are deliberately absent: they report
+/// state through hooks, carry no scrape patterns, and the daemon refuses
+/// their adoption.
+pub const ADOPTABLE_KINDS: &[&str] = &[
+    "claude", "codex", "grok", "muse", "droid", "copilot", "cursor", "kimi", "qwen", "qodercli",
+    "devin", "gemini", "amp",
+];
+
+/// The state an adopt reply carries: the third token of the single reply
+/// line (`%N <kind> <state> <source>`), `None` for `unknown` — legal until
+/// a rule matches, when the roster row appears with the daemon's tick,
+/// never guessed. `ok` is `send_checked`'s reply-ok flag: a `false` here
+/// is a refusal (no scrape patterns for the kind, exited pane, a pane
+/// that already hosts an agent) and the body is the refusal text.
+pub fn adopt_reply_state(ok: bool, body: &[String]) -> Result<Option<String>, String> {
+    match ok {
+        true => Ok(body
+            .first()
+            .and_then(|line| line.split_whitespace().nth(2))
+            .filter(|state| *state != "unknown")
+            .map(str::to_string)),
+        false => Err(body.join("\n")),
+    }
+}
+
 /// `%N` → `N` (pane ids carry their sigil on the wire).
 fn parse_pane_id(token: &str) -> Option<TmuxPaneId> {
     token.strip_prefix('%')?.parse().ok()
@@ -178,6 +206,43 @@ fn parse_pane_id(token: &str) -> Option<TmuxPaneId> {
 mod tests {
     use super::*;
     use base64::Engine as _;
+
+    /// The list tracks the daemon's bundled scrape sets: every kind we
+    /// offer must have a set in the pinned core's bundled engine (the
+    /// engine the daemon compiles at this pin), so the picker can never
+    /// offer a kind the daemon refuses.
+    #[test]
+    fn adoptable_kinds_are_the_daemons_bundled_sets() {
+        let engine = par_term_emu_core_rust::mux::scrape::ScrapeEngine::bundled();
+        for kind in ADOPTABLE_KINDS {
+            assert!(
+                engine.set_for(kind).is_some(),
+                "kind {kind:?} has no bundled scrape set — the daemon will refuse it"
+            );
+        }
+    }
+
+    #[test]
+    fn adopt_state_parses_from_the_reply_line() {
+        // The classified shape the daemon replies when a rule matched.
+        assert_eq!(
+            adopt_reply_state(true, &["%0 claude idle scrape".to_string()]),
+            Ok(Some("idle".to_string()))
+        );
+        // `unknown none` is the legal not-yet-classified reply.
+        assert_eq!(
+            adopt_reply_state(true, &["%0 claude unknown none".to_string()]),
+            Ok(None)
+        );
+        // A refusal: ok=false, the body is the daemon's error text.
+        assert_eq!(
+            adopt_reply_state(
+                false,
+                &["adopt-pane: no scrape patterns for \"zeta\"".to_string()]
+            ),
+            Err("adopt-pane: no scrape patterns for \"zeta\"".to_string())
+        );
+    }
 
     #[test]
     fn parses_list_lines_with_source() {

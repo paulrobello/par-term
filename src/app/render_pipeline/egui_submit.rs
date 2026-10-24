@@ -516,6 +516,13 @@ impl WindowState {
                         pane_rename_submit = Some((pane_id, name));
                     }
 
+                    // Adopt kind-picker popup (the `adopt_pane_agent`
+                    // action opens it; a kind row click adopts the pane).
+                    // Routed through `actions` like the pane context menu.
+                    if let Some((pane_id, kind)) = self.overlay_ui.pane_adopt_ui.render(ctx) {
+                        actions.adopt_pane = Some((pane_id, kind));
+                    }
+
                     // Show search UI and collect action
                     actions.search =
                         self.overlay_ui

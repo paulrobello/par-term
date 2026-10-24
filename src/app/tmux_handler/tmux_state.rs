@@ -48,6 +48,19 @@ pub(crate) trait TmuxTransport {
     fn send_command_no_wait(&self, command: &str) -> std::io::Result<()> {
         self.send_command(command).map(|_| ())
     }
+    /// Run one par-mux command whose ok reply carries a body (adopt-pane's
+    /// classification): the body plus the reply's ok (`%end`) vs error
+    /// (`%error`) close — the split `send_command`'s empty-body-means-ok
+    /// convention cannot express. The default is the honest "unsupported":
+    /// the tmux gateway never asks (a gateway pane is never a daemon pane
+    /// in `tmux_pane_owners`, so the caller refuses before sending).
+    #[cfg(feature = "mux")]
+    fn send_command_checked(&self, _command: &str) -> std::io::Result<(Vec<String>, bool)> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "send_command_checked requires the par-mux transport",
+        ))
+    }
     /// A daemon-liveness transition to surface as a toast: `Some(message)`
     /// when the daemon just became unresponsive (or just recovered);
     /// `None` every other frame, and always for transports without a

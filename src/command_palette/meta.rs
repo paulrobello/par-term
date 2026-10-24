@@ -227,6 +227,10 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("cycle_layout", "Step through the pane layout presets"),
     ("rename_pane", "Rename the focused pane"),
     (
+        "adopt_pane_agent",
+        "Label the focused pane as hosting an agent (adopt as agent)",
+    ),
+    (
         "promote_pane_to_tab",
         "Move the focused pane into its own tab",
     ),

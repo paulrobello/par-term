@@ -29,6 +29,7 @@ impl WindowState {
             OverlayId::CommandPalette => o.command_palette.visible,
             OverlayId::AgentUsage => o.agent_usage_panel.visible,
             OverlayId::PaneContextMenu => o.pane_context_menu.is_open(),
+            OverlayId::PaneAdopt => o.pane_adopt_ui.is_open(),
             OverlayId::TreePicker => o.tree_picker_ui.visible,
             OverlayId::SessionPicker => o.tmux_session_picker_ui.visible,
             OverlayId::TabContextMenu => self.tab_bar_ui.is_context_menu_open(),

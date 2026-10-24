@@ -383,6 +383,12 @@ impl TmuxTransport for MuxTransport {
         client.send(command)
     }
 
+    fn send_command_checked(&self, command: &str) -> io::Result<(Vec<String>, bool)> {
+        let mut client = self.lock_for_send()?;
+        let reply = client.send_checked(command)?;
+        Ok((reply.body, reply.ok))
+    }
+
     fn query_bounded(&self, command: &str, budget: Duration) -> io::Result<Vec<String>> {
         let Some(socket) = &self.socket else {
             return self.send_command(command);

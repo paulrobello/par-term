@@ -36,6 +36,8 @@ mod layout_new_tab;
 mod layout_zoom;
 #[cfg(feature = "mux")]
 pub(crate) mod mux;
+#[cfg(all(test, feature = "mux", unix))]
+mod mux_adopt_tests;
 #[cfg(feature = "mux")]
 mod mux_attach;
 #[cfg(feature = "mux")]

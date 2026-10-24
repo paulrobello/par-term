@@ -174,6 +174,41 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         }
         true
     }),
+    ("adopt_pane_agent", |s: &mut WindowState| {
+        // Open the adopt kind-picker on the focused pane (the same popup
+        // the pane context menu's "Adopt as Agent..." row opens). The
+        // action needs a live par-mux pane: a local pane has no daemon
+        // pane to label, and there is nothing to refuse on the daemon.
+        #[cfg(feature = "mux")]
+        {
+            let found = s.tab_manager.active_tab().and_then(|tab| {
+                let pm = tab.pane_manager.as_ref()?;
+                let pane = pm.focused_pane()?;
+                s.tmux_state.tmux_pane_in_tab(tab.id, pane.id)?;
+                Some((pane.id, pane.bounds))
+            });
+            if let Some((pane_id, bounds)) = found {
+                let scale = s.renderer.as_ref().map(|r| r.scale_factor()).unwrap_or(1.0);
+                let panes_cfg = &s.config.load().panes;
+                let bar_y = match panes_cfg.pane_title_position {
+                    par_term_config::PaneTitlePosition::Top => bounds.y,
+                    par_term_config::PaneTitlePosition::Bottom => {
+                        bounds.y + bounds.height - panes_cfg.pane_title_height * scale
+                    }
+                };
+                let pos = egui::pos2(bounds.x / scale, bar_y / scale);
+                s.overlay_ui.pane_adopt_ui.open(pane_id, pos);
+                s.request_redraw();
+            } else {
+                s.show_toast("Adopt as Agent: the focused pane is not a par-mux pane");
+            }
+        }
+        #[cfg(not(feature = "mux"))]
+        {
+            s.show_toast("Adopt as Agent requires par-mux support");
+        }
+        true
+    }),
     ("new_tab", |s: &mut WindowState| {
         s.new_tab_or_show_profiles();
         true

@@ -123,6 +123,7 @@ pub(crate) enum OverlayId {
     CommandPalette,
     AgentUsage,
     PaneContextMenu,
+    PaneAdopt,
     TreePicker,
     SessionPicker,
     TabContextMenu,
@@ -162,6 +163,7 @@ impl OverlayId {
         OverlayId::CommandPalette,
         OverlayId::AgentUsage,
         OverlayId::PaneContextMenu,
+        OverlayId::PaneAdopt,
         OverlayId::TreePicker,
         OverlayId::SessionPicker,
         OverlayId::TabContextMenu,
@@ -188,8 +190,10 @@ impl OverlayId {
             CopyMode | CustomActionPrefix | Leader | PluginOverlayFocus | PaneHints
             | ResizeMode | DemotePick => OverlayKind::Mode,
             Help | ClipboardHistory | CommandHistory | PasteSpecial | Search | CommandPalette
-            | AgentUsage | PaneContextMenu | TreePicker | SessionPicker | TabContextMenu
-            | ProfileLauncher | AppMenu | PaneRename | SshConnect => OverlayKind::Popup,
+            | AgentUsage | PaneContextMenu | PaneAdopt | TreePicker | SessionPicker
+            | TabContextMenu | ProfileLauncher | AppMenu | PaneRename | SshConnect => {
+                OverlayKind::Popup
+            }
             ShaderInstall | Integrations | RemoteShellInstall | UpdateDialog | TriggerConfirm
             | AgentCommandConfirm | CloseConfirm | MuxLastTab | QuitConfirm => OverlayKind::Modal,
         }
@@ -217,6 +221,7 @@ impl OverlayId {
             CommandPalette => "command_palette",
             AgentUsage => "agent_usage_panel",
             PaneContextMenu => "pane_context_menu",
+            PaneAdopt => "pane_adopt_ui",
             TreePicker => "tree_picker_ui",
             SessionPicker => "tmux_session_picker_ui",
             TabContextMenu => "tab_context_menu",

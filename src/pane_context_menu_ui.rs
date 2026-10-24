@@ -21,6 +21,7 @@ pub(crate) const PANE_MENU_ROWS: &[Option<(&str, &str)>] = &[
     Some(("promote_pane_to_tab", "Move Pane to New Tab")),
     Some(("toggle_pane_broadcast", "Toggle Broadcast for This Pane")),
     Some(("restart_pane", "Restart Pane Process")),
+    Some(("adopt_pane_agent", "Adopt as Agent...")),
     None,
     Some(("close_pane", "Close Pane")),
 ];

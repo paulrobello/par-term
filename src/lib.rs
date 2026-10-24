@@ -119,6 +119,7 @@ pub mod tab;
 pub mod tab_bar_ui;
 /// tmux integration — whole-crate re-export of `par-term-tmux`.
 pub use par_term_tmux as tmux;
+pub mod pane_adopt_ui;
 pub mod pane_context_menu_ui;
 pub mod session_chip;
 pub mod session_picker_mux;

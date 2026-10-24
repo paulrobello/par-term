@@ -138,6 +138,7 @@ impl WindowState {
             OverlayId::CommandPalette => o.command_palette.close(),
             OverlayId::AgentUsage => o.agent_usage_panel.close(),
             OverlayId::PaneContextMenu => o.pane_context_menu.close(),
+            OverlayId::PaneAdopt => o.pane_adopt_ui.cancel(),
             OverlayId::TreePicker => o.tree_picker_ui.close(),
             OverlayId::SessionPicker => o.tmux_session_picker_ui.hide(),
             OverlayId::TabContextMenu => self.tab_bar_ui.close_context_menu(),

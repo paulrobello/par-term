@@ -353,6 +353,7 @@ without a binding there is no way to open the in-app menu.
 - `toggle_pane_broadcast` — exclude or include the focused pane in its tab's broadcast
 - `promote_pane_to_tab`, `demote_tab_to_pane`
 - `rename_pane` - Open the inline rename field on the focused pane's title bar
+- `adopt_pane_agent` - Label the focused pane as hosting an agent: opens the kind picker and sends the daemon `adopt-pane` (par-mux sessions)
 
 **Display:**
 - `toggle_fullscreen`, `maximize_vertically`

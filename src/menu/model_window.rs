@@ -41,6 +41,7 @@ const WINDOW_ITEMS: [(&str, &str); 9] = [
 pub(super) fn session() -> Vec<MenuEntry> {
     vec![
         MenuItemSpec::action("rename_pane", "Rename Pane...").into(),
+        MenuItemSpec::action("adopt_pane_agent", "Adopt as Agent...").into(),
         MenuItemSpec::action("rename_tab", "Rename Tab...").into(),
         MenuItemSpec::action("restart_pane", "Restart Pane").into(),
         MenuEntry::Separator,

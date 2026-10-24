@@ -26,6 +26,7 @@ impl WindowState {
             paste_special,
             session_picker,
             pane_menu,
+            adopt_pane,
             tab_action,
             shader_install,
             integrations,
@@ -358,6 +359,26 @@ impl WindowState {
             if action != "close_pane" {
                 self.execute_keybinding_action(action);
             }
+            self.focus_state.needs_redraw = true;
+        }
+
+        // Adopt kind-picker choice: the same focus-then-act discipline as
+        // the pane context menu rows — adopt the pane the picker was
+        // opened on even if focus moved while it was open.
+        if let Some((pane_id, kind)) = adopt_pane {
+            if let Some(pm) = self
+                .tab_manager
+                .active_tab_mut()
+                .and_then(|t| t.pane_manager_mut())
+                && pm.focused_pane_id() != Some(pane_id)
+            {
+                pm.focus_pane(pane_id);
+                self.after_user_pane_focus();
+            }
+            #[cfg(feature = "mux")]
+            self.adopt_pane_agent(kind);
+            #[cfg(not(feature = "mux"))]
+            let _ = kind;
             self.focus_state.needs_redraw = true;
         }
 

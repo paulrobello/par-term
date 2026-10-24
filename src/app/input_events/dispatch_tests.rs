@@ -32,6 +32,7 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "close_pane",
     "close_tab",
     "close_window",
+    "adopt_pane_agent",
     "cycle_background_shader",
     "cycle_cursor_style",
     "decrease_font_size",
