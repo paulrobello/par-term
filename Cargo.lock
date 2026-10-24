@@ -1104,9 +1104,9 @@ dependencies = [
 
 [[package]]
 name = "ctutils"
-version = "0.4.3"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
+checksum = "38d28fb6aa7dd680b3ffd1a3e64e115c177bdba63c0ae7f9cd48129ff05c4fa0"
 dependencies = [
  "cmov",
 ]
@@ -3855,9 +3855,9 @@ dependencies = [
 
 [[package]]
 name = "par-mux"
-version = "0.63.0"
+version = "0.66.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2c8364ca8f2c07cf1a38ae5609d8ed18c45d259ef8ecb1ce89e8b29331bb8f1"
+checksum = "be7a4d6e1d17b576c999733a600e2ad91a6fff33870bad4383c99e66253269ae"
 dependencies = [
  "base64 0.22.1",
  "dirs 6.0.0",
@@ -3998,9 +3998,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core"
-version = "0.63.0"
+version = "0.66.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d24b078c45b73ac346763b5f2be629cf3379810c826ed71f179391209c89dc1"
+checksum = "0bf97a6817d2164e0ce90d97ce7a6d47d5776d6bd09c25d1e2aa4b2d7ac4daa7"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.2",
@@ -4027,9 +4027,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.63.0"
+version = "0.66.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db52379c9d8ba9a6778d8f1ff8a5ff26be842d26a4bdc0736f95cfadac876cd6"
+checksum = "002fe5c90c59ed804f70de1d900795327f45ae25347ee50b452d4bad55041646"
 dependencies = [
  "base64 0.22.1",
  "flate2",
