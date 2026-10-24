@@ -373,6 +373,7 @@ impl TabBarUI {
             self.editing_color = custom_color.unwrap_or([100, 100, 100]);
             self.context_menu_tab = Some(id);
             self.context_menu_title = title.to_string();
+            self.context_menu_index = Some(index);
             self.context_menu_icon = custom_icon.map(|s| s.to_string());
             self.icon_buffer = custom_icon.unwrap_or("").to_string();
             self.picking_icon = false;

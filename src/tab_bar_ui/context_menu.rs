@@ -227,6 +227,42 @@ impl TabBarUI {
                         let can_move = !self.move_gateway_active;
                         let has_other_windows = !self.move_candidates.is_empty();
 
+                        // Move within the window's strip: the same Reorder
+                        // action a drag emits (the handler keeps the mux
+                        // order in sync), targets from the index recorded
+                        // at the right-click, hidden when the menu was
+                        // opened without one. Edge rows disable instead of
+                        // wrapping.
+                        if let Some(index) = self.context_menu_index {
+                            let count = self.move_source_tab_count;
+                            let can_earlier = index > 0;
+                            let can_later = index + 1 < count;
+                            ui.add_enabled_ui(can_earlier, |ui| {
+                                if menu_item(ui, "Move Tab Left") {
+                                    action = TabBarAction::Reorder(tab_id, index - 1);
+                                    close_menu = true;
+                                }
+                            });
+                            ui.add_enabled_ui(can_later, |ui| {
+                                if menu_item(ui, "Move Tab Right") {
+                                    action = TabBarAction::Reorder(tab_id, index + 1);
+                                    close_menu = true;
+                                }
+                            });
+                            ui.add_enabled_ui(can_earlier, |ui| {
+                                if menu_item(ui, "Move Tab to Beginning") {
+                                    action = TabBarAction::Reorder(tab_id, 0);
+                                    close_menu = true;
+                                }
+                            });
+                            ui.add_enabled_ui(can_later, |ui| {
+                                if menu_item(ui, "Move Tab to End") {
+                                    action = TabBarAction::Reorder(tab_id, count - 1);
+                                    close_menu = true;
+                                }
+                            });
+                        }
+
                         // "Move Tab to New Window" — disabled for gateway-active windows
                         // and for solo-tab source windows (visually a no-op).
                         let new_window_enabled =
@@ -372,6 +408,7 @@ impl TabBarUI {
         // Close menu if action taken or cancelled
         if close_menu {
             self.context_menu_tab = None;
+            self.context_menu_index = None;
             self.renaming_tab = false;
             self.picking_icon = false;
         }
@@ -430,5 +467,134 @@ mod tests {
             assert_eq!(action, TabBarAction::None, "click-away must not rename");
         }
         assert!(!bar.is_renaming());
+    }
+
+    /// Open the menu for tab 7 at a known index/count, as a right-click
+    /// would (the two right-click sites record the index; the count rides
+    /// the per-frame move-tab context).
+    fn open_menu(bar: &mut TabBarUI, index: usize, count: usize) {
+        bar.context_menu_tab = Some(7);
+        bar.context_menu_index = Some(index);
+        bar.context_menu_pos = egui::pos2(100.0, 40.0);
+        bar.context_menu_opened_frame = 0;
+        bar.renaming_tab = false;
+        bar.picking_icon = false;
+        bar.context_menu_icon = None;
+        bar.move_source_tab_count = count;
+    }
+
+    /// The menu's rows are fixed-height buttons at item spacing 0, so a
+    /// row's click point is menu-top + margin + row * 24 (+12 to center) —
+    /// plus one measured `MENU_SEPARATOR_GAP` per separator crossed. The
+    /// Duplicate canary in the test below pins the row math before the
+    /// move-row assertions run.
+    /// The full section gap: `add_space(4) + separator + add_space(4)`,
+    /// the separator itself allocating 6 px at item spacing 0 (egui
+    /// 0.36's default `SeparatorStyle::spacing`). The Duplicate canary
+    /// re-derives the row math on every run, so an egui theme change that
+    /// moves the gap fails loudly instead of clicking the wrong row.
+    const MENU_SEPARATOR_GAP: f32 = 14.0;
+    fn item_y(row: usize, separators: usize) -> f32 {
+        56.0 + row as f32 * 24.0 + separators as f32 * MENU_SEPARATOR_GAP
+    }
+
+    /// The four move-within-window items, edge-disabled, emitting the same
+    /// `Reorder` action a drag does — the mux tab order then follows
+    /// through the handler's existing sync. The Duplicate canary pins the
+    /// row math before any move-row assertion runs.
+    #[test]
+    fn the_menu_moves_a_tab_left_right_and_to_the_edges() {
+        let ctx = egui::Context::default();
+        let mut bar = TabBarUI::new();
+        frame(&ctx, &mut bar, vec![]);
+        open_menu(&mut bar, 2, 4);
+
+        // Canary: Duplicate is row 2 (Rename 0 | gap | Set Icon 1,
+        // Duplicate 2) — it reads Duplicate, so the row math is honest.
+        let at = item_y(2, 1);
+        frame(
+            &ctx,
+            &mut bar,
+            vec![egui::Event::PointerMoved(egui::pos2(150.0, at))],
+        );
+        let _ = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), true)]);
+        let released = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), false)]);
+        assert_eq!(released, TabBarAction::Duplicate(7), "canary released");
+
+        // Left at index 1: target 0. One separator crossed (the gap under
+        // Rename).
+        open_menu(&mut bar, 1, 4);
+        let at = item_y(6, 2);
+        frame(
+            &ctx,
+            &mut bar,
+            vec![egui::Event::PointerMoved(egui::pos2(150.0, at))],
+        );
+        let _ = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), true)]);
+        let left = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), false)]);
+        assert_eq!(left, TabBarAction::Reorder(7, 0), "Move Tab Left");
+
+        // Right at index 1: target 2.
+        open_menu(&mut bar, 1, 4);
+        let at = item_y(7, 2);
+        frame(
+            &ctx,
+            &mut bar,
+            vec![egui::Event::PointerMoved(egui::pos2(150.0, at))],
+        );
+        let _ = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), true)]);
+        let right = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), false)]);
+        assert_eq!(right, TabBarAction::Reorder(7, 2), "Move Tab Right");
+
+        // Beginning at index 1: target 0.
+        open_menu(&mut bar, 1, 4);
+        let at = item_y(8, 2);
+        frame(
+            &ctx,
+            &mut bar,
+            vec![egui::Event::PointerMoved(egui::pos2(150.0, at))],
+        );
+        let _ = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), true)]);
+        let begin = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), false)]);
+        assert_eq!(begin, TabBarAction::Reorder(7, 0), "Move Tab to Beginning");
+
+        // End at index 1 of 4: target 3.
+        open_menu(&mut bar, 1, 4);
+        let at = item_y(9, 2);
+        frame(
+            &ctx,
+            &mut bar,
+            vec![egui::Event::PointerMoved(egui::pos2(150.0, at))],
+        );
+        let _ = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), true)]);
+        let end = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), false)]);
+        assert_eq!(end, TabBarAction::Reorder(7, 3), "Move Tab to End");
+
+        // Edges: at index 0 the Left row is disabled — the click lands but
+        // produces nothing; at the last index Right does the same.
+        open_menu(&mut bar, 0, 4);
+        let at = item_y(6, 2);
+        frame(
+            &ctx,
+            &mut bar,
+            vec![egui::Event::PointerMoved(egui::pos2(150.0, at))],
+        );
+        let _ = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), true)]);
+        let left_edge = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), false)]);
+        assert_eq!(left_edge, TabBarAction::None, "Left is disabled at index 0");
+        open_menu(&mut bar, 3, 4);
+        let at = item_y(7, 2);
+        frame(
+            &ctx,
+            &mut bar,
+            vec![egui::Event::PointerMoved(egui::pos2(150.0, at))],
+        );
+        let _ = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), true)]);
+        let right_edge = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), false)]);
+        assert_eq!(
+            right_edge,
+            TabBarAction::None,
+            "Right is disabled at the last index"
+        );
     }
 }

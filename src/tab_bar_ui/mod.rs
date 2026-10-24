@@ -477,6 +477,7 @@ impl TabBarUI {
     pub fn test_open_context_menu(&mut self, tab_id: TabId) {
         self.context_menu_tab = Some(tab_id);
         self.context_menu_opened_frame = 0;
+        self.context_menu_index = Some(0);
         self.renaming_tab = false;
         self.picking_icon = false;
     }

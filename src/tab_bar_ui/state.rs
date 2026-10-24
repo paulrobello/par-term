@@ -43,6 +43,11 @@ pub struct TabBarUI {
     pub(super) rename_buffer: String,
     /// Title of the tab in the context menu (for rename pre-fill)
     pub(super) context_menu_title: String,
+    /// The menu tab's position in the window's tab order, recorded at the
+    /// right-click so the move-within-window items can compute targets and
+    /// disable at the edges. `None` (a menu opened without one) hides the
+    /// four items.
+    pub(super) context_menu_index: Option<usize>,
     /// Whether the icon picker is active in the context menu
     pub(super) picking_icon: bool,
     /// Frame when icon picker mode was activated (to ignore the activating click)
@@ -102,6 +107,7 @@ impl TabBarUI {
             rename_activated_frame: 0,
             rename_buffer: String::new(),
             context_menu_title: String::new(),
+            context_menu_index: None,
             picking_icon: false,
             icon_activated_frame: 0,
             icon_buffer: String::new(),

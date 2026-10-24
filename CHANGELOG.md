@@ -11,6 +11,9 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Added
+- **Move Tab Left / Right / Beginning / End in the tab context menu.** Right-clicking a tab now offers the four move-within-window items alongside the drag and keyboard reorders — the same `Reorder` action a drag emits, so a par-mux tab's move is forwarded to the daemon (`move-window`) and survives reattach. Items are edge-disabled (no wrap), computed from the tab's index recorded at the right-click, and hidden when the menu was opened without one. Pinned by `the_menu_moves_a_tab_left_right_and_to_the_edges`.
+
 ---
 
 ## [0.49.0] - 2026-10-17

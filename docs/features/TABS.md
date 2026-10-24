@@ -12,6 +12,7 @@ par-term provides a multi-tab interface for managing multiple shells within a si
 - [Reordering Tabs](#reordering-tabs)
   - [Drag-and-Drop Reordering](#drag-and-drop-reordering)
   - [Keyboard Reordering](#keyboard-reordering)
+  - [Context Menu Reordering](#context-menu-reordering)
 - [Duplicating Tabs](#duplicating-tabs)
 - [Moving tabs between windows](#moving-tabs-between-windows)
 - [Panes](#panes)
@@ -178,6 +179,15 @@ Click and drag any tab in the tab bar to move it to a new position:
 A tab already at the left or right end stays put; the move does not wrap around to the other end.
 
 A par-mux tab's move is sent to the daemon (`move-window`), so the new order is the session's window order: it survives reattach and other attached clients see it.
+
+### Context Menu Reordering
+
+**Right-click** any tab and use the move items in the context menu:
+
+- **Move Tab Left** / **Move Tab Right** swap the tab with its neighbor; both are disabled at their window edge.
+- **Move Tab to Beginning** / **Move Tab to End** jump the tab to the first or last position; the matching edge item is disabled.
+
+These are the same reorder a drag performs — a par-mux tab's move is sent to the daemon (`move-window`) exactly as the keyboard reorder, and a tab whose context menu was opened without a recorded position hides all four items.
 
 ## Duplicating Tabs
 
