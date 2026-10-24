@@ -42,6 +42,16 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.50.0
+
+Adopt hand-launched agent panes, workspace git badges, and the question agent state. Core library 0.66.1 is required; `par-term-mux` moves to 0.4.0, `par-term-tmux` 0.3.1, `par-term-render` 0.12.1, and `par-term-update` 0.5.3.
+
+- **Adopt as Agent** — label a pane you launched an agent in by hand; it joins the par-mux roster immediately (pane context menu or Session menu, kind picker included).
+- **Question agent state** — permission-prompt state renders with its own glyph, outranks blocked in next-attention, and refreshes reactively via `%agent-telemetry-changed`.
+- **Workspace git badges** — the session picker's Workspaces rows show branch with ahead/behind, fed by the daemon's client-snapshot git rows.
+- **Tab moves in the context menu** — Move Tab Left / Right / Beginning / End, daemon-synced for par-mux tabs.
+- **Core 0.66.1** — kitty functional-key fix under disambiguate, `PointerShapeChanged` subscriptions, additive client-snapshot v1 (git/worktree/agent rows); 0.66.1 fixes a dropped-client daemon socket leak.
+
 ### 0.49.0
 
 par-mux auto-reconnect, OSC 22 pointer shapes, and par-mux-owned agent integrations. Core library 0.61 is required; `par-term-config` moves to 0.16.0, `par-term-terminal` 0.7.0, and `par-term-settings-ui` 0.20.0. Security: `zip` 8.6.0 → 9.0.4 (RUSTSEC-2026-0367..0369).

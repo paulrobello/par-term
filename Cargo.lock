@@ -3878,7 +3878,7 @@ dependencies = [
 
 [[package]]
 name = "par-term"
-version = "0.49.0"
+version = "0.50.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -4094,7 +4094,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-mux"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.23.1",
  "log",
@@ -4105,7 +4105,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-render"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -4194,7 +4194,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-tmux"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chrono",
  "hostname",
@@ -4207,7 +4207,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-update"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "chrono",

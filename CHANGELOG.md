@@ -9,10 +9,31 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ---
 
-## [Unreleased]
+## [0.50.0] - 2026-10-24
 
 ### Added
 - **Move Tab Left / Right / Beginning / End in the tab context menu.** Right-clicking a tab now offers the four move-within-window items alongside the drag and keyboard reorders — the same `Reorder` action a drag emits, so a par-mux tab's move is forwarded to the daemon (`move-window`) and survives reattach. Items are edge-disabled (no wrap), computed from the tab's index recorded at the right-click, and hidden when the menu was opened without one. Pinned by `the_menu_moves_a_tab_left_right_and_to_the_edges`.
+- **par-mux workspace git badges.** The session picker's per-daemon Workspaces rows show a branch badge — ` main`, ` feature ↑2 ↓3` — fed by the daemon's client-snapshot git rows (core 0.64+, capability-gated, so an older daemon is never sent the command). Workspaces with a repo checkout, or a shell reporting a live cwd, badge; non-repo and detached workspaces draw nothing, and zero ahead/behind renders as silence. See [MUX.md](docs/features/MUX.md).
+- **Question agent state in the roster.** Core 0.64's question state (permission prompts, approval panels) renders with its own glyph and color, distinct from blocked; it ranks above blocked in the next-attention cycle and the palette picker, and a live question overrides a stale local done-unseen mark. `agent-prompt` against a questioning agent stays refused by the daemon.
+- **Reactive agent roster refresh.** The daemon's identity-only `%agent-telemetry-changed` push (core 0.64) triggers an immediate `list-agents` re-fetch, so host-attributed project changes land without waiting for the next poll.
+- **Adopt hand-launched agent panes.** Core 0.66's `adopt-pane` is wired in: the pane context menu's **Adopt as Agent...** (and **Session › Adopt as Agent...**) opens a kind picker listing every agent kind the daemon's scrape set knows, sends `adopt-pane -t %N <kind>`, and the pane joins the roster immediately with its classification; a kind without scrape patterns surfaces the daemon's refusal. The picker's kind list is drift-tested against the pinned core's bundled scrape engine. See [MUX.md](docs/features/MUX.md).
+- **The daemon's derived done agent state.** Core 0.62/0.63 derive done server-side for an idle report on an unviewed pane and demote it when the pane is viewed; the roster renders the daemon's done word directly and maps it to the done-unseen badge.
+- **par-mux shell completions.** `make completions-install` installs the bash/zsh/fish completions the bundled par-mux CLI generates.
+
+### Changed
+- **Core bumped to `par-term-emu-core-rust` 0.66.1** (via 0.62/0.63): kitty functional keys emit real sequences under disambiguate mode (Delete etc. no longer arrive as PUA CSI-u codes real apps ignore), `PointerShapeChanged` kind-filtered subscriptions match, send-keys quoting is normalized daemon-side, client-snapshot v1 grows git/worktree/agent rows, `%agent-telemetry-changed` pushes arrive, and `adopt-pane` exists. The wire delta is additive; the client-snapshot contract stays v1. The 0.66.1 hotfix closes a dropped-client daemon socket leak and relabels scrape-tier panes at restore.
+- **Sub-crate versions**: `par-term-mux` 0.4.0 (adopt-pane client, git-row parsing, telemetry refresh), `par-term-tmux` 0.3.1, `par-term-render` 0.12.1, `par-term-update` 0.5.3.
+- Dependency sweep: toolchain 1.99.1, muda 0.21, rodio 0.23 (cpal 0.18), minisign-verify 0.3 — boundary bumps, no source changes.
+- Surface-configure diagnostics (surface configure, CAMetalLayer after configure, display-change heal, ...) log at warn level so the brightness-strobe playbook's evidence survives a `log_level: warn` config.
+
+### Fixed
+- rename-window names travel as raw trailing text (spaces intact), and reconnect restore no longer shell-quotes them.
+- Ad-hoc daemon notifications are delivered to attached clients.
+- Blocked reasons carried by agent state pushes are adopted into the roster instead of dropped.
+- The bulk agent-hook installer lists all supported agent targets, and the status verb parses as the second token rather than the whole remainder.
+
+### Security
+- Transitive `webpki-root-certs` 1.0.10 (RUSTSEC-2026-0383) and `ctutils` 0.4.5 (RUSTSEC-2026-0385) via the core bumps and lock refresh.
 
 ---
 
