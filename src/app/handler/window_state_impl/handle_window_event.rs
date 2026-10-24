@@ -154,7 +154,7 @@ impl WindowState {
                 if crossed_monitors
                     && let (Some(renderer), Some(window)) = (&mut self.renderer, &self.window)
                 {
-                    log::info!("Window moved to a different monitor — healing reconfigure");
+                    log::warn!("Window moved to a different monitor — healing reconfigure");
 
                     let size = window.inner_size();
                     renderer.reconfigure_after_display_change(size.width, size.height);

@@ -115,7 +115,7 @@ impl CellRenderer {
         // an unchanged extent, so configure only when it actually changed;
         // forced recovery reconfigures go through `reconfigure_surface`.
         if self.config.width != width || self.config.height != height {
-            log::info!(
+            log::warn!(
                 "Configuring surface {}x{} (was {}x{})",
                 width,
                 height,

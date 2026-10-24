@@ -228,7 +228,7 @@ impl CellRenderer {
         // SAFETY: kCGColorSpaceSRGB is an immutable CoreGraphics constant.
         let srgb = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceSRGB }));
         layer.setColorspace(srgb.as_deref());
-        log::info!(
+        log::warn!(
             "CAMetalLayer after configure: opaque={} displaySync={} maxDrawables={} colorspace={}",
             layer.isOpaque(),
             layer.displaySyncEnabled(),
@@ -251,7 +251,7 @@ impl CellRenderer {
             return;
         };
         if alpha_mode != self.config.alpha_mode {
-            log::info!(
+            log::warn!(
                 "Surface alpha mode {:?} -> {:?} (window_opacity={})",
                 self.config.alpha_mode,
                 alpha_mode,
@@ -266,7 +266,7 @@ impl CellRenderer {
         // Every configure path must be attributable from the debug log: a
         // silent same-config configure is exactly how the wgpu-30 strobe
         // hid (the Moved handler stormed here invisibly at default level).
-        log::info!(
+        log::warn!(
             "Plain surface reconfigure (same config, {}x{}, {:?})",
             self.config.width,
             self.config.height,
@@ -308,7 +308,7 @@ impl CellRenderer {
         let target = refreshed.present_mode;
         match alternate_present_mode(target, &self.supported_present_modes) {
             Some(alternate) => {
-                log::info!(
+                log::warn!(
                     "Display-change heal: cycling present mode {:?} -> {:?}, config {} by fresh capabilities",
                     target,
                     alternate,
@@ -333,7 +333,7 @@ impl CellRenderer {
                 );
             }
             None => {
-                log::info!(
+                log::warn!(
                     "Display-change heal: no alternate present mode; applying refreshed config"
                 );
                 self.config = refreshed;
