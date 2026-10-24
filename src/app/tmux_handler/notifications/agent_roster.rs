@@ -66,8 +66,10 @@ impl AgentRoster {
     /// `working` → `idle` transition marks the pane done-unseen; the drain
     /// clears the mark for the pane the user is watching (the watching
     /// case has no focus event to clear it later). A reason-less push
-    /// that refreshes a still-blocked agent keeps the last reason from
-    /// either a push or `list-agents`.
+    /// that refreshes an agent still in the same attention state (blocked,
+    /// or asking the same question) keeps the last reason from either a
+    /// push or `list-agents` — a state change away ends the wait and the
+    /// stale reason goes with it.
     pub(crate) fn apply_push(&mut self, mut entry: AgentEntry) {
         let finished = self.entries.get(&entry.pane).is_some_and(|prev| {
             prev.state.eq_ignore_ascii_case("working") && entry.state.eq_ignore_ascii_case("idle")
@@ -75,7 +77,14 @@ impl AgentRoster {
         if finished {
             self.done_unseen.insert(entry.pane);
         }
-        if entry.reason.is_none() && entry.state.eq_ignore_ascii_case("blocked") {
+        if entry.reason.is_none()
+            && self
+                .entries
+                .get(&entry.pane)
+                .is_some_and(|prev| prev.state.eq_ignore_ascii_case(&entry.state))
+            && (entry.state.eq_ignore_ascii_case("blocked")
+                || entry.state.eq_ignore_ascii_case("question"))
+        {
             entry.reason = self
                 .entries
                 .get(&entry.pane)
@@ -132,7 +141,11 @@ impl AgentRoster {
     /// views the pane). The daemon word is the authority on view; the mark
     /// covers sources that still report a raw `idle` finish.
     fn shows_done_unseen(&self, pane: TmuxPaneId) -> bool {
-        self.done_unseen.contains(&pane)
+        (self.done_unseen.contains(&pane)
+            && self
+                .entries
+                .get(&pane)
+                .is_none_or(|e| !e.state.eq_ignore_ascii_case("question")))
             || self
                 .entries
                 .get(&pane)
@@ -195,7 +208,13 @@ impl AgentRoster {
         }
         let breakdown = parts
             .into_iter()
-            .map(|(_, state, count_text)| format!("{count_text} {state}"))
+            .map(|(_, state, count_text)| {
+                if state.eq_ignore_ascii_case("question") {
+                    format!("{count_text} \u{f059} {state}")
+                } else {
+                    format!("{count_text} {state}")
+                }
+            })
             .collect::<Vec<_>>()
             .join(", ");
         Some(format!("\u{1f465} {breakdown}"))
@@ -246,10 +265,12 @@ impl AgentRoster {
     ///   no message at all).
     /// - action_id — `agent-roster-focus:<pane>`, dispatched by the
     ///   miss-path in `execute_keybinding_action` to focus that pane.
-    /// - priority — 2 for blocked agents and unseen-done finishers, 1 for
-    ///   the rest, so the picker answers "who owes you a look" first; pane
-    ///   order is preserved within each tier (stable sort over the
-    ///   pane-ordered cache). Unseen-done rows read `done ` + nerd check.
+    /// - priority — 3 for question agents (core 0.64 ranks question
+    ///   first-class above blocked), 2 for blocked agents and unseen-done
+    ///   finishers, 1 for the rest, so the picker answers "who owes you a
+    ///   look" first; pane order is preserved within each tier (stable
+    ///   sort over the pane-ordered cache). Unseen-done rows read `done `
+    ///   + nerd check.
     ///
     /// `visible` scopes the rows to the attached session (the module doc's
     /// rule): a row the picker offers must be a pane `focus_agent_roster_pane`
@@ -281,9 +302,11 @@ impl AgentRoster {
                     action_id: format!("agent-roster-focus:{}", entry.pane),
                     label,
                     chord: None,
-                    // Blocked and unseen-done are the two "owes you a
-                    // look" states; everything else keeps pane order.
-                    priority: if entry.state.eq_ignore_ascii_case("blocked") || unseen_done {
+                    // Question, blocked, and unseen-done are the "owes
+                    // you a look" tiers; everything else keeps pane order.
+                    priority: if entry.state.eq_ignore_ascii_case("question") {
+                        3
+                    } else if entry.state.eq_ignore_ascii_case("blocked") || unseen_done {
                         2
                     } else {
                         1
@@ -291,8 +314,8 @@ impl AgentRoster {
                 }
             })
             .collect();
-        // Stable: blocked rows rise to the front, everything else keeps the
-        // cache's pane order.
+        // Stable: attention rows rise to the front, everything else keeps
+        // the cache's pane order.
         rows.sort_by_key(|r| std::cmp::Reverse(r.priority));
         rows
     }
@@ -483,6 +506,37 @@ mod tests {
             roster.summary_line(&all_panes).as_deref(),
             Some("\u{1f465} 2 blocked, 1+1~ working")
         );
+    }
+
+    #[test]
+    fn question_overrides_a_previous_done_unseen_mark() {
+        let mut roster = AgentRoster::new();
+        roster.apply_push(entry(2, "claude", "working", AgentSource::Hook));
+        roster.apply_push(entry(2, "claude", "idle", AgentSource::Hook));
+        roster.apply_push(entry(2, "claude", "question", AgentSource::Hook));
+        assert!(!roster.is_done_unseen(2));
+        assert_eq!(
+            roster.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 1 \u{f059} question")
+        );
+        assert_eq!(roster.palette_rows(&all_panes)[0].label, "claude: question");
+    }
+
+    #[test]
+    fn question_roster_row_has_distinct_summary_and_leads_palette() {
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![
+            entry(1, "pi", "blocked", AgentSource::Hook),
+            entry(2, "claude", "question", AgentSource::Hook),
+        ]);
+        assert_eq!(
+            roster.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 1 blocked, 1 \u{f059} question")
+        );
+        let rows = roster.palette_rows(&all_panes);
+        assert_eq!(rows[0].action_id, "agent-roster-focus:2");
+        assert_eq!(rows[0].priority, 3);
+        assert_eq!(rows[0].label, "claude: question");
     }
 
     #[test]

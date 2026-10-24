@@ -82,12 +82,17 @@ pub(crate) enum AgentAttention {
     DoneUnseen,
     /// Waiting on the user.
     Blocked,
+    /// An interactive question or approval needs an answer.
+    Question,
 }
 
 impl AgentAttention {
     /// Map a roster entry's verbatim state (plus par-term's own
     /// done-unseen mark) onto a badge. `None`: no badge (idle, unknown).
     pub(crate) fn from_roster(state: &str, done_unseen: bool) -> Option<Self> {
+        if state.eq_ignore_ascii_case("question") {
+            return Some(Self::Question);
+        }
         if done_unseen || state.eq_ignore_ascii_case("done") {
             return Some(Self::DoneUnseen);
         }
@@ -109,6 +114,7 @@ impl AgentAttention {
     /// rendered tofu.
     pub(crate) fn glyph(self) -> &'static str {
         match self {
+            Self::Question => "\u{f059}",
             Self::Blocked => "\u{f111}",
             Self::DoneUnseen => "\u{f058}",
             Self::Working => "\u{f110}",
@@ -120,6 +126,7 @@ impl AgentAttention {
     /// session chip's health colors.
     pub(crate) fn color(self, text_color: egui::Color32) -> egui::Color32 {
         match self {
+            Self::Question => egui::Color32::from_rgb(33, 150, 243),
             Self::Blocked => egui::Color32::from_rgb(255, 193, 7),
             Self::DoneUnseen => egui::Color32::from_rgb(76, 175, 80),
             Self::Working => text_color,
@@ -128,6 +135,7 @@ impl AgentAttention {
 
     pub(crate) fn describe(self) -> &'static str {
         match self {
+            Self::Question => "an agent is asking a question",
             Self::Blocked => "an agent is waiting for you",
             Self::DoneUnseen => "an agent finished (not yet seen)",
             Self::Working => "an agent is working",
@@ -208,6 +216,7 @@ mod tests {
         // The tab bar draws in the Proportional family; nerd PUA is the only
         // vocabulary guaranteed there (nerd_font_covers is the in-repo oracle).
         for glyph in [
+            AgentAttention::Question.glyph(),
             AgentAttention::Blocked.glyph(),
             AgentAttention::DoneUnseen.glyph(),
             AgentAttention::Working.glyph(),
@@ -227,6 +236,20 @@ mod tests {
                 "{name} badge must be a single codepoint"
             );
         }
+    }
+
+    #[test]
+    fn question_is_distinct_and_more_urgent_than_blocked() {
+        use AgentAttention as A;
+        assert_eq!(A::from_roster("question", false), Some(A::Question));
+        assert_eq!(A::from_roster("question", true), Some(A::Question));
+        assert!(A::Question > A::Blocked);
+        assert_ne!(A::Question.glyph(), A::Blocked.glyph());
+        assert_ne!(
+            A::Question.color(egui::Color32::WHITE),
+            A::Blocked.color(egui::Color32::WHITE)
+        );
+        assert_eq!(A::Question.describe(), "an agent is asking a question");
     }
 
     #[test]

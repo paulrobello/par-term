@@ -46,6 +46,8 @@ mod mux_attention_tests;
 pub(crate) mod mux_directory;
 #[cfg(feature = "mux")]
 mod mux_drain;
+#[cfg(all(test, feature = "mux"))]
+mod mux_drain_tests;
 #[cfg(all(test, feature = "mux", unix))]
 mod mux_leader_tests;
 #[cfg(feature = "mux")]
@@ -64,6 +66,8 @@ pub(crate) mod mux_reconnect;
 pub(crate) mod mux_sessions;
 #[cfg(all(test, feature = "mux", unix))]
 mod mux_sessions_tests;
+#[cfg(feature = "mux")]
+pub(crate) mod mux_telemetry;
 #[cfg(all(test, feature = "mux"))]
 pub(crate) mod mux_test_seams;
 #[cfg(feature = "mux")]

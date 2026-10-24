@@ -79,7 +79,7 @@ impl AgentEntry {
     /// reason words. Fixed positions mean no trailing token can be
     /// mistaken for a column; unknown `key=value` tokens are tolerated
     /// and ignored, and only `reason=` is consumed.
-    fn parse_list_line(line: &str) -> Option<Self> {
+    pub fn parse_list_line(line: &str) -> Option<Self> {
         use base64::Engine as _;
         use base64::engine::general_purpose::STANDARD;
 
@@ -192,6 +192,18 @@ mod tests {
             (3, "kimi", "working", AgentSource::Hook)
         );
         assert_eq!(entry.reason, None, "no reason token on this row");
+    }
+
+    #[test]
+    fn question_roster_row_and_push_keep_state_and_reason() {
+        let entry =
+            AgentEntry::parse_list_line("%7 claude question hook reason=QXBwcm92ZT8=").unwrap();
+        assert_eq!(entry.state, "question");
+        assert_eq!(entry.reason.as_deref(), Some("Approve?"));
+        assert_eq!(
+            AgentEntry::from_push("%7", "claude", "question", "hook", "QXBwcm92ZT8="),
+            Some(entry)
+        );
     }
 
     #[test]

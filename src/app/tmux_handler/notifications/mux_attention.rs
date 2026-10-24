@@ -22,7 +22,7 @@ pub(crate) struct AttentionTarget {
     pub(crate) attention: AgentAttention,
 }
 
-/// The A17 cycle order: blocked agents first, then done-unseen, each group
+/// The A17 cycle order: question, blocked, then done-unseen, each group
 /// in tab order then pane order. `tab_order` is the window's tab order;
 /// `candidates` are mapped roster panes with their attention.
 pub(crate) fn attention_order(
@@ -32,7 +32,7 @@ pub(crate) fn attention_order(
     candidates.retain(|c| {
         matches!(
             c.attention,
-            AgentAttention::Blocked | AgentAttention::DoneUnseen
+            AgentAttention::Question | AgentAttention::Blocked | AgentAttention::DoneUnseen
         )
     });
     let tab_pos = |tab: TabId| {
@@ -163,7 +163,7 @@ impl WindowState {
     }
 
     /// A17 `focus_next_attention_agent`: jump to the next roster agent that
-    /// is blocked, then done-unseen, cycling across tabs. Focusing a
+    /// has a question, is blocked, then done-unseen, cycling across tabs. Focusing a
     /// done-unseen agent marks it seen, so the order is recomputed on every
     /// press. Returns false when no agent needs attention.
     pub(crate) fn focus_next_attention_agent(&mut self) -> bool {
@@ -209,6 +209,23 @@ mod tests {
             vec![31, 11, 20, 10],
             "blocked in tab order (tab 3, 1, 2), then done-unseen; working never"
         );
+    }
+
+    #[test]
+    fn question_agents_come_before_blocked() {
+        let order = attention_order(
+            &[1, 2],
+            vec![
+                t(1, 1, A::Blocked),
+                t(2, 2, A::Question),
+                t(1, 3, A::DoneUnseen),
+            ],
+        );
+        assert_eq!(
+            order.iter().map(|o| o.mux_pane).collect::<Vec<_>>(),
+            vec![2, 1, 3]
+        );
+        assert_eq!(next_attention(&order, None).map(|o| o.mux_pane), Some(2));
     }
 
     #[test]

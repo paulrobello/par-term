@@ -166,7 +166,7 @@ impl WindowState {
         })
     }
 
-    fn check_mux_notifications_with(
+    pub(super) fn check_mux_notifications_with(
         &mut self,
         mut notify: impl FnMut(&WindowState, &str, &str),
     ) -> bool {
@@ -236,6 +236,18 @@ impl WindowState {
                 )
             });
 
+        // `%agent-telemetry-changed` (core 0.64): the identity-only push a
+        // newer core emits and the published pin parses as `Unknown` — a
+        // ParserBridge drop either way, so partition it out string-level
+        // (see `mux_telemetry`).
+        let (telemetry, core_notifications): (Vec<_>, Vec<_>) = core_notifications
+            .into_iter()
+            .partition(|n| super::mux_telemetry::agent_telemetry_of(n).is_some());
+        let telemetry: Vec<_> = telemetry
+            .iter()
+            .filter_map(super::mux_telemetry::agent_telemetry_of)
+            .collect();
+
         // `%pane-exited` / `%pane-respawned` (held-pane lifecycle): the
         // published pin parses them as `Unknown`, a newer core as named
         // variants — both are ParserBridge drops, so partition them out
@@ -302,6 +314,10 @@ impl WindowState {
         needs_redraw |= self.apply_agent_pushes(agent_pushes);
         needs_redraw |= self.apply_agent_releases(agent_releases);
         needs_redraw |= self.apply_pane_title_pushes(title_pushes);
+        // The telemetry re-fetch runs after the state pushes: the fresh
+        // `list-agents` reply is the authoritative roster and must land
+        // last, over whatever the batch's per-pane pushes merged.
+        needs_redraw |= self.apply_agent_telemetry(&telemetry);
 
         // Same bucket split as polling.rs — direct handlers TmuxSync cannot
         // translate, then the sync groups in dependency order.
@@ -719,45 +735,5 @@ impl WindowState {
             }
         }
         false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::app::tmux_handler::tmux_state::TmuxTransport;
-    use par_term_emu_core_rust::tmux_control::{TmuxControlParser, TmuxNotification as Core};
-    use std::cell::RefCell;
-
-    struct NotificationTransport(RefCell<Vec<Core>>);
-
-    impl TmuxTransport for NotificationTransport {
-        fn drain(&self) -> (Vec<Core>, bool) {
-            (self.0.take(), false)
-        }
-
-        fn send_command(&self, _command: &str) -> std::io::Result<Vec<String>> {
-            panic!("an untargeted notification must not send a pane command")
-        }
-    }
-
-    #[test]
-    fn mux_notification_drain_delivers_decoded_text_once_without_a_pane() {
-        let mut parser = TmuxControlParser::new(true);
-        let mut ws = super::super::mux::tests::manners_state();
-        ws.tmux_state.transport = Some(Box::new(NotificationTransport(RefCell::new(
-            parser.parse(b"%notification YnVpbGQgZmFpbGVk body=c2VlIGxvZw==\n%notification ZG9uZQ==\n%notification %%%\n"),
-        ))));
-        let mut delivered = Vec::new();
-        assert!(ws.check_mux_notifications_with(|_, title, body| {
-            delivered.push((title.to_owned(), body.to_owned()));
-        }));
-        assert_eq!(
-            delivered,
-            [
-                ("build failed".into(), "see log".into()),
-                ("done".into(), String::new())
-            ]
-        );
-        assert!(!ws.check_mux_notifications_with(|_, _, _| panic!("delivered twice")));
     }
 }
