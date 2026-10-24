@@ -66,8 +66,9 @@ fn query_daemon(socket: &Path) -> Result<MuxDirectory, String> {
             id: w.id,
             name: w.name,
             active: w.active,
+            git: None,
         })
-        .collect();
+        .collect::<Vec<_>>();
     let sessions = client
         .list_sessions()
         .map_err(|e| format!("par-mux daemon '{daemon}': {e}"))?
@@ -80,11 +81,58 @@ fn query_daemon(socket: &Path) -> Result<MuxDirectory, String> {
             workspace_name: s.workspace_name,
         })
         .collect();
+    // The workspaces' git badges ride `client-snapshot`'s `git` rows —
+    // the snapshot is their only emitter — fetched last, capability-gated,
+    // so an older daemon never sees the command and a failure leaves the
+    // rows bare instead of failing the scan.
+    let git = git_facts(&mut client);
     Ok(MuxDirectory {
         sessions,
-        workspaces,
+        workspaces: apply_git_facts(workspaces, &git),
         errors: Vec::new(),
     })
+}
+
+/// One daemon's git-badge facts: the `client-snapshot` `git` rows. Probed
+/// through the v1 capability gate (a daemon without the token never sees
+/// a `client-snapshot` line), target-scoped to the daemon's first listed
+/// window, and best-effort: any failure — no capability, no windows, a
+/// stale reply — is no facts, never a scan error.
+fn git_facts(client: &mut par_term_mux::MuxSessionClient) -> Vec<par_term_mux::GitStatusSummary> {
+    let supported = client
+        .list_commands()
+        .map(|lines| par_term_mux::MuxSessionClient::snapshot_supported(&lines))
+        .unwrap_or(false);
+    if !supported {
+        return Vec::new();
+    }
+    client
+        .list_windows()
+        .ok()
+        .and_then(|windows| windows.first().map(|w| w.id))
+        .and_then(|window| client.client_snapshot(window).ok())
+        .map(|snap| snap.git)
+        .unwrap_or_default()
+}
+
+/// Stamp each workspace row with its own snapshot `git` row, when one
+/// exists. Rows with no row — non-repo, detached HEAD, or the facts
+/// query failing — keep `git: None` and draw no badge.
+fn apply_git_facts(
+    mut rows: Vec<MuxWorkspaceRow>,
+    git: &[par_term_mux::GitStatusSummary],
+) -> Vec<MuxWorkspaceRow> {
+    for row in &mut rows {
+        row.git =
+            git.iter()
+                .find(|g| g.id == row.id)
+                .map(|g| crate::session_picker_mux::WorkspaceGit {
+                    branch: g.branch.clone(),
+                    ahead: g.ahead,
+                    behind: g.behind,
+                });
+    }
+    rows
 }
 
 /// Scan every daemon socket in `dir`, one thread per daemon, each bounded
@@ -193,6 +241,53 @@ mod tests {
         assert_eq!(
             scan(&dir, Duration::from_millis(200)),
             MuxDirectory::default()
+        );
+    }
+
+    /// Criterion 2 + 4: each snapshot `git` row stamps only its own
+    /// workspace's row; a workspace without one — non-repo, detached
+    /// HEAD, or the facts query failing — keeps `git: None` and no badge.
+    #[test]
+    fn git_facts_stamp_their_own_workspace_rows_only() {
+        let ws = |id: u64| MuxWorkspaceRow {
+            socket: PathBuf::from("/s/x.sock"),
+            daemon: "x".to_string(),
+            id,
+            name: format!("repo-{id}"),
+            active: false,
+            git: None,
+        };
+        let rows = vec![ws(0), ws(1), ws(2)];
+        let git = vec![
+            par_term_mux::GitStatusSummary {
+                id: 0,
+                branch: "main".to_string(),
+                ahead: 0,
+                behind: 0,
+            },
+            par_term_mux::GitStatusSummary {
+                id: 2,
+                branch: "feat".to_string(),
+                ahead: 1,
+                behind: 0,
+            },
+        ];
+        let rows = apply_git_facts(rows, &git);
+        assert_eq!(
+            rows[0]
+                .git
+                .as_ref()
+                .map(|g| (g.branch.as_str(), g.ahead, g.behind)),
+            Some(("main", 0, 0)),
+            "the +0 row reaches workspace +0"
+        );
+        assert_eq!(rows[1].git, None, "workspace +1 has no git row");
+        assert_eq!(
+            rows[2]
+                .git
+                .as_ref()
+                .map(|g| (g.branch.as_str(), g.ahead, g.behind)),
+            Some(("feat", 1, 0))
         );
     }
 }

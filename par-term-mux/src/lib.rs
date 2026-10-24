@@ -44,6 +44,6 @@ pub use agents::{AgentEntry, AgentSource};
 pub use client::{MuxSessionClient, VersionCheck, check_daemon_version};
 pub use env::{is_wire_safe, new_session_env_args, quote_env_value};
 pub use resync::{
-    AttachOutcome, ClientSnapshot, SessionSummary, SnapshotSession, WindowSummary,
-    WorkspaceSummary, pane_foreground_command, parse_session_row,
+    AttachOutcome, ClientSnapshot, GitStatusSummary, SessionSummary, SnapshotSession,
+    WindowSummary, WorkspaceSummary, pane_foreground_command, parse_session_row,
 };

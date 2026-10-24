@@ -40,14 +40,73 @@ pub struct WorkspaceSummary {
     pub active: bool,
 }
 
+/// One `client-snapshot` `git` row: `+N <branch> <ahead|-> <behind|->` —
+/// one per repo workspace whose badge facts the daemon has. `0` is
+/// spelled `-` so the row keeps its fixed four-field shape; a detached
+/// HEAD or a non-repo chain emits no row, so a workspace without a row
+/// has no badge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitStatusSummary {
+    /// The workspace id, `+N`.
+    pub id: u64,
+    /// The checked-out branch.
+    pub branch: String,
+    /// Commits ahead of the upstream (0 with none).
+    pub ahead: u32,
+    /// Commits behind the upstream (0 with none).
+    pub behind: u32,
+}
+
+impl GitStatusSummary {
+    /// Parse the rest of one `git ` row; `None` when the id is not `+N`,
+    /// a count is neither `-` nor digits, or a field is missing. A
+    /// malformed row is skipped, never an error — the snapshot is
+    /// additive and the badge is best-effort.
+    fn parse(rest: &str) -> Option<Self> {
+        let mut fields = rest.splitn(4, ' ');
+        let id = fields
+            .next()?
+            .strip_prefix('+')
+            .and_then(|id| id.parse().ok())?;
+        let branch = fields.next()?;
+        if branch.is_empty() {
+            return None;
+        }
+        let ahead = parse_count_field(fields.next()?)?;
+        let behind = parse_count_field(fields.next()?)?;
+        Some(Self {
+            id,
+            branch: branch.to_string(),
+            ahead,
+            behind,
+        })
+    }
+}
+
+/// A snapshot count column: `0` spells `-` on the wire; a bare `0` reads
+/// the same.
+fn parse_count_field(field: &str) -> Option<u32> {
+    match field {
+        "-" => Some(0),
+        digits if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) => {
+            digits.parse().ok()
+        }
+        _ => None,
+    }
+}
+
 /// What a `client-snapshot` reply carries that par-term reads: every
 /// workspace and every session, with the target window's owning session
-/// marked. `window`/`pane`/`agent` rows and any future row kind are
-/// ignored here — the drain's status read needs the two rosters only.
+/// marked. `window`/`pane`/`agent`/`worktree` rows and any future row
+/// kind are ignored here — the drain's status read needs the two rosters
+/// only, and the picker's git badges read [`Self::git`].
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ClientSnapshot {
     pub workspaces: Vec<WorkspaceSummary>,
     pub sessions: Vec<SnapshotSession>,
+    /// One row per repo workspace (core 0.64+); empty from a daemon
+    /// without git rows.
+    pub git: Vec<GitStatusSummary>,
 }
 
 /// One `session` row: `$N <*|-> +W <name>`.
@@ -125,6 +184,15 @@ impl ClientSnapshot {
                         workspace_id,
                         displayed,
                     });
+                }
+                Some("git") => {
+                    // `git +N <branch> <ahead|-> <behind|->` — one per repo
+                    // workspace. A malformed row is skipped like an
+                    // unknown kind: the badges are best-effort and the
+                    // snapshot grammar is additive.
+                    if let Some(row) = GitStatusSummary::parse(words.next().unwrap_or_default()) {
+                        snapshot.git.push(row);
+                    }
                 }
                 _ => {}
             }
@@ -610,13 +678,83 @@ mod tests {
 
     #[test]
     fn snapshot_rows_the_reader_does_not_need_are_ignored() {
-        // window/pane/agent rows and a future header-less garbage line do
-        // not break the two rosters the status read needs.
-        let snap =
-            ClientSnapshot::parse(&lines(&["snapshot 1", "window @0 * x", "agent %0 a s src"]))
-                .expect("snapshot parses");
+        // window/pane/agent/worktree rows and a future header-less
+        // garbage line do not break the two rosters the status read
+        // needs.
+        let snap = ClientSnapshot::parse(&lines(&[
+            "snapshot 1",
+            "window @0 * x",
+            "agent %0 a s src",
+            "worktree +0 repo - main /r/x",
+        ]))
+        .expect("snapshot parses");
         assert!(snap.workspaces.is_empty());
         assert!(snap.sessions.is_empty());
+        assert!(snap.git.is_empty());
+    }
+
+    /// Criterion 1 + 4 (card "Adopt client-snapshot git rows and
+    /// #{pane_title}"): `git` rows parse into the snapshot, a body
+    /// without them reads as no badges, and a malformed git row is
+    /// skipped like an unknown kind — never an error.
+    #[test]
+    fn parses_git_rows_tolerates_their_absence_and_skips_malformed_ones() {
+        let snap = ClientSnapshot::parse(&lines(&[
+            "snapshot 1",
+            "workspace +0 * main",
+            "workspace +1 - lab",
+            "git +0 main - -",
+            "git +1 feat 2 3",
+            "git +2 dev - 1",
+            "future-row-kind x y z",
+        ]))
+        .expect("snapshot parses");
+        assert_eq!(
+            snap.git,
+            vec![
+                GitStatusSummary {
+                    id: 0,
+                    branch: "main".to_string(),
+                    ahead: 0,
+                    behind: 0
+                },
+                GitStatusSummary {
+                    id: 1,
+                    branch: "feat".to_string(),
+                    ahead: 2,
+                    behind: 3
+                },
+                GitStatusSummary {
+                    id: 2,
+                    branch: "dev".to_string(),
+                    ahead: 0,
+                    behind: 1
+                },
+            ]
+        );
+
+        // The same body without git rows: no badges, and the rosters
+        // still parse.
+        let snap = ClientSnapshot::parse(&lines(&[
+            "snapshot 1",
+            "workspace +0 * main",
+            "workspace +1 - lab",
+            "future-row-kind x y z",
+        ]))
+        .expect("snapshot parses");
+        assert!(snap.git.is_empty());
+        assert_eq!(snap.workspaces.len(), 2);
+
+        // Malformed git rows skip like unknown kinds: a `%`-prefixed id,
+        // a non-count field, and a missing field are all tolerated.
+        let snap = ClientSnapshot::parse(&lines(&[
+            "snapshot 1",
+            "git %0 main - -",
+            "git +0 main x -",
+            "git +0 main -",
+        ]))
+        .expect("snapshot parses");
+        assert!(snap.git.is_empty());
     }
 
     #[test]

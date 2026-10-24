@@ -37,6 +37,36 @@ impl MuxSessionRow {
     }
 }
 
+/// One workspace's git-badge facts (a `client-snapshot` `git` row): the
+/// branch and its ahead/behind counts. A workspace without facts —
+/// non-repo, detached HEAD, or an older daemon — has none, and the row
+/// shows no badge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceGit {
+    /// The checked-out branch.
+    pub branch: String,
+    /// Commits ahead of the upstream.
+    pub ahead: u32,
+    /// Commits behind the upstream.
+    pub behind: u32,
+}
+
+impl WorkspaceGit {
+    /// The badge text: ` branch`, plus ` ↑n` / ` ↓n` only when non-zero —
+    /// `-` on the wire means zero, so an in-sync repo shows the branch
+    /// alone.
+    pub fn badge(&self) -> String {
+        let mut badge = format!(" {}", self.branch);
+        if self.ahead > 0 {
+            badge.push_str(&format!(" \u{2191}{}", self.ahead));
+        }
+        if self.behind > 0 {
+            badge.push_str(&format!(" \u{2193}{}", self.behind));
+        }
+        badge
+    }
+}
+
 /// One workspace a running daemon holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MuxWorkspaceRow {
@@ -50,6 +80,8 @@ pub struct MuxWorkspaceRow {
     pub name: String,
     /// The daemon's active workspace (the one `select-workspace` resumes).
     pub active: bool,
+    /// The workspace's git-badge facts, when the daemon reported them.
+    pub git: Option<WorkspaceGit>,
 }
 
 /// What a directory scan found: sessions, plus one message per daemon that
@@ -414,6 +446,9 @@ impl MuxPickerSection {
                 RichText::new(&ws.name)
             };
             ui.label(label);
+            if let Some(git) = &ws.git {
+                ui.label(RichText::new(git.badge()).weak());
+            }
             if ours {
                 ui.label(RichText::new("(this daemon)").weak());
             }
@@ -567,5 +602,37 @@ mod tests {
     fn only_a_session_named_after_its_daemon_survives_restore() {
         assert!(row("work", "work").survives_restore());
         assert!(!row("default", "work").survives_restore());
+    }
+
+    /// Criterion 2 (card "Adopt client-snapshot git rows and
+    /// #{pane_title}"): the badge is ` branch` plus ` ↑n` / ` ↓n` only
+    /// when non-zero — `-` on the wire means zero, so an in-sync repo
+    /// shows the branch alone.
+    #[test]
+    fn workspace_git_badges_spell_zero_as_silence() {
+        let git = |branch: &str, ahead: u32, behind: u32| WorkspaceGit {
+            branch: branch.to_string(),
+            ahead,
+            behind,
+        };
+        assert_eq!(git("main", 0, 0).badge(), " main");
+        assert_eq!(git("feat", 2, 0).badge(), " feat ↑2");
+        assert_eq!(git("dev", 0, 3).badge(), " dev ↓3");
+        assert_eq!(git("wip", 1, 2).badge(), " wip ↑1 ↓2");
+    }
+
+    /// Criterion 4: a workspace without git facts — non-repo, detached
+    /// HEAD, or an older daemon — has `git: None` and no badge text.
+    #[test]
+    fn workspaces_without_git_facts_have_no_badge() {
+        let bare = MuxWorkspaceRow {
+            socket: PathBuf::from("/s/x.sock"),
+            daemon: "x".to_string(),
+            id: 0,
+            name: "repo".to_string(),
+            active: false,
+            git: None,
+        };
+        assert_eq!(bare.git, None);
     }
 }
