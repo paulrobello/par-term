@@ -10,9 +10,7 @@
 //! (built by concatenation, so the echoed command line itself cannot
 //! match).
 
-use super::mux_test_seams::{
-    DAEMON_DEADLINE, SettledSend, attached_window_with_tabs, wait_until,
-};
+use super::mux_test_seams::{DAEMON_DEADLINE, SettledSend, attached_window_with_tabs, wait_until};
 use crate::app::window_state::WindowState;
 
 /// Paint the claude idle OSC 2 title on daemon pane %0 and prove the paint
@@ -69,7 +67,9 @@ fn adopt_via_the_app_action_lands_in_the_roster() {
         }
     };
     assert!(
-        observed.as_ref().is_some_and(|(agent, state)| agent == "claude" && state == "idle"),
+        observed
+            .as_ref()
+            .is_some_and(|(agent, state)| agent == "claude" && state == "idle"),
         "the roster shows the adopted agent: observed {observed:?}, roster {:?}, \
          error slot {:?}, screen {:?}",
         ws.tmux_state
