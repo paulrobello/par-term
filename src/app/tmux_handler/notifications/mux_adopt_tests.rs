@@ -10,7 +10,9 @@
 //! (built by concatenation, so the echoed command line itself cannot
 //! match).
 
-use super::mux_test_seams::{SettledSend, attached_window_with_tabs, wait_until};
+use super::mux_test_seams::{
+    DAEMON_DEADLINE, SettledSend, attached_window_with_tabs, wait_until,
+};
 use crate::app::window_state::WindowState;
 
 /// Paint the claude idle OSC 2 title on daemon pane %0 and prove the paint
@@ -50,10 +52,34 @@ fn adopt_via_the_app_action_lands_in_the_roster() {
         ws.adopt_pane_agent("claude"),
         "the daemon accepted the adopt"
     );
-    wait_until("the roster shows the adopted agent", || {
-        ws.check_tmux_notifications();
-        roster_row(&ws, 0).is_some_and(|(agent, state)| agent == "claude" && state == "idle")
-    });
+    let observed = {
+        let deadline = std::time::Instant::now() + DAEMON_DEADLINE;
+        loop {
+            ws.check_tmux_notifications();
+            if let Some(row) = roster_row(&ws, 0) {
+                break Some(row);
+            }
+            if std::time::Instant::now() >= deadline {
+                break None;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+    };
+    assert!(
+        observed.is_some_and(|(agent, state)| agent == "claude" && state == "idle"),
+        "the roster shows the adopted agent: observed {observed:?}, roster {:?}, \
+         error slot {:?}, screen {:?}",
+        ws.tmux_state
+            .agent_roster
+            .iter()
+            .map(|e| (e.pane, e.agent.clone(), e.state.clone()))
+            .collect::<Vec<_>>(),
+        ws.tmux_state.mux_last_error,
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .and_then(|t| t.query_settled("capture-pane -t %0 -p").ok()),
+    );
     assert!(
         ws.tmux_state.mux_last_error.is_none(),
         "the error slot stayed clear: {:?}",
