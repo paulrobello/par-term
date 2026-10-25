@@ -17,10 +17,13 @@ use crate::app::window_state::WindowState;
 
 /// Paint the claude idle OSC 2 title on daemon pane %0 and prove the paint
 /// landed: the shell runs printf (title set) before its own `echo` output
-/// (the marker) reaches the screen.
+/// (the marker) reaches the screen. `exec cat` then replaces the shell so
+/// no prompt follows — a prompt repainting the title (Ubuntu bash's default
+/// PS1 emits `\e]0;user@host:dir\a`) would wipe the OSC 2 paint before the
+/// adopt classifies, which is exactly how the Linux CI legs failed.
 fn paint_claude_idle_title(ws: &mut WindowState) {
     let transport = ws.tmux_state.transport.as_ref().expect("transport");
-    let paint = "printf '\\033]2;✳ ready\\007'; echo P4-ADOPT-READ\"\"Y";
+    let paint = "printf '\\033]2;✳ ready\\007'; echo P4-ADOPT-READ\"\"Y; exec cat";
     transport
         .send_settled(&format!("send-keys -t %0 \"{paint}\" Enter"))
         .expect("send-keys accepted");
@@ -66,7 +69,7 @@ fn adopt_via_the_app_action_lands_in_the_roster() {
         }
     };
     assert!(
-        observed.is_some_and(|(agent, state)| agent == "claude" && state == "idle"),
+        observed.as_ref().is_some_and(|(agent, state)| agent == "claude" && state == "idle"),
         "the roster shows the adopted agent: observed {observed:?}, roster {:?}, \
          error slot {:?}, screen {:?}",
         ws.tmux_state
