@@ -266,7 +266,7 @@ mdns-sd = { workspace = true, optional = true }       # mDNS/Bonjour service dis
 
 # Linux-specific: GTK for native menus (muda requires the gtk3 feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]
-version = "0.20"
+version = "0.21"
 features = ["gtk3"]
 
 # macOS-specific: Access CAMetalLayer for performance optimization
