@@ -116,7 +116,7 @@ impl ScriptEventForwarder {
             TerminalEvent::TitleChanged(_) => "title_changed".to_string(),
             TerminalEvent::SizeChanged(_, _) => "size_changed".to_string(),
             TerminalEvent::ModeChanged(_, _) => "mode_changed".to_string(),
-            TerminalEvent::GraphicsAdded(_) => "graphics_added".to_string(),
+            TerminalEvent::GraphicsAdded { .. } => "graphics_added".to_string(),
             TerminalEvent::HyperlinkAdded { .. } => "hyperlink_added".to_string(),
             TerminalEvent::DirtyRegion(_, _) => "dirty_region".to_string(),
             TerminalEvent::CwdChanged(_) => "cwd_changed".to_string(),
