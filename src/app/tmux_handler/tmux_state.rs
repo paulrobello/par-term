@@ -93,6 +93,15 @@ pub(crate) enum MuxJob {
     DiscoverWindow(crate::tmux::TmuxWindowId),
     /// One `refresh-client -t %N` per pane: each pane's current screen.
     SeedPanes(Vec<TmuxPaneId>),
+    /// Upload a local file into a daemon pane: `upload-begin`/`chunk`/
+    /// `commit` on the worker, the materialized path bracket-pasted into
+    /// `pane` at commit. `file_name` is the bare name the daemon stages
+    /// under; `path` is the local file to read.
+    UploadFile {
+        pane: TmuxPaneId,
+        path: std::path::PathBuf,
+        file_name: String,
+    },
 }
 
 /// What a [`MuxJob`] learned, applied on the event loop.
@@ -103,8 +112,25 @@ pub(crate) enum MuxJobResult {
         window: crate::tmux::TmuxWindowId,
         panes: Vec<(TmuxPaneId, (u16, u16))>,
     },
-    /// Each pane's `refresh-client` reply.
-    PaneSeeds(Vec<(TmuxPaneId, std::io::Result<Vec<String>>)>),
+    /// Each pane's `refresh-client` reply: screen lines plus graphics
+    /// placements re-encoded as synthetic OSC bytes (empty without `-G`
+    /// support or placements).
+    PaneSeeds(Vec<(TmuxPaneId, std::io::Result<PaneSeedPayload>)>),
+    /// A pane upload settled: the materialized path in the pane (the
+    /// commit reply) on success, the failing step's error otherwise.
+    UploadFinished {
+        path: std::path::PathBuf,
+        result: std::io::Result<String>,
+    },
+}
+
+/// One pane's landed `refresh-client` seed: the screen part as reply
+/// lines, and the seed's graphics placements re-encoded as synthetic OSC
+/// bytes (empty for an older daemon or a pane without graphics).
+#[cfg(feature = "mux")]
+pub(crate) struct PaneSeedPayload {
+    pub(crate) screen: Vec<String>,
+    pub(crate) graphics_osc: Vec<u8>,
 }
 
 /// A delayed mux paste in flight: the chunks still to send (each line
@@ -151,6 +177,12 @@ pub(crate) struct TmuxState {
     /// create the panes)
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) mux_screen_seeds: std::collections::HashMap<TmuxPaneId, Vec<u8>>,
+    /// Graphics placements from `refresh-client -G` seeds (reattach +
+    /// mid-session re-seeds), as the finished synthetic OSC bytes
+    /// (graphics_seed::graphics_seed_osc_bytes). Delivered by the same
+    /// end-of-poll sweep as the screen seeds, after a pane's screen seed.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_graphics_osc: std::collections::HashMap<TmuxPaneId, Vec<u8>>,
     /// Daemon pane titles awaiting their pane mapping (reattach title
     /// restore + pushes that arrived before the layout consumer created
     /// the native pane), applied by the same end-of-poll sweep as the
@@ -278,6 +310,7 @@ impl TmuxState {
             mux_session_id: None,
             mux_snapshot_supported: None,
             mux_screen_seeds: std::collections::HashMap::new(),
+            mux_graphics_osc: std::collections::HashMap::new(),
             mux_pane_titles: std::collections::HashMap::new(),
             mux_exited_panes: std::collections::HashMap::new(),
             #[cfg(feature = "mux")]

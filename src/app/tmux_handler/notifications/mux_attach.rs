@@ -5,8 +5,9 @@
 //! this from `install_mux_transport`.
 
 use super::mux_transport::MuxTransport;
+use crate::app::tmux_handler::graphics_seed::graphics_seed_osc_bytes;
 use crate::app::tmux_handler::tmux_state::TmuxTransport;
-use par_term_mux::{AgentEntry, AttachOutcome};
+use par_term_mux::{AgentEntry, AttachOutcome, split_graphics_seed};
 use par_term_tmux::{TmuxPaneId, TmuxWindowId};
 use std::io;
 
@@ -75,8 +76,21 @@ pub(crate) fn attach_sequence(
         crate::debug_error!("MUX", "set-client-colors on attach failed: {e}");
     }
     let mut screens = Vec::new();
+    let mut graphics = Vec::new();
     for pane in panes {
-        let reply = transport.client().refresh_pane(pane)?;
+        // `-G` with a plain retry: an older daemon rejects the flag, and
+        // its error body must never be mistaken for the pane's screen.
+        let (reply, graphics_osc) = match transport
+            .client()
+            .send_checked(&format!("refresh-client -t %{pane} -G"))
+        {
+            Ok(reply) if reply.ok => {
+                let (screen, frames) = split_graphics_seed(&reply.body);
+                let osc = graphics_seed_osc_bytes(&frames);
+                (screen, osc)
+            }
+            _ => (transport.client().refresh_pane(pane)?, Vec::new()),
+        };
         // The clear is part of the seed: the client pane may already hold
         // stale content (bytes that arrived between the daemon's snapshot
         // and delivery), and the replay must define the baseline rather
@@ -84,6 +98,9 @@ pub(crate) fn attach_sequence(
         let mut bytes = b"\x1b[H\x1b[2J".to_vec();
         bytes.extend_from_slice(&reply.join("\n").into_bytes());
         screens.push((pane, bytes));
+        if !graphics_osc.is_empty() {
+            graphics.push((pane, graphics_osc));
+        }
     }
     // The roster fill degrades to empty rather than failing the attach: a
     // query that cannot run leaves the panes absent from the roster (they
@@ -118,6 +135,7 @@ pub(crate) fn attach_sequence(
         existing_windows,
         window_names,
         screens,
+        graphics,
         agents,
         titles,
     })
@@ -207,6 +225,10 @@ pub(crate) struct AttachSequence {
     pub(crate) existing_windows: Vec<TmuxWindowId>,
     pub(crate) window_names: Vec<(TmuxWindowId, String)>,
     pub(crate) screens: Vec<(TmuxPaneId, Vec<u8>)>,
+    /// Graphics placements from the same `refresh-client -G` replies the
+    /// screens came from, re-encoded as synthetic OSC bytes — one entry
+    /// per pane, empty without `-G` support or placements.
+    pub(crate) graphics: Vec<(TmuxPaneId, Vec<u8>)>,
     pub(crate) agents: Vec<AgentEntry>,
     pub(crate) titles: Vec<(TmuxPaneId, (String, bool))>,
 }

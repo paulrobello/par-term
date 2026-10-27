@@ -3,9 +3,10 @@
 //! poll loop reports. Split from `mux.rs`, which owns the app wiring
 //! (attach/detach lifecycle, input routing, client capability pushes).
 
-use crate::app::tmux_handler::tmux_state::{MuxJob, MuxJobResult, TmuxTransport};
+use crate::app::tmux_handler::graphics_seed::graphics_seed_osc_bytes;
+use crate::app::tmux_handler::tmux_state::{MuxJob, MuxJobResult, PaneSeedPayload, TmuxTransport};
 use par_term_emu_core_rust::mux::MuxClient;
-use par_term_mux::MuxSessionClient;
+use par_term_mux::{MuxSessionClient, split_graphics_seed};
 use par_term_tmux::TmuxPaneId;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -175,6 +176,7 @@ fn spawn_send_worker(
 ) {
     std::thread::spawn(move || {
         let send = |command: &str| worker_send(&client, &health, command);
+        let send_checked = |command: &str| worker_send_checked(&client, &health, command);
         // A job's commands are read-only queries, so letting an inline
         // send run between two of them reorders nothing that matters.
         // Without this yield the loop's 5 ms lock poll rarely lands in the
@@ -194,7 +196,10 @@ fn spawn_send_worker(
                     let _ = send(&command);
                 }
                 WorkItem::Job(job) => {
-                    if results.send(run_job(job, &job_send)).is_err() {
+                    if results
+                        .send(run_job(job, &job_send, &|c: &str| send_checked(c)))
+                        .is_err()
+                    {
                         return;
                     }
                 }
@@ -219,11 +224,169 @@ fn worker_send(
     result
 }
 
-/// Run a [`MuxJob`] against `send` and package what it learned. Every
-/// command a job sends is a read-only query; anything that changes daemon
-/// state goes through the ordered `Send` queue instead.
-fn run_job(job: MuxJob, send: &dyn Fn(&str) -> io::Result<Vec<String>>) -> MuxJobResult {
+/// One checked worker send: the reply body plus its ok (`%end`) vs
+/// error (`%error`) close.
+type CheckedSend<'a> = &'a dyn Fn(&str) -> io::Result<(Vec<String>, bool)>;
+
+/// Seed one pane's screen with graphics replay attached: `-G` when the
+/// daemon accepts it, a plain re-seed when it rejects the flag (older
+/// daemon), and an empty graphics section either way when the pane has
+/// no placements. The re-encode to OSC bytes happens here, on the worker,
+/// so the event loop only processes finished bytes.
+fn seed_pane_with_graphics(
+    send_checked: CheckedSend<'_>,
+    send: &dyn Fn(&str) -> io::Result<Vec<String>>,
+    pane: TmuxPaneId,
+) -> io::Result<PaneSeedPayload> {
+    match send_checked(&format!("refresh-client -t %{pane} -G")) {
+        Ok((body, true)) => {
+            let (screen, graphics) = split_graphics_seed(&body);
+            Ok(PaneSeedPayload {
+                screen,
+                graphics_osc: graphics_seed_osc_bytes(&graphics),
+            })
+        }
+        Ok((_, false)) | Err(_) => Ok(PaneSeedPayload {
+            screen: send(&format!("refresh-client -t %{pane}"))?,
+            graphics_osc: Vec::new(),
+        }),
+    }
+}
+
+/// Upload one local file into a daemon pane — the 0.69.0 native verbs:
+/// `upload-begin <name> <total>` answers the staging id, `upload-chunk
+/// <id> <base64>` streams 64 KiB pieces, `upload-commit -t <pane> <id>`
+/// materializes the file and bracket-pastes its path into the pane.
+/// Over-cap files and oversized names are refused here, before any wire
+/// traffic; a failure aborts the staging and reports the failing step.
+fn upload_file(
+    send_checked: CheckedSend<'_>,
+    pane: TmuxPaneId,
+    path: &std::path::Path,
+    file_name: &str,
+) -> io::Result<String> {
+    use base64::Engine as _;
+    use par_term_emu_core_rust::mux::uploads::{
+        MAX_UPLOAD_CHUNK_BYTES, MAX_UPLOAD_NAME_BYTES, MAX_UPLOAD_TOTAL_BYTES,
+    };
+    let abort = |id: u64| {
+        let _ = send_checked(&format!("upload-abort {id}"));
+    };
+    let name_bytes = file_name.len();
+    if name_bytes > MAX_UPLOAD_NAME_BYTES {
+        return Err(io::Error::other(format!(
+            "file name is {name_bytes} bytes; the daemon caps names at {MAX_UPLOAD_NAME_BYTES}"
+        )));
+    }
+    let meta = std::fs::metadata(path)
+        .map_err(|e| io::Error::other(format!("cannot read {path:?}: {e}")))?;
+    let total = meta.len();
+    if total > MAX_UPLOAD_TOTAL_BYTES {
+        return Err(io::Error::other(format!(
+            "file is {total} bytes; the daemon caps uploads at {MAX_UPLOAD_TOTAL_BYTES}"
+        )));
+    }
+    let data =
+        std::fs::read(path).map_err(|e| io::Error::other(format!("cannot read {path:?}: {e}")))?;
+    let begin_reply = send_checked(&format!(
+        "upload-begin {} {total}",
+        quote_shell_word(file_name)
+    ))
+    .map_err(|e| io::Error::other(format!("upload-begin failed: {e}")))?;
+    let (body, ok) = begin_reply;
+    if !ok {
+        return Err(io::Error::other(format!(
+            "daemon refused upload-begin: {}",
+            body.join(" ")
+        )));
+    }
+    let Some(id_str) = body.first() else {
+        return Err(io::Error::other("upload-begin reply carried no id"));
+    };
+    let id: u64 = id_str
+        .trim()
+        .parse()
+        .map_err(|_| io::Error::other(format!("upload-begin reply is not an id: {id_str:?}")))?;
+    for (index, chunk) in data.chunks(MAX_UPLOAD_CHUNK_BYTES).enumerate() {
+        let payload = base64::engine::general_purpose::STANDARD.encode(chunk);
+        let reply = send_checked(&format!("upload-chunk {id} {payload}")).map_err(|e| {
+            abort(id);
+            io::Error::other(format!("upload-chunk {} failed: {e}", index + 1))
+        })?;
+        if !reply.1 {
+            abort(id);
+            return Err(io::Error::other(format!(
+                "daemon refused chunk {}: {}",
+                index + 1,
+                reply.0.join(" ")
+            )));
+        }
+    }
+    let commit = send_checked(&format!("upload-commit -t %{pane} {id}")).map_err(|e| {
+        abort(id);
+        io::Error::other(format!("upload-commit failed: {e}"))
+    })?;
+    if !commit.1 {
+        abort(id);
+        return Err(io::Error::other(format!(
+            "daemon refused upload-commit: {}",
+            commit.0.join(" ")
+        )));
+    }
+    commit
+        .0
+        .first()
+        .cloned()
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| io::Error::other("upload-commit reply carried no path"))
+}
+
+/// Quote one shell word for the wire (the daemon's `upload-begin` parser
+/// splits shell words). Single-quote form; an embedded single quote
+/// switches to the double-quoted form.
+fn quote_shell_word(word: &str) -> String {
+    if word.contains('\'') {
+        format!("\"{word}\"")
+    } else {
+        format!("'{word}'")
+    }
+}
+
+/// [`worker_send`] with the reply's ok (`%end`) vs error (`%error`)
+/// closing — the discrimination the `-G` retry needs.
+fn worker_send_checked(
+    client: &Mutex<MuxSessionClient>,
+    health: &MuxHealth,
+    command: &str,
+) -> io::Result<(Vec<String>, bool)> {
+    let mut client = client.lock().unwrap_or_else(|p| p.into_inner());
+    health.send_started();
+    let result = client
+        .send_checked(command)
+        .map(|reply| (reply.body, reply.ok));
+    health.send_finished_reply(&result);
+    result
+}
+
+/// Run a [`MuxJob`] against `send` and package what it learned. Query
+/// jobs are read-only; `UploadFile` is the deliberate exception — it
+/// changes daemon state (staging, then a commit paste) and runs to
+/// completion on this worker regardless, on the connection's lock held
+/// per command only.
+fn run_job(
+    job: MuxJob,
+    send: &dyn Fn(&str) -> io::Result<Vec<String>>,
+    send_checked: CheckedSend<'_>,
+) -> MuxJobResult {
     match job {
+        MuxJob::UploadFile {
+            pane,
+            path,
+            file_name,
+        } => MuxJobResult::UploadFinished {
+            path: path.clone(),
+            result: upload_file(&send_checked, pane, &path, &file_name),
+        },
         MuxJob::DiscoverWindow(window) => {
             let mut panes = Vec::new();
             if let Ok(listed) = send("list-panes") {
@@ -244,7 +407,10 @@ fn run_job(job: MuxJob, send: &dyn Fn(&str) -> io::Result<Vec<String>>) -> MuxJo
         MuxJob::SeedPanes(panes) => MuxJobResult::PaneSeeds(
             panes
                 .into_iter()
-                .map(|pane| (pane, send(&format!("refresh-client -t %{pane}"))))
+                .map(|pane| {
+                    let payload = seed_pane_with_graphics(&send_checked, &send, pane);
+                    (pane, payload)
+                })
                 .collect(),
         ),
     }
@@ -324,6 +490,18 @@ impl MuxHealth {
     /// unresponsive until some later send succeeds; anything else (reply
     /// or non-timeout error) proves liveness.
     pub(crate) fn send_finished(&self, result: &io::Result<Vec<String>>) {
+        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        state.started = None;
+        state.timed_out = matches!(
+            result,
+            Err(e) if e.kind() == io::ErrorKind::TimedOut
+        );
+    }
+
+    /// [`MuxHealth::send_finished`] for the checked form: the same
+    /// liveness bookkeeping, keyed on the transport result only (an
+    /// `%error` closing is a live daemon's answer).
+    pub(crate) fn send_finished_reply(&self, result: &io::Result<(Vec<String>, bool)>) {
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
         state.started = None;
         state.timed_out = matches!(

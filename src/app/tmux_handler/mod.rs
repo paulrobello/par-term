@@ -13,6 +13,8 @@
 mod gateway;
 mod gateway_input;
 mod gateway_profile;
+#[cfg(feature = "mux")]
+mod graphics_seed;
 #[cfg(all(test, feature = "mux"))]
 mod mux_close_confirm_tests;
 pub(crate) mod notifications;

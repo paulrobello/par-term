@@ -332,6 +332,7 @@ impl WindowState {
                  existing_windows,
                  window_names,
                  screens,
+                 graphics,
                  agents,
                  titles,
              }| {
@@ -389,6 +390,11 @@ impl WindowState {
                 // Screens land once the layout consumers create the panes
                 // (checked each poll in check_mux_notifications).
                 self.tmux_state.mux_screen_seeds = screens
+                    .into_iter()
+                    .collect::<std::collections::HashMap<_, _>>();
+                // Graphics placements ride the same replies; they land
+                // beside the screens and deliver after each pane's screen.
+                self.tmux_state.mux_graphics_osc = graphics
                     .into_iter()
                     .collect::<std::collections::HashMap<_, _>>();
                 // Daemon pane titles wait the same way — the reattach
@@ -456,6 +462,7 @@ impl WindowState {
         self.tmux_state.mux_snapshot_supported = None;
         self.tmux_state.mux_focused_pane = None;
         self.tmux_state.mux_screen_seeds.clear();
+        self.tmux_state.mux_graphics_osc.clear();
         self.tmux_state.mux_pane_titles.clear();
         self.tmux_state.mux_reconnect_titles.clear();
         self.tmux_state.mux_exited_panes.clear();
@@ -544,6 +551,7 @@ impl WindowState {
         self.tmux_state.transport.take();
         self.tmux_state.mux_focused_pane = None;
         self.tmux_state.mux_screen_seeds.clear();
+        self.tmux_state.mux_graphics_osc.clear();
         self.tmux_state.mux_pane_titles.clear();
         self.tmux_state.mux_exited_panes.clear();
         self.tmux_state.clear_mux_seed_holds();

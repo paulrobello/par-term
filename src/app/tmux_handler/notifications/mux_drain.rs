@@ -573,10 +573,19 @@ impl WindowState {
     /// uses; a seed is consumed only once delivered (a locked terminal
     /// retries next frame).
     fn apply_pending_mux_screen_seeds(&mut self) {
-        if self.tmux_state.mux_screen_seeds.is_empty() {
+        if self.tmux_state.mux_screen_seeds.is_empty()
+            && self.tmux_state.mux_graphics_osc.is_empty()
+        {
             return;
         }
-        let ready: Vec<TmuxPaneId> = self.tmux_state.mux_screen_seeds.keys().copied().collect();
+        let mut ready: Vec<TmuxPaneId> = self.tmux_state.mux_screen_seeds.keys().copied().collect();
+        ready.extend(
+            self.tmux_state
+                .mux_graphics_osc
+                .keys()
+                .filter(|pane| !self.tmux_state.mux_screen_seeds.contains_key(pane))
+                .copied(),
+        );
         for pane in ready {
             self.deliver_pending_mux_seed(pane);
         }
@@ -691,9 +700,11 @@ impl WindowState {
     /// app populates the sync map, so every seed sat pending forever and
     /// panes reattached blank.
     pub(super) fn deliver_pending_mux_seed(&mut self, tmux_pane: TmuxPaneId) -> bool {
-        let Some(data) = self.tmux_state.mux_screen_seeds.get(&tmux_pane).cloned() else {
+        let data = self.tmux_state.mux_screen_seeds.get(&tmux_pane).cloned();
+        let graphics = self.tmux_state.mux_graphics_osc.get(&tmux_pane).cloned();
+        if data.is_none() && graphics.is_none() {
             return false;
-        };
+        }
 
         // Per-tab mapping — the owning tab resolves the pane (native ids
         // restart at 1 per tab).
@@ -703,8 +714,18 @@ impl WindowState {
                 && let Some(pane_obj) = pane_manager.get_pane_mut(native)
                 && let Ok(term) = pane_obj.terminal.try_read()
             {
-                term.process_mux_output(&data);
-                self.tmux_state.mux_screen_seeds.remove(&tmux_pane);
+                if let Some(data) = data {
+                    term.process_mux_output(&data);
+                    self.tmux_state.mux_screen_seeds.remove(&tmux_pane);
+                }
+                if let Some(graphics) = graphics {
+                    // Plain process_data, not process_mux_output: the
+                    // synthetic OSC frames are replay, not pane output —
+                    // they must not ride the output callback (session
+                    // logging would record them as pane bytes).
+                    term.process_data(&graphics);
+                    self.tmux_state.mux_graphics_osc.remove(&tmux_pane);
+                }
                 crate::debug_info!(
                     "MUX",
                     "delivered pending mux seed before live output for %{}",
@@ -724,8 +745,14 @@ impl WindowState {
                 && let Some(pane_obj) = pane_manager.get_pane_mut(native)
                 && let Ok(term) = pane_obj.terminal.try_read()
             {
-                term.process_mux_output(&data);
-                self.tmux_state.mux_screen_seeds.remove(&tmux_pane);
+                if let Some(data) = data {
+                    term.process_mux_output(&data);
+                    self.tmux_state.mux_screen_seeds.remove(&tmux_pane);
+                }
+                if let Some(graphics) = graphics {
+                    term.process_data(&graphics);
+                    self.tmux_state.mux_graphics_osc.remove(&tmux_pane);
+                }
                 crate::debug_info!(
                     "MUX",
                     "delivered pending mux seed before live output for %{}",

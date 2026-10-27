@@ -51,6 +51,8 @@ mod mux_drain;
 #[cfg(all(test, feature = "mux"))]
 mod mux_drain_tests;
 #[cfg(all(test, feature = "mux", unix))]
+mod mux_graphics_seed_tests;
+#[cfg(all(test, feature = "mux", unix))]
 mod mux_leader_tests;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_pane_exit;

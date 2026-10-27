@@ -327,6 +327,18 @@ impl WindowState {
         // gateway PTY — or, for a mux mirror (no PTY), nowhere at all.
         // paste_via_tmux's mux branch does not depend on is_tmux_connected,
         // which is false for mux tabs.
+
+        // Mux pane drop: upload through the daemon's upload verbs instead
+        // of pasting the local path — the path only means something on the
+        // daemon's host, and the upload works for remote daemons too.
+        // False here means "not a daemon pane": the path-paste behavior
+        // below stays the gateway/local answer.
+        #[cfg(feature = "mux")]
+        if self.upload_dropped_file_to_mux(&path) {
+            self.request_redraw();
+            return;
+        }
+
         if self.paste_via_tmux(&quoted_path) {
             self.request_redraw();
             return;
@@ -359,6 +371,62 @@ impl WindowState {
             // Request redraw in case terminal needs to update
             self.request_redraw();
         }
+    }
+
+    /// Upload a file dropped onto a daemon-fed mux pane through the
+    /// daemon's upload verbs (`MuxJob::UploadFile`). Returns false when
+    /// the drop did not land on a daemon pane — no attached daemon
+    /// transport, a gateway tab, an unresolvable pane — and the caller
+    /// falls through to the paste-path behavior.
+    #[cfg(feature = "mux")]
+    fn upload_dropped_file_to_mux(&mut self, path: &std::path::Path) -> bool {
+        use crate::app::tmux_handler::tmux_state::MuxJob;
+
+        let Some(transport) = self.tmux_state.transport.as_ref() else {
+            return false;
+        };
+        let Some(tab) = self.tab_manager.active_tab() else {
+            return false;
+        };
+        if !tab.is_mux_tab() {
+            return false;
+        }
+        let tab_id = tab.id;
+        // The drop target: the pane the drop focused (multi-pane focus ran
+        // above this call and routes through mux_focused_pane), the tab's
+        // focused pane by mapping, else the tab's sole daemon pane.
+        let focused_native = tab.pane_manager().and_then(|pm| pm.focused_pane_id());
+        let pane = self
+            .tmux_state
+            .mux_focused_pane
+            .filter(|tp| {
+                self.tmux_state
+                    .tmux_pane_owner(*tp)
+                    .is_some_and(|(t, _)| t == tab_id)
+            })
+            .or_else(|| {
+                focused_native.and_then(|native| self.tmux_state.tmux_pane_in_tab(tab_id, native))
+            })
+            .or_else(|| {
+                // Sole-daemon-pane tabs: any owner of this tab.
+                self.tmux_state
+                    .tmux_pane_owners
+                    .iter()
+                    .filter(|(_, (t, _))| *t == tab_id)
+                    .map(|(tp, _)| *tp)
+                    .next()
+            });
+        let Some(pane) = pane else {
+            return false;
+        };
+        let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
+            return false;
+        };
+        transport.submit_job(MuxJob::UploadFile {
+            pane,
+            path: path.to_path_buf(),
+            file_name: file_name.to_string(),
+        })
     }
 }
 

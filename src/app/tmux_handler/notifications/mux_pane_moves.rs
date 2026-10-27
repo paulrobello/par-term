@@ -14,7 +14,7 @@
 //! [`WindowState::apply_mux_job_results`] applies what they learned at the
 //! top of each drain.
 
-use crate::app::tmux_handler::tmux_state::{MuxJob, MuxJobResult};
+use crate::app::tmux_handler::tmux_state::{MuxJob, MuxJobResult, PaneSeedPayload};
 use crate::app::window_state::WindowState;
 use par_term_tmux::{TmuxPaneId, TmuxWindowId};
 
@@ -52,6 +52,14 @@ impl WindowState {
                     self.finish_new_mux_window(window, &panes);
                 }
                 MuxJobResult::PaneSeeds(seeds) => self.land_mux_pane_seeds(seeds),
+                MuxJobResult::UploadFinished { path, result } => match result {
+                    Ok(materialized) => {
+                        self.show_toast(format!("Uploaded {} → {}", path.display(), materialized))
+                    }
+                    Err(e) => {
+                        self.record_mux_error(format!("Upload of {} failed: {e}", path.display()))
+                    }
+                },
             }
         }
         applied
@@ -262,7 +270,7 @@ impl WindowState {
     /// move and the snapshot is replayed on top of it — the same overlap
     /// the synchronous seed had, widened only by the worker's queue delay.
     /// A pane still waiting on a later request keeps holding.
-    fn land_mux_pane_seeds(&mut self, seeds: Vec<(TmuxPaneId, std::io::Result<Vec<String>>)>) {
+    fn land_mux_pane_seeds(&mut self, seeds: Vec<(TmuxPaneId, std::io::Result<PaneSeedPayload>)>) {
         for (pane, reply) in seeds {
             let left = match self.tmux_state.mux_seeds_in_flight.get_mut(&pane) {
                 Some(count) => {
@@ -277,15 +285,20 @@ impl WindowState {
                 self.tmux_state.mux_seeds_in_flight.remove(&pane);
             }
             match reply {
-                Ok(reply) => {
+                Ok(payload) => {
                     let mut bytes = b"\x1b[H\x1b[2J".to_vec();
-                    bytes.extend_from_slice(reply.join("\n").as_bytes());
+                    bytes.extend_from_slice(payload.screen.join("\n").as_bytes());
                     self.tmux_state
                         .mux_held_output
                         .remove(&pane)
                         .into_iter()
                         .for_each(|held| bytes.extend_from_slice(&held));
                     self.tmux_state.mux_screen_seeds.insert(pane, bytes);
+                    if !payload.graphics_osc.is_empty() {
+                        self.tmux_state
+                            .mux_graphics_osc
+                            .insert(pane, payload.graphics_osc);
+                    }
                 }
                 Err(e) => {
                     log::warn!("par-mux: seed for moved pane %{pane} failed: {e}");
@@ -323,6 +336,7 @@ mod tests {
     use super::super::mux::MuxAttachPending;
     use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
     use super::super::mux_test_seams::{SettledSend, poll_until, quiesce, wait_until};
+    use crate::app::tmux_handler::tmux_state::PaneSeedPayload;
     use crate::app::window_state::WindowState;
     use std::time::{Duration, Instant};
 
@@ -739,7 +753,13 @@ mod tests {
         assert!(ws.hold_output_behind_seed(5, b"late-2"));
         assert!(!ws.hold_output_behind_seed(6, b"other pane"));
 
-        ws.land_mux_pane_seeds(vec![(5, Ok(vec!["snapshot".to_string()]))]);
+        ws.land_mux_pane_seeds(vec![(
+            5,
+            Ok(PaneSeedPayload {
+                screen: vec!["snapshot".to_string()],
+                graphics_osc: Vec::new(),
+            }),
+        )]);
         assert_eq!(
             ws.tmux_state.mux_screen_seeds.get(&5).map(Vec::as_slice),
             Some(&b"\x1b[H\x1b[2Jsnapshotlate-1 late-2"[..]),
@@ -760,7 +780,13 @@ mod tests {
 
         // A seed landing after detach cleared the bookkeeping is dropped.
         ws.tmux_state.mux_screen_seeds.clear();
-        ws.land_mux_pane_seeds(vec![(9, Ok(vec!["stale".to_string()]))]);
+        ws.land_mux_pane_seeds(vec![(
+            9,
+            Ok(PaneSeedPayload {
+                screen: vec!["stale".to_string()],
+                graphics_osc: Vec::new(),
+            }),
+        )]);
         assert!(ws.tmux_state.mux_screen_seeds.is_empty());
     }
 

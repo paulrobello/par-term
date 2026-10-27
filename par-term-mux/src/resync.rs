@@ -562,6 +562,80 @@ fn invalid_line(kind: &str, line: &str) -> io::Error {
     )
 }
 
+/// One placement from a `refresh-client -G` seed's `%graphics` section:
+/// raw RGBA pixels plus the cell the image's top-left corner sits on and
+/// its pixel size. ids are the daemon's graphic ids (replace-tracking on
+/// a later re-seed); par-term re-encodes the pixels client-side.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SeedGraphic {
+    pub id: u64,
+    pub col: u32,
+    pub row: u32,
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
+
+/// One graphics placement line: `%gfx <id> <col> <row> <w> <h> <base64>`.
+/// A malformed line is skipped, never an error — a pane can print any
+/// text, so the daemon's section always rides inside an inert reply and
+/// the walk stays best-effort.
+fn parse_gfx_line(line: &str) -> Option<SeedGraphic> {
+    use base64::Engine as _;
+    let mut fields = line.split_whitespace();
+    let tag = fields.next()?;
+    if tag != "%gfx" {
+        return None;
+    }
+    let id = fields.next()?.parse().ok()?;
+    let col = fields.next()?.parse().ok()?;
+    let row = fields.next()?.parse().ok()?;
+    let width = fields.next()?.parse().ok()?;
+    let height = fields.next()?.parse().ok()?;
+    let rgba = base64::engine::general_purpose::STANDARD
+        .decode(fields.next()?)
+        .ok()?;
+    // A trailing field or missing payload is malformed (six fields exactly).
+    if fields.next().is_some() {
+        return None;
+    }
+    Some(SeedGraphic {
+        id,
+        col,
+        row,
+        width,
+        height,
+        rgba,
+    })
+}
+
+/// Split a `refresh-client -G` reply into its screen part and graphics
+/// placements. A reply without the `%graphics-begin` marker is all screen
+/// (`None` graphics) — an older daemon's rejection of the flag or a
+/// no-graphics pane look identical and both mean "no replay". A pane can
+/// print the marker itself, so the split is on the LAST begin marker, the
+/// same discipline the daemon-side mirror uses. `%gfx` rows after the
+/// closing marker (a pane printing them) are screen bytes again.
+pub fn split_graphics_seed(reply: &[String]) -> (Vec<String>, Vec<SeedGraphic>) {
+    let Some(begin) = reply
+        .iter()
+        .rposition(|l| l.trim_end() == "%graphics-begin")
+    else {
+        return (reply.to_vec(), Vec::new());
+    };
+    let screen = reply[..begin].to_vec();
+    let mut graphics = Vec::new();
+    for line in &reply[begin + 1..] {
+        if line.trim_end() == "%graphics-end" {
+            break;
+        }
+        if let Some(graphic) = parse_gfx_line(line) {
+            graphics.push(graphic);
+        }
+    }
+    (screen, graphics)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -788,5 +862,77 @@ mod tests {
         assert!(parse_session_row("$0: roster").is_err());
         assert!(parse_session_row("+0").is_err());
         assert!(parse_session_row("+0: main: dev").is_err());
+    }
+
+    /// A 4-byte RGBA pixel, base64-encoded.
+    fn pixel_b64() -> String {
+        use base64::Engine as _;
+        base64::engine::general_purpose::STANDARD.encode([0x80u8, 0x40, 0x20, 0xFF])
+    }
+
+    #[test]
+    fn reply_without_marker_is_all_screen() {
+        let reply = lines(&["restore", "lines"]);
+        let (screen, graphics) = split_graphics_seed(&reply);
+        assert_eq!(screen, vec!["restore".to_string(), "lines".to_string()]);
+        assert!(graphics.is_empty());
+    }
+
+    #[test]
+    fn graphics_section_is_extracted_after_last_marker() {
+        let b64 = pixel_b64();
+        let reply = lines(&[
+            "%graphics-begin", // a pane printed a fake marker; the LAST one wins
+            "%gfx 7 1 2 4 2 <not-base64-but-ignored-screen>", // ignored: before the real section
+            "%graphics-end",
+            "screen continues here",
+            "%graphics-begin",
+            &format!("%gfx 7 1 2 4 2 {b64}"),
+            "%gfx 8 0 0 1 1 AAAA",
+            "%graphics-end",
+        ]);
+        let (screen, graphics) = split_graphics_seed(&reply);
+        assert_eq!(
+            screen,
+            vec![
+                "%graphics-begin".to_string(),
+                "%gfx 7 1 2 4 2 <not-base64-but-ignored-screen>".to_string(),
+                "%graphics-end".to_string(),
+                "screen continues here".to_string(),
+            ]
+        );
+        assert_eq!(graphics.len(), 2);
+        assert_eq!(graphics[0].id, 7);
+        assert_eq!((graphics[0].col, graphics[0].row), (1, 2));
+        assert_eq!((graphics[0].width, graphics[0].height), (4, 2));
+        assert_eq!(graphics[0].rgba, vec![0x80, 0x40, 0x20, 0xFF]);
+        assert_eq!(graphics[1].id, 8);
+    }
+
+    #[test]
+    fn malformed_gfx_lines_are_skipped() {
+        let b64 = pixel_b64();
+        let reply = lines(&[
+            "%graphics-begin",
+            "%gfx",                                 // no fields
+            "%gfx 7 1 2 4 2",                       // missing payload
+            &format!("%gfx 9 0 0 1 1 {b64} extra"), // trailing field
+            &format!("%gfx 10 0 0 1 1 {b64}"),      // the one good row
+        ]);
+        let (_, graphics) = split_graphics_seed(&reply);
+        assert_eq!(graphics.len(), 1);
+        assert_eq!(graphics[0].id, 10);
+    }
+
+    #[test]
+    fn unclosed_section_still_parses_rows() {
+        // A pane could print `%graphics-begin` without a closing marker;
+        // rows up to EOF parse rather than the whole tail becoming screen.
+        let b64 = pixel_b64();
+        let reply = lines(&["%graphics-begin", &format!("%gfx 3 0 0 1 1 {b64}")]);
+        let (screen, graphics) = split_graphics_seed(&reply);
+        assert!(screen.is_empty());
+        assert_eq!(graphics.len(), 1);
+        assert_eq!(graphics[0].id, 3);
     }
 }
