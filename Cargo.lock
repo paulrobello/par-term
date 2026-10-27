@@ -3815,9 +3815,9 @@ dependencies = [
 
 [[package]]
 name = "par-mux"
-version = "0.68.0"
+version = "0.69.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a583fe5cf8588fa8b3544c2eb341e8645cd3df56ed93801f53e97cda9f8115d"
+checksum = "5393efdfaa3d0b6771473b8f7d2284f22d5aac83a05d51f12c1047f7ae7079b1"
 dependencies = [
  "base64 0.22.1",
  "dirs 6.0.0",
@@ -3957,9 +3957,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core"
-version = "0.68.0"
+version = "0.69.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34f68d8b3af4ff6565eb3e918f5c934e34a134f7736bd7a195ca1e5d0a8b8b4c"
+checksum = "52a38b763db949946f00b93dc3e65b2f5c987f6fae90cd0b0b822e3c3498f6f0"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.2",
@@ -3986,9 +3986,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.68.0"
+version = "0.69.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3794723a4e65ff4e3c7b2588c9647836eb9e6c8e860f73cc56948fea10e904d"
+checksum = "c31be80c6c3f24ec95676ea71e52355be8d0984c9964e70169b070f451493f4d"
 dependencies = [
  "base64 0.22.1",
  "flate2",
