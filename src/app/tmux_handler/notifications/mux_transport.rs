@@ -643,7 +643,7 @@ impl TmuxTransport for MuxTransport {
 #[cfg(test)]
 mod tests {
     use super::super::mux::tests::{connect, socket_path, spawn_daemon};
-    use crate::app::tmux_handler::tmux_state::{MuxJob, TmuxTransport};
+    use crate::app::tmux_handler::tmux_state::{MuxJob, MuxJobResult, TmuxTransport};
 
     /// Inline reply-needing sends must not wait out a whole off-loop job.
     /// A job's commands run back to back on the worker; without priority
@@ -707,6 +707,71 @@ mod tests {
             "the job must still be running, or the test proves nothing (took {:?})",
             started.elapsed()
         );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A pane upload runs the full verb chain on the worker and reports
+    /// the daemon's materialized path — the engine behind drop-on-pane,
+    /// verified end to end against the real daemon: the file lands where
+    /// the commit says, and the pane receives the path paste.
+    #[test]
+    fn upload_file_job_materializes_and_pastes_the_path() {
+        let path = socket_path("upload-e2e");
+        spawn_daemon(&path);
+        let transport = connect(&path);
+        transport
+            .send_command("new-session -s up")
+            .expect("new-session");
+
+        let file = std::env::temp_dir().join("par-term-upload-e2e.txt");
+        std::fs::write(&file, b"upload body").expect("write fixture");
+        assert!(
+            transport.submit_job(MuxJob::UploadFile {
+                pane: 0,
+                path: file.clone(),
+                file_name: "uploaded-body.txt".to_string(),
+            }),
+            "the worker accepted the upload job"
+        );
+
+        // The result lands through the job-results channel.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        let landed = loop {
+            if let Some(found) = transport
+                .take_job_results()
+                .into_iter()
+                .find_map(|r| match r {
+                    MuxJobResult::UploadFinished { path, result } => Some((path, result)),
+                    _ => None,
+                })
+            {
+                break found;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the upload result never landed"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        };
+        let (job_path, result) = landed;
+        assert_eq!(job_path, file, "the result names the uploaded file");
+        let materialized = result.expect("the upload finished ok");
+        assert!(
+            std::path::Path::new(&materialized).exists(),
+            "the daemon materialized the file at {materialized}"
+        );
+
+        // The commit pasted the materialized path into the pane: the
+        // shell's next prompt line carries it.
+        let screen = transport
+            .send_command("capture-pane -t %0 -p")
+            .expect("capture-pane");
+        assert!(
+            screen.iter().any(|l| l.contains("uploaded-body.txt")),
+            "the commit pasted the materialized path into the pane: {screen:?}"
+        );
+
+        let _ = std::fs::remove_file(&file);
         let _ = std::fs::remove_file(&path);
     }
 }
