@@ -256,6 +256,10 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
         "Create a par-mux session and attach this window",
     ),
     (
+        "manage_mux_layouts",
+        "Open the session picker's saved par-mux layout manager",
+    ),
+    (
         "detach",
         "Detach this window from its par-mux session; it keeps running",
     ),
@@ -398,6 +402,7 @@ mod tests {
         assert_eq!(category("split_right"), "Pane");
         assert_eq!(category("toggle_profile_drawer"), "Profiles");
         assert_eq!(category("toggle_session_picker"), "Session");
+        assert_eq!(category("manage_mux_layouts"), "Session");
         // Built-ins follow the F1 help filing: fullscreen is View there.
         assert_eq!(category("toggle_fullscreen"), "View");
         assert_eq!(category("new_window"), "Window");

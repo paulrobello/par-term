@@ -8,7 +8,9 @@
 //! is reached rather than shadowed by a new empty namesake.
 
 use super::mux::MuxAttachPending;
-use super::mux_directory::{self, MuxDirectory, MuxSessionRow, MuxWorkspaceRow, PendingScan};
+use super::mux_directory::{
+    self, MuxDirectory, MuxExitAction, MuxSessionRow, MuxWorkspaceRow, PendingScan,
+};
 use crate::app::window_state::WindowState;
 use std::path::{Path, PathBuf};
 
@@ -60,6 +62,7 @@ impl WindowState {
                 self.tmux_state.mux_directory = Some(result.unwrap_or_else(|()| MuxDirectory {
                     sessions: Vec::new(),
                     workspaces: Vec::new(),
+                    layouts: Vec::new(),
                     errors: vec!["par-mux session scan stopped unexpectedly".to_string()],
                 }));
                 true
@@ -202,6 +205,31 @@ impl WindowState {
             }
             MuxSessionRequest::KillWorkspace(ws) => {
                 self.kill_mux_workspace(&ws);
+            }
+            MuxSessionRequest::SaveLayout {
+                socket,
+                daemon,
+                name,
+            } => {
+                self.save_mux_layout(&socket, &daemon, &name);
+            }
+            MuxSessionRequest::LoadLayout {
+                socket,
+                daemon,
+                name,
+                force,
+            } => {
+                self.load_mux_layout(&socket, &daemon, &name, force);
+            }
+            MuxSessionRequest::KillLayout {
+                socket,
+                daemon,
+                name,
+            } => {
+                self.kill_mux_layout(&socket, &daemon, &name);
+            }
+            MuxSessionRequest::SetExitAction { ws, action } => {
+                self.set_mux_workspace_exit_action(&ws, action);
             }
         }
         self.focus_state.needs_redraw = true;
@@ -372,6 +400,76 @@ impl WindowState {
                 self.refresh_mux_directory();
             }
             Err(e) => self.record_mux_error(format!("par-mux: kill-workspace failed — {e}")),
+        }
+    }
+
+    /// Capture a daemon's pane tree under a name (`save-layout`). The
+    /// snapshot is daemon-wide, so no session target rides the verb.
+    fn save_mux_layout(&mut self, socket: &Path, daemon: &str, name: &str) {
+        if let Some(reason) = crate::session_picker_mux::layout_name_refusal(name) {
+            self.show_toast(format!("par-mux: {reason}"));
+            return;
+        }
+        let command = format!("save-layout {}", par_term_mux::quote_env_value(name));
+        match self.send_to_daemon(socket, daemon, &command) {
+            Ok(_) => {
+                self.show_toast(format!("par-mux: layout saved '{name}'"));
+                self.refresh_mux_directory();
+            }
+            Err(e) => self.record_mux_error(format!("par-mux: save-layout failed — {e}")),
+        }
+    }
+
+    /// Replace a daemon's pane tree with a saved layout (`load-layout`).
+    /// The picker always confirms before sending, so `force` is true on
+    /// every wire path; the daemon's own `-f`-less refusal stays the
+    /// backstop if a live pane appeared since the confirm.
+    fn load_mux_layout(&mut self, socket: &Path, daemon: &str, name: &str, force: bool) {
+        if let Some(reason) = crate::session_picker_mux::layout_name_refusal(name) {
+            self.show_toast(format!("par-mux: {reason}"));
+            return;
+        }
+        let force_flag = if force { " -f" } else { "" };
+        let command = format!(
+            "load-layout{force_flag} {}",
+            par_term_mux::quote_env_value(name)
+        );
+        match self.send_to_daemon(socket, daemon, &command) {
+            Ok(_) => {
+                self.show_toast(format!("par-mux: layout loaded '{name}'"));
+                self.refresh_mux_directory();
+            }
+            Err(e) => self.record_mux_error(format!("par-mux: load-layout failed — {e}")),
+        }
+    }
+
+    /// Delete a saved layout (`kill-layout`).
+    fn kill_mux_layout(&mut self, socket: &Path, daemon: &str, name: &str) {
+        let command = format!("kill-layout {}", par_term_mux::quote_env_value(name));
+        match self.send_to_daemon(socket, daemon, &command) {
+            Ok(_) => {
+                self.show_toast(format!("par-mux: layout deleted '{name}'"));
+                self.refresh_mux_directory();
+            }
+            Err(e) => self.record_mux_error(format!("par-mux: kill-layout failed — {e}")),
+        }
+    }
+
+    /// Set a workspace's exit action (`set-exit-action -t +N <action>`).
+    /// The daemon replies the resulting effective token; the toast spells
+    /// it out so the choice is confirmed in the user's own words.
+    fn set_mux_workspace_exit_action(&mut self, ws: &MuxWorkspaceRow, action: MuxExitAction) {
+        let command = format!("set-exit-action -t +{} {}", ws.id, action.name());
+        match self.send_to_daemon(&ws.socket, &ws.daemon, &command) {
+            Ok(_) => {
+                self.show_toast(format!(
+                    "par-mux: workspace '{}' exit action: {}",
+                    ws.name,
+                    action.name()
+                ));
+                self.refresh_mux_directory();
+            }
+            Err(e) => self.record_mux_error(format!("par-mux: set-exit-action failed — {e}")),
         }
     }
 
@@ -585,6 +683,7 @@ mod tests {
         let dir = MuxDirectory {
             sessions: vec![row("work", "work"), row("default", "scratch")],
             workspaces: vec![],
+            layouts: vec![],
             errors: vec![],
         };
         let id = attach_action_id(&dir.sessions[1]);

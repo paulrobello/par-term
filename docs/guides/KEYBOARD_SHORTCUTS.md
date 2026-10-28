@@ -368,6 +368,7 @@ without a binding there is no way to open the in-app menu.
 - `cycle_background_shader`, `toggle_shader_animation`, `toggle_shader_readability_mode`
 - `toggle_broadcast_input`, `toggle_profile_drawer` (Open Profiles…), `toggle_profiles_panel` (the Profiles drawer)
 - `toggle_session_picker` - The session picker: par-mux sessions (attach, switch, create, rename, end, detach) and, with tmux integration on, tmux sessions. The old id `toggle_tmux_session_picker` still works
+- `manage_mux_layouts` - Opens the same picker on its **Layouts** subsections, where each daemon's saved pane-tree snapshots can be saved, loaded (with a replace confirmation), or deleted
 - `ssh_quick_connect`
 - `toggle_ai_inspector`, `toggle_command_history`
 - `reload_dynamic_profiles`

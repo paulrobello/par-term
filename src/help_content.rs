@@ -82,6 +82,7 @@ pub(crate) fn section_for(action_id: &str) -> &'static str {
     } else if has("session_picker")
         || has("profile")
         || has("mux_session")
+        || has("mux_layout")
         || matches!(
             id,
             "ssh_quick_connect" | "save_arrangement" | "detach" | "focus_next_attention_agent"

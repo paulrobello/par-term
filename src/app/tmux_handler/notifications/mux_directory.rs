@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 pub(crate) const DAEMON_QUERY_DEADLINE: Duration = Duration::from_secs(2);
 
 pub(crate) use crate::session_picker_mux::{
-    MuxDirectory, MuxSessionRow, MuxWorkspaceRow, daemon_name_of,
+    MuxDirectory, MuxExitAction, MuxLayoutRow, MuxSessionRow, MuxWorkspaceRow, daemon_name_of,
 };
 
 /// The directory the default par-mux sockets live in.
@@ -67,6 +67,7 @@ fn query_daemon(socket: &Path) -> Result<MuxDirectory, String> {
             name: w.name,
             active: w.active,
             git: None,
+            exit_action: None,
         })
         .collect::<Vec<_>>();
     let sessions = client
@@ -81,6 +82,46 @@ fn query_daemon(socket: &Path) -> Result<MuxDirectory, String> {
             workspace_name: s.workspace_name,
         })
         .collect();
+    // Each workspace's effective exit action rides `set-exit-action`'s
+    // bare form — a pure query replying the token. Best-effort per
+    // daemon: an older binary answers `unknown command:` once and the
+    // whole column stays bare instead of failing the scan.
+    let mut exit_actions_supported = true;
+    let workspaces = workspaces
+        .into_iter()
+        .map(|mut w| {
+            if exit_actions_supported {
+                match client.send_checked(&format!("set-exit-action -t +{}", w.id)) {
+                    Ok(reply) => {
+                        w.exit_action = reply
+                            .body
+                            .iter()
+                            .find_map(|l| MuxExitAction::from_wire(l.trim()));
+                    }
+                    Err(e) if is_unknown_command(&e.to_string()) => {
+                        exit_actions_supported = false;
+                    }
+                    Err(_) => {}
+                }
+            }
+            w
+        })
+        .collect::<Vec<_>>();
+    // The daemon's saved named layouts. Capability-gated like the
+    // workspaces: a pre-0.70 daemon answers `unknown command:` and the
+    // picker's layouts section simply stays empty.
+    let layouts = match client.send_checked("list-layouts") {
+        Ok(reply) => crate::session_picker_mux::layout_names_from_reply(&reply.body)
+            .into_iter()
+            .map(|name| MuxLayoutRow {
+                socket: socket.to_path_buf(),
+                daemon: daemon.clone(),
+                name,
+            })
+            .collect(),
+        Err(e) if is_unknown_command(&e.to_string()) => Vec::new(),
+        Err(e) => return Err(format!("par-mux daemon '{daemon}': {e}")),
+    };
     // The workspaces' git badges ride `client-snapshot`'s `git` rows —
     // the snapshot is their only emitter — fetched last, capability-gated,
     // so an older daemon never sees the command and a failure leaves the
@@ -89,6 +130,7 @@ fn query_daemon(socket: &Path) -> Result<MuxDirectory, String> {
     Ok(MuxDirectory {
         sessions,
         workspaces: apply_git_facts(workspaces, &git),
+        layouts,
         errors: Vec::new(),
     })
 }
@@ -167,6 +209,7 @@ pub(crate) fn scan(dir: &Path, deadline: Duration) -> MuxDirectory {
                     Ok(rows) => {
                         dir_out.sessions.extend(rows.sessions);
                         dir_out.workspaces.extend(rows.workspaces);
+                        dir_out.layouts.extend(rows.layouts);
                     }
                     Err(e) if is_dead_socket(&e) => {}
                     Err(e) => dir_out.errors.push(e),
@@ -183,6 +226,9 @@ pub(crate) fn scan(dir: &Path, deadline: Duration) -> MuxDirectory {
     }
     dir_out
         .sessions
+        .sort_by(|a, b| (&a.daemon, &a.name).cmp(&(&b.daemon, &b.name)));
+    dir_out
+        .layouts
         .sort_by(|a, b| (&a.daemon, &a.name).cmp(&(&b.daemon, &b.name)));
     dir_out
 }
@@ -256,6 +302,7 @@ mod tests {
             name: format!("repo-{id}"),
             active: false,
             git: None,
+            exit_action: None,
         };
         let rows = vec![ws(0), ws(1), ws(2)];
         let git = vec![

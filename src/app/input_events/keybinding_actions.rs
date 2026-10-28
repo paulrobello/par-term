@@ -334,6 +334,17 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         );
         true
     }),
+    ("manage_mux_layouts", |s: &mut WindowState| {
+        if !s.overlay_ui.tmux_session_picker_ui.visible {
+            s.overlay_ui.tmux_session_picker_ui.toggle();
+        }
+        #[cfg(feature = "mux")]
+        if s.overlay_ui.tmux_session_picker_ui.visible {
+            s.refresh_mux_directory();
+        }
+        s.request_redraw();
+        true
+    }),
     // Deliberate alias pair: `toggle_copy_mode` and `enter_copy_mode` are two
     // public action names for one behavior (the handler toggles either way).
     // Do not "deduplicate" these into one entry — both names are documented and

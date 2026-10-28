@@ -80,8 +80,12 @@ mod tests {
             ("overlay/confirm.rs", include_str!("confirm.rs")),
             ("overlay/toast.rs", include_str!("toast.rs")),
             (
-                "session_picker_mux.rs",
-                include_str!("../../session_picker_mux.rs"),
+                "session_picker_mux/mod.rs",
+                include_str!("../../session_picker_mux/mod.rs"),
+            ),
+            (
+                "session_picker_mux/layouts.rs",
+                include_str!("../../session_picker_mux/layouts.rs"),
             ),
             (
                 "tmux_session_picker_ui.rs",

@@ -116,6 +116,9 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "toggle_tmux_session_picker",
     // UX.md A16 renamed the one above; both stay (the old id is an alias).
     "toggle_session_picker",
+    // Opens the session picker on its saved-layout manager (card "Expose
+    // named mux layouts"); the picker is the layouts surface.
+    "manage_mux_layouts",
     // Added deliberately (UX.md A20), not part of the frozen capture.
     "toggle_always_on_top",
     // UX.md P3 pane power features (A1, A7, A8, A9), added deliberately.

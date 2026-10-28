@@ -12,6 +12,10 @@
 use egui::RichText;
 use std::path::{Path, PathBuf};
 
+mod layouts;
+
+pub use layouts::{MuxLayoutRow, layout_name_refusal, layout_names_from_reply};
+
 /// One session a running daemon holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MuxSessionRow {
@@ -82,6 +86,43 @@ pub struct MuxWorkspaceRow {
     pub active: bool,
     /// The workspace's git-badge facts, when the daemon reported them.
     pub git: Option<WorkspaceGit>,
+    /// The workspace's effective exit action, when the daemon reported it
+    /// (a daemon predating `set-exit-action` reports none, and the row
+    /// hides its chooser).
+    pub exit_action: Option<MuxExitAction>,
+}
+
+/// What a daemon does when a pane's process exits (the `set-exit-action`
+/// grammar; `hold` keeps the pane for `respawn-pane`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MuxExitAction {
+    /// Remove the pane when its process exits.
+    Remove,
+    /// Keep the dead pane on screen for a manual restart.
+    Hold,
+    /// Respawn the pane into the user's default shell.
+    Shell,
+}
+
+impl MuxExitAction {
+    /// The daemon's token for this action.
+    pub fn name(self) -> &'static str {
+        match self {
+            MuxExitAction::Remove => "remove",
+            MuxExitAction::Hold => "hold",
+            MuxExitAction::Shell => "shell",
+        }
+    }
+
+    /// Decode a daemon reply token; `None` for anything unrecognized.
+    pub fn from_wire(token: &str) -> Option<Self> {
+        match token {
+            "remove" => Some(MuxExitAction::Remove),
+            "hold" => Some(MuxExitAction::Hold),
+            "shell" => Some(MuxExitAction::Shell),
+            _ => None,
+        }
+    }
 }
 
 /// What a directory scan found: sessions, plus one message per daemon that
@@ -90,6 +131,8 @@ pub struct MuxWorkspaceRow {
 pub struct MuxDirectory {
     pub sessions: Vec<MuxSessionRow>,
     pub workspaces: Vec<MuxWorkspaceRow>,
+    /// Saved named layouts per daemon (empty for a pre-0.70 daemon).
+    pub layouts: Vec<MuxLayoutRow>,
     pub errors: Vec<String>,
 }
 
@@ -119,6 +162,31 @@ pub enum MuxPickerAction {
     RenameWorkspace(MuxWorkspaceRow, String),
     /// End a listed workspace (`kill-workspace`), after confirmation.
     KillWorkspace(MuxWorkspaceRow),
+    /// Capture a daemon's pane tree under a name (`save-layout`).
+    SaveLayout {
+        socket: PathBuf,
+        daemon: String,
+        name: String,
+    },
+    /// Replace a daemon's pane tree with a saved layout
+    /// (`load-layout`, `-f` when `force`).
+    LoadLayout {
+        socket: PathBuf,
+        daemon: String,
+        name: String,
+        force: bool,
+    },
+    /// Delete a saved layout (`kill-layout`), after confirmation.
+    KillLayout {
+        socket: PathBuf,
+        daemon: String,
+        name: String,
+    },
+    /// Set a workspace's exit action (`set-exit-action -t +N <action>`).
+    SetExitAction {
+        ws: MuxWorkspaceRow,
+        action: MuxExitAction,
+    },
 }
 
 /// The daemon name a socket path encodes, or `None` for a file that is not
@@ -204,6 +272,17 @@ pub struct MuxPickerSection {
     ws_new_target: Option<(PathBuf, String, String)>,
     /// Refusal for the typed new-workspace name, shown under the field.
     ws_name_error: Option<&'static str>,
+    /// The daemon a pending save-layout name targets: `(socket, daemon,
+    /// edit buffer)` while the inline save prompt is open.
+    layout_save_target: Option<(PathBuf, String, String)>,
+    /// Refusal for the typed save-layout name, shown under the field.
+    layout_name_error: Option<&'static str>,
+    /// Layout whose Load button was pressed once; a second press sends the
+    /// load with `-f` (the daemon refuses without it while live panes
+    /// would be killed).
+    confirm_load: Option<MuxLayoutRow>,
+    /// Layout whose Delete button was pressed once; a second press deletes.
+    confirm_kill_layout: Option<MuxLayoutRow>,
 }
 
 impl MuxPickerSection {
@@ -284,6 +363,46 @@ impl MuxPickerSection {
                     }
                 }
                 if let Some(chosen) = self.show_new_workspace_row(ui, &ws.socket, &ws.daemon) {
+                    action = Some(chosen);
+                }
+            }
+        }
+
+        // Layouts subsection, grouped per daemon: a daemon's saved
+        // pane-tree snapshots with Save/Load/Delete, end to end from
+        // par-term. The daemon set is the union of its layouts and
+        // workspaces, so a daemon with no saved layout still gets the
+        // Save affordance.
+        if let Some(dir) = input.directory {
+            let mut seen: Vec<PathBuf> = Vec::new();
+            let mut daemons: Vec<(PathBuf, String)> = Vec::new();
+            for layout in &dir.layouts {
+                if seen.contains(&layout.socket) {
+                    continue;
+                }
+                seen.push(layout.socket.clone());
+                daemons.push((layout.socket.clone(), layout.daemon.clone()));
+            }
+            for ws in &dir.workspaces {
+                if seen.contains(&ws.socket) {
+                    continue;
+                }
+                seen.push(ws.socket.clone());
+                daemons.push((ws.socket.clone(), ws.daemon.clone()));
+            }
+            for (socket, daemon) in daemons {
+                ui.add_space(8.0);
+                ui.separator();
+                ui.label(RichText::new(format!("Layouts — {daemon}")).weak().small());
+                for row in dir.layouts.iter().filter(|l| l.socket == socket) {
+                    if let Some(chosen) = self.show_layout_row(ui, row) {
+                        action = Some(chosen);
+                    }
+                }
+                if dir.layouts.iter().all(|l| l.socket != socket) {
+                    ui.label(RichText::new("No saved layouts").italics());
+                }
+                if let Some(chosen) = self.show_save_layout_row(ui, &socket, &daemon) {
                     action = Some(chosen);
                 }
             }
@@ -467,6 +586,32 @@ impl MuxPickerSection {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let armed = self.ws_confirm_kill.as_ref() == Some(ws);
+                if let Some(current) = ws.exit_action {
+                    let mut chosen = None;
+                    ui.menu_button(format!("exit: {}", current.name()), |ui| {
+                        for candidate in [
+                            MuxExitAction::Remove,
+                            MuxExitAction::Hold,
+                            MuxExitAction::Shell,
+                        ] {
+                            let row = if candidate == current {
+                                ui.add_enabled(false, egui::Button::new(candidate.name()));
+                                continue;
+                            } else {
+                                ui.button(candidate.name())
+                            };
+                            if row.clicked() {
+                                chosen = Some(candidate);
+                            }
+                        }
+                    });
+                    if let Some(candidate) = chosen {
+                        action = Some(MuxPickerAction::SetExitAction {
+                            ws: ws.clone(),
+                            action: candidate,
+                        });
+                    }
+                }
                 let end = if armed { "Confirm End" } else { "End" };
                 if ui
                     .button(RichText::new(end).color(crate::app::overlay::theme::DANGER))
@@ -632,7 +777,58 @@ mod tests {
             name: "repo".to_string(),
             active: false,
             git: None,
+            exit_action: None,
         };
         assert_eq!(bare.git, None);
+        assert_eq!(bare.exit_action, None);
+    }
+
+    /// A layout name must fit the daemon's grammar before the wire round
+    /// trip; anything else is refused with a stated reason.
+    #[test]
+    fn layout_names_outside_the_daemon_grammar_are_refused() {
+        assert_eq!(layout_name_refusal(""), Some("a layout name is required"));
+        assert_eq!(
+            layout_name_refusal("dev work"),
+            Some("a layout name can only use letters, digits, dots, dashes, and underscores")
+        );
+        assert_eq!(
+            layout_name_refusal("dev:latest"),
+            Some("a layout name can only use letters, digits, dots, dashes, and underscores")
+        );
+        assert_eq!(layout_name_refusal("dev.2026-10_28"), None);
+    }
+
+    /// A `list-layouts` reply is the non-empty body lines, one name each;
+    /// an empty store replies no names.
+    #[test]
+    fn list_layouts_replies_parse_to_their_names() {
+        let reply = vec!["work".to_string(), String::new(), " main".to_string()];
+        assert_eq!(
+            layout_names_from_reply(&reply),
+            vec!["work".to_string(), "main".to_string()]
+        );
+        assert!(layout_names_from_reply(&[String::new(), String::new()]).is_empty());
+        assert!(layout_names_from_reply(&[]).is_empty());
+    }
+
+    /// Exit-action tokens decode exactly as the daemon spells them; an
+    /// unrecognized reply token decodes to nothing (the row hides its
+    /// chooser rather than guessing).
+    #[test]
+    fn exit_action_tokens_decode_as_the_daemon_spells_them() {
+        assert_eq!(
+            MuxExitAction::from_wire("remove"),
+            Some(MuxExitAction::Remove)
+        );
+        assert_eq!(MuxExitAction::from_wire("hold"), Some(MuxExitAction::Hold));
+        assert_eq!(
+            MuxExitAction::from_wire("shell"),
+            Some(MuxExitAction::Shell)
+        );
+        assert_eq!(MuxExitAction::from_wire("keep"), None);
+        assert_eq!(MuxExitAction::Remove.name(), "remove");
+        assert_eq!(MuxExitAction::Hold.name(), "hold");
+        assert_eq!(MuxExitAction::Shell.name(), "shell");
     }
 }

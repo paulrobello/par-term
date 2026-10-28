@@ -57,6 +57,9 @@ pub(super) fn shell(has_native_app_menu: bool) -> Vec<MenuEntry> {
         MenuItemSpec::action("new_mux_session", "New par-mux Session")
             .when(Requires::MuxAvailable)
             .into(),
+        MenuItemSpec::action("manage_mux_layouts", "par-mux Layouts...")
+            .when(Requires::MuxAvailable)
+            .into(),
         // UX.md MN2/MP2: disabled until the window is attached to a par-mux
         // or tmux session.
         submenu(
