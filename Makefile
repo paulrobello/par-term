@@ -472,6 +472,15 @@ ifeq ($(shell uname),Darwin)
 	@scripts/build-par-mux.sh target/release/bundle/par-term.app/Contents/MacOS/par-mux
 	@cp assets/par-term.icns target/release/bundle/par-term.app/Contents/Resources/
 	@sed 's/{{VERSION}}/$(VERSION)/g' assets/Info.plist.template > target/release/bundle/par-term.app/Contents/Info.plist
+	@if security find-identity -v -p codesigning 2>/dev/null | grep -q '"Developer ID Application:'; then \
+		ID=$$(security find-identity -v -p codesigning 2>/dev/null | grep '"Developer ID Application:' | head -1 | sed -E 's/.*"(.*)".*/\1/'); \
+		echo "Signing bundle with: $$ID"; \
+		codesign --force --timestamp --options runtime --sign "$$ID" target/release/bundle/par-term.app/Contents/MacOS/par-mux && \
+		codesign --force --timestamp --options runtime --sign "$$ID" target/release/bundle/par-term.app/Contents/MacOS/par-term && \
+		codesign --force --timestamp --options runtime --sign "$$ID" target/release/bundle/par-term.app; \
+	else \
+		echo "No Developer ID identity in keychain; leaving bundle ad-hoc signed"; \
+	fi
 	@echo "Bundle created at: target/release/bundle/par-term.app (version $(VERSION))"
 else
 	@echo "App bundle creation is only supported on macOS"
