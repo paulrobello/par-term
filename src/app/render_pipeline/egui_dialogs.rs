@@ -73,7 +73,7 @@ fn render_demote_overlays(
                 let center_x = bounds.x + bounds.width / 2.0;
                 let center_y = bounds.y + bounds.height / 2.0;
 
-                egui::Area::new(egui::Id::new("demote_direction_overlay"))
+                egui::Area::new(egui::Id::unique("demote_direction_overlay"))
                     .fixed_pos(egui::pos2(center_x - 100.0, center_y - 30.0))
                     .order(egui::Order::Foreground)
                     .show(ctx, |ui| {

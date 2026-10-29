@@ -160,7 +160,7 @@ impl ProfileDrawerUI {
 
         // Render toggle button (skip if the button is disabled in config)
         if config.tabs.show_profile_drawer_button {
-            egui::Area::new(egui::Id::new("profile_drawer_toggle_area"))
+            egui::Area::new(egui::Id::unique("profile_drawer_toggle_area"))
                 .fixed_pos(button_rect.min)
                 .order(egui::Order::Foreground)
                 .show(ctx, |ui| {

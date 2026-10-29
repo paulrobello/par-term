@@ -75,7 +75,7 @@ pub(super) fn render_exited_pane_banners(
         let (x, y, width, height) = banner.rect;
         let area_width = width.clamp(120.0, 420.0);
         let pos = egui::pos2(x + (width - area_width) / 2.0, y + height - 56.0);
-        egui::Area::new(egui::Id::new(("mux_exited_pane", banner.tmux_pane)))
+        egui::Area::new(egui::Id::unique(("mux_exited_pane", banner.tmux_pane)))
             .fixed_pos(pos)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {

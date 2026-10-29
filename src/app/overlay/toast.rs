@@ -184,7 +184,7 @@ pub(crate) fn render_toasts(
     let mut events = Vec::new();
     let mut y = top_inset + 8.0;
     for toast in queue.toasts().iter().rev() {
-        let area = egui::Area::new(egui::Id::new(("toast_queue", toast.id)))
+        let area = egui::Area::new(egui::Id::unique(("toast_queue", toast.id)))
             .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-12.0, y))
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
@@ -232,7 +232,7 @@ pub(crate) fn render_mode_banner(ctx: &egui::Context, text: Option<&str>, top_in
     let Some(text) = text else {
         return;
     };
-    egui::Area::new(egui::Id::new("mode_banner"))
+    egui::Area::new(egui::Id::unique("mode_banner"))
         .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, top_inset + 8.0))
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
@@ -373,7 +373,7 @@ mod tests {
         };
         assert!(run(vec![]).is_empty(), "no click, no event");
         let area_rect = ctx
-            .memory(|m| m.area_rect(egui::Id::new(("toast_queue", q.toasts()[0].id))))
+            .memory(|m| m.area_rect(egui::Id::unique(("toast_queue", q.toasts()[0].id))))
             .expect("the toast drew");
         assert!(area_rect.max.x <= screen.max.x, "toast stays on screen");
         assert!(

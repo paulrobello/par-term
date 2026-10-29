@@ -73,7 +73,7 @@ impl SettingsUI {
                     (pos, end)
                 });
 
-                let editor_id = egui::Id::new("shader_editor_textedit");
+                let editor_id = egui::Id::unique("shader_editor_textedit");
 
                 // Handle keyboard shortcuts
                 // macOS menu system consumes key-press events, so we detect key-release with cmd held

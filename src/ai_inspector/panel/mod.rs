@@ -338,7 +338,7 @@ impl AIInspectorPanel {
 
         // --- Main panel area ---
         // Use Order::Middle so modal dialogs (Order::Foreground) render above.
-        let area_response = egui::Area::new(Id::new("ai_inspector_panel"))
+        let area_response = egui::Area::new(Id::unique("ai_inspector_panel"))
             .fixed_pos(Pos2::new(panel_x, viewport.min.y))
             .order(Order::Middle)
             .interactable(true)
@@ -368,7 +368,7 @@ impl AIInspectorPanel {
         };
         let painter = ctx.layer_painter(egui::LayerId::new(
             Order::Background,
-            Id::new("ai_inspector_resize_line"),
+            Id::unique("ai_inspector_resize_line"),
         ));
         painter.line_segment(
             [

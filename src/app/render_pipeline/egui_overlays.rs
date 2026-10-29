@@ -21,7 +21,7 @@ pub(super) fn render_fps_overlay(
     if !show_fps {
         return;
     }
-    egui::Area::new(egui::Id::new("fps_overlay"))
+    egui::Area::new(egui::Id::unique("fps_overlay"))
         .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-30.0, 10.0))
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
@@ -58,7 +58,7 @@ pub(super) fn render_resize_overlay(
     let Some((width_px, height_px, cols, rows)) = dimensions else {
         return;
     };
-    egui::Area::new(egui::Id::new("resize_overlay"))
+    egui::Area::new(egui::Id::unique("resize_overlay"))
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
@@ -100,7 +100,8 @@ pub(super) fn render_ime_preedit_overlay(
     ensure_ime_fallback_font(ctx);
 
     let screen = ctx.input(|i| i.viewport_rect());
-    let area = egui::Area::new(egui::Id::new("ime_preedit_overlay")).order(egui::Order::Foreground);
+    let area =
+        egui::Area::new(egui::Id::unique("ime_preedit_overlay")).order(egui::Order::Foreground);
     let area = match cursor_rect {
         Some((x, y, _w, h)) => {
             let pos = egui::pos2(
@@ -258,7 +259,7 @@ pub(super) fn render_scrollbar_mark_tooltip(ctx: &egui::Context, mark: Option<&S
     let tooltip_x = (mouse_pos.x - 180.0).max(10.0);
     let tooltip_y = (mouse_pos.y - 20.0).max(10.0);
 
-    egui::Area::new(egui::Id::new("scrollbar_mark_tooltip"))
+    egui::Area::new(egui::Id::unique("scrollbar_mark_tooltip"))
         .order(egui::Order::Tooltip)
         .fixed_pos(egui::pos2(tooltip_x, tooltip_y))
         .show(ctx, |ui| {
@@ -303,7 +304,7 @@ pub(super) fn render_copy_mode_status_bar(
             }
         }
     };
-    egui::Area::new(egui::Id::new("copy_mode_status_bar"))
+    egui::Area::new(egui::Id::unique("copy_mode_status_bar"))
         .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(0.0, 0.0))
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
@@ -413,7 +414,7 @@ pub(super) fn render_trigger_prompt_dialog(
     let mut denied = false;
 
     egui::Window::new("Automation Action Confirmation")
-        .id(egui::Id::new("trigger_prompt_dialog"))
+        .id(egui::Id::unique("trigger_prompt_dialog"))
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
@@ -533,7 +534,7 @@ pub(super) fn render_pane_identify_overlay(
     for (index, bounds) in pane_bounds {
         let center_x = bounds.x + bounds.width / 2.0;
         let center_y = bounds.y + bounds.height / 2.0;
-        egui::Area::new(egui::Id::new(format!("pane_identify_{}", index)))
+        egui::Area::new(egui::Id::unique(format!("pane_identify_{}", index)))
             .fixed_pos(egui::pos2(center_x - 30.0, center_y - 30.0))
             .order(egui::Order::Foreground)
             .interactable(false)
@@ -566,7 +567,7 @@ pub(super) fn render_broadcast_outlines(ctx: &egui::Context, panes: &[crate::pan
     }
     let painter = ctx.layer_painter(egui::LayerId::new(
         egui::Order::Foreground,
-        egui::Id::new("broadcast_outlines"),
+        egui::Id::unique("broadcast_outlines"),
     ));
     let ppp = ctx.pixels_per_point();
     for b in panes {
@@ -607,7 +608,7 @@ pub(super) fn render_pane_hint_overlay(ctx: &egui::Context, badges: &[PaneHintBa
         let center = egui::pos2(center_x, center_y);
         let painter = ctx.layer_painter(egui::LayerId::new(
             egui::Order::Foreground,
-            egui::Id::new("pane_hint_badges"),
+            egui::Id::unique("pane_hint_badges"),
         ));
         painter.circle_filled(
             center,
@@ -686,7 +687,7 @@ pub(super) fn render_agent_command_confirm_dialog(
     let mut denied = false;
 
     egui::Window::new("Agent Command Confirmation")
-        .id(egui::Id::new("agent_command_confirm_dialog"))
+        .id(egui::Id::unique("agent_command_confirm_dialog"))
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))

@@ -493,9 +493,9 @@ mod tests {
         let mut palette = CommandPalette::new();
         palette.open(Vec::new(), &KeybindingRegistry::new());
         frame(&ctx, &mut palette, &[]);
-        // egui keys a Window's area by `Id::new(title.text())`, an
+        // egui keys a Window's area by `Id::unique(title.text())`, an
         // Option<Cow<str>>.
-        let id = egui::Id::new(Some(std::borrow::Cow::Borrowed("Command Palette")));
+        let id = egui::Id::unique(Some(std::borrow::Cow::Borrowed("Command Palette")));
         let rect = ctx.memory(|m| m.area_rect(id)).expect("palette drew");
         assert!(
             rect.max.y <= 800.0,

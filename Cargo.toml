@@ -15,7 +15,7 @@ par-term-emu-core-rust = { version = "0.71.0", default-features = false, feature
 tokio = { version = "1.52", features = ["full"] }
 
 # Serialization
-jsonc-parser = { version = "0.33", default-features = false, features = ["serde"] }
+jsonc-parser = { version = "0.34", default-features = false, features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 serde_yaml_ng = "0.10.0"
@@ -52,12 +52,12 @@ swash = "0.2.9"
 fontdb = "0.24"
 rustybuzz = "0.20.1"
 unicode-segmentation = "1.13"
-lru = "0.18.0"
+lru = "0.19"
 
 # GUI
-egui = "0.36.1"
-egui-wgpu = "0.36.1"
-egui-winit = "0.36.1"
+egui = { version = "0.37", features = ["default_fonts"] } # default_fonts left the default set in 0.37; keep the bundled stack 0.36 shipped
+egui-wgpu = "0.37"
+egui-winit = "0.37"
 rfd = "0.17.2"
 
 # Image / media
@@ -88,7 +88,7 @@ zip = "9.0.4"
 # Misc utilities
 base64 = "0.23.1"
 hostname = "0.4.2"
-sysinfo = "0.39"
+sysinfo = "0.40"
 
 # File watching
 notify = "8.2"

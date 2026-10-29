@@ -528,8 +528,8 @@ mod tests {
 
     #[test]
     fn an_embedded_text_field_takes_the_keys_when_gated() {
-        let filter = egui::Id::new("filter");
-        let other = egui::Id::new("rename");
+        let filter = egui::Id::unique("filter");
+        let other = egui::Id::unique("rename");
         assert!(keys_are_live(false, Some(other), filter), "ungated");
         assert!(keys_are_live(true, None, filter), "nothing focused");
         assert!(keys_are_live(true, Some(filter), filter), "filter focused");

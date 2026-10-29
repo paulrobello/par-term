@@ -200,7 +200,7 @@ No `config.yaml` keys. Actions and display only.
 - Cursor blink — `cursor_blink`
 - Blink interval: — `cursor_blink_interval`
 - Color: — `cursor_color`
-- Text color (block cursor): — `cursor_text_color`
+- Enable custom text color under block cursor — `cursor_text_color`
 
 #### Cursor Locks
 

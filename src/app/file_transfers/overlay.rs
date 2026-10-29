@@ -26,7 +26,7 @@ pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui
     }
 
     egui::Window::new("File Transfers")
-        .id(egui::Id::new("file_transfer_overlay_window"))
+        .id(egui::Id::unique("file_transfer_overlay_window"))
         .anchor(
             egui::Align2::RIGHT_BOTTOM,
             egui::vec2(-FILE_TRANSFERS_ANCHOR_OFFSET, -FILE_TRANSFERS_ANCHOR_OFFSET),

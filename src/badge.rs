@@ -424,7 +424,7 @@ pub fn render_badge(
 
     // Create an area for the badge in the top-right corner (offset by top inset)
     let top_offset = badge.top_margin + insets.top;
-    egui::Area::new(egui::Id::new("badge_overlay"))
+    egui::Area::new(egui::Id::unique("badge_overlay"))
         .fixed_pos(egui::pos2(0.0, top_offset))
         .order(egui::Order::Foreground)
         .interactable(false)

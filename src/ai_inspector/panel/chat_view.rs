@@ -240,7 +240,7 @@ impl AIInspectorPanel {
                 && !i.modifiers.command
         });
 
-        let chat_input_id = egui::Id::new("assistant_chat_input");
+        let chat_input_id = egui::Id::unique("assistant_chat_input");
         let cursor_index_before_edit =
             text_edit_cursor_index(ui.ctx(), chat_input_id, &self.chat.input);
         let input_output = render_bounded_chat_text_edit(
@@ -519,7 +519,7 @@ mod tests {
                 let output = render_bounded_chat_text_edit(
                     ui,
                     &mut text,
-                    egui::Id::new("bounded_chat_input_test"),
+                    egui::Id::unique("bounded_chat_input_test"),
                     320.0,
                     max_height,
                     visible_rows,

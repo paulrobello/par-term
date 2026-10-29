@@ -85,7 +85,7 @@ pub(crate) struct DrawnSection<'a> {
 }
 
 fn view_id() -> egui::Id {
-    egui::Id::new("settings_search_live_view")
+    egui::Id::unique("settings_search_live_view")
 }
 
 fn jump_id() -> egui::Id {

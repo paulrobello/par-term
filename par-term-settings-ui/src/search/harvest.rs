@@ -46,7 +46,7 @@ struct PendingSection {
 }
 
 fn pending_id() -> egui::Id {
-    egui::Id::new("settings_search_harvest")
+    egui::Id::unique("settings_search_harvest")
 }
 
 /// Whether `ctx` is a harvest context.
@@ -113,7 +113,9 @@ impl SearchTag for egui::Response {
 pub(crate) fn harvest_tab(settings: &mut SettingsUI, tab: SettingsTab) -> Vec<SectionEntry> {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
-    ctx.options_mut(|o| o.max_passes = std::num::NonZeroUsize::MIN);
+    // Keep egui's default two passes: since 0.37 a fresh Grid renders its
+    // sizing pass invisible and requests a discard; one pass would harvest
+    // that pass and lose every grid cell.
     ctx.memory_mut(|m| m.set_everything_is_visible(true));
     ctx.data_mut(|d| d.insert_temp(pending_id().with("on"), true));
     let input = egui::RawInput {
@@ -136,9 +138,21 @@ pub(crate) fn harvest_tab(settings: &mut SettingsUI, tab: SettingsTab) -> Vec<Se
     });
     output.textures_delta.clear();
 
-    let pending = ctx
+    let mut pending = ctx
         .data_mut(|d| d.remove_temp::<Pending>(pending_id()))
         .unwrap_or_default();
+    // Both passes draw every section once; the second pass is the visible
+    // one (the first exists so a fresh Grid can size itself), so keep the
+    // last record per id in draw order.
+    let mut seen = HashSet::new();
+    let mut deduped = Vec::with_capacity(pending.sections.len());
+    for section in pending.sections.iter().rev() {
+        if seen.insert(section.id.clone()) {
+            deduped.push(section.clone());
+        }
+    }
+    deduped.reverse();
+    pending.sections = deduped;
     let Some(update) = output.platform_output.accesskit_update.take() else {
         return Vec::new();
     };
@@ -237,6 +251,13 @@ fn collect(
             continue;
         };
         let mut extra: Vec<String> = pending.tags.get(&id).cloned().unwrap_or_default();
+        // Since egui 0.37 hover text rides on the widget's own node as its
+        // accesskit description (and as the label of icon-only widgets),
+        // whether or not the tooltip area renders.
+        if let Some(desc) = node.description() {
+            let text = desc.split_whitespace().collect::<Vec<_>>().join(" ");
+            extra.push(text);
+        }
         if let Some(widget) = egui_ids.get(&id) {
             for root in attached_roots(*widget) {
                 extra.extend(tree.captions_under(root));
@@ -259,7 +280,7 @@ fn attached_roots(widget: egui::Id) -> impl Iterator<Item = NodeId> {
     (0..TOOLTIPS_PER_WIDGET)
         .map(move |n| egui::Tooltip::tooltip_id(widget, n).accesskit_id())
         .chain(std::iter::once(
-            egui::Id::new(widget).with("popup").accesskit_id(),
+            egui::Id::unique(widget).with("popup").accesskit_id(),
         ))
         .chain(std::iter::once(widget.with("popup").accesskit_id()))
 }
@@ -267,7 +288,20 @@ fn attached_roots(widget: egui::Id) -> impl Iterator<Item = NodeId> {
 /// A widget's visible caption, or `None` for widgets without one.
 pub(crate) fn caption(node: &Node) -> Option<String> {
     let text = match node.role() {
-        Role::Label => node.value(),
+        Role::Label | Role::TextRun => node.value(),
+        // Since egui 0.37 value widgets carry incidental text as their
+        // accesskit label — a Slider its row's description, a SpinButton
+        // (DragValue) its unit suffix, a ColorWell the generic "Color",
+        // and a label-less TextInput/ComboBox its hover text — none of
+        // which is the row's caption. The row's caption is the label
+        // before the widget; hover text is indexed separately (as the
+        // node description), a combo's options and value via its children.
+        Role::Slider
+        | Role::SpinButton
+        | Role::ColorWell
+        | Role::TextInput
+        | Role::MultilineTextInput
+        | Role::ComboBox => None,
         Role::Window | Role::GenericContainer | Role::Unknown | Role::ScrollBar => None,
         _ => node.label(),
     }?;

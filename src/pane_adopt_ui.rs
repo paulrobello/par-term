@@ -69,7 +69,7 @@ impl PaneAdoptUI {
         }
 
         let mut chosen = None;
-        let response = egui::Area::new(egui::Id::new("pane_adopt_popup"))
+        let response = egui::Area::new(egui::Id::unique("pane_adopt_popup"))
             .fixed_pos(self.pos)
             .constrain(true)
             .order(egui::Order::Foreground)

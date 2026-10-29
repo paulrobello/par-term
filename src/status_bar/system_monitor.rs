@@ -83,12 +83,18 @@ mod inner {
                 .spawn(move || {
                     use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
-                    let mut sys = System::new_with_specifics(
+                    // 0.40 constructors are fallible; a System failure ends
+                    // the thread (nothing to monitor), a Networks failure
+                    // just zeroes the net readouts.
+                    let Ok(mut sys) = System::new_with_specifics(
                         RefreshKind::nothing()
                             .with_cpu(CpuRefreshKind::everything())
                             .with_memory(MemoryRefreshKind::everything()),
-                    );
-                    let mut networks = sysinfo::Networks::new_with_refreshed_list();
+                    ) else {
+                        running.store(false, Ordering::SeqCst);
+                        return;
+                    };
+                    let mut networks = sysinfo::Networks::new_with_refreshed_list().ok();
 
                     // First CPU poll is always 0% — need two samples.
                     sys.refresh_cpu_all();
@@ -101,13 +107,15 @@ mod inner {
                     while running.load(Ordering::SeqCst) {
                         sys.refresh_cpu_all();
                         sys.refresh_memory();
-                        networks.refresh(true);
 
                         // Network totals
                         let (mut total_rx, mut total_tx) = (0u64, 0u64);
-                        for net in networks.values() {
-                            total_rx = total_rx.saturating_add(net.total_received());
-                            total_tx = total_tx.saturating_add(net.total_transmitted());
+                        if let Some(networks) = networks.as_mut() {
+                            networks.refresh(true);
+                            for net in networks.values() {
+                                total_rx = total_rx.saturating_add(net.total_received());
+                                total_tx = total_tx.saturating_add(net.total_transmitted());
+                            }
                         }
 
                         let (rx_rate, tx_rate) = if first_net {

@@ -91,7 +91,7 @@ impl PaneRenameUI {
         let pos = self.pos;
         let buffer = &mut self.buffer;
 
-        let area = egui::Area::new(egui::Id::new("pane_rename_popup"))
+        let area = egui::Area::new(egui::Id::unique("pane_rename_popup"))
             .fixed_pos(pos)
             .constrain(true)
             .order(egui::Order::Foreground)

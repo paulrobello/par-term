@@ -577,7 +577,7 @@ mod tests {
         let ctx = egui::Context::default();
         let mut picker = loaded(&["alpha"]);
         let _ = frame(&ctx, &mut picker, Key::ArrowDown);
-        ctx.memory_mut(|m| m.request_focus(egui::Id::new("new-session-name")));
+        ctx.memory_mut(|m| m.request_focus(egui::Id::unique("new-session-name")));
         let action = frame(&ctx, &mut picker, Key::Enter);
         assert!(matches!(action, SessionPickerAction::None));
         assert!(picker.visible, "the list did not take the Enter");

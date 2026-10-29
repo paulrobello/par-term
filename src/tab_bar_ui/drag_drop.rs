@@ -242,7 +242,7 @@ impl TabBarUI {
 
         let border_color = egui::Color32::from_rgba_unmultiplied(120, 180, 255, 200);
 
-        egui::Area::new(egui::Id::new("tab_drag_ghost"))
+        egui::Area::new(egui::Id::unique("tab_drag_ghost"))
             .fixed_pos(ghost_pos)
             .order(egui::Order::Tooltip)
             .interactable(false)

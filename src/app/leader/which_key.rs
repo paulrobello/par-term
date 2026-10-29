@@ -121,7 +121,7 @@ pub(crate) fn render(ctx: &egui::Context, which_key: Option<&WhichKey>) {
     let Some(which_key) = which_key else {
         return;
     };
-    egui::Area::new(egui::Id::new("leader_which_key"))
+    egui::Area::new(egui::Id::unique("leader_which_key"))
         .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -24.0))
         .order(egui::Order::Foreground)
         .interactable(false)

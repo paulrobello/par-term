@@ -89,9 +89,14 @@ mod inner {
             let handle = std::thread::Builder::new()
                 .name("status-bar-disk".to_string())
                 .spawn(move || {
-                    let mut disks = Disks::new_with_refreshed_list();
+                    // 0.40 constructors are fallible; on failure the monitor
+                    // degrades to no data instead of panicking in the thread.
+                    let mut disks = Disks::new_with_refreshed_list().ok();
                     while running.load(Ordering::SeqCst) {
-                        disks.refresh_specifics(true, DiskRefreshKind::nothing().with_storage());
+                        if let Some(disks) = disks.as_mut() {
+                            disks
+                                .refresh_specifics(true, DiskRefreshKind::nothing().with_storage());
+                        }
 
                         let use_cwd = *follow_cwd.lock();
                         let target: PathBuf = if use_cwd {
@@ -107,8 +112,9 @@ mod inner {
                         // If following CWD but no disk matched (e.g. removable
                         // since removed), fall back to the launch dir's disk.
                         let fallback = use_cwd.then(|| launch_dir.lock().clone());
-                        if let Some(snapshot) =
-                            snapshot_for(disks.list(), &target, fallback.as_deref())
+                        if let Some(snapshot) = disks
+                            .as_deref()
+                            .and_then(|list| snapshot_for(list, &target, fallback.as_deref()))
                         {
                             *data.lock() = snapshot;
                         }
@@ -278,10 +284,10 @@ mod tests {
     #[test]
     fn test_disk_for_path_resolves() {
         use sysinfo::Disks;
-        let disks = Disks::new_with_refreshed_list();
+        let disks = Disks::new_with_refreshed_list().expect("disk list");
         // The system temp dir must resolve to some disk.
         let tmp = std::env::temp_dir();
-        let d = disk_for_path(disks.list(), &tmp);
+        let d = disk_for_path(&disks, &tmp);
         assert!(d.is_some(), "no disk matched temp dir {:?}", tmp);
         let d = d.unwrap();
         assert!(d.total_space() > 0);
@@ -292,8 +298,8 @@ mod tests {
     #[test]
     fn test_disk_for_path_returns_mount_prefix() {
         use sysinfo::Disks;
-        let disks = Disks::new_with_refreshed_list();
-        if disks.list().is_empty() {
+        let disks = Disks::new_with_refreshed_list().expect("disk list");
+        if disks.is_empty() {
             return; // no disks to assert against
         }
         // The temp dir lives on a real volume on every platform. The matched
@@ -301,7 +307,7 @@ mod tests {
         // the core invariant of disk_for_path. (Does not assume a Unix `/`
         // root, which matches no drive-letter volume on Windows.)
         let target = std::env::temp_dir();
-        let matched = disk_for_path(disks.list(), &target);
+        let matched = disk_for_path(&disks, &target);
         assert!(matched.is_some(), "no disk matched temp dir {target:?}");
         assert!(
             target.starts_with(matched.unwrap().mount_point()),
@@ -313,10 +319,10 @@ mod tests {
     #[test]
     fn test_snapshot_for_target_and_fallback() {
         use sysinfo::Disks;
-        let disks = Disks::new_with_refreshed_list();
+        let disks = Disks::new_with_refreshed_list().expect("disk list");
         let tmp = std::env::temp_dir();
 
-        let s = snapshot_for(disks.list(), &tmp, None).expect("temp dir resolves to a disk");
+        let s = snapshot_for(&disks, &tmp, None).expect("temp dir resolves to a disk");
         assert!(s.total_bytes > 0 && s.free_bytes <= s.total_bytes);
         assert!(s.free_percent >= 0.0 && s.free_percent <= 100.0);
         assert!(s.last_update.is_some());
@@ -324,8 +330,8 @@ mod tests {
         // Mount points are absolute, so a relative target matches no disk —
         // the follow-cwd fallback path.
         let unmatched = std::path::Path::new("relative/nowhere");
-        assert!(snapshot_for(disks.list(), unmatched, None).is_none());
-        assert!(snapshot_for(disks.list(), unmatched, Some(&tmp)).is_some());
+        assert!(snapshot_for(&disks, unmatched, None).is_none());
+        assert!(snapshot_for(&disks, unmatched, Some(&tmp)).is_some());
     }
 
     /// Lifecycle only: the poll result is covered by

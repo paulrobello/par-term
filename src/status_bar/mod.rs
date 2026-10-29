@@ -446,7 +446,7 @@ impl StatusBarUI {
 
         let mut action: Option<StatusBarAction> = None;
 
-        egui::Area::new(egui::Id::new("status_bar"))
+        egui::Area::new(egui::Id::unique("status_bar"))
             .fixed_pos(bar_pos)
             .order(egui::Order::Background)
             .interactable(true)

@@ -34,7 +34,7 @@ impl TabBarUI {
             }
         }
 
-        let area_response = egui::Area::new(egui::Id::new("tab_context_menu"))
+        let area_response = egui::Area::new(egui::Id::unique("tab_context_menu"))
             .fixed_pos(self.context_menu_pos)
             .constrain(true)
             .order(egui::Order::Foreground)

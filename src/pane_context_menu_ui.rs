@@ -66,7 +66,7 @@ impl PaneContextMenuUI {
             return None;
         }
         let mut chosen = None;
-        let response = egui::Area::new(egui::Id::new("pane_context_menu"))
+        let response = egui::Area::new(egui::Id::unique("pane_context_menu"))
             .fixed_pos(self.pos)
             .constrain(true)
             .order(egui::Order::Foreground)

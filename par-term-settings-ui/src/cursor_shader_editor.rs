@@ -55,7 +55,7 @@ impl SettingsUI {
                 // Cursor shader source editor
                 let available_height = ui.available_height() - 60.0; // Reserve space for buttons
 
-                let cursor_editor_id = egui::Id::new("cursor_shader_editor_textedit");
+                let cursor_editor_id = egui::Id::unique("cursor_shader_editor_textedit");
 
                 // Handle keyboard shortcuts
                 // macOS menu system consumes key-press events, so we detect key-release with cmd held

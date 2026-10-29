@@ -694,9 +694,11 @@ impl TerminalManager {
 
         use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 
-        let mut sys = System::new_with_specifics(
+        let Ok(mut sys) = System::new_with_specifics(
             RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing()),
-        );
+        ) else {
+            return Vec::new();
+        };
         sys.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,

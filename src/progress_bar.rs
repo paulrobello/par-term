@@ -89,7 +89,7 @@ pub fn render_progress_bars(
         ProgressBarPosition::Bottom => window_height - total_height - bottom_inset,
     };
 
-    egui::Area::new(egui::Id::new("progress_bar_overlay"))
+    egui::Area::new(egui::Id::unique("progress_bar_overlay"))
         .fixed_pos(egui::pos2(0.0, stacked_y))
         .order(egui::Order::Foreground)
         .interactable(false)

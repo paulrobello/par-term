@@ -79,7 +79,7 @@ pub(super) fn render_plugin_overlays(
 
         let painter = ctx.layer_painter(egui::LayerId::new(
             egui::Order::Middle,
-            egui::Id::new("plugin_overlay"),
+            egui::Id::unique("plugin_overlay"),
         ));
         // Frame: translucent dark panel with a subtle border, opacity applied.
         let panel =

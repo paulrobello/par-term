@@ -152,5 +152,5 @@ impl SettingsUI {
 
 /// Id of the search field (tests read its focus).
 pub(crate) fn search_field_id() -> egui::Id {
-    egui::Id::new("settings_search_field")
+    egui::Id::unique("settings_search_field")
 }

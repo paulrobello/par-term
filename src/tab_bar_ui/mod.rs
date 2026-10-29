@@ -353,7 +353,7 @@ impl TabBarUI {
             return;
         }
         let menu = &mut self.app_menu;
-        egui::Area::new(egui::Id::new("floating_app_menu"))
+        egui::Area::new(egui::Id::unique("floating_app_menu"))
             .fixed_pos(egui::Pos2::ZERO)
             .order(egui::Order::Foreground)
             .show(ui.ctx(), |ui| menu.show(ui, profiles, height));

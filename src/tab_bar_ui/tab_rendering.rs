@@ -300,7 +300,7 @@ impl TabBarUI {
         let tab_response = with_profile_tooltip(
             ui.interact(
                 tab_rect,
-                egui::Id::new(("tab_click", id)),
+                egui::Id::unique(("tab_click", id)),
                 egui::Sense::click_and_drag(),
             ),
             profile_tooltip,

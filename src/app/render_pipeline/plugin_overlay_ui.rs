@@ -49,7 +49,7 @@ pub(super) fn render_interactive_overlay(
     // interactive layer exactly where the display-only painter would have
     // drawn it; `Order::Middle` preserves the mode-stack contract (below
     // modal chrome, above terminal content).
-    egui::Area::new(egui::Id::new(("plugin_overlay_interactive", plugin_id)))
+    egui::Area::new(egui::Id::unique(("plugin_overlay_interactive", plugin_id)))
         .fixed_pos(rect.min)
         .order(egui::Order::Middle)
         .interactable(true)
