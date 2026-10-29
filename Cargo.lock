@@ -222,7 +222,7 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-core-graphics",
  "objc2-foundation 0.3.2",
- "parking_lot",
+ "parking_lot 0.12.5",
  "percent-encoding",
  "windows-sys 0.61.2",
  "x11rb",
@@ -1393,7 +1393,7 @@ dependencies = [
  "harfrust",
  "log",
  "nohash-hasher",
- "parking_lot",
+ "parking_lot 0.12.5",
  "profiling",
  "self_cell",
  "skrifa",
@@ -2745,6 +2745,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lock_api"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65d91b22da179613dcf4d6ec8349563f52a363f6849e03b00dd0a185ec4a59af"
+dependencies = [
+ "scopeguard",
+]
+
+[[package]]
 name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3815,9 +3824,9 @@ dependencies = [
 
 [[package]]
 name = "par-mux"
-version = "0.70.0"
+version = "0.71.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cb370a5af4cd0a4bbb60dd290ce1d0bb49d41da346bdd405ebd8fc5032066e1"
+checksum = "c2d832d43fb53efc4b1835c4acb4ddb97d85a79813a472104d370fedf9cd3021"
 dependencies = [
  "base64 0.22.1",
  "dirs 6.0.0",
@@ -3826,7 +3835,7 @@ dependencies = [
  "log",
  "nix 0.31.3",
  "par-term-emu-core",
- "parking_lot",
+ "parking_lot 0.13.0",
  "regex",
  "serde",
  "serde_json",
@@ -3889,7 +3898,7 @@ dependencies = [
  "par-term-terminal",
  "par-term-tmux",
  "par-term-update",
- "parking_lot",
+ "parking_lot 0.13.0",
  "raw-window-handle",
  "regex",
  "rfd",
@@ -3942,7 +3951,7 @@ dependencies = [
  "hostname",
  "log",
  "notify",
- "parking_lot",
+ "parking_lot 0.13.0",
  "regex",
  "serde",
  "serde_json",
@@ -3957,9 +3966,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core"
-version = "0.70.0"
+version = "0.71.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04f53efa85ef1a69ddfb743d0308f39467186677bb4dd62c384a0556bc44c881"
+checksum = "bbb447dcc946d2da713b3bf11cff295d24777e53eed4144d6249e4c31f81799b"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.2",
@@ -3968,7 +3977,7 @@ dependencies = [
  "libc",
  "log",
  "lru",
- "parking_lot",
+ "parking_lot 0.13.0",
  "percent-encoding",
  "portable-pty",
  "regex",
@@ -3986,9 +3995,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.70.0"
+version = "0.71.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f919ec6684b7397c29ee4333c7b33a3a8698f4867ae7db449d2b39fe1060fa10"
+checksum = "8f3214601319782acaa189c93f54e2a67cfeb06484a76de0054c01c536c681bf"
 dependencies = [
  "base64 0.22.1",
  "flate2",
@@ -3997,7 +4006,7 @@ dependencies = [
  "log",
  "par-mux",
  "par-term-emu-core",
- "parking_lot",
+ "parking_lot 0.13.0",
  "serde",
  "serde_json",
  "uuid",
@@ -4080,7 +4089,7 @@ dependencies = [
  "par-term-config",
  "par-term-emu-core-rust",
  "par-term-fonts",
- "parking_lot",
+ "parking_lot 0.13.0",
  "swash",
  "thiserror 2.0.21",
  "wgpu",
@@ -4114,7 +4123,7 @@ dependencies = [
  "par-term-config",
  "par-term-keybindings",
  "par-term-scripting",
- "parking_lot",
+ "parking_lot 0.13.0",
  "regex",
  "rfd",
  "serde",
@@ -4145,7 +4154,7 @@ dependencies = [
  "log",
  "par-term-config",
  "par-term-emu-core-rust",
- "parking_lot",
+ "parking_lot 0.13.0",
  "sysinfo",
  "tempfile",
  "tokio",
@@ -4174,7 +4183,7 @@ dependencies = [
  "minisign-verify",
  "native-tls",
  "par-term-config",
- "parking_lot",
+ "parking_lot 0.13.0",
  "semver",
  "serde",
  "serde_json",
@@ -4197,8 +4206,18 @@ version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
 dependencies = [
- "lock_api",
- "parking_lot_core",
+ "lock_api 0.4.14",
+ "parking_lot_core 0.9.12",
+]
+
+[[package]]
+name = "parking_lot"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9cf937ca4e1d0b7578784559063422fc39ae7c5a00f02471f2614d5486fd226"
+dependencies = [
+ "lock_api 0.5.0",
+ "parking_lot_core 0.10.0",
 ]
 
 [[package]]
@@ -4210,6 +4229,18 @@ dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall 0.5.18",
+ "smallvec",
+ "windows-link",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9cfff060068cc18aa7815010fcaf80c68c7fb9e85fc7f5c0f9bf142c21d19826"
+dependencies = [
+ "libc",
+ "redox_syscall 0.9.5",
  "smallvec",
  "windows-link",
 ]
@@ -5173,7 +5204,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6df5ed973ad8d834e09f824f9e9f449af6b9a3745f78dec7cc752770bd3bf11"
 dependencies = [
  "once_cell",
- "parking_lot",
+ "parking_lot 0.12.5",
  "serial_test_derive",
 ]
 
@@ -5406,7 +5437,7 @@ version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
 dependencies = [
- "lock_api",
+ "lock_api 0.4.14",
 ]
 
 [[package]]
@@ -5854,7 +5885,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
+ "parking_lot 0.12.5",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -6565,7 +6596,7 @@ dependencies = [
  "js-sys",
  "log",
  "naga",
- "parking_lot",
+ "parking_lot 0.12.5",
  "portable-atomic",
  "profiling",
  "raw-window-handle",
@@ -6598,7 +6629,7 @@ dependencies = [
  "naga",
  "naga-types",
  "once_cell",
- "parking_lot",
+ "parking_lot 0.12.5",
  "portable-atomic",
  "profiling",
  "raw-window-handle",
@@ -6685,7 +6716,7 @@ dependencies = [
  "objc2-quartz-core 0.3.2",
  "once_cell",
  "ordered-float",
- "parking_lot",
+ "parking_lot 0.12.5",
  "portable-atomic",
  "portable-atomic-util",
  "profiling",

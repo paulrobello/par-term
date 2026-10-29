@@ -9,7 +9,7 @@ members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input"
 # ---------------------------------------------------------------------------
 [workspace.dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.70.0", default-features = false, features = ["rust-only", "pty_session", "screenshot"] }
+par-term-emu-core-rust = { version = "0.71.0", default-features = false, features = ["rust-only", "pty_session", "screenshot"] }
 
 # Async runtime
 tokio = { version = "1.52", features = ["full"] }
@@ -35,7 +35,7 @@ log = "0.4.33"
 dirs = "7"
 
 # Concurrency
-parking_lot = "0.12.5"
+parking_lot = "0.13"
 arc-swap = "1"
 
 # Window management
