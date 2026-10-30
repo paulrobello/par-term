@@ -321,7 +321,7 @@ custom_icon: tab.custom_icon.clone(),
 
 **Step 3: Restore custom_icon**
 
-In `src/app/window_manager.rs`, in the session restore block (around line 880-889), after the `custom_color` restore, add:
+In `src/app/window_manager.rs`, in the session restore block (around line 880-889), after the `custom_color` restore, add: <!-- doc-path: example -->
 
 ```rust
 if let Some(ref icon) = session_tab.custom_icon {

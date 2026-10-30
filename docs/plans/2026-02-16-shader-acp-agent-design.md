@@ -87,8 +87,8 @@ Integrates into the main event loop via a channel that the watcher sends events 
 | `src/ai_inspector/mod.rs` | Modify | Add shader_context module |
 | `src/config/watcher.rs` | Create | Config file watcher |
 | `src/config/mod.rs` | Modify | Add watcher module, config diff |
-| `src/app/window_state.rs` | Modify | Inject shader context, integrate watcher |
-| `src/ai_inspector/chat.rs` | Modify | Extend guidance constant |
+| `src/app/window_state.rs` | Modify | Inject shader context, integrate watcher <!-- doc-path: example --> |
+| `src/ai_inspector/chat.rs` | Modify | Extend guidance constant <!-- doc-path: example --> |
 
 ## Testing
 

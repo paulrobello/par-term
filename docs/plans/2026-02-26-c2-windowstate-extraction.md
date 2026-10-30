@@ -4,13 +4,13 @@
 
 **Goal:** Extract three sub-structs from `WindowState` to reduce its ~82 top-level fields (C2 audit finding).
 
-**Architecture:** Add `src/app/agent_state.rs`, `src/app/tmux_state.rs`, `src/app/overlay_ui_state.rs` following the existing pattern of `CursorAnimState` and `ShaderState`. Each extracted struct becomes a named field on `WindowState` (e.g. `self.agent_state.agent_rx` instead of `self.agent_rx`). Tasks must run **sequentially** — each commits before the next starts — because all touch `window_state.rs`.
+**Architecture:** Add `src/app/agent_state.rs`, `src/app/tmux_state.rs`, `src/app/overlay_ui_state.rs` following the existing pattern of `CursorAnimState` and `ShaderState`. Each extracted struct becomes a named field on `WindowState` (e.g. `self.agent_state.agent_rx` instead of `self.agent_rx`). Tasks must run **sequentially** — each commits before the next starts — because all touch `window_state.rs`. <!-- doc-path: example -->
 
 **Tech Stack:** Rust 2024, cargo, `make build` for dev-release, `make lint` for clippy, `make test`.
 
 **Established pattern to follow:**
-- `src/app/cursor_anim_state.rs` — simple struct + `Default` impl
-- `src/app/shader_state.rs` — struct + `new()` with parameters
+- `src/app/cursor_anim_state.rs` — simple struct + `Default` impl <!-- doc-path: example -->
+- `src/app/shader_state.rs` — struct + `new()` with parameters <!-- doc-path: example -->
 - Access pattern: `self.cursor_anim.field_name` throughout all `src/app/` files
 
 **Key borrow-checker constraint (read before Task 1):**
@@ -31,8 +31,8 @@ After extraction, `agent_rx` and the other agent fields will all be in `AgentSta
 
 **Files:**
 - Create: `src/app/agent_state.rs`
-- Modify: `src/app/window_state.rs`
-- Modify: `src/app/window_manager.rs`
+- Modify: `src/app/window_state.rs` <!-- doc-path: example -->
+- Modify: `src/app/window_manager.rs` <!-- doc-path: example -->
 - Modify: `src/app/mod.rs` (add `pub(crate) mod agent_state;`)
 
 **Fields to move from `WindowState` into `AgentState`:**
@@ -292,7 +292,7 @@ git commit -m "refactor(audit): C2 — extract AgentState from WindowState"
 - Modify: `src/app/window_state.rs`
 - Modify: `src/app/window_manager.rs` (if it references tmux fields)
 - Modify: `src/app/tmux_handler/gateway.rs`
-- Modify: `src/app/tmux_handler/notifications.rs`
+- Modify: `src/app/tmux_handler/notifications.rs` <!-- doc-path: example -->
 - Modify: `src/app/mod.rs` (add `pub(crate) mod tmux_state;`)
 
 **Fields to move from `WindowState` into `TmuxState`:**
@@ -463,13 +463,13 @@ git commit -m "refactor(audit): C2 — extract TmuxState from WindowState"
 - Create: `src/app/overlay_ui_state.rs`
 - Modify: `src/app/window_state.rs`
 - Modify: `src/app/window_manager.rs`
-- Modify: `src/app/keyboard_handlers.rs`
-- Modify: `src/app/handler/window_state_impl.rs`
-- Modify: `src/app/tab_ops.rs`
-- Modify: `src/app/search_highlight.rs`
-- Modify: `src/app/mouse_events.rs`
+- Modify: `src/app/keyboard_handlers.rs` <!-- doc-path: example -->
+- Modify: `src/app/handler/window_state_impl.rs` <!-- doc-path: example -->
+- Modify: `src/app/tab_ops.rs` <!-- doc-path: example -->
+- Modify: `src/app/search_highlight.rs` <!-- doc-path: example -->
+- Modify: `src/app/mouse_events.rs` <!-- doc-path: example -->
 - Modify: `src/app/input_events/keybinding_actions.rs`
-- Modify: `src/app/input_events/key_handler.rs`
+- Modify: `src/app/input_events/key_handler.rs` <!-- doc-path: example -->
 - Modify: `src/app/mod.rs` (add `pub(crate) mod overlay_ui_state;`)
 
 **Fields to move from `WindowState` into `OverlayUiState`:**

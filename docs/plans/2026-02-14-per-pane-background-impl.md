@@ -16,10 +16,10 @@
 - Modify: `src/pane/types.rs:155` (replace `background_image` field)
 - Modify: `src/pane/types.rs:282,369` (update constructors)
 - Modify: `src/pane/types.rs:412-418` (update getter/setter)
-- Modify: `src/config/types.rs` (add PaneBackgroundConfig)
+- Modify: `src/config/types.rs` (add PaneBackgroundConfig) <!-- doc-path: example -->
 - Modify: `src/config/mod.rs` (add pane_backgrounds field)
 
-**Step 1: Define PaneBackground struct in `src/pane/types.rs`**
+**Step 1: Define PaneBackground struct in `src/pane/types.rs`** <!-- doc-path: example -->
 
 Add above the `Pane` struct definition:
 
@@ -371,7 +371,7 @@ pub background: Option<crate::pane::types::PaneBackground>,
 
 **Step 2: Extend PaneRenderData type alias**
 
-In `src/app/window_state.rs`, update the `PaneRenderData` type alias (~line 65) to add the pane background:
+In `src/app/window_state.rs`, update the `PaneRenderData` type alias (~line 65) to add the pane background: <!-- doc-path: example -->
 ```rust
 type PaneRenderData = (
     PaneViewport,
@@ -633,7 +633,7 @@ git commit -m "fix(renderer): create pane bg bind groups before render pass (#14
 **Files:**
 - Modify: `src/config/types.rs` (ensure PaneBackgroundConfig is complete)
 - Modify: `src/config/mod.rs` (load/apply pane backgrounds on startup)
-- Modify: `src/pane/types.rs` or `src/pane/manager.rs` (apply config to panes on creation)
+- Modify: `src/pane/types.rs` or `src/pane/manager.rs` (apply config to panes on creation) <!-- doc-path: example -->
 
 **Step 1: Add config application in pane creation**
 
@@ -681,8 +681,8 @@ git commit -m "feat(config): persist per-pane background settings (#148)"
 ### Task 6: Settings UI for Per-Pane Backgrounds
 
 **Files:**
-- Modify: `src/settings_ui/background_tab.rs` (add per-pane section)
-- Modify: `src/settings_ui/sidebar.rs` (add search keywords)
+- Modify: `src/settings_ui/background_tab.rs` (add per-pane section) <!-- doc-path: example -->
+- Modify: `src/settings_ui/sidebar.rs` (add search keywords) <!-- doc-path: example -->
 - Modify: `src/settings_ui/mod.rs` (track focused pane for settings)
 
 **Step 1: Add per-pane background controls to background_tab.rs**

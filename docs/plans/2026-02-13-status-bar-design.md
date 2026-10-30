@@ -184,8 +184,8 @@ status_bar_widgets:
 
 ## Files to Modify
 
-- `src/config/mod.rs` + `src/config/defaults.rs` — New config fields
-- `src/app/window_state.rs` — Height calc, viewport offset, render call
+- `src/config/mod.rs` + `src/config/defaults.rs` — New config fields <!-- doc-path: example -->
+- `src/app/window_state.rs` — Height calc, viewport offset, render call <!-- doc-path: example -->
 - `src/settings_ui/mod.rs` + `sidebar.rs` — Register tab + search keywords
 - `src/renderer/mod.rs` — Offset stacking adjustments if needed
 - `MATRIX.md` — Mark §23 features as implemented

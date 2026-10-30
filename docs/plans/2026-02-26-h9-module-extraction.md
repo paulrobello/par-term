@@ -25,7 +25,7 @@ And `window_state/mod.rs` needs `mod sub_file_name;` added (order matters: add b
 
 **Files:**
 - Modify: `src/app/input_events/keybinding_actions.rs`
-- Create: `src/app/input_events/snippet_actions.rs`
+- Create: `src/app/input_events/snippet_actions.rs` <!-- doc-path: example -->
 - Modify: `src/app/input_events/mod.rs`
 
 **What to move:** `execute_snippet` (lines 557-631, 75L) and `execute_custom_action` (lines 632-864, 233L) to a new file. These are helper functions called from `execute_keybinding_action`.
@@ -121,7 +121,7 @@ git commit -m "refactor(tmux): extract input routing to gateway_input.rs — H9"
 
 **Files:**
 - Create: `src/app/window_state/` (directory)
-- Rename: `src/app/window_state.rs` → `src/app/window_state/mod.rs`
+- Rename: `src/app/window_state.rs` → `src/app/window_state/mod.rs` <!-- doc-path: example -->
 
 This is a filesystem operation only — no code changes. The `mod window_state;` in `src/app/mod.rs` automatically resolves to the directory's `mod.rs`.
 
@@ -163,7 +163,7 @@ Method line numbers in this phase reference `window_state/mod.rs` as it shrinks.
 This is the largest extraction. It covers the rendering phase methods plus the private helper structs they use.
 
 **Files:**
-- Create: `src/app/window_state/render_pipeline.rs`
+- Create: `src/app/window_state/render_pipeline.rs` <!-- doc-path: example -->
 - Modify: `src/app/window_state/mod.rs`
 
 **Methods to move:**
@@ -312,7 +312,7 @@ git commit -m "refactor(agent): extract agent message processing to agent_messag
 ### Task 6: Extract `action_handlers.rs` (~740L)
 
 **Files:**
-- Create: `src/app/window_state/action_handlers.rs`
+- Create: `src/app/window_state/action_handlers.rs` <!-- doc-path: example -->
 - Modify: `src/app/window_state/mod.rs`
 
 **Methods to move:**
@@ -541,9 +541,9 @@ git commit -m "docs(audit): resolve H9 — window_state.rs decomposed into modul
 | File | Before | After |
 |------|--------|-------|
 | `window_state.rs` → `window_state/mod.rs` | 6,461L | ~1,100L |
-| `window_state/render_pipeline.rs` | — | ~2,800L |
+| `window_state/render_pipeline.rs` | — | ~2,800L <!-- doc-path: example --> |
 | `window_state/agent_messages.rs` | — | ~773L |
-| `window_state/action_handlers.rs` | — | ~740L |
+| `window_state/action_handlers.rs` | — | ~740L <!-- doc-path: example --> |
 | `window_state/renderer_ops.rs` | — | ~529L |
 | `window_state/shader_ops.rs` | — | ~217L |
 | `window_state/config_watchers.rs` | — | ~303L |

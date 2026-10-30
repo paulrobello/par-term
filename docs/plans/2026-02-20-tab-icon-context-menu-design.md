@@ -33,8 +33,8 @@ Allow users to set a custom icon on any tab via the right-click context menu, ma
 
 1. `src/tab/mod.rs` — add `custom_icon` field
 2. `src/tab_bar_ui.rs` — action variant, context menu UI, rendering priority
-3. `src/app/tab_ops.rs` — handle `SetTabIcon` action
+3. `src/app/tab_ops.rs` — handle `SetTabIcon` action <!-- doc-path: example -->
 4. `par-term-settings-ui/src/arrangements.rs` — `TabSnapshot` field
 5. `src/arrangements/capture.rs` — capture `custom_icon`
-6. `src/app/window_manager.rs` — restore `custom_icon`
+6. `src/app/window_manager.rs` — restore `custom_icon` <!-- doc-path: example -->
 7. `src/tab/manager.rs` — copy in `duplicate_tab_by_id`

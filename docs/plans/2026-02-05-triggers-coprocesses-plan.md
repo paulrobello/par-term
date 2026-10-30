@@ -13,11 +13,11 @@
 ### Task 1: Config Automation Types
 
 **Files:**
-- Create: `src/config/automation.rs`
+- Create: `src/config/automation.rs` <!-- doc-path: example -->
 - Modify: `src/config/mod.rs:6-9` (add module declaration)
 - Modify: `src/config/mod.rs:1322-1325` (add fields before closing brace on line 1325)
 - Modify: `src/config/mod.rs:1565-1567` (add defaults in Default impl before closing braces)
-- Test: `tests/automation_config_tests.rs`
+- Test: `tests/automation_config_tests.rs` <!-- doc-path: example -->
 
 **Step 1: Create `src/config/automation.rs` with types**
 
@@ -440,7 +440,7 @@ git commit -m "feat(tab): add coprocess manager with auto-start support"
 ### Task 4: Trigger Action Dispatch in Event Loop
 
 **Files:**
-- Create: `src/app/triggers.rs`
+- Create: `src/app/triggers.rs` <!-- doc-path: example -->
 - Modify: `src/app/mod.rs:24` (add `mod triggers;` after `mod notifications;`)
 - Modify: `src/app/handler.rs:697-698` (add call after check_bell)
 
@@ -636,7 +636,7 @@ mod triggers;
 
 **Step 3: Add call in handler.rs event loop**
 
-In `src/app/handler.rs`, after line 697 (`self.check_bell();`), add:
+In `src/app/handler.rs`, after line 697 (`self.check_bell();`), add: <!-- doc-path: example -->
 ```rust
 
         // Check for trigger action results and dispatch
@@ -666,7 +666,7 @@ git commit -m "feat(app): add trigger action dispatch in event loop"
 - Modify: `src/settings_ui/sidebar.rs:58-71` (add to all() array)
 - Modify: `src/settings_ui/sidebar.rs:148-574` (add search keywords)
 - Modify: `src/settings_ui/sidebar.rs:578-591` (add tooltip)
-- Create: `src/settings_ui/automation_tab.rs`
+- Create: `src/settings_ui/automation_tab.rs` <!-- doc-path: example -->
 - Modify: `src/settings_ui/mod.rs:11-24` (add module declaration)
 - Modify: `src/settings_ui/mod.rs:997-1029` (add match arm)
 - Modify: `src/settings_ui/mod.rs:52-207` (add UI state fields to SettingsUI)
@@ -1268,7 +1268,7 @@ git commit -m "feat(settings): add Automation tab with triggers and coprocesses 
 ### Task 6: Trigger Resync on Settings Save
 
 **Files:**
-- Modify: `src/app/config_updates.rs` or wherever settings save is handled (wire trigger_resync_requested)
+- Modify: `src/app/config_updates.rs` or wherever settings save is handled (wire trigger_resync_requested) <!-- doc-path: example -->
 
 **Step 1: Find and modify the settings save handler**
 

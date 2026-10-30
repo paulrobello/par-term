@@ -394,11 +394,11 @@ git commit -m "feat(input): new-tab shortcut respects profile menu config"
 
 **Files:**
 - Modify: `src/settings_ui/window_tab.rs:995` (after `show_profile_drawer_button` checkbox)
-- Modify: `src/settings_ui/sidebar.rs` (Window tab keywords)
+- Modify: `src/settings_ui/sidebar.rs` (Window tab keywords) <!-- doc-path: example -->
 
 **Step 1: Add checkbox to Window settings tab**
 
-In `src/settings_ui/window_tab.rs`, after the `show_profile_drawer_button` checkbox block (after line ~995), add:
+In `src/settings_ui/window_tab.rs`, after the `show_profile_drawer_button` checkbox block (after line ~995), add: <!-- doc-path: example -->
 
 ```rust
         if ui

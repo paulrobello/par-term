@@ -41,7 +41,7 @@ git commit -m "chore: add sysinfo dependency for status bar system monitoring"
 
 **Files:**
 - Create: `src/status_bar/config.rs`
-- Modify: `src/config/types.rs`
+- Modify: `src/config/types.rs` <!-- doc-path: example -->
 
 **Step 1: Add StatusBarPosition enum to config/types.rs**
 
@@ -243,7 +243,7 @@ git commit -m "feat(status-bar): add config types for widgets, sections, and pos
 
 **Files:**
 - Modify: `src/config/mod.rs`
-- Modify: `src/config/defaults.rs`
+- Modify: `src/config/defaults.rs` <!-- doc-path: example -->
 - Create: `src/status_bar/mod.rs` (minimal, just re-exports config)
 
 **Step 1: Add default functions to src/config/defaults.rs**
@@ -1300,7 +1300,7 @@ git commit -m "feat(status-bar): add StatusBarUI renderer with three-section lay
 ### Task 7: Integrate StatusBarUI into the window state
 
 **Files:**
-- Modify: `src/app/window_state.rs`
+- Modify: `src/app/window_state.rs` <!-- doc-path: example -->
 
 This is the critical integration task. Follow the existing tmux status bar pattern exactly.
 
@@ -1399,7 +1399,7 @@ Also call it during initialization after config is loaded.
 
 **Step 8: Add mouse activity forwarding**
 
-In the mouse event handler (`src/app/mouse_events.rs`), when mouse motion is detected, add:
+In the mouse event handler (`src/app/mouse_events.rs`), when mouse motion is detected, add: <!-- doc-path: example -->
 
 ```rust
 self.status_bar_ui.on_mouse_activity();
@@ -1454,7 +1454,7 @@ git commit -m "feat(status-bar): integrate StatusBarUI into window state and ren
 **Files:**
 - Create: `src/settings_ui/status_bar_tab.rs`
 - Modify: `src/settings_ui/mod.rs`
-- Modify: `src/settings_ui/sidebar.rs`
+- Modify: `src/settings_ui/sidebar.rs` <!-- doc-path: example -->
 
 **Step 1: Add StatusBar variant to SettingsTab enum**
 

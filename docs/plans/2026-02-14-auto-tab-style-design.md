@@ -46,8 +46,8 @@ dark_tab_style: TabStyle   // default: TabStyle::Dark
 
 Same two detection points as `apply_system_theme()`:
 
-1. **Startup** (`src/app/window_state.rs`) - after `apply_system_theme()`, call `apply_system_tab_style(is_dark)`
-2. **ThemeChanged event** (`src/app/handler.rs`) - after applying system theme, call `apply_system_tab_style(is_dark)` and trigger redraw
+1. **Startup** (`src/app/window_state.rs`) - after `apply_system_theme()`, call `apply_system_tab_style(is_dark)` <!-- doc-path: example -->
+2. **ThemeChanged event** (`src/app/handler.rs`) - after applying system theme, call `apply_system_tab_style(is_dark)` and trigger redraw <!-- doc-path: example -->
 
 ## Settings UI
 

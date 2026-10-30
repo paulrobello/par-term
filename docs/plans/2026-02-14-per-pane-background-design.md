@@ -132,12 +132,12 @@ Custom shaders remain full-screen post-processing effects. They are unaware of p
 
 ## Files to Modify
 
-- `src/pane/types.rs` — Replace `background_image: Option<String>` with `PaneBackground` struct
+- `src/pane/types.rs` — Replace `background_image: Option<String>` with `PaneBackground` struct <!-- doc-path: example -->
 - `src/cell_renderer/background.rs` — Add texture cache, per-pane loading/rendering methods
 - `src/cell_renderer/mod.rs` — Add cache fields to `CellRenderer`
 - `src/cell_renderer/render.rs` — Update `render_pane_to_view` to accept per-pane background
 - `src/renderer/mod.rs` — Update `render_split_panes` to pass per-pane backgrounds, update `PaneRenderInfo`
 - `src/config/mod.rs` — Add `PaneBackgroundConfig` and `pane_backgrounds` field
-- `src/settings_ui/background_tab.rs` — Add per-pane background controls
-- `src/settings_ui/sidebar.rs` — Add search keywords
+- `src/settings_ui/background_tab.rs` — Add per-pane background controls <!-- doc-path: example -->
+- `src/settings_ui/sidebar.rs` — Add search keywords <!-- doc-path: example -->
 - `src/tab/mod.rs` — Wire pane background into `PaneRenderInfo` construction

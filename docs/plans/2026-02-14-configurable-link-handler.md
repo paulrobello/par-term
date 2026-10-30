@@ -65,7 +65,7 @@ git commit -m "feat: add link_handler_command config field"
 
 **Step 1: Update open_url signature and implementation**
 
-Replace the `open_url` function in `src/url_detection.rs` (lines 317-326):
+Replace the `open_url` function in `src/url_detection.rs` (lines 317-326): <!-- doc-path: example -->
 
 ```rust
 /// Open a URL in the configured browser or system default
@@ -98,7 +98,7 @@ pub fn open_url(url: &str, link_handler_command: &str) -> Result<(), String> {
 
 **Step 2: Update call site in mouse_events.rs**
 
-In `src/app/mouse_events.rs` line 166, change:
+In `src/app/mouse_events.rs` line 166, change: <!-- doc-path: example -->
 
 ```rust
 if let Err(e) = url_detection::open_url(&item.url) {
@@ -189,7 +189,7 @@ git commit -m "test: add link handler command expansion tests"
 
 **Step 1: Add link handler field to the Semantic History section**
 
-In `src/settings_ui/terminal_tab.rs`, inside the `show_semantic_history_section` function, add a "Link Handler" subsection at the top of the closure (after the description label at line 1194, before the `ui.add_space(4.0)` at line 1196):
+In `src/settings_ui/terminal_tab.rs`, inside the `show_semantic_history_section` function, add a "Link Handler" subsection at the top of the closure (after the description label at line 1194, before the `ui.add_space(4.0)` at line 1196): <!-- doc-path: example -->
 
 ```rust
             // Link handler command
@@ -236,7 +236,7 @@ In `src/settings_ui/terminal_tab.rs`, inside the `show_semantic_history_section`
 
 **Step 2: Add search keywords in sidebar.rs**
 
-In `src/settings_ui/sidebar.rs`, in the `SettingsTab::Terminal` keywords block (around line 441-448), add after `"editor command"`:
+In `src/settings_ui/sidebar.rs`, in the `SettingsTab::Terminal` keywords block (around line 441-448), add after `"editor command"`: <!-- doc-path: example -->
 
 ```rust
             "link handler",

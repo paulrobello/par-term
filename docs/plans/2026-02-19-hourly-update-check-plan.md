@@ -223,8 +223,8 @@ git add -A && git commit -m "feat(status-bar): render UpdateAvailable widget tex
 ### Task 4: Propagate update result from WindowManager to StatusBarUI
 
 **Files:**
-- Modify: `src/app/window_manager.rs` (after update check stores result)
-- Modify: `src/app/window_state.rs` (sync update state to status bar)
+- Modify: `src/app/window_manager.rs` (after update check stores result) <!-- doc-path: example -->
+- Modify: `src/app/window_state.rs` (sync update state to status bar) <!-- doc-path: example -->
 
 **Step 1: Add helper to extract version from `UpdateCheckResult`**
 

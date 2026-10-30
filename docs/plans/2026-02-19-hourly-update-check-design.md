@@ -9,7 +9,7 @@ Add an `Hourly` update check frequency option and a status bar widget that appea
 
 ## 1. Hourly Frequency Option
 
-- Add `Hourly` variant to `UpdateCheckFrequency` enum in `par-term-config/src/types.rs`
+- Add `Hourly` variant to `UpdateCheckFrequency` enum in `par-term-config/src/types.rs` <!-- doc-path: example -->
 - Maps to 3600 seconds interval
 - Appears in Settings Advanced tab dropdown
 - The existing 1-hour rate limit in `UpdateChecker` already prevents rapid re-checks
@@ -60,8 +60,8 @@ WindowManager::handle_periodic_update_check()
 - `par-term-config/src/types.rs` - Add `Hourly` to enum
 - `par-term-config/src/status_bar.rs` - Add `UpdateAvailable` widget ID + default config
 - `par-term-update/src/update_checker.rs` - Handle `Hourly` interval
-- `par-term-settings-ui/src/advanced_tab.rs` - Add `Hourly` to dropdown
+- `par-term-settings-ui/src/advanced_tab.rs` - Add `Hourly` to dropdown <!-- doc-path: example -->
 - `par-term-settings-ui/src/sidebar.rs` - Add search keywords
 - `src/status_bar/widgets.rs` - Render update widget text
 - `src/status_bar/mod.rs` - Wire up update result to widget context
-- `src/app/window_manager.rs` - Handle widget click, render update dialog, schedule hourly checks
+- `src/app/window_manager.rs` - Handle widget click, render update dialog, schedule hourly checks <!-- doc-path: example -->

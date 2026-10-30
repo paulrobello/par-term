@@ -360,7 +360,7 @@ When `ai_inspector_auto_launch` is `false`:
 - `SettingsUI` for complex egui panel with sections
 - `StatusBar` for egui Area positioning
 - `search_highlight.rs` for terminal data access patterns
-- Toad's `acp/agent.py` for ACP protocol implementation reference
+- Toad's `acp/agent.py` for ACP protocol implementation reference <!-- doc-path: example -->
 
 ## Deferred (Future Issues)
 

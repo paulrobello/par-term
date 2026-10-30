@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Reduce `render()` in `src/app/window_state.rs` from 2,482 lines to ~50 lines by extracting logical phases into focused helper methods.
+**Goal:** Reduce `render()` in `src/app/window_state.rs` from 2,482 lines to ~50 lines by extracting logical phases into focused helper methods. <!-- doc-path: example -->
 
 **Architecture:** Define a `FrameRenderData` struct to carry computed per-frame state between phases. Extract each phase as a `&mut self` method (or method returning owned data). The final `render()` reads as a ~10-step orchestration.
 
-**Tech Stack:** Rust 2024, `src/app/window_state.rs`, `src/app/debug_state.rs`. Use `make build` (dev-release) to verify after each task; `make lint` before committing.
+**Tech Stack:** Rust 2024, `src/app/window_state.rs`, `src/app/debug_state.rs`. Use `make build` (dev-release) to verify after each task; `make lint` before committing. <!-- doc-path: example -->
 
 ---
 

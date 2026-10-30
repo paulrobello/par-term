@@ -16,7 +16,7 @@
 
 **Files:**
 - Modify: `src/config/mod.rs`
-- Modify: `src/config/defaults.rs`
+- Modify: `src/config/defaults.rs` <!-- doc-path: example -->
 
 **Step 1: Add default functions to `src/config/defaults.rs`**
 
@@ -387,7 +387,7 @@ git commit -m "feat(ai-inspector): implement snapshot gathering from TerminalMan
 ### Task 5: Create basic AI Inspector panel UI
 
 **Files:**
-- Create: `src/ai_inspector/panel.rs`
+- Create: `src/ai_inspector/panel.rs` <!-- doc-path: example -->
 - Modify: `src/ai_inspector/mod.rs`
 
 **Step 1: Create panel struct and basic rendering**
@@ -824,8 +824,8 @@ git commit -m "feat(ai-inspector): create panel UI with view modes and controls"
 ### Task 6: Integrate panel into WindowState
 
 **Files:**
-- Modify: `src/app/window_state.rs`
-- Modify: `src/app/input_events.rs`
+- Modify: `src/app/window_state.rs` <!-- doc-path: example -->
+- Modify: `src/app/input_events.rs` <!-- doc-path: example -->
 
 **Step 1: Add AIInspectorPanel field to WindowState**
 
@@ -1013,8 +1013,8 @@ git commit -m "feat(ai-inspector): reflow terminal columns when panel opens/clos
 ### Task 8: Create JSON-RPC 2.0 client
 
 **Files:**
-- Create: `src/acp/mod.rs`
-- Create: `src/acp/jsonrpc.rs`
+- Create: `src/acp/mod.rs` <!-- doc-path: example -->
+- Create: `src/acp/jsonrpc.rs` <!-- doc-path: example -->
 - Modify: `src/lib.rs` (add `pub mod acp;`)
 
 **Step 1: Create the ACP module**
@@ -1373,7 +1373,7 @@ git commit -m "feat(acp): implement JSON-RPC 2.0 client over stdio"
 ### Task 9: Create ACP protocol types
 
 **Files:**
-- Create: `src/acp/protocol.rs`
+- Create: `src/acp/protocol.rs` <!-- doc-path: example -->
 
 **Step 1: Define ACP message types**
 
@@ -1818,7 +1818,7 @@ git commit -m "feat(acp): define ACP protocol message types"
 ### Task 10: Create agent discovery from TOML configs
 
 **Files:**
-- Create: `src/acp/agents.rs`
+- Create: `src/acp/agents.rs` <!-- doc-path: example -->
 - Create: `agents/claude.com.toml` (bundled agent config)
 
 **Step 1: Define agent config schema in `src/acp/agents.rs`**
@@ -2003,7 +2003,7 @@ git commit -m "feat(acp): add agent discovery from TOML configs"
 ### Task 11: Create Agent lifecycle manager
 
 **Files:**
-- Create: `src/acp/agent.rs`
+- Create: `src/acp/agent.rs` <!-- doc-path: example -->
 
 **Step 1: Implement Agent struct with spawn, initialize, session management**
 
@@ -2381,7 +2381,7 @@ git commit -m "feat(acp): implement agent lifecycle manager with ACP handshake"
 
 **Files:**
 - Modify: `src/ai_inspector/panel.rs`
-- Create: `src/ai_inspector/chat.rs`
+- Create: `src/ai_inspector/chat.rs` <!-- doc-path: example -->
 - Modify: `src/ai_inspector/mod.rs`
 
 **Step 1: Create chat data model in `src/ai_inspector/chat.rs`**
@@ -2726,9 +2726,9 @@ git commit -m "feat(ai-inspector): auto-feed terminal context to agent on comman
 ### Task 15: Add Settings UI tab for AI Inspector
 
 **Files:**
-- Create: `src/settings_ui/ai_inspector_tab.rs`
+- Create: `src/settings_ui/ai_inspector_tab.rs` <!-- doc-path: example -->
 - Modify: `src/settings_ui/mod.rs`
-- Modify: `src/settings_ui/sidebar.rs`
+- Modify: `src/settings_ui/sidebar.rs` <!-- doc-path: example -->
 
 **Step 1: Add tab to `SettingsTab` enum in `sidebar.rs`**
 

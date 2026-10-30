@@ -80,7 +80,7 @@ Add to Window tab: "space", "spaces", "mission control", "virtual desktop", "mac
 
 1. `src/macos_space.rs` — new file, SLS API wrapper
 2. `src/config/mod.rs` — add `target_space: Option<u32>`
-3. `src/app/window_manager.rs` — call `move_window_to_space()` in positioning
-4. `src/settings_ui/window_tab.rs` — add UI control
-5. `src/settings_ui/sidebar.rs` — add search keywords
+3. `src/app/window_manager.rs` — call `move_window_to_space()` in positioning <!-- doc-path: example -->
+4. `src/settings_ui/window_tab.rs` — add UI control <!-- doc-path: example -->
+5. `src/settings_ui/sidebar.rs` — add search keywords <!-- doc-path: example -->
 6. `src/main.rs` or `src/lib.rs` — register `mod macos_space`

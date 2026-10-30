@@ -17,7 +17,7 @@
 
 **Step 1: Add the variant**
 
-In `src/config/types.rs`, add `Automatic` to the `TabStyle` enum (after `HighContrast`):
+In `src/config/types.rs`, add `Automatic` to the `TabStyle` enum (after `HighContrast`): <!-- doc-path: example -->
 
 ```rust
 /// Tab visual style preset
@@ -101,7 +101,7 @@ git commit -m "feat: add Automatic variant to TabStyle enum (#141)"
 ### Task 2: Add config fields and `apply_system_tab_style()` method
 
 **Files:**
-- Modify: `src/config/defaults.rs` (add default functions)
+- Modify: `src/config/defaults.rs` (add default functions) <!-- doc-path: example -->
 - Modify: `src/config/mod.rs:1050-1055` (add config fields)
 - Modify: `src/config/mod.rs:2033-2100` (update `apply_tab_style()`)
 - Modify: `src/config/mod.rs:2530-2547` (add new method after `apply_system_theme()`)
@@ -197,7 +197,7 @@ git commit -m "feat: add light/dark tab style config and apply_system_tab_style 
 ### Task 3: Write tests for the new functionality
 
 **Files:**
-- Modify: `tests/config_tests.rs` (add tests after the existing `auto_dark_mode` tests around line 1235)
+- Modify: `tests/config_tests.rs` (add tests after the existing `auto_dark_mode` tests around line 1235) <!-- doc-path: example -->
 
 **Step 1: Write tests**
 
@@ -321,7 +321,7 @@ git commit -m "test: add tests for automatic tab style switching (#141)"
 - Modify: `src/app/window_state.rs:614-626` (startup detection)
 - Modify: `src/app/handler.rs:677-700` (ThemeChanged event)
 
-**Step 1: Add startup detection in `src/app/window_state.rs`**
+**Step 1: Add startup detection in `src/app/window_state.rs`** <!-- doc-path: example -->
 
 After the existing `apply_system_theme()` block (line 614-626), add tab style detection. The new code should apply regardless of `auto_dark_mode` — it depends on `tab_style == Automatic`:
 
@@ -345,7 +345,7 @@ After the existing `apply_system_theme()` block (line 614-626), add tab style de
         }
 ```
 
-**Step 2: Add ThemeChanged handler in `src/app/handler.rs`**
+**Step 2: Add ThemeChanged handler in `src/app/handler.rs`** <!-- doc-path: example -->
 
 Inside the `WindowEvent::ThemeChanged` arm (line 677-700), after the existing `apply_system_theme` block, add:
 

@@ -4,7 +4,7 @@
 
 **Goal:** Load profile definitions from remote URLs with auto-refresh, caching, conflict resolution, and Settings UI controls.
 
-**Architecture:** New `src/profile/dynamic.rs` module handles fetching, caching, and merging. Config gets a `dynamic_profile_sources` field. A tokio background task per source fetches on a timer and sends updates via `mpsc` channel. `WindowManager` checks the channel in `about_to_wait()` and propagates merged profiles to all windows.
+**Architecture:** New `src/profile/dynamic.rs` module handles fetching, caching, and merging. Config gets a `dynamic_profile_sources` field. A tokio background task per source fetches on a timer and sends updates via `mpsc` channel. `WindowManager` checks the channel in `about_to_wait()` and propagates merged profiles to all windows. <!-- doc-path: example -->
 
 **Tech Stack:** ureq (HTTP), sha2 (URL hashing), serde_yaml (parsing), tokio (async timer + mpsc channel), dirs (cache paths)
 
@@ -18,7 +18,7 @@
 
 **Step 1: Add the ProfileSource enum**
 
-In `src/profile/types.rs`, after line 7 (after the use statements), add:
+In `src/profile/types.rs`, after line 7 (after the use statements), add: <!-- doc-path: example -->
 
 ```rust
 /// Tracks where a profile came from (runtime-only, not persisted)
@@ -1095,7 +1095,7 @@ git commit -m "feat(profile): implement background fetch manager for dynamic pro
 
 **Step 1: Add DynamicProfileManager field to WindowManager**
 
-In `src/app/window_manager.rs`, add to the struct:
+In `src/app/window_manager.rs`, add to the struct: <!-- doc-path: example -->
 
 ```rust
     /// Dynamic profile manager for fetching remote profiles
@@ -1115,7 +1115,7 @@ Add the field to the struct init.
 
 **Step 2: Check for updates in about_to_wait**
 
-In `src/app/handler.rs`, inside the `about_to_wait` method on `WindowManager` (after the existing per-window loop at line ~1379), add:
+In `src/app/handler.rs`, inside the `about_to_wait` method on `WindowManager` (after the existing per-window loop at line ~1379), add: <!-- doc-path: example -->
 
 ```rust
         // Check for dynamic profile updates
@@ -1163,7 +1163,7 @@ git commit -m "feat(app): wire dynamic profile manager into event loop"
 
 **Step 1: Add the action**
 
-In `src/app/input_events.rs`, in the `execute_keybinding_action` match (after an existing action), add:
+In `src/app/input_events.rs`, in the `execute_keybinding_action` match (after an existing action), add: <!-- doc-path: example -->
 
 ```rust
             "reload_dynamic_profiles" => {
@@ -1179,7 +1179,7 @@ In `src/app/input_events.rs`, in the `execute_keybinding_action` match (after an
 
 **Step 2: Add the flag to WindowState**
 
-In `src/app/window_state.rs`, add the field:
+In `src/app/window_state.rs`, add the field: <!-- doc-path: example -->
 
 ```rust
     pub(crate) reload_dynamic_profiles_requested: bool,
@@ -1218,8 +1218,8 @@ git commit -m "feat(keybinding): add reload_dynamic_profiles action"
 ### Task 11: Add Settings UI for dynamic profile sources
 
 **Files:**
-- Modify: `src/settings_ui/profiles_tab.rs` (add dynamic sources section)
-- Modify: `src/settings_ui/sidebar.rs` (add search keywords)
+- Modify: `src/settings_ui/profiles_tab.rs` (add dynamic sources section) <!-- doc-path: example -->
+- Modify: `src/settings_ui/sidebar.rs` (add search keywords) <!-- doc-path: example -->
 
 **Step 1: Add dynamic sources UI section to profiles_tab.rs**
 
@@ -1299,7 +1299,7 @@ git commit -m "feat(app): restart dynamic profile manager on config change"
 ### Task 13: Add visual indicator for dynamic profiles
 
 **Files:**
-- Modify: `src/profile_modal_ui.rs` (show "[dynamic]" badge in profile list)
+- Modify: `src/profile_modal_ui.rs` (show "[dynamic]" badge in profile list) <!-- doc-path: example -->
 - Modify: `src/profile_drawer_ui.rs` (show indicator in drawer)
 
 **Step 1: Add dynamic indicator to profile list**

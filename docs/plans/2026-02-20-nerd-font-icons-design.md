@@ -20,8 +20,8 @@ Embed the Nerd Font Symbols-only subset (`SymbolsNerdFontMono-Regular.ttf`, ~2MB
   - `configure_nerd_font(ctx: &egui::Context)` — adds font to `FontDefinitions` as Proportional fallback
   - Curated icon constant arrays organized by category
 - Call from both egui context init sites:
-  - `src/app/renderer_init.rs` (main window)
-  - `src/settings_window.rs` (settings window)
+  - `src/app/renderer_init.rs` (main window) <!-- doc-path: example -->
+  - `src/settings_window.rs` (settings window) <!-- doc-path: example -->
 
 ### Icon Picker Update
 
@@ -39,7 +39,7 @@ Embed the Nerd Font Symbols-only subset (`SymbolsNerdFontMono-Regular.ttf`, ~2MB
 
 1. `assets/SymbolsNerdFontMono-Regular.ttf` — new embedded font file
 2. `par-term-settings-ui/src/nerd_font.rs` — new module: font setup + icon constants
-3. `par-term-settings-ui/src/profile_modal_ui.rs` — swap emoji presets for Nerd Font presets
+3. `par-term-settings-ui/src/profile_modal_ui.rs` — swap emoji presets for Nerd Font presets <!-- doc-path: example -->
 4. `par-term-settings-ui/src/lib.rs` — export new module
 5. `src/app/renderer_init.rs` — call `configure_nerd_font()` after creating egui context
 6. `src/settings_window.rs` — call `configure_nerd_font()` after creating egui context

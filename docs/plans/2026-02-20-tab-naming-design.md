@@ -66,17 +66,17 @@ them static. Users can still clear the name (blank rename) to revert to auto.
 
 | File | Change |
 |------|--------|
-| `par-term-config/src/config.rs` | Add `TabTitleMode` enum, `tab_title_mode` field |
-| `par-term-config/src/defaults.rs` | Default for `tab_title_mode` |
+| `par-term-config/src/config.rs` | Add `TabTitleMode` enum, `tab_title_mode` field <!-- doc-path: example --> |
+| `par-term-config/src/defaults.rs` | Default for `tab_title_mode` <!-- doc-path: example --> |
 | `src/tab/mod.rs` | Add `user_named` field, update `update_title()` logic |
 | `src/tab_bar_ui.rs` | Add `RenameTab` action, rename UI in context menu |
-| `src/app/window_state.rs` | Handle `RenameTab` action |
+| `src/app/window_state.rs` | Handle `RenameTab` action <!-- doc-path: example --> |
 | `src/session/mod.rs` | Add `custom_color`, `user_title` to `SessionTab` |
 | `src/session/capture.rs` | Capture `user_named` tabs and custom colors |
 | `src/session/restore.rs` | Restore user titles and custom colors |
-| `src/app/window_manager.rs` | Apply restored user titles and colors |
+| `src/app/window_manager.rs` | Apply restored user titles and colors <!-- doc-path: example --> |
 | `par-term-settings-ui/src/arrangements.rs` | Add fields to `TabSnapshot` |
 | `src/arrangements/capture.rs` | Capture user titles and colors |
-| `par-term-settings-ui/src/window_tab.rs` | Add `tab_title_mode` dropdown |
+| `par-term-settings-ui/src/window_tab.rs` | Add `tab_title_mode` dropdown <!-- doc-path: example --> |
 | `par-term-settings-ui/src/sidebar.rs` | Add search keywords |
-| `docs/TABS.md` | Document new features |
+| `docs/TABS.md` | Document new features <!-- doc-path: example --> |

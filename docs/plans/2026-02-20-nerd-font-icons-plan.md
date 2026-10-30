@@ -424,7 +424,7 @@ git commit -m "feat(profiles): replace emoji presets with Nerd Font icons in pic
 ### Task 5: Update the main crate's profile_modal_ui.rs (if duplicated)
 
 **Files:**
-- Check: `src/profile_modal_ui.rs` — there appears to be a copy in the main crate
+- Check: `src/profile_modal_ui.rs` — there appears to be a copy in the main crate <!-- doc-path: example -->
 
 The grep results showed `src/profile_modal_ui.rs` also contains `EMOJI_PRESETS`. Check if this is a re-export or a separate copy. If it's a separate copy, apply the same changes as Task 4. If it re-exports from par-term-settings-ui, no changes needed.
 

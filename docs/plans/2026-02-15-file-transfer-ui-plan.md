@@ -13,7 +13,7 @@
 ## Task 1: Add `DownloadSaveLocation` enum to config types
 
 **Files:**
-- Modify: `src/config/types.rs` (after `BackgroundImageMode` enum, ~line 184)
+- Modify: `src/config/types.rs` (after `BackgroundImageMode` enum, ~line 184) <!-- doc-path: example -->
 
 **Step 1: Add the enum**
 
@@ -202,7 +202,7 @@ git commit -m "feat(terminal): add file transfer wrapper methods to TerminalMana
 ## Task 4: Create `FileTransferState` and `check_file_transfers()` module
 
 **Files:**
-- Create: `src/app/file_transfers.rs`
+- Create: `src/app/file_transfers.rs` <!-- doc-path: example -->
 - Modify: `src/app/mod.rs` — add module declaration
 
 **Step 1: Add module declaration**
@@ -659,8 +659,8 @@ git commit -m "feat(app): add file transfer state and check_file_transfers handl
 ## Task 5: Wire `check_file_transfers()` into event loop and add state field
 
 **Files:**
-- Modify: `src/app/window_state.rs` — add `file_transfer_state` field (~line 274, ~line 403)
-- Modify: `src/app/handler.rs` — add `check_file_transfers()` call (~line 795)
+- Modify: `src/app/window_state.rs` — add `file_transfer_state` field (~line 274, ~line 403) <!-- doc-path: example -->
+- Modify: `src/app/handler.rs` — add `check_file_transfers()` call (~line 795) <!-- doc-path: example -->
 
 **Step 1: Add field to WindowState struct**
 
@@ -826,8 +826,8 @@ git commit -m "feat(renderer): wire file transfer progress overlay into egui ren
 ## Task 8: Add file transfer settings to Settings UI
 
 **Files:**
-- Modify: `src/settings_ui/advanced_tab.rs` — add file transfer section
-- Modify: `src/settings_ui/sidebar.rs` — add search keywords
+- Modify: `src/settings_ui/advanced_tab.rs` — add file transfer section <!-- doc-path: example -->
+- Modify: `src/settings_ui/sidebar.rs` — add search keywords <!-- doc-path: example -->
 
 **Step 1: Add settings section to advanced tab**
 

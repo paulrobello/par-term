@@ -15,10 +15,10 @@
 ## Task 1: ScriptConfig + Config Integration
 
 **Files:**
-- Create: `src/config/scripting.rs`
+- Create: `src/config/scripting.rs` <!-- doc-path: example -->
 - Modify: `src/config/mod.rs` (add `pub mod scripting;` and `scripts` field to Config)
-- Modify: `src/config/automation.rs` (reuse `RestartPolicy` - already public)
-- Test: `tests/config_tests.rs` (add script config tests)
+- Modify: `src/config/automation.rs` (reuse `RestartPolicy` - already public) <!-- doc-path: example -->
+- Test: `tests/config_tests.rs` (add script config tests) <!-- doc-path: example -->
 
 **Step 1: Write failing test for ScriptConfig serialization**
 
@@ -152,10 +152,10 @@ git commit -m "feat(config): add ScriptConfig for terminal automation scripts"
 ## Task 2: JSON Protocol Types
 
 **Files:**
-- Create: `src/scripting/protocol.rs`
-- Create: `src/scripting/mod.rs` (module declaration only for now)
+- Create: `src/scripting/protocol.rs` <!-- doc-path: example -->
+- Create: `src/scripting/mod.rs` (module declaration only for now) <!-- doc-path: example -->
 - Modify: `src/lib.rs` or `src/main.rs` — add `pub mod scripting;`
-- Test: `tests/script_protocol_tests.rs`
+- Test: `tests/script_protocol_tests.rs` <!-- doc-path: example -->
 
 **Step 1: Write failing tests for protocol serialization**
 
@@ -426,9 +426,9 @@ git commit -m "feat(scripting): add JSON protocol types for script communication
 ## Task 3: ScriptProcess — Single Script Subprocess Management
 
 **Files:**
-- Create: `src/scripting/process.rs`
+- Create: `src/scripting/process.rs` <!-- doc-path: example -->
 - Modify: `src/scripting/mod.rs` (add `pub mod process;`)
-- Test: `tests/script_process_tests.rs`
+- Test: `tests/script_process_tests.rs` <!-- doc-path: example -->
 
 **Step 1: Write failing test for ScriptProcess lifecycle**
 
@@ -691,10 +691,10 @@ git commit -m "feat(scripting): add ScriptProcess for subprocess lifecycle manag
 ## Task 4: Observer Bridge — Event Forwarding from Core
 
 **Files:**
-- Create: `src/scripting/observer.rs`
+- Create: `src/scripting/observer.rs` <!-- doc-path: example -->
 - Modify: `src/scripting/mod.rs` (add `pub mod observer;`)
 - Modify: `src/terminal/mod.rs` (add `add_observer`/`remove_observer` wrappers on TerminalManager)
-- Test: `tests/script_observer_tests.rs`
+- Test: `tests/script_observer_tests.rs` <!-- doc-path: example -->
 
 **Step 1: Write failing test for observer event capture**
 
@@ -1000,9 +1000,9 @@ git commit -m "feat(scripting): add observer bridge for event forwarding to scri
 ## Task 5: ScriptManager — Per-Tab Multi-Script Orchestrator
 
 **Files:**
-- Create: `src/scripting/manager.rs`
+- Create: `src/scripting/manager.rs` <!-- doc-path: example -->
 - Modify: `src/scripting/mod.rs` (add `pub mod manager;`)
-- Test: `tests/script_manager_tests.rs`
+- Test: `tests/script_manager_tests.rs` <!-- doc-path: example -->
 
 **Step 1: Write failing test for ScriptManager**
 
@@ -1429,7 +1429,7 @@ git commit -m "feat(settings): add script management UI state fields"
 ## Task 8: Settings UI — Sidebar Tab Addition
 
 **Files:**
-- Modify: `src/settings_ui/sidebar.rs` (add `Scripts` variant to enum, display name, icon, keywords)
+- Modify: `src/settings_ui/sidebar.rs` (add `Scripts` variant to enum, display name, icon, keywords) <!-- doc-path: example -->
 
 **Step 1: Add Scripts to SettingsTab enum**
 
@@ -1464,7 +1464,7 @@ git commit -m "feat(settings): add Scripts tab to settings sidebar"
 ## Task 9: Settings UI — Scripts Tab Implementation
 
 **Files:**
-- Create: `src/settings_ui/scripts_tab.rs`
+- Create: `src/settings_ui/scripts_tab.rs` <!-- doc-path: example -->
 - Modify: `src/settings_ui/mod.rs` (add `pub(crate) mod scripts_tab;` and render dispatch)
 
 Follow the exact pattern from `automation_tab.rs` for coprocesses.
@@ -1822,7 +1822,7 @@ git commit -m "feat(settings): add Scripts tab UI with CRUD, status, and output 
 ## Task 10: Window Manager — Script State Sync + Start/Stop
 
 **Files:**
-- Modify: `src/app/window_manager.rs` (add `sync_script_running_state()`, `start_script()`, `stop_script()`)
+- Modify: `src/app/window_manager.rs` (add `sync_script_running_state()`, `start_script()`, `stop_script()`) <!-- doc-path: example -->
 
 **Step 1: Add `sync_script_running_state()` method**
 
@@ -2148,8 +2148,8 @@ git commit -m "feat(window-manager): add script state sync, start, and stop meth
 ## Task 11: Settings Window + Handler — Action Routing
 
 **Files:**
-- Modify: `src/settings_window.rs` (add `StartScript`/`StopScript` action variants, queue processing)
-- Modify: `src/app/handler.rs` (dispatch `StartScript`/`StopScript` to window_manager)
+- Modify: `src/settings_window.rs` (add `StartScript`/`StopScript` action variants, queue processing) <!-- doc-path: example -->
+- Modify: `src/app/handler.rs` (dispatch `StartScript`/`StopScript` to window_manager) <!-- doc-path: example -->
 
 **Step 1: Add action variants to `SettingsWindowAction`**
 
@@ -2213,7 +2213,7 @@ git commit -m "feat(handler): route script start/stop actions from settings to w
 
 **Files:**
 - Create: `scripts/examples/hello_observer.py` (example script demonstrating the JSON protocol)
-- Modify: `docs/AUTOMATION.md` (add Scripts section documenting the feature)
+- Modify: `docs/AUTOMATION.md` (add Scripts section documenting the feature) <!-- doc-path: example -->
 
 **Step 1: Create example Python script**
 
@@ -2333,7 +2333,7 @@ git commit -m "docs: add example observer script and scripting documentation"
 ## Task 13: Integration Test — End-to-End Script Lifecycle
 
 **Files:**
-- Create: `tests/script_integration_tests.rs`
+- Create: `tests/script_integration_tests.rs` <!-- doc-path: example -->
 
 **Step 1: Write integration test**
 

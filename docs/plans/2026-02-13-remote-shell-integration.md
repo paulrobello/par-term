@@ -264,7 +264,7 @@ git commit -m "feat: add RemoteShellInstallUI confirmation dialog"
 ### Task 4: Wire dialog into WindowState
 
 **Files:**
-- Modify: `src/app/window_state.rs` (add field, import, init, render, handle action)
+- Modify: `src/app/window_state.rs` (add field, import, init, render, handle action) <!-- doc-path: example -->
 
 **Step 1: Add import**
 
@@ -348,7 +348,7 @@ git commit -m "feat: wire RemoteShellInstallUI into WindowState render loop"
 ### Task 5: Handle menu action in WindowManager
 
 **Files:**
-- Modify: `src/app/window_manager.rs` (add handler for `InstallShellIntegrationRemote`)
+- Modify: `src/app/window_manager.rs` (add handler for `InstallShellIntegrationRemote`) <!-- doc-path: example -->
 
 **Step 1: Add the menu action handler**
 

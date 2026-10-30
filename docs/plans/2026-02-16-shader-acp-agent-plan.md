@@ -13,7 +13,7 @@
 ### Task 1: Shader Context Generator - Keyword Detection
 
 **Files:**
-- Create: `src/ai_inspector/shader_context.rs`
+- Create: `src/ai_inspector/shader_context.rs` <!-- doc-path: example -->
 - Modify: `src/ai_inspector/mod.rs:1-3`
 
 **Step 1: Write the failing test for keyword detection**
@@ -368,7 +368,7 @@ git commit -m "feat(ai-inspector): add shader context builder for agent prompts"
 ### Task 3: Config File Watcher
 
 **Files:**
-- Create: `src/config/watcher.rs`
+- Create: `src/config/watcher.rs` <!-- doc-path: example -->
 - Modify: `src/config/mod.rs:6-11`
 
 This follows the same pattern as the existing `src/shader_watcher.rs` but watches `config.yaml` instead of shader files.
@@ -585,7 +585,7 @@ git commit -m "feat(config): add config file watcher for automatic reload"
 ### Task 4: Integrate Config Watcher into Window State
 
 **Files:**
-- Modify: `src/app/window_state.rs` (fields ~line 200, init ~line 390, event loop)
+- Modify: `src/app/window_state.rs` (fields ~line 200, init ~line 390, event loop) <!-- doc-path: example -->
 
 **Step 1: Add config watcher field to WindowState**
 
@@ -791,7 +791,7 @@ git commit -m "feat(ai-inspector): inject shader context into agent prompts"
 ### Task 6: Integration Tests
 
 **Files:**
-- Create: `tests/shader_context_tests.rs`
+- Create: `tests/shader_context_tests.rs` <!-- doc-path: example -->
 
 **Step 1: Write integration tests**
 

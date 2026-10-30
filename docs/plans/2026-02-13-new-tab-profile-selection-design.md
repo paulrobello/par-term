@@ -52,9 +52,9 @@ TabBarAction::ShowNewTabProfileMenu
 | File | Change |
 |------|--------|
 | `src/tab_bar_ui.rs` | Split button UI, dropdown rendering, new state fields |
-| `src/app/window_state.rs` | Handle `NewTabWithProfile` and `ShowNewTabProfileMenu` actions |
-| `src/app/tab_ops.rs` | Wire profile-based tab creation from tab bar action |
-| `src/app/input_events.rs` | Conditional shortcut behavior based on config |
-| `src/config.rs` | `new_tab_shortcut_shows_profiles` field |
+| `src/app/window_state.rs` | Handle `NewTabWithProfile` and `ShowNewTabProfileMenu` actions <!-- doc-path: example --> |
+| `src/app/tab_ops.rs` | Wire profile-based tab creation from tab bar action <!-- doc-path: example --> |
+| `src/app/input_events.rs` | Conditional shortcut behavior based on config <!-- doc-path: example --> |
+| `src/config.rs` | `new_tab_shortcut_shows_profiles` field <!-- doc-path: example --> |
 | `src/settings_ui/` | Expose the new setting in appropriate tab |
-| `src/settings_ui/sidebar.rs` | Add search keywords |
+| `src/settings_ui/sidebar.rs` | Add search keywords <!-- doc-path: example --> |

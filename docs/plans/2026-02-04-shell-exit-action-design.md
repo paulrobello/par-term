@@ -23,7 +23,7 @@ iTerm2 offers additional restart options that are useful for:
 
 ### Enum Definition
 
-New enum in `src/config/types.rs`:
+New enum in `src/config/types.rs`: <!-- doc-path: example -->
 
 ```rust
 /// Action to take when the shell process exits
@@ -104,7 +104,7 @@ This can be added to the pane's terminal manager or tracked at the tab level.
 
 ### Handler Logic
 
-In `src/app/handler.rs`, refactor the exit handling:
+In `src/app/handler.rs`, refactor the exit handling: <!-- doc-path: example -->
 
 ```rust
 match self.config.shell_exit_action {
@@ -131,7 +131,7 @@ match self.config.shell_exit_action {
 
 ### Settings UI
 
-In `src/settings_ui/terminal_tab.rs`, replace checkbox with dropdown:
+In `src/settings_ui/terminal_tab.rs`, replace checkbox with dropdown: <!-- doc-path: example -->
 
 ```rust
 ui.horizontal(|ui| {

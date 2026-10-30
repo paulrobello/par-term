@@ -110,17 +110,17 @@ Search keywords: trigger, regex, automation, coprocess, action, pattern, command
 ## File Changes
 
 ### New Files
-- `src/settings_ui/automation_tab.rs` — Automation settings tab
-- `src/config/automation.rs` — Config types + conversion impls
-- `src/app/triggers.rs` — Action dispatch + sound playback
+- `src/settings_ui/automation_tab.rs` — Automation settings tab <!-- doc-path: example -->
+- `src/config/automation.rs` — Config types + conversion impls <!-- doc-path: example -->
+- `src/app/triggers.rs` — Action dispatch + sound playback <!-- doc-path: example -->
 
 ### Modified Files
 - `src/config/mod.rs` — Add triggers/coprocesses fields to Config
 - `src/settings_ui/mod.rs` — Register automation tab, add runtime state
-- `src/settings_ui/sidebar.rs` — Add Automation variant
-- `src/app/handler.rs` — Add check_trigger_actions() call
+- `src/settings_ui/sidebar.rs` — Add Automation variant <!-- doc-path: example -->
+- `src/app/handler.rs` — Add check_trigger_actions() call <!-- doc-path: example -->
 - `src/app/mod.rs` — Add mod triggers
-- `src/app/window_state.rs` — Add coprocess manager, trigger sync
+- `src/app/window_state.rs` — Add coprocess manager, trigger sync <!-- doc-path: example -->
 - `src/tab/mod.rs` — Add CoprocessManager to tab, auto-start
 - `src/terminal/mod.rs` — Sync TriggerConfig into core registry
 - `src/cell_renderer/render.rs` — Apply trigger highlight colors

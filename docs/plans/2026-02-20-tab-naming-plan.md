@@ -13,8 +13,8 @@
 ### Task 1: Add `TabTitleMode` enum and config field
 
 **Files:**
-- Modify: `par-term-config/src/types.rs` (near line 356, after `TabBarMode`)
-- Modify: `par-term-config/src/config.rs` (near line 1097, after `tab_bar_mode`)
+- Modify: `par-term-config/src/types.rs` (near line 356, after `TabBarMode`) <!-- doc-path: example -->
+- Modify: `par-term-config/src/config.rs` (near line 1097, after `tab_bar_mode`) <!-- doc-path: example -->
 - Modify: `par-term-config/src/config.rs` (Default impl, near line 2007)
 
 **Step 1: Add enum to types.rs**
@@ -141,7 +141,7 @@ Change signature and body (lines 409-413):
     }
 ```
 
-**Step 5: Update caller in `src/app/window_state.rs`**
+**Step 5: Update caller in `src/app/window_state.rs`** <!-- doc-path: example -->
 
 At line 2082, change:
 
@@ -350,7 +350,7 @@ git commit -m "feat(tab): handle RenameTab action with blank-reverts-to-auto"
 **Files:**
 - Modify: `src/session/mod.rs`
 - Modify: `src/session/capture.rs`
-- Modify: `src/app/window_manager.rs` (restore path)
+- Modify: `src/app/window_manager.rs` (restore path) <!-- doc-path: example -->
 
 **Step 1: Add fields to `SessionTab`**
 
@@ -502,7 +502,7 @@ git commit -m "feat(arrangements): persist user tab titles and custom colors"
 ### Task 7: Add settings UI dropdown for `tab_title_mode`
 
 **Files:**
-- Modify: `par-term-settings-ui/src/window_tab.rs`
+- Modify: `par-term-settings-ui/src/window_tab.rs` <!-- doc-path: example -->
 - Modify: `par-term-settings-ui/src/sidebar.rs`
 
 **Step 1: Add dropdown to Window > Tab Bar section**
@@ -572,7 +572,7 @@ git commit -m "feat(settings): add tab title mode dropdown to Window tab"
 ### Task 8: Update documentation
 
 **Files:**
-- Modify: `docs/TABS.md`
+- Modify: `docs/TABS.md` <!-- doc-path: example -->
 
 **Step 1: Add Tab Title Mode section**
 

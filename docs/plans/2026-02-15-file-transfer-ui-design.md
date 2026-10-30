@@ -127,12 +127,12 @@ Add "File Transfers" section to Advanced tab (or new transfers section):
 - `src/app/file_transfers.rs` — FileTransferState, check_file_transfers(), overlay rendering (~300-400 lines)
 
 ### Modified
-- `src/app/handler.rs` — add `check_file_transfers()` call
-- `src/app/window_state.rs` — add `FileTransferState` field
+- `src/app/handler.rs` — add `check_file_transfers()` call <!-- doc-path: example -->
+- `src/app/window_state.rs` — add `FileTransferState` field <!-- doc-path: example -->
 - `src/terminal/mod.rs` — add wrapper methods
-- `src/config.rs` — add `DownloadSaveLocation` enum and fields
-- `src/settings_ui/advanced_tab.rs` — add transfer settings UI
-- `src/settings_ui/sidebar.rs` — add search keywords
+- `src/config.rs` — add `DownloadSaveLocation` enum and fields <!-- doc-path: example -->
+- `src/settings_ui/advanced_tab.rs` — add transfer settings UI <!-- doc-path: example -->
+- `src/settings_ui/sidebar.rs` — add search keywords <!-- doc-path: example -->
 
 ## Error Handling
 

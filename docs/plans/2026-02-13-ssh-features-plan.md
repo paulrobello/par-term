@@ -39,9 +39,9 @@ git commit -m "chore: add mdns-sd dependency for SSH host discovery"
 ### Task 2: Create SSH config parser module
 
 **Files:**
-- Create: `src/ssh/mod.rs`
-- Create: `src/ssh/types.rs`
-- Create: `src/ssh/config_parser.rs`
+- Create: `src/ssh/mod.rs` <!-- doc-path: example -->
+- Create: `src/ssh/types.rs` <!-- doc-path: example -->
+- Create: `src/ssh/config_parser.rs` <!-- doc-path: example -->
 - Modify: `src/lib.rs:57` (add `pub mod ssh;`)
 
 **Step 1: Create `src/ssh/types.rs`**
@@ -506,7 +506,7 @@ git commit -m "feat(ssh): add SSH config parser module"
 ### Task 3: Create known_hosts parser
 
 **Files:**
-- Create: `src/ssh/known_hosts.rs`
+- Create: `src/ssh/known_hosts.rs` <!-- doc-path: example -->
 - Modify: `src/ssh/mod.rs`
 
 **Step 1: Create `src/ssh/known_hosts.rs`**
@@ -692,8 +692,8 @@ git commit -m "feat(ssh): add known_hosts parser"
 ### Task 4: Create shell history scanner and host discovery aggregator
 
 **Files:**
-- Create: `src/ssh/history.rs`
-- Create: `src/ssh/discovery.rs`
+- Create: `src/ssh/history.rs` <!-- doc-path: example -->
+- Create: `src/ssh/discovery.rs` <!-- doc-path: example -->
 - Modify: `src/ssh/mod.rs`
 
 **Step 1: Create `src/ssh/history.rs`**
@@ -1112,7 +1112,7 @@ git commit -m "feat(ssh): add history scanner and host discovery aggregator"
 ### Task 5: Create mDNS discovery module
 
 **Files:**
-- Create: `src/ssh/mdns.rs`
+- Create: `src/ssh/mdns.rs` <!-- doc-path: example -->
 - Modify: `src/ssh/mod.rs`
 
 **Step 1: Create `src/ssh/mdns.rs`**
@@ -1314,7 +1314,7 @@ git commit -m "feat(ssh): add mDNS/Bonjour host discovery"
 
 **Step 1: Add SSH fields to Profile struct**
 
-In `src/profile/types.rs`, before line 121 (the closing `}` of the struct), add:
+In `src/profile/types.rs`, before line 121 (the closing `}` of the struct), add: <!-- doc-path: example -->
 
 ```rust
     // ========================================================================
@@ -1429,7 +1429,7 @@ git commit -m "feat(ssh): add SSH connection fields to Profile"
 ### Task 7: Add SSH fields to Profile Modal UI
 
 **Files:**
-- Modify: `src/profile_modal_ui.rs` (add temp fields, clear_form, load, save, render)
+- Modify: `src/profile_modal_ui.rs` (add temp fields, clear_form, load, save, render) <!-- doc-path: example -->
 
 **Step 1: Add temp fields to `ProfileModalUI` struct**
 
@@ -1564,9 +1564,9 @@ git commit -m "feat(ssh): add SSH fields to profile editor UI"
 
 **Files:**
 - Modify: `src/config/mod.rs` (add SSH config fields)
-- Create: `src/settings_ui/ssh_tab.rs`
+- Create: `src/settings_ui/ssh_tab.rs` <!-- doc-path: example -->
 - Modify: `src/settings_ui/mod.rs` (add `pub mod ssh_tab;`)
-- Modify: `src/settings_ui/sidebar.rs` (add SSH tab to enum + keywords)
+- Modify: `src/settings_ui/sidebar.rs` (add SSH tab to enum + keywords) <!-- doc-path: example -->
 
 **Step 1: Add config fields**
 
@@ -1590,7 +1590,7 @@ In `src/config/mod.rs`, in the `Config` struct, add (near other feature toggles)
     pub ssh_revert_profile_on_disconnect: bool,
 ```
 
-In `src/config/defaults.rs`, add:
+In `src/config/defaults.rs`, add: <!-- doc-path: example -->
 
 ```rust
 pub fn mdns_timeout() -> u32 {
@@ -2128,9 +2128,9 @@ git commit -m "feat(ssh): add quick connect dialog UI"
 ### Task 10: Wire Quick Connect into app and keybindings
 
 **Files:**
-- Modify: `src/app/window_state.rs` (add `ssh_connect_ui` field)
+- Modify: `src/app/window_state.rs` (add `ssh_connect_ui` field) <!-- doc-path: example -->
 - Modify: `src/app/input_events.rs:1596` (add `ssh_quick_connect` action)
-- Modify: `src/app/handler.rs` or the about_to_wait render path (render dialog and handle actions)
+- Modify: `src/app/handler.rs` or the about_to_wait render path (render dialog and handle actions) <!-- doc-path: example -->
 
 **Step 1: Add SshConnectUI to WindowState**
 
@@ -2143,7 +2143,7 @@ Initialize it in the constructor with `SshConnectUI::new()`.
 
 **Step 2: Add keybinding action**
 
-In `src/app/input_events.rs`, in `execute_keybinding_action()`, before the `_ =>` catch-all at line 1596, add:
+In `src/app/input_events.rs`, in `execute_keybinding_action()`, before the `_ =>` catch-all at line 1596, add: <!-- doc-path: example -->
 
 ```rust
             "ssh_quick_connect" => {
@@ -2193,7 +2193,7 @@ match ssh_action {
 
 **Step 5: Implement `new_tab_with_ssh_command` on WindowState**
 
-In `src/app/tab_ops.rs`, add a method to create a tab running an SSH command:
+In `src/app/tab_ops.rs`, add a method to create a tab running an SSH command: <!-- doc-path: example -->
 
 ```rust
     /// Create a new tab with an SSH command
