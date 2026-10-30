@@ -29,6 +29,7 @@
 
 #[cfg(feature = "mux")]
 pub(crate) mod agent_roster;
+mod event_dispatch;
 mod flow_control;
 mod layout;
 mod layout_apply;
@@ -40,10 +41,14 @@ pub(crate) mod mux;
 mod mux_adopt_tests;
 #[cfg(feature = "mux")]
 mod mux_attach;
+#[cfg(all(test, feature = "mux"))]
+mod mux_attach_flow_tests;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_attention;
 #[cfg(all(test, feature = "mux", unix))]
 mod mux_attention_tests;
+#[cfg(all(test, feature = "mux"))]
+mod mux_detach_tests;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_directory;
 #[cfg(feature = "mux")]
@@ -52,12 +57,24 @@ mod mux_drain;
 mod mux_drain_tests;
 #[cfg(all(test, feature = "mux", unix))]
 mod mux_graphics_seed_tests;
+#[cfg(all(test, feature = "mux"))]
+mod mux_health_tests;
+#[cfg(all(test, feature = "mux"))]
+mod mux_input_routing_tests;
 #[cfg(all(test, feature = "mux", unix))]
 mod mux_leader_tests;
+#[cfg(all(test, feature = "mux"))]
+mod mux_mirror_read_tests;
+#[cfg(all(test, feature = "mux"))]
+mod mux_output_hooks_tests;
+#[cfg(all(test, feature = "mux"))]
+mod mux_pane_env_tests;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_pane_exit;
 #[cfg(feature = "mux")]
 mod mux_pane_moves;
+#[cfg(all(test, feature = "mux"))]
+mod mux_pane_ops_tests;
 #[cfg(all(test, feature = "mux"))]
 mod mux_pane_sync_tests;
 #[cfg(feature = "mux")]
@@ -66,10 +83,16 @@ mod mux_panes;
 mod mux_reattach_scrollback_tests;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_reconnect;
+#[cfg(all(test, feature = "mux"))]
+mod mux_roster_titles_tests;
+#[cfg(all(test, feature = "mux"))]
+mod mux_session_end_tests;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_sessions;
 #[cfg(all(test, feature = "mux", unix))]
 mod mux_sessions_tests;
+#[cfg(all(test, feature = "mux"))]
+mod mux_tab_ops_tests;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_telemetry;
 #[cfg(all(test, feature = "mux"))]
