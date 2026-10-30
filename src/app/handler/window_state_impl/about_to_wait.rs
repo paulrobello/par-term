@@ -150,6 +150,10 @@ fn drain_queues(ws: &mut WindowState) -> DrainOutcome {
     }
     crate::agent_commands_store::run_approved_agent_commands(ws);
 
+    // Agent shader changes the first-use dialog approved (SEC-003 residual):
+    // drained here like the command approvals, outside the egui borrow.
+    ws.run_approved_shader_changes();
+
     if ws.check_tmux_notifications() {
         ws.focus_state.needs_redraw = true;
     }

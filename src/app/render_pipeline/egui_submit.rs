@@ -5,6 +5,7 @@
 //! that module within the 500-line target while grouping the egui-specific logic
 //! in one place.
 
+use super::agent_shader_dialog;
 use super::egui_overlays;
 use super::plugin_overlay_render;
 use super::types::PostRenderActions;
@@ -679,6 +680,12 @@ impl WindowState {
                     egui_overlays::render_agent_command_confirm_dialog(
                         ctx,
                         &mut self.agent_commands,
+                    );
+
+                    // Agent shader first-use confirmation; drained in about_to_wait.
+                    agent_shader_dialog::render_shader_change_confirm_dialog(
+                        ctx,
+                        &mut self.shader_state,
                     );
 
                     // Render file transfer progress overlay (bottom-right corner)

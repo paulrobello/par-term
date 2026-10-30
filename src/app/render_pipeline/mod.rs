@@ -12,6 +12,7 @@
 //! - `plugin_overlay_ui`: interactive plugin-overlay widgets (overlay kind, phase 2)
 //! - `types`: shared data-transfer types (`RendererSizing`, `FrameRenderData`, `PostRenderActions`)
 
+mod agent_shader_dialog;
 mod egui_dialogs;
 mod egui_overlays;
 mod egui_submit;

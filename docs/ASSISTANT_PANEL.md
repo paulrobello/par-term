@@ -230,7 +230,7 @@ When an agent requests permission for a tool call (such as writing a file or run
 - Option buttons provided by the agent (e.g., "Allow", "Allow for session")
 - A **Deny** button to reject the request
 
-Writes to the par-term shader directory, the system temp directory, and the `.config-update.json` IPC file are auto-approved. Other files in the par-term configuration directory, including `config.yaml`, prompt for approval because par-term hot-reloads them. When an agent sets `custom_shader` or `cursor_shader`, the value must name an existing file inside the shader directory. Any other path is rejected, so an agent cannot activate GPU shader code it wrote somewhere else, such as a temp directory.
+Writes to the par-term shader directory, the system temp directory, and the `.config-update.json` IPC file are auto-approved. Other files in the par-term configuration directory, including `config.yaml`, prompt for approval because par-term hot-reloads them. When an agent sets `custom_shader` or `cursor_shader`, the value must name an existing file inside the shader directory. Any other path is rejected, so an agent cannot activate GPU shader code it wrote somewhere else, such as a temp directory. A shader value that differs from the currently active one also needs explicit user confirmation before it activates: par-term shows a confirmation dialog naming the shader file, and the value applies only when approved. Re-sending the active value or clearing it with `null` needs no confirmation, so user-chosen shader paths are never prompted away.
 
 For Claude-compatible local backends, par-term also blocks unsupported `Skill` tool permission requests that some models may emit incorrectly.
 

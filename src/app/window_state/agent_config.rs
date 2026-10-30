@@ -24,6 +24,86 @@ pub(super) fn json_as_f32(value: &serde_json::Value) -> Result<f32, String> {
     }
 }
 
+/// Config keys whose value names a shader file (SEC-003).
+pub(super) const SHADER_PATH_KEYS: &[&str] = &["custom_shader", "cursor_shader"];
+
+/// Whether an agent-supplied shader-path value needs the user's confirmation
+/// before it can activate (SEC-003 residual): any non-null value that differs
+/// from the currently active one would activate new or changed GPU code.
+/// `null` disables the shader and re-sending the active value is a no-op, so
+/// both stay confirmation-free.
+fn shader_change_needs_confirmation(value: &serde_json::Value, current: &Option<String>) -> bool {
+    match value.as_str() {
+        Some(name) => current.as_deref() != Some(name),
+        None => false,
+    }
+}
+
+/// Split an agent config batch into what may apply immediately and what must
+/// wait for the user's confirmation (SEC-003 residual).
+///
+/// A shader-path value that differs from the active one is validated first:
+/// an invalid value is left in the batch so the apply path reports its own
+/// per-key error (the dialog never offers a shader the app would refuse to
+/// load), a valid one is returned as pending. Every pending key also yields
+/// a notice in the error list so the agent is told the value was accepted
+/// but not activated.
+///
+/// `validate` is [`Config::validate_agent_shader_path`], injected so tests can
+/// exercise the split without touching `HOME`.
+fn partition_agent_shader_updates(
+    updates: &std::collections::HashMap<String, serde_json::Value>,
+    current_background: &Option<String>,
+    current_cursor: &Option<String>,
+    validate: impl Fn(&str) -> Result<(), String>,
+) -> (
+    std::collections::HashMap<String, serde_json::Value>,
+    Vec<super::shader_state::PendingShaderChange>,
+    Vec<String>,
+) {
+    let mut apply_now = updates.clone();
+    let mut pending = Vec::new();
+    let mut notices = Vec::new();
+
+    for key in SHADER_PATH_KEYS {
+        let Some(value) = apply_now.get(*key) else {
+            continue;
+        };
+        let current = if *key == "custom_shader" {
+            current_background
+        } else {
+            current_cursor
+        };
+        if !shader_change_needs_confirmation(value, current) {
+            continue;
+        }
+        let Some(name) = value.as_str().map(str::to_string) else {
+            // Wrong JSON type: let the apply path report it.
+            continue;
+        };
+        match validate(&name) {
+            Ok(()) => {
+                notices.push(format!(
+                    "{key}: pending user confirmation (value activates only after the \
+                         user approves it in par-term)"
+                ));
+                apply_now.remove(*key);
+                pending.push(super::shader_state::PendingShaderChange {
+                    key: (*key).to_string(),
+                    value: name,
+                });
+            }
+            Err(_) => {
+                // Invalid value: leave the key in the batch untouched so the
+                // apply path reports its own per-key error, unchanged from
+                // the pre-gate behavior.
+            }
+        }
+    }
+
+    (apply_now, pending, notices)
+}
+
 /// Parse an agent-supplied `custom_shader` / `cursor_shader` value (SEC-003).
 ///
 /// `null` disables the shader and re-sending the currently configured value is
@@ -182,14 +262,69 @@ impl WindowState {
     ///
     /// Updates the in-memory config, applies changes to the renderer, and
     /// saves to disk. Returns `Ok(())` on success or an error string.
+    ///
+    /// Every agent entry point (ACP `config/update` RPC, the MCP
+    /// `.config-update.json` IPC file, and the inline-tool-markup fallback)
+    /// funnels through here, so this is also the single confirmation gate
+    /// (SEC-003 residual): shader-path values that differ from the active
+    /// ones are parked for the user's first-use confirmation dialog instead
+    /// of being applied. Re-sending the active value and `null` stay
+    /// confirmation-free.
     pub(super) fn apply_agent_config_updates(
         &mut self,
         updates: &std::collections::HashMap<String, serde_json::Value>,
     ) -> Result<(), String> {
-        let mut errors = Vec::new();
-        let old_config = (**self.config.load()).clone();
+        self.apply_agent_config_updates_inner(updates, false)
+    }
 
-        for (key, value) in updates {
+    /// Body of [`Self::apply_agent_config_updates`].
+    ///
+    /// `request_confirmation=false` (every agent entry point) parks shader
+    /// values that differ from the active ones for the confirmation dialog;
+    /// `true` is only for the approval drain, so an approved value cannot
+    /// re-queue itself.
+    fn apply_agent_config_updates_inner(
+        &mut self,
+        updates: &std::collections::HashMap<String, serde_json::Value>,
+        request_confirmation: bool,
+    ) -> Result<(), String> {
+        let old_config = (**self.config.load()).clone();
+        let (updates, pending, mut errors) = if request_confirmation {
+            (updates.clone(), Vec::new(), Vec::new())
+        } else {
+            partition_agent_shader_updates(
+                updates,
+                &old_config.shader.custom_shader,
+                &old_config.shader.cursor_shader,
+                |name| {
+                    Config::validate_agent_shader_path(name)
+                        .map_err(|e| e.to_string())
+                        .map(|_| ())
+                },
+            )
+        };
+        if !pending.is_empty() {
+            log::info!("SEC-003: agent shader change(s) parked for user confirmation: {pending:?}");
+            let note = pending
+                .iter()
+                .map(|c| format!("{} = \"{}\"", c.key, c.value))
+                .collect::<Vec<_>>()
+                .join(", ");
+            self.overlay_ui
+                .ai_inspector
+                .chat
+                .add_system_message(format!(
+                    "Agent shader change queued for your confirmation: {note}. \
+                 Approve or ignore it in the dialog; re-sending the value after \
+                 approval applies immediately."
+                ));
+        }
+        for change in pending {
+            self.shader_state.queue_shader_change(change);
+        }
+        self.focus_state.needs_redraw = true;
+
+        for (key, value) in &updates {
             if let Err(e) = self.apply_single_config_update(key, value) {
                 errors.push(format!("{key}: {e}"));
             }
@@ -454,4 +589,42 @@ impl WindowState {
             _ => Err(format!("unknown or read-only config key: {key}")),
         }
     }
+
+    /// Drain the shader-confirmation dialog's decision: on approval, activate
+    /// the parked value through the apply path with the gate bypassed; on
+    /// decline, drop it. Called from `about_to_wait`, like the agent-command
+    /// approval drain, where `&mut self` is free of the egui borrow.
+    pub(crate) fn run_approved_shader_changes(&mut self) {
+        let Some((change, approved)) = self.shader_state.take_shader_decision() else {
+            return;
+        };
+        if !approved {
+            log::info!(
+                "SEC-003: user declined agent {} = \"{}\"; value not activated",
+                change.key,
+                change.value
+            );
+            return;
+        }
+        log::info!(
+            "SEC-003: user approved agent {} = \"{}\"; activating",
+            change.key,
+            change.value
+        );
+        let mut updates = std::collections::HashMap::new();
+        updates.insert(change.key.clone(), serde_json::Value::String(change.value));
+        if let Err(e) = self.apply_agent_config_updates_inner(&updates, true) {
+            log::error!("SEC-003: approved shader activation failed: {e}");
+        } else {
+            // The other agent apply callers set this for the cross-window
+            // sync in `app_handler_impl`; the approval drain is its own
+            // caller, so set it here.
+            self.render_loop.config_changed_by_agent = true;
+        }
+        self.focus_state.needs_redraw = true;
+    }
 }
+
+#[cfg(test)]
+#[path = "agent_config_tests.rs"]
+mod tests;
