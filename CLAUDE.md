@@ -30,7 +30,7 @@ make test           # Run all tests
 make test-one TEST=test_name  # Run specific test
 make all            # Format, lint, test, and build
 make pre-commit     # Run pre-commit checks (secret-scan, fmt-check, lint, test)
-make ci             # Full CI checks (fmt-check, lint-all, check-nomux, test, check-all, check-line-counts, check-window-state-budget, check-terminology)
+make ci             # Full CI checks (fmt-check, lint-all, check-nomux, test, check-line-counts, check-window-state-budget, check-terminology)
 make fmt            # Format code with rustfmt
 make lint           # Run clippy
 make typecheck      # Type-check entire workspace (cargo check --workspace)

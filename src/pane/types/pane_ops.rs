@@ -5,12 +5,11 @@
 //! terminal management helpers that don't fit in the struct definition file.
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use tokio::runtime::Runtime;
 
 use crate::config::Config;
-use crate::tab::build_shell_env;
+use crate::tab::{LivenessPolling, build_shell_env, spawn_refresh_task};
 
 use super::pane::Pane;
 
@@ -146,52 +145,17 @@ impl Pane {
         active_fps: u32,
         inactive_fps: u32,
     ) {
-        let terminal_clone = Arc::clone(&self.terminal);
-        let is_active = Arc::clone(&self.is_active);
-        let active_interval_ms = (1000 / active_fps.max(1)) as u64;
-        let inactive_interval_ms = (1000 / inactive_fps.max(1)) as u64;
-
-        let handle = runtime.spawn(async move {
-            let mut last_gen = 0u64;
-            let mut idle_streak = 0u32;
-            const MAX_INACTIVE_IDLE_INTERVAL_MS: u64 = 250;
-
-            loop {
-                let is_active_now = is_active.load(Ordering::Relaxed);
-                // Keep the active tab responsive: only apply backoff to inactive tabs.
-                let interval_ms = if is_active_now {
-                    active_interval_ms
-                } else if idle_streak > 0 {
-                    (inactive_interval_ms << idle_streak.min(4)).min(MAX_INACTIVE_IDLE_INTERVAL_MS)
-                } else {
-                    inactive_interval_ms
-                };
-                tokio::time::sleep(tokio::time::Duration::from_millis(interval_ms)).await;
-
-                let should_redraw = if let Ok(term) = terminal_clone.try_read() {
-                    let current_gen = term.update_generation();
-                    if current_gen > last_gen {
-                        last_gen = current_gen;
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                };
-
-                if should_redraw {
-                    idle_streak = 0;
-                    window.request_redraw();
-                } else if is_active_now {
-                    idle_streak = 0;
-                } else {
-                    idle_streak = idle_streak.saturating_add(1);
-                }
-            }
-        });
-
-        self.refresh_task = Some(handle);
+        // Pane loops redraw on output only; only the tab loop watches for a
+        // silent child death (f5ebe1d0).
+        self.refresh_task = Some(spawn_refresh_task(
+            &runtime,
+            Arc::clone(&self.terminal),
+            Arc::clone(&self.is_active),
+            window,
+            active_fps,
+            inactive_fps,
+            LivenessPolling::Off,
+        ));
     }
 
     /// Stop the refresh polling task

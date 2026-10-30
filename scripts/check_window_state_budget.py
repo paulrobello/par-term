@@ -30,6 +30,13 @@ a sub-struct behind the facade instead of opening another `impl WindowState`.
 
 Counting is textual over comment- and string-stripped source, so a scratch
 file under `src/` counts even if no module declares it.
+
+Advisory section (AUDIT.md ARC-007): `SettingsUI`
+(`par-term-settings-ui/src/settings_ui/mod.rs`) is a second hub of the same
+shape. It is measured the same way -- inherent `impl SettingsUI` blocks across
+`par-term-settings-ui/src/`, fields declared directly on the struct -- against
+SETTINGS_UI_* ceilings, but only WARNS. It never changes this script's exit
+code: the audit asked to track its growth, not to gate on it.
 """
 
 from __future__ import annotations
@@ -55,10 +62,28 @@ GOOD_EXAMPLES = (
     "src/app/window_state/search_highlight.rs (free functions over a params struct)",
 )
 
-INHERENT_IMPL_RE = re.compile(
-    r"\bimpl\s*(?:<[^>{]*>)?\s+(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*WindowState\s*\{"
-)
-STRUCT_RE = re.compile(r"\bstruct\s+WindowState\b[^{;]*\{")
+SETTINGS_UI_SRC_DIR = REPO_ROOT / "par-term-settings-ui" / "src"
+SETTINGS_UI_HUB_FILE = SETTINGS_UI_SRC_DIR / "settings_ui" / "mod.rs"
+
+# ADVISORY (AUDIT.md ARC-007), measured 2026-10-30: exceeding these warns and
+# never fails. Lower them as the hub shrinks.
+SETTINGS_UI_IMPL_BLOCK_CEILING = 16
+SETTINGS_UI_FIELD_CEILING = 134
+
+
+def inherent_impl_re(type_name: str) -> re.Pattern[str]:
+    return re.compile(
+        r"\bimpl\s*(?:<[^>{]*>)?\s+(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*"
+        + type_name
+        + r"\s*\{"
+    )
+
+
+def struct_re(type_name: str) -> re.Pattern[str]:
+    return re.compile(r"\bstruct\s+" + type_name + r"\b[^{;]*\{")
+
+
+INHERENT_IMPL_RE = inherent_impl_re("WindowState")
 FIELD_RE = re.compile(r"^\s*(?:pub(?:\s*\([^)]*\))?\s+)?([a-z_][a-z0-9_]*)\s*:(?!:)")
 
 
@@ -66,29 +91,33 @@ def stripped(path: Path) -> str:
     return "\n".join(strip_literals(path.read_text(encoding="utf-8", errors="replace")))
 
 
-def count_impl_blocks() -> dict[str, int]:
+def count_impl_blocks(
+    src_dir: Path = SRC_DIR,
+    type_name: str = "WindowState",
+) -> dict[str, int]:
+    impl_re = inherent_impl_re(type_name)
     per_file: dict[str, int] = {}
-    for dirpath, dirnames, filenames in os.walk(SRC_DIR):
+    for dirpath, dirnames, filenames in os.walk(src_dir):
         dirnames.sort()
         for filename in sorted(filenames):
             if not filename.endswith(".rs"):
                 continue
             path = Path(dirpath) / filename
             text = path.read_text(encoding="utf-8", errors="replace")
-            if "WindowState" not in text:
+            if type_name not in text:
                 continue
-            hits = len(INHERENT_IMPL_RE.findall(stripped(path)))
+            hits = len(impl_re.findall(stripped(path)))
             if hits:
                 per_file[path.relative_to(REPO_ROOT).as_posix()] = hits
     return per_file
 
 
-def count_hub_fields() -> int:
-    code = stripped(HUB_FILE)
-    m = STRUCT_RE.search(code)
+def count_struct_fields(hub_file: Path, type_name: str) -> int | None:
+    """Fields declared directly on `struct <type_name>`; None if not found."""
+    code = stripped(hub_file)
+    m = struct_re(type_name).search(code)
     if not m:
-        print(f"FAIL: `struct WindowState` not found in {HUB_FILE.relative_to(REPO_ROOT)}")
-        sys.exit(2)
+        return None
     depth = 1
     fields = 0
     for line in code[m.end():].split("\n"):
@@ -98,6 +127,54 @@ def count_hub_fields() -> int:
         if depth <= 0:
             break
     return fields
+
+
+def count_hub_fields() -> int:
+    fields = count_struct_fields(HUB_FILE, "WindowState")
+    if fields is None:
+        print(f"FAIL: `struct WindowState` not found in {HUB_FILE.relative_to(REPO_ROOT)}")
+        sys.exit(2)
+    return fields
+
+
+def report_settings_ui_advisory() -> None:
+    """Print SettingsUI growth against advisory ceilings. Never fails."""
+    print("\nSettingsUI hub (ADVISORY, AUDIT.md ARC-007 -- warns, never fails):")
+    try:
+        per_file = count_impl_blocks(SETTINGS_UI_SRC_DIR, "SettingsUI")
+        fields = (
+            count_struct_fields(SETTINGS_UI_HUB_FILE, "SettingsUI")
+            if SETTINGS_UI_HUB_FILE.exists()
+            else None
+        )
+    except OSError as exc:
+        print(f"  warning: could not measure SettingsUI ({exc}); skipped.")
+        return
+    impl_blocks = sum(per_file.values())
+    print(
+        f"  SettingsUI impl blocks: {impl_blocks} across {len(per_file)} file(s) "
+        f"(advisory ceiling {SETTINGS_UI_IMPL_BLOCK_CEILING})"
+    )
+    if fields is None:
+        print(
+            "  warning: `struct SettingsUI` not found in "
+            f"{SETTINGS_UI_HUB_FILE.relative_to(REPO_ROOT)}; field count skipped."
+        )
+    else:
+        print(
+            f"  SettingsUI fields:      {fields} "
+            f"(advisory ceiling {SETTINGS_UI_FIELD_CEILING})"
+        )
+    for label, measured, ceiling in (
+        ("impl blocks", impl_blocks, SETTINGS_UI_IMPL_BLOCK_CEILING),
+        ("fields", fields, SETTINGS_UI_FIELD_CEILING),
+    ):
+        if measured is not None and measured > ceiling:
+            print(
+                f"  WARNING: SettingsUI {label} {measured} exceed the advisory ceiling "
+                f"{ceiling} (+{measured - ceiling}). Put new per-tab form state in "
+                "par-term-settings-ui/src/<tab>/state.rs instead of on SettingsUI."
+            )
 
 
 def main() -> int:
@@ -132,6 +209,8 @@ def main() -> int:
                 f"note: {name} can drop to {measured}; lower it in "
                 f"scripts/check_window_state_budget.py to lock in the gain."
             )
+
+    report_settings_ui_advisory()
 
     if failures:
         print("\nFAIL: the WindowState hub budget (AUDIT.md ARC-001) is exceeded:")

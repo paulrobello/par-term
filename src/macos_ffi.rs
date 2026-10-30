@@ -4,6 +4,7 @@
 //! Extracted so the dlsym null-check defensive path is one named function
 //! both modules share, and QA-011 tests can exercise it directly: a missing
 //! symbol must yield `None`, never a transmuted null function pointer.
+//! [`macos_major_version`] backs both modules' version gate (ARC-005).
 
 /// Resolve `name` in an already-dlopened `handle`, returning `None` when the
 /// symbol is absent.
@@ -23,6 +24,29 @@ pub(crate) unsafe fn dlsym_checked<T>(
         // instantiation, where T is a pointer-sized function pointer type.
         Some(unsafe { std::mem::transmute_copy::<*mut libc::c_void, T>(&sym) })
     }
+}
+
+/// Running macOS major version (`sw_vers -productVersion`), cached for the
+/// process. `0` means the version could not be determined, which keeps every
+/// private-API version gate closed.
+pub(crate) fn macos_major_version() -> u32 {
+    static MACOS_MAJOR_VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *MACOS_MAJOR_VERSION.get_or_init(|| {
+        match std::process::Command::new("sw_vers")
+            .arg("-productVersion")
+            .output()
+        {
+            Ok(output) => {
+                let s = String::from_utf8_lossy(&output.stdout);
+                s.trim()
+                    .split('.')
+                    .next()
+                    .and_then(|v| v.parse::<u32>().ok())
+                    .unwrap_or(0)
+            }
+            Err(_) => 0,
+        }
+    })
 }
 
 #[cfg(test)]

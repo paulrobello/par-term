@@ -56,7 +56,7 @@ impl Config {
     /// components that would escape the shaders directory.
     ///
     /// This is a compile-time / pre-existence check used by [`Self::shader_path`]
-    /// and [`Self::checked_shader_path`] before the file is opened.  Because the
+    /// and [`Self::validate_shader_within`] before the file is opened.  Because the
     /// shader file might not exist yet (e.g., when the user is composing its name
     /// in the settings UI), we cannot call `canonicalize` here.
     ///
@@ -109,8 +109,8 @@ impl Config {
     /// Any relative name that contains `..` components is rejected: the
     /// function logs a warning and falls back to returning the shaders directory
     /// itself so that callers always receive a valid `PathBuf` without breaking
-    /// existing call sites.  Use [`Self::checked_shader_path`] when you need a
-    /// hard error instead of a fallback.
+    /// existing call sites.  Use [`Self::validate_agent_shader_path`] when you
+    /// need a hard error for an agent-supplied name.
     pub fn shader_path(shader_name: &str) -> PathBuf {
         let path = PathBuf::from(shader_name);
         if path.is_absolute() {
@@ -137,6 +137,10 @@ impl Config {
     /// Returns [`ConfigError::PathTraversal`] when a relative `shader_name`
     /// contains a `..` component. Absolute paths are returned unchanged and are
     /// never rejected — the caller is trusted to have vetted them.
+    ///
+    /// Hidden (QA-003, audit 2026-10-30): no caller in the workspace; kept
+    /// public because par-term-config is published with external dependents.
+    #[doc(hidden)]
     pub fn checked_shader_path(shader_name: &str) -> Result<PathBuf, ConfigError> {
         let path = PathBuf::from(shader_name);
         if path.is_absolute() {
@@ -224,6 +228,10 @@ impl Config {
 
     /// Get the channel texture paths as an array of Options
     /// Returns [channel0, channel1, channel2, channel3] for iChannel0-3
+    ///
+    /// Hidden (QA-003, audit 2026-10-30): no caller in the workspace; kept
+    /// public because par-term-config is published with external dependents.
+    #[doc(hidden)]
     pub fn shader_channel_paths(&self) -> [Option<PathBuf>; 4] {
         [
             self.shader
@@ -247,6 +255,10 @@ impl Config {
 
     /// Get the cubemap path prefix (resolved)
     /// Returns None if not configured, otherwise the resolved path prefix
+    ///
+    /// Hidden (QA-003, audit 2026-10-30): no caller in the workspace; kept
+    /// public because par-term-config is published with external dependents.
+    #[doc(hidden)]
     pub fn shader_cubemap_path(&self) -> Option<PathBuf> {
         self.shader
             .custom_shader_cubemap
@@ -297,6 +309,11 @@ impl Config {
 
     /// Check if the shaders folder is missing or empty
     /// Returns true if user should be prompted to install shaders
+    ///
+    /// Hidden (QA-003, audit 2026-10-30): no caller in the workspace (the app
+    /// uses [`Self::should_prompt_shader_install_versioned`]); kept public
+    /// because par-term-config is published with external dependents.
+    #[doc(hidden)]
     pub fn should_prompt_shader_install(&self) -> bool {
         // Only prompt if the preference is set to "ask"
         if self.integrations.shader_install_prompt != ShaderInstallPrompt::Ask {
@@ -304,24 +321,7 @@ impl Config {
         }
 
         let shaders_dir = Self::shaders_dir();
-
-        // Check if directory doesn't exist
-        if !shaders_dir.exists() {
-            return true;
-        }
-
-        // Check if directory is empty or has no .glsl files
-        if let Ok(entries) = std::fs::read_dir(&shaders_dir) {
-            for entry in entries.flatten() {
-                if let Some(ext) = entry.path().extension()
-                    && ext == "glsl"
-                {
-                    return false; // Found at least one shader
-                }
-            }
-        }
-
-        true // Directory exists but has no .glsl files
+        !shaders_dir.exists() || !Self::has_shader_files(&shaders_dir)
     }
 
     /// Check if shaders should be prompted (version-aware logic)
@@ -358,8 +358,11 @@ impl Config {
         !shaders_dir.exists() || !Self::has_shader_files(&shaders_dir)
     }
 
-    /// Check if a directory contains shader files (.glsl)
-    fn has_shader_files(dir: &PathBuf) -> bool {
+    /// Check if a directory directly contains any shader files (`.glsl`).
+    ///
+    /// The single implementation shared with the root crate's shader installer
+    /// (AUDIT.md ARC-005). An unreadable directory counts as having none.
+    pub fn has_shader_files(dir: &Path) -> bool {
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
                 if let Some(ext) = entry.path().extension()

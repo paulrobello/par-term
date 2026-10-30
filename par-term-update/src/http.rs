@@ -1,10 +1,16 @@
-//! HTTP client helper with native-tls support for the self-update subsystem.
+//! HTTP client helper with native-tls support: par-term's single validated-HTTP
+//! surface (AUDIT.md ARC-004).
+//!
+//! Both the self-updater and the root crate's shader downloader
+//! (`par_term::http`) fetch through this module. Each caller owns its host
+//! allowlist as a [`HostPolicy`]; the enforcement below is shared, so a fix to
+//! URL validation, redirect handling or redaction lands once.
 //!
 //! # Security Design
 //!
-//! All network requests made by the self-update subsystem go through
-//! [`validate_update_url`] before any network I/O occurs. Two invariants are
-//! enforced:
+//! All network requests go through [`validate_url_for`] (the self-updater's
+//! [`validate_update_url`] is that function with [`UPDATE_POLICY`]) before any
+//! network I/O occurs. Three invariants are enforced:
 //!
 //! 1. **HTTPS only** — plain HTTP, `file://`, and any other non-HTTPS scheme are
 //!    rejected unconditionally. This prevents a network-level attacker from
@@ -32,7 +38,7 @@ use ureq::{Body, Error as UreqError};
 /// Global timeout for all HTTP operations (30 seconds).
 const HTTP_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Maximum number of redirects followed manually by [`get_validated`].
+/// Maximum number of redirects followed manually by [`get_validated_for`].
 ///
 /// GitHub release downloads take exactly two hops
 /// (`github.com/…/releases/download/…` → `github.com/…/releases/download/<tag>/…`
@@ -45,6 +51,25 @@ pub const MAX_API_RESPONSE_SIZE: u64 = 10 * 1024 * 1024;
 
 /// Maximum response body size for file downloads (50 MB).
 pub const MAX_DOWNLOAD_SIZE: u64 = 50 * 1024 * 1024;
+
+/// Caller-owned configuration for the validated-HTTP surface.
+///
+/// This module is the single implementation of HTTPS enforcement, per-hop
+/// redirect revalidation and URL redaction (AUDIT.md ARC-004). What differs per
+/// caller is *which hosts are trusted* and how errors are worded, so each
+/// caller supplies a `HostPolicy`: the self-updater uses [`UPDATE_POLICY`], the
+/// root crate's shader downloader defines its own in `par_term::http`.
+#[derive(Debug, Clone, Copy)]
+pub struct HostPolicy {
+    /// Exact hostnames a URL, or any redirect hop, may resolve to.
+    pub allowed_hosts: &'static [&'static str],
+    /// Lower-case noun naming the operation in errors ("update", "download").
+    pub noun: &'static str,
+    /// Capitalised form of [`Self::noun`], used at the start of sentences.
+    pub noun_title: &'static str,
+    /// Appended to request-failure errors (may be empty).
+    pub request_error_hint: &'static str,
+}
 
 /// Allowlisted hostnames for update-related network requests.
 ///
@@ -66,16 +91,34 @@ const ALLOWED_HOSTS: &[&str] = &[
     "release-assets.githubusercontent.com",
 ];
 
+/// The self-updater's policy: [`ALLOWED_HOSTS`] plus update-specific wording.
+pub const UPDATE_POLICY: HostPolicy = HostPolicy {
+    allowed_hosts: ALLOWED_HOSTS,
+    noun: "update",
+    noun_title: "Update",
+    request_error_hint: " If the problem persists, download manually from: \
+                         https://github.com/paulrobello/par-term/releases",
+};
+
 /// Validate that a URL is safe to use for update operations.
+///
+/// Equivalent to [`validate_url_for`] with [`UPDATE_POLICY`].
+pub fn validate_update_url(url: &str) -> Result<(), String> {
+    validate_url_for(url, &UPDATE_POLICY)
+}
+
+/// Validate a URL against `policy` before any network I/O.
 ///
 /// Enforces:
 /// - HTTPS scheme only (no HTTP, ftp, file://, etc.)
-/// - Host must be in the GitHub allowlist
+/// - Host must be in `policy.allowed_hosts`
 ///
 /// Returns `Ok(())` if the URL is acceptable, or an error string describing
-/// why it was rejected.
-pub fn validate_update_url(url: &str) -> Result<(), String> {
-    let parsed = url::Url::parse(url).map_err(|e| format!("Invalid URL '{}': {}", url, e))?;
+/// why it was rejected. URLs are redacted in those messages — see
+/// [`redact_url`].
+pub fn validate_url_for(url: &str, policy: &HostPolicy) -> Result<(), String> {
+    let parsed =
+        url::Url::parse(url).map_err(|e| format!("Invalid URL '{}': {}", redact_url(url), e))?;
 
     // Enforce HTTPS only — plain HTTP can be intercepted and downgraded.
     match parsed.scheme() {
@@ -84,21 +127,23 @@ pub fn validate_update_url(url: &str) -> Result<(), String> {
             return Err(format!(
                 "Insecure URL scheme '{}' rejected; only HTTPS is allowed. \
                  URL: {}",
-                scheme, url
+                scheme,
+                redact_url(url)
             ));
         }
     }
 
-    // Enforce domain allowlist — reject any host not operated by GitHub.
+    // Enforce domain allowlist — reject any host the policy does not trust.
     let host = parsed.host_str().unwrap_or("");
-    if !ALLOWED_HOSTS.contains(&host) {
+    if !policy.allowed_hosts.contains(&host) {
         return Err(format!(
-            "URL host '{}' is not in the allowed list for update operations. \
+            "URL host '{}' is not in the allowed list for {} operations. \
              Allowed hosts: {}. \
              URL: {}",
             host,
-            ALLOWED_HOSTS.join(", "),
-            url
+            policy.noun,
+            policy.allowed_hosts.join(", "),
+            redact_url(url)
         ));
     }
 
@@ -109,8 +154,9 @@ pub fn validate_update_url(url: &str) -> Result<(), String> {
 ///
 /// GitHub's final release-asset hop carries short-lived credentials in the query
 /// (`?sig=…&jwt=…`). Those are bearer-equivalent, so the full URL must never
-/// reach the debug log — only scheme, host and path do.
-fn redact_url(url: &str) -> String {
+/// reach the debug log — only scheme, host and path do. Userinfo is dropped for
+/// the same reason.
+pub fn redact_url(url: &str) -> String {
     match url::Url::parse(url) {
         Ok(parsed) => format!(
             "{}://{}{}",
@@ -130,31 +176,36 @@ fn redact_url(url: &str) -> String {
 /// the current URL before the allowlist is applied. Both halves matter: joining
 /// without validating is the open-redirect hole, and validating without joining
 /// rejects legitimate relative redirects.
-fn resolve_redirect(current: &str, location: &str) -> Result<String, String> {
+fn resolve_redirect(current: &str, location: &str, policy: &HostPolicy) -> Result<String, String> {
     let base = url::Url::parse(current)
-        .map_err(|e| format!("Could not parse the current update URL: {}", e))?;
+        .map_err(|e| format!("Could not parse the current {} URL: {}", policy.noun, e))?;
 
     let resolved = base.join(location).map_err(|e| {
         format!(
-            "Update server redirected from {} to an unparseable Location: {}. \
-             Update aborted.",
+            "{} server redirected from {} to an unparseable Location: {}. \
+             {} aborted.",
+            policy.noun_title,
             redact_url(current),
-            e
+            e,
+            policy.noun_title
         )
     })?;
 
     let resolved = resolved.to_string();
-    // Deliberately does *not* forward `validate_update_url`'s message: that one
-    // interpolates the whole URL, and a rejected redirect target still carries
-    // GitHub's `sig`/`jwt` query credentials.
-    if validate_update_url(&resolved).is_err() {
+    // Deliberately does *not* forward `validate_url_for`'s message: naming the
+    // allowlist twice in one error reads badly, and the caller needs to see
+    // both ends of the redirect.
+    if validate_url_for(&resolved, policy).is_err() {
         return Err(format!(
-            "Update server redirected from {} to {}, which is not an allowed \
-             update host. Update aborted — a redirect cannot move the download \
+            "{} server redirected from {} to {}, which is not an allowed \
+             {} host. {} aborted — a redirect cannot move the download \
              off GitHub. Allowed hosts: {}.",
+            policy.noun_title,
             redact_url(current),
             redact_url(&resolved),
-            ALLOWED_HOSTS.join(", ")
+            policy.noun,
+            policy.noun_title,
+            policy.allowed_hosts.join(", ")
         ));
     }
 
@@ -164,11 +215,18 @@ fn resolve_redirect(current: &str, location: &str) -> Result<String, String> {
 /// Create a new HTTP agent configured with native-tls and a global timeout.
 ///
 /// Redirects are disabled at the agent level (`max_redirects(0)`) so that
-/// [`get_validated`] can follow them by hand and re-apply the allowlist at every
-/// hop. ureq's default is to follow up to ten redirects with no revalidation,
-/// which would let an allowlisted host hand the download off to anywhere.
+/// [`get_validated_for`] can follow them by hand and re-apply the allowlist at
+/// every hop. ureq's default is to follow up to ten redirects with no
+/// revalidation, which would let an allowlisted host hand the download off to
+/// anywhere.
 ///
-/// `https_only(true)` is belt-and-braces: [`validate_update_url`] already rejects
+/// Zero specifically matters: ureq gates erroring on
+/// `max_redirects > 0 && max_redirects_will_error`, and the latter defaults to
+/// true, so only zero returns the 3xx response that [`get_validated_for`] needs
+/// in order to read `Location`. Any other value turns a redirect into
+/// `TooManyRedirects` instead.
+///
+/// `https_only(true)` is belt-and-braces: [`validate_url_for`] already rejects
 /// non-HTTPS schemes, but ureq's default is `false` and a config-level guarantee
 /// costs nothing.
 pub fn agent() -> Agent {
@@ -187,36 +245,50 @@ pub fn agent() -> Agent {
 }
 
 /// Describe a failed request without leaking the query string.
-fn describe_request_error(url: &str, error: &UreqError) -> String {
+fn describe_request_error(url: &str, error: &UreqError, policy: &HostPolicy) -> String {
     format!(
         "Failed to fetch '{}': {}. \
-         Check your internet connection and try again. \
-         If the problem persists, download manually from: \
-         https://github.com/paulrobello/par-term/releases",
+         Check your internet connection and try again.{}",
         redact_url(url),
-        error
+        error,
+        policy.request_error_hint
     )
 }
 
-/// Perform a GET, following redirects manually with the allowlist re-applied at
-/// every hop.
+/// [`get_validated_for`] with [`UPDATE_POLICY`].
+pub fn get_validated(url: &str, accept: Option<&str>) -> Result<Response<Body>, String> {
+    get_validated_for(url, accept, &UPDATE_POLICY)
+}
+
+/// Perform a GET, following redirects manually with `policy`'s allowlist
+/// re-applied at every hop.
 ///
 /// The URL the caller passes is validated before the first request, and each
 /// `Location` is resolved and validated before the next one. A redirect to a
-/// host outside [`ALLOWED_HOSTS`], a redirect with no `Location`, and a chain
-/// longer than [`MAX_REDIRECTS`] are all hard errors — none of them fall through
-/// to reading a body.
+/// host outside `policy.allowed_hosts`, a redirect with no `Location`, and a
+/// chain longer than [`MAX_REDIRECTS`] are all hard errors — none of them fall
+/// through to reading a body. A 3xx body is never read.
 ///
 /// This is hardening rather than a fix for an observed exploit: no redirect off
 /// an allowlisted GitHub host has been demonstrated. It closes the gap that the
 /// allowlist was only ever checked against the *first* URL.
-pub fn get_validated(url: &str, accept: Option<&str>) -> Result<Response<Body>, String> {
+///
+/// # Errors
+///
+/// Returns an error if the URL or any redirect target fails allowlist
+/// validation, if the request fails (DNS, connection, TLS), if a redirect
+/// carries no usable `Location`, or if the chain exceeds [`MAX_REDIRECTS`].
+pub fn get_validated_for(
+    url: &str,
+    accept: Option<&str>,
+    policy: &HostPolicy,
+) -> Result<Response<Body>, String> {
     let agent = agent();
     let mut current = url.to_string();
 
     for _ in 0..=MAX_REDIRECTS {
         // Re-validated on every iteration, not just the first.
-        validate_update_url(&current)?;
+        validate_url_for(&current, policy)?;
 
         let mut request = agent.get(&current).header("User-Agent", "par-term");
         if let Some(accept) = accept {
@@ -225,23 +297,25 @@ pub fn get_validated(url: &str, accept: Option<&str>) -> Result<Response<Body>, 
 
         let response = request
             .call()
-            .map_err(|e| describe_request_error(&current, &e))?;
+            .map_err(|e| describe_request_error(&current, &e, policy))?;
 
         let status = response.status();
         if !status.is_redirection() {
             return Ok(response);
         }
 
-        let location = redirect_location(&response, status, &current)?;
+        let location = redirect_location(&response, status, &current, policy)?;
         // The 3xx body is intentionally never read.
-        current = resolve_redirect(&current, &location)?;
+        current = resolve_redirect(&current, &location, policy)?;
     }
 
     Err(format!(
-        "Update download exceeded {} redirects starting from {}. \
-         Update aborted — this may indicate a redirect loop.",
+        "{} exceeded {} redirects starting from {}. \
+         {} aborted — this may indicate a redirect loop.",
+        policy.noun_title,
         MAX_REDIRECTS,
-        redact_url(url)
+        redact_url(url),
+        policy.noun_title
     ))
 }
 
@@ -250,6 +324,7 @@ fn redirect_location(
     response: &Response<Body>,
     status: StatusCode,
     current: &str,
+    policy: &HostPolicy,
 ) -> Result<String, String> {
     response
         .headers()
@@ -258,20 +333,26 @@ fn redirect_location(
         .map(str::to_string)
         .ok_or_else(|| {
             format!(
-                "Update server returned redirect status {} from {} with no usable \
-                 Location header. Update aborted.",
+                "{} server returned redirect status {} from {} with no usable \
+                 Location header. {} aborted.",
+                policy.noun_title,
                 status.as_u16(),
-                redact_url(current)
+                redact_url(current),
+                policy.noun_title
             )
         })
 }
 
+/// [`download_file_for`] with [`UPDATE_POLICY`].
+pub fn download_file(url: &str) -> Result<Vec<u8>, String> {
+    download_file_for(url, &UPDATE_POLICY)
+}
+
 /// Download a file from a URL and return its bytes.
 ///
-/// Validates the URL against the allowed-host allowlist before making any
-/// network request, and again at every redirect hop. Response body is limited to
-/// [`MAX_DOWNLOAD_SIZE`] (50 MB) to prevent memory exhaustion from malicious or
-/// misbehaving servers.
+/// Validates the URL against `policy` before making any network request, and
+/// again at every redirect hop. The body is limited to [`MAX_DOWNLOAD_SIZE`]
+/// (50 MB) to prevent memory exhaustion from a malicious or misbehaving server.
 ///
 /// # Errors
 ///
@@ -279,8 +360,8 @@ fn redirect_location(
 /// - The URL, or any redirect target, fails allowlist validation
 /// - The HTTP request fails (DNS, connection, TLS, or non-2xx response)
 /// - Reading the response body fails or exceeds the size limit
-pub fn download_file(url: &str) -> Result<Vec<u8>, String> {
-    let bytes = get_validated(url, None)?
+pub fn download_file_for(url: &str, policy: &HostPolicy) -> Result<Vec<u8>, String> {
+    get_validated_for(url, None, policy)?
         .into_body()
         .with_config()
         .limit(MAX_DOWNLOAD_SIZE)
@@ -292,9 +373,7 @@ pub fn download_file(url: &str) -> Result<Vec<u8>, String> {
                 redact_url(url),
                 e
             )
-        })?;
-
-    Ok(bytes)
+        })
 }
 
 /// Validate that downloaded binary content is plausible for the current platform.
@@ -568,6 +647,47 @@ mod tests {
     }
 
     #[test]
+    fn redact_url_drops_userinfo() {
+        assert_eq!(
+            redact_url("https://user:SECRET@github.com/paulrobello/par-term"),
+            "https://github.com/paulrobello/par-term"
+        );
+    }
+
+    #[test]
+    fn rejection_messages_do_not_echo_query_credentials() {
+        let err = validate_update_url("https://evil.example.com/x?sig=SECRET&jwt=ALSOSECRET")
+            .expect_err("an off-allowlist host must be rejected");
+        assert!(!err.contains("SECRET"), "credentials leaked into: {err}");
+    }
+
+    #[test]
+    fn unparseable_urls_are_rejected_without_being_echoed() {
+        let err = validate_update_url("not a url?token=SECRET")
+            .expect_err("an unparseable URL must be rejected");
+        assert!(err.contains("Invalid URL"), "unexpected error: {err}");
+        assert!(!err.contains("SECRET"), "credentials leaked into: {err}");
+    }
+
+    #[test]
+    fn caller_policy_owns_the_allowlist() {
+        // A caller-supplied policy is enforced instead of UPDATE_POLICY's hosts.
+        const ONLY_API: HostPolicy = HostPolicy {
+            allowed_hosts: &["api.github.com"],
+            noun: "download",
+            noun_title: "Download",
+            request_error_hint: "",
+        };
+        assert!(validate_url_for("https://api.github.com/x", &ONLY_API).is_ok());
+        let err = validate_url_for("https://github.com/x", &ONLY_API)
+            .expect_err("a host outside the caller's policy must be rejected");
+        assert!(
+            err.contains("download operations"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
     fn redact_url_does_not_echo_an_unparseable_url() {
         assert_eq!(redact_url("nonsense?token=SECRET"), "<unparseable URL>");
     }
@@ -579,6 +699,7 @@ mod tests {
         let resolved = resolve_redirect(
             "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
             "https://release-assets.githubusercontent.com/asset/1?sig=abc",
+            &UPDATE_POLICY,
         )
         .expect("an allowlisted redirect target must be accepted");
         assert!(resolved.starts_with("https://release-assets.githubusercontent.com/"));
@@ -589,6 +710,7 @@ mod tests {
         let resolved = resolve_redirect(
             "https://github.com/paulrobello/par-term/releases/latest/download/par-term",
             "/paulrobello/par-term/releases/download/v1/par-term",
+            &UPDATE_POLICY,
         )
         .expect("a relative redirect on the same host must be accepted");
         assert_eq!(
@@ -604,6 +726,7 @@ mod tests {
         let err = resolve_redirect(
             "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
             "https://evil.example.com/par-term",
+            &UPDATE_POLICY,
         )
         .expect_err("an off-allowlist redirect target must be rejected");
         assert!(
@@ -619,6 +742,7 @@ mod tests {
         let err = resolve_redirect(
             "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
             "https://evil.example.com/par-term?sig=SECRET&jwt=ALSOSECRET",
+            &UPDATE_POLICY,
         )
         .expect_err("an off-allowlist redirect target must be rejected");
         assert!(!err.contains("SECRET"), "credentials leaked into: {err}");
@@ -639,6 +763,7 @@ mod tests {
             resolve_redirect(
                 "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
                 "//evil.example.com/par-term",
+                &UPDATE_POLICY,
             )
             .is_err()
         );
@@ -650,6 +775,7 @@ mod tests {
             resolve_redirect(
                 "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
                 "http://github.com/paulrobello/par-term/releases/download/v1/par-term",
+                &UPDATE_POLICY,
             )
             .is_err()
         );

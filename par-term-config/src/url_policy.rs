@@ -10,7 +10,9 @@
 //!   share it.
 //! * **Fixed-vendor hosts** — the shader downloader (`par_term::http`) and the
 //!   self-updater (`par_term_update::http`). Those two additionally pin the
-//!   host to a GitHub allowlist and remain near-duplicates of each other.
+//!   host to a GitHub allowlist. Since ARC-004 (audit 2026-10-30) they share
+//!   one implementation in `par_term_update::http`; each caller owns only its
+//!   host-allowlist policy.
 //!
 //! # Why a scheme allowlist and not a `file://` denylist
 //!
