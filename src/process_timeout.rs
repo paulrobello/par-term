@@ -22,6 +22,10 @@ pub(crate) struct BoundedOutput {
 
 /// Run `cmd` to completion, killing it if it outlives `timeout`.
 ///
+/// TWIN: `par-term-scripting/src/plugin_git.rs` carries a private copy of this
+/// helper (the root crate depends on that crate, so it cannot import this one);
+/// edit both together.
+///
 /// Returns `Err` if the command cannot be spawned or exceeds the deadline; a
 /// non-zero exit is reported through [`BoundedOutput::status`], as with
 /// `Command::output`.

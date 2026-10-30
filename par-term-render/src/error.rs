@@ -4,10 +4,10 @@
 //! can match on specific error variants instead of relying on opaque `anyhow`
 //! strings.
 //!
-//! TODO(QA-010): Other workspace crates (53 files) use bare `anyhow::Result`.
-//! Consider migrating each crate's error types to thiserror-based enums for
-//! better error handling. Priority: `par-term-mcp` (IPC protocol errors),
-//! `par-term-terminal` (PTY/terminal errors).
+//! QA-002 (audit 2026-10-30) migrated the two priority crates: `par-term-mcp`
+//! now has `IpcError`, `par-term-terminal` has `TerminalError`. Remaining
+//! crates can follow this module's pattern when their error handling next
+//! gets touched.
 
 use thiserror::Error;
 

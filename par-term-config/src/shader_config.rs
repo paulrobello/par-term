@@ -288,23 +288,6 @@ impl ResolvedShaderConfig {
     }
 }
 
-impl ResolvedCursorShaderConfig {
-    /// Resolve a cursor shader config for a specific shader.
-    ///
-    /// # Arguments
-    /// * `shader_name` - Name of the cursor shader file
-    /// * `metadata` - Optional cursor shader metadata
-    /// * `config` - Global config
-    pub fn for_shader(
-        shader_name: &str,
-        metadata: Option<&CursorShaderMetadata>,
-        config: &Config,
-    ) -> Self {
-        let user_override = config.get_cursor_shader_override(shader_name);
-        resolve_cursor_shader_config(user_override, metadata, config)
-    }
-}
-
 /// Default global values for shader configuration.
 ///
 /// These are used when neither user override nor metadata provide a value.
