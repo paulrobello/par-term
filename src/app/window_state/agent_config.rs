@@ -24,6 +24,25 @@ pub(super) fn json_as_f32(value: &serde_json::Value) -> Result<f32, String> {
     }
 }
 
+/// Parse an agent-supplied `custom_shader` / `cursor_shader` value (SEC-003).
+///
+/// `null` disables the shader and re-sending the currently configured value is
+/// a no-op, so a user-chosen path outside the shaders directory survives. Any
+/// other value must name an existing file inside the shaders directory.
+fn agent_shader_value(
+    value: &serde_json::Value,
+    current: &Option<String>,
+) -> Result<Option<String>, String> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    let name = value.as_str().ok_or("expected string or null")?;
+    if current.as_deref() != Some(name) {
+        Config::validate_agent_shader_path(name).map_err(|e| e.to_string())?;
+    }
+    Ok(Some(name.to_string()))
+}
+
 impl WindowState {
     /// Check for pending config file changes and apply them.
     ///
@@ -275,11 +294,7 @@ impl WindowState {
         match key {
             // -- Background shader --
             "custom_shader" => {
-                let v = if value.is_null() {
-                    None
-                } else {
-                    Some(value.as_str().ok_or("expected string or null")?.to_string())
-                };
+                let v = agent_shader_value(value, &self.config.load().shader.custom_shader)?;
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
                     new.shader.custom_shader = v.clone();
@@ -344,11 +359,7 @@ impl WindowState {
 
             // -- Cursor shader --
             "cursor_shader" => {
-                let v = if value.is_null() {
-                    None
-                } else {
-                    Some(value.as_str().ok_or("expected string or null")?.to_string())
-                };
+                let v = agent_shader_value(value, &self.config.load().shader.cursor_shader)?;
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
                     new.shader.cursor_shader = v.clone();

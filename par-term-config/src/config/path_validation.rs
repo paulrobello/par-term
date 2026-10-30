@@ -147,6 +147,60 @@ impl Config {
         Ok(Self::shaders_dir().join(shader_name))
     }
 
+    /// Validate a shader path value supplied by an ACP/MCP agent (SEC-003).
+    ///
+    /// Agents may only activate a background or cursor shader that already
+    /// exists inside [`Self::shaders_dir`]. The name is resolved exactly as
+    /// [`Self::shader_path`] resolves it for the renderer, then the file is
+    /// canonicalized so symlinks and absolute paths cannot point the GPU at a
+    /// file outside that directory (for example one the agent wrote to the
+    /// auto-approved temp directory). User-edited configs are not subject to
+    /// this check.
+    ///
+    /// Returns the canonical shader path on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::PathTraversal`] when the resolved file is outside
+    /// the shaders directory, contains `..`, does not exist, or is not a file.
+    pub fn validate_agent_shader_path(shader_name: &str) -> Result<PathBuf, ConfigError> {
+        Self::validate_shader_within(shader_name, &Self::shaders_dir())
+    }
+
+    /// [`Self::validate_agent_shader_path`] against an explicit shaders
+    /// directory, so the containment rule is testable without touching `HOME`.
+    pub(crate) fn validate_shader_within(
+        shader_name: &str,
+        shaders_dir: &Path,
+    ) -> Result<PathBuf, ConfigError> {
+        let outside = |detail: &str| {
+            ConfigError::PathTraversal(format!(
+                "shader '{shader_name}' {detail}; agents may only activate shaders \
+                 inside the shaders directory '{}'",
+                shaders_dir.display()
+            ))
+        };
+
+        let candidate = PathBuf::from(shader_name);
+        let resolved = if candidate.is_absolute() {
+            candidate
+        } else {
+            Self::validate_shader_name(shader_name)?;
+            shaders_dir.join(shader_name)
+        };
+
+        let canonical_dir = fs::canonicalize(shaders_dir)
+            .map_err(|_| outside("cannot be checked because the shaders directory is missing"))?;
+        let canonical = fs::canonicalize(&resolved).map_err(|_| outside("does not exist"))?;
+        if !canonical.is_file() {
+            return Err(outside("is not a file"));
+        }
+        if !canonical.starts_with(&canonical_dir) {
+            return Err(outside("resolves outside the shaders directory"));
+        }
+        Ok(canonical)
+    }
+
     /// Resolve a texture path, expanding ~ to home directory
     /// and resolving relative paths relative to the shaders directory.
     /// Built-in texture IDs are preserved for renderer-side resolution.
@@ -316,5 +370,57 @@ impl Config {
             }
         }
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn shaders_fixture() -> (tempfile::TempDir, PathBuf) {
+        let root = tempfile::tempdir().expect("tempdir");
+        let shaders = root.path().join("shaders");
+        fs::create_dir_all(&shaders).expect("create shaders dir");
+        fs::write(shaders.join("crt.glsl"), "void main() {}").expect("write shader");
+        (root, shaders)
+    }
+
+    #[test]
+    fn agent_shader_inside_shaders_dir_is_accepted() {
+        let (_root, shaders) = shaders_fixture();
+        let canonical = Config::validate_shader_within("crt.glsl", &shaders).expect("relative");
+        assert!(canonical.ends_with("crt.glsl"));
+
+        let absolute = shaders.join("crt.glsl");
+        Config::validate_shader_within(&absolute.to_string_lossy(), &shaders).expect("absolute");
+    }
+
+    #[test]
+    fn agent_shader_outside_shaders_dir_is_rejected() {
+        let (root, shaders) = shaders_fixture();
+        let outside = root.path().join("evil.glsl");
+        fs::write(&outside, "void main() {}").expect("write outside shader");
+
+        let err = Config::validate_shader_within(&outside.to_string_lossy(), &shaders)
+            .expect_err("absolute path outside the shaders dir must be rejected");
+        assert!(matches!(err, ConfigError::PathTraversal(_)));
+        assert!(Config::validate_shader_within("../evil.glsl", &shaders).is_err());
+    }
+
+    #[test]
+    fn agent_shader_missing_file_is_rejected() {
+        let (_root, shaders) = shaders_fixture();
+        assert!(Config::validate_shader_within("missing.glsl", &shaders).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn agent_shader_symlink_escape_is_rejected() {
+        let (root, shaders) = shaders_fixture();
+        let outside = root.path().join("evil.glsl");
+        fs::write(&outside, "void main() {}").expect("write outside shader");
+        std::os::unix::fs::symlink(&outside, shaders.join("link.glsl")).expect("symlink");
+
+        assert!(Config::validate_shader_within("link.glsl", &shaders).is_err());
     }
 }

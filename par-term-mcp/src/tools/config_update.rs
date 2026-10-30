@@ -37,6 +37,9 @@ const ALLOWED_CONFIG_KEYS: &[&str] = &[
     "font_size",
 ];
 
+/// Allowlisted keys whose value is a shader file path (SEC-003).
+const SHADER_PATH_KEYS: &[&str] = &["custom_shader", "cursor_shader"];
+
 /// Execute the `config_update` tool.
 pub fn handle_config_update(params: &Value) -> Value {
     let arguments = match params.get("arguments") {
@@ -84,6 +87,19 @@ pub fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
             rejected.join(", "),
             ALLOWED_CONFIG_KEYS.join(", ")
         ));
+    }
+
+    // SEC-003: a shader path value is GPU code the renderer compiles every
+    // frame, so it must name an existing file inside the shaders directory —
+    // never e.g. a GLSL file the agent wrote to the auto-approved temp dir.
+    // The app re-checks on apply (`agent_config.rs`); this gives the agent a
+    // clear error instead of a reported success the app then refuses.
+    for key in SHADER_PATH_KEYS {
+        if let Some(name) = updates_obj.get(*key).and_then(Value::as_str)
+            && let Err(e) = par_term_config::Config::validate_agent_shader_path(name)
+        {
+            return super::tool_error(&format!("Rejected {key}: {e}"));
+        }
     }
 
     // Ensure parent directory exists

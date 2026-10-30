@@ -56,6 +56,10 @@ use tokio::sync::mpsc;
 /// a best-effort defense layer for environments where sandboxing is not active.
 static SAFE_PATH_CHECK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// The MCP config-update IPC file, the only auto-approved write target in
+/// [`SafePaths::config_dir`] (see `session::build_mcp_server_descriptor`).
+const CONFIG_UPDATE_FILENAME: &str = ".config-update.json";
+
 /// Directories considered safe for agent writes (auto-approved).
 ///
 /// This is an application-level security policy struct — it defines which
@@ -72,8 +76,10 @@ pub struct SafePaths {
 /// Extract the file path from a tool_call JSON and check if it is in a safe
 /// directory that can be auto-approved for writes.
 ///
-/// Safe directories include `/tmp`, the par-term shaders directory, and the
-/// par-term config directory (for `.config-update.json`).
+/// Safe targets are `/tmp` (and the platform temp dirs), the par-term shaders
+/// directory, and the single `.config-update.json` file in the par-term config
+/// directory. The rest of the config directory (notably `config.yaml`) is not
+/// safe and escalates to the user.
 ///
 /// # TOCTOU (Time-of-Check / Time-of-Use) Risk
 ///
@@ -160,9 +166,18 @@ pub fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths)
         }
     };
 
+    // SEC-003: only the MCP config-update IPC file is safe inside the config
+    // directory, never the directory itself. `config.yaml` there is
+    // hot-reloaded and sets `custom_shader` (and triggers/automation) without
+    // passing the agent config-update allowlist or shader-path check.
+    if let Ok(config_dir) = std::fs::canonicalize(&safe_paths.config_dir)
+        && target == config_dir.join(CONFIG_UPDATE_FILENAME)
+    {
+        return true;
+    }
+
     let mut safe_roots: Vec<PathBuf> = vec![
         safe_paths.shaders_dir.clone(),
-        safe_paths.config_dir.clone(),
         // Portable: honours TMPDIR on Unix and TEMP/TMP on Windows. Without
         // this the system temp directory was never a safe root on Windows,
         // since the entries below and the TMPDIR lookup are Unix-only.
@@ -484,6 +499,38 @@ mod tests {
             "rawInput": {"file_path": path.to_string_lossy()},
         });
         assert!(is_safe_write_path(&tool_call, &safe_paths));
+    }
+
+    // SEC-003: config.yaml is hot-reloaded, so an auto-approved write there
+    // would set `custom_shader` past the config-update shader-path check.
+    #[test]
+    fn test_unsafe_write_path_config_yaml() {
+        // The config dir must sit outside every temp root, or the temp-root
+        // rule would approve the write and hide the config-dir rule under test.
+        let base = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).expect("tempdir");
+        let config_dir = base.path().join("config");
+        let shaders_dir = config_dir.join("shaders");
+        std::fs::create_dir_all(&shaders_dir).expect("create shaders dir");
+        let safe_paths = SafePaths {
+            config_dir,
+            shaders_dir,
+        };
+
+        let update_path = safe_paths.config_dir.join(CONFIG_UPDATE_FILENAME);
+        let tool_call =
+            serde_json::json!({"rawInput": {"file_path": update_path.to_string_lossy()}});
+        assert!(is_safe_write_path(&tool_call, &safe_paths));
+
+        for name in ["config.yaml", "profiles.yaml"] {
+            let path = safe_paths.config_dir.join(name);
+            let tool_call = serde_json::json!({
+                "rawInput": {"file_path": path.to_string_lossy()},
+            });
+            assert!(
+                !is_safe_write_path(&tool_call, &safe_paths),
+                "{name} in the config dir must not be auto-approved"
+            );
+        }
     }
 
     #[test]

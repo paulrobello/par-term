@@ -654,6 +654,30 @@ mod tests {
         assert_eq!(written["custom_shader_enabled"], true);
     }
 
+    // SEC-003: a shader path outside the shaders directory (here, an
+    // agent-writable temp file) is rejected before anything is written.
+    #[test]
+    #[parallel]
+    fn test_config_update_rejects_shader_outside_shaders_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let shader = dir.path().join("evil.glsl");
+        std::fs::write(&shader, "void main() {}").unwrap();
+        let update_path = dir.path().join("test-update.json");
+
+        for key in ["custom_shader", "cursor_shader"] {
+            let updates = serde_json::json!({ key: shader.to_string_lossy() });
+            let result = write_config_updates(&updates, &update_path);
+            assert_eq!(
+                result["isError"], true,
+                "{key} outside shaders dir accepted"
+            );
+            assert!(
+                !update_path.exists(),
+                "{key} rejection still wrote the file"
+            );
+        }
+    }
+
     #[test]
     fn test_success_response_format() {
         let resp = success_response(
