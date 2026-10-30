@@ -13,6 +13,7 @@ set -e
 REPO="paulrobello/par-term"
 
 # Detect OS and set config directory
+# TWIN: copied verbatim in install_shaders.sh at the repo root; edit both together.
 detect_config_dir() {
     case "$(uname -s)" in
         Darwin)

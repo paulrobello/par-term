@@ -20,6 +20,7 @@ set -e
 REPO="paulrobello/par-term"
 
 # Detect OS and set config directory
+# TWIN: copied verbatim in gh-pages/install-shaders.sh; edit both together.
 detect_config_dir() {
     case "$(uname -s)" in
         Darwin)

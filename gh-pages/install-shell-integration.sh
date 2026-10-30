@@ -11,8 +11,11 @@
 set -e
 
 REPO="paulrobello/par-term"
-BRANCH="main"
-BASE_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/shell_integration"
+# Pinned to a release tag, not main, so what this pipe-to-shell installer
+# fetches is fixed reviewed content. Bump it on each release; every file in
+# the util list below must exist at this tag or the download fails.
+REF="v0.50.0"
+BASE_URL="https://raw.githubusercontent.com/$REPO/$REF/shell_integration"
 
 # Markers for RC file updates
 MARKER_START="# >>> par-term shell integration >>>"
