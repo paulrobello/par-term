@@ -227,30 +227,8 @@ impl WindowState {
         // Track recoverable local backend tool failures during the current
         // prompt (for example failed `Skill`/`Write` calls).
         if !self.agent_state.agent_skill_failure_detected {
-            let mut seen_user_boundary = false;
-            for msg in self.overlay_ui.ai_inspector.chat.messages.iter().rev() {
-                if matches!(msg, ChatMessage::User { .. }) {
-                    seen_user_boundary = true;
-                    break;
-                }
-                if let ChatMessage::ToolCall { title, status, .. } = msg {
-                    let title_l = title.to_ascii_lowercase();
-                    let status_l = status.to_ascii_lowercase();
-                    let is_failed = status_l.contains("fail") || status_l.contains("error");
-                    let is_recoverable_tool = title_l.contains("skill")
-                        || title_l == "write"
-                        || title_l.starts_with("write ")
-                        || title_l.contains(" write ");
-                    if is_failed && is_recoverable_tool {
-                        self.agent_state.agent_skill_failure_detected = true;
-                        break;
-                    }
-                }
-            }
-            // If there is no user message yet, ignore stale history.
-            if !seen_user_boundary {
-                self.agent_state.agent_skill_failure_detected = false;
-            }
+            self.agent_state.agent_skill_failure_detected =
+                scan_recoverable_tool_failure(&self.overlay_ui.ai_inspector.chat.messages);
         }
 
         // Compatibility fallback: some local ACP backends emit literal
@@ -335,37 +313,13 @@ impl WindowState {
                 }
             });
 
-        let shader_activation_incomplete = if saw_prompt_complete_this_tick {
-            if let Some(user_text) = last_user_text.as_deref() {
-                if crate::ai_inspector::shader_context::is_shader_activation_request(user_text) {
-                    let mut saw_user_boundary = false;
-                    let mut saw_config_update_for_prompt = false;
-                    for msg in self.overlay_ui.ai_inspector.chat.messages.iter().rev() {
-                        match msg {
-                            ChatMessage::User { .. } => {
-                                saw_user_boundary = true;
-                                break;
-                            }
-                            ChatMessage::ToolCall { title, .. } => {
-                                let title_l = title.to_ascii_lowercase();
-                                if title_l.contains("config_update") {
-                                    saw_config_update_for_prompt = true;
-                                    break;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    saw_user_boundary && !saw_config_update_for_prompt
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+        let shader_activation_incomplete = saw_prompt_complete_this_tick
+            && last_user_text.as_deref().is_some_and(|user_text| {
+                crate::ai_inspector::shader_context::is_shader_activation_request(user_text)
+                    && shader_prompt_missing_config_update(
+                        &self.overlay_ui.ai_inspector.chat.messages,
+                    )
+            });
 
         // Delegate recovery/retry to agent_tick_helpers.
         self.attempt_skill_failure_recovery(
@@ -381,3 +335,61 @@ impl WindowState {
         self.refresh_inspector_snapshot();
     }
 }
+
+/// A failed `Skill`/`Write`-style tool call the bounded retry can recover.
+fn is_recoverable_tool_failure(title: &str, status: &str) -> bool {
+    let title_l = title.to_ascii_lowercase();
+    let status_l = status.to_ascii_lowercase();
+    let is_failed = status_l.contains("fail") || status_l.contains("error");
+    let is_recoverable_tool = title_l.contains("skill")
+        || title_l == "write"
+        || title_l.starts_with("write ")
+        || title_l.contains(" write ");
+    is_failed && is_recoverable_tool
+}
+
+/// The skill-failure flag after scanning the newest prompt's messages.
+///
+/// The flag survives only when a User boundary was reached, yet the scan
+/// stops at the first recoverable failure before it can reach one, so this
+/// always returns `false` today. Kept as-is: the audit refactor preserves
+/// behavior, and the retry path is driven by the live `SessionUpdate` checks.
+fn scan_recoverable_tool_failure(messages: &[ChatMessage]) -> bool {
+    let mut detected = false;
+    let mut seen_user_boundary = false;
+    for msg in messages.iter().rev() {
+        if matches!(msg, ChatMessage::User { .. }) {
+            seen_user_boundary = true;
+            break;
+        }
+        if let ChatMessage::ToolCall { title, status, .. } = msg
+            && is_recoverable_tool_failure(title, status)
+        {
+            detected = true;
+            break;
+        }
+    }
+    // If there is no user message yet, ignore stale history.
+    detected && seen_user_boundary
+}
+
+/// Whether the newest prompt finished without a `config_update` tool call,
+/// scanning back to its User boundary. No boundary means `false`.
+fn shader_prompt_missing_config_update(messages: &[ChatMessage]) -> bool {
+    for msg in messages.iter().rev() {
+        match msg {
+            ChatMessage::User { .. } => return true,
+            ChatMessage::ToolCall { title, .. }
+                if title.to_ascii_lowercase().contains("config_update") =>
+            {
+                return false;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+#[path = "agent_messages_tests.rs"]
+mod tests;

@@ -35,6 +35,59 @@ use crate::tab::TabId;
 /// *active* tab would silently aim it at the wrong terminal.
 type TaggedAction = (WindowId, TabId, PendingScriptAction);
 
+/// Where one script command goes during the Pass 1 sweep.
+enum CommandDisposition {
+    /// A line appended to the script's output pane.
+    Output(String),
+    /// Replace the script's markdown panel.
+    SetPanel { title: String, content: String },
+    /// Remove the script's markdown panel.
+    ClearPanel,
+    /// Needs `WindowState` access or a permission check; runs in Pass 2.
+    Defer(PendingScriptAction),
+}
+
+/// Route a command read from the tab script at `config_index`. Plugin-only
+/// commands (widgets, overlays) are refused with an output line.
+fn dispose_script_command(
+    cmd: par_term_scripting::protocol::ScriptCommand,
+    config_index: usize,
+) -> CommandDisposition {
+    use par_term_scripting::protocol::ScriptCommand as Cmd;
+    match cmd {
+        Cmd::Log { level, message } => CommandDisposition::Output(format!("[{level}] {message}")),
+        Cmd::SetPanel { title, content } => CommandDisposition::SetPanel { title, content },
+        Cmd::ClearPanel {} => CommandDisposition::ClearPanel,
+        Cmd::SetWidget { .. } => {
+            CommandDisposition::Output("[error] SetWidget is a plugin command; ignored".into())
+        }
+        Cmd::SetOverlay { .. } | Cmd::ClearOverlay { .. } => {
+            CommandDisposition::Output("[error] overlay commands are plugin-only; ignored".into())
+        }
+        Cmd::Notify { title, body } => {
+            CommandDisposition::Defer(PendingScriptAction::Notify { title, body })
+        }
+        Cmd::SetBadge { text } => CommandDisposition::Defer(PendingScriptAction::SetBadge { text }),
+        Cmd::SetVariable { name, value } => {
+            CommandDisposition::Defer(PendingScriptAction::SetVariable { name, value })
+        }
+        Cmd::WriteText { text } => {
+            CommandDisposition::Defer(PendingScriptAction::WriteText { text, config_index })
+        }
+        Cmd::RunCommand { command } => CommandDisposition::Defer(PendingScriptAction::RunCommand {
+            command,
+            config_index,
+        }),
+        Cmd::ChangeConfig { key, value } => {
+            CommandDisposition::Defer(PendingScriptAction::ChangeConfig {
+                key,
+                value,
+                config_index,
+            })
+        }
+    }
+}
+
 impl WindowManager {
     /// Maximum number of output lines kept per script in the UI.
     const SCRIPT_OUTPUT_MAX_LINES: usize = 200;
@@ -196,14 +249,9 @@ impl WindowManager {
                     // across the `set_panel`/`clear_panel` calls in the body.
                     let commands = tab.scripting.script_manager.read_commands(script_id);
                     for cmd in commands {
-                        match cmd {
-                            par_term_scripting::protocol::ScriptCommand::Log { level, message } => {
-                                new_output[i].push(format!("[{}] {}", level, message));
-                            }
-                            par_term_scripting::protocol::ScriptCommand::SetPanel {
-                                title,
-                                content,
-                            } => {
+                        match dispose_script_command(cmd, i) {
+                            CommandDisposition::Output(line) => new_output[i].push(line),
+                            CommandDisposition::SetPanel { title, content } => {
                                 tab.scripting.script_manager.set_panel(
                                     script_id,
                                     title.clone(),
@@ -211,86 +259,12 @@ impl WindowManager {
                                 );
                                 panel_val = Some((title, content));
                             }
-                            par_term_scripting::protocol::ScriptCommand::ClearPanel {} => {
+                            CommandDisposition::ClearPanel => {
                                 tab.scripting.script_manager.clear_panel(script_id);
                                 panel_val = None;
                             }
-                            // P4: SetWidget is plugin-only — a tab script has no
-                            // widget; surface the refusal instead of executing it.
-                            par_term_scripting::protocol::ScriptCommand::SetWidget { .. } => {
-                                new_output[i]
-                                    .push("[error] SetWidget is a plugin command; ignored".into());
-                            }
-                            // Overlay commands are plugin-host-only too — the
-                            // tab-script surface refuses them identically.
-                            par_term_scripting::protocol::ScriptCommand::SetOverlay { .. }
-                            | par_term_scripting::protocol::ScriptCommand::ClearOverlay {
-                                ..
-                            } => {
-                                new_output[i].push(
-                                    "[error] overlay commands are plugin-only; ignored".into(),
-                                );
-                            }
-                            // Safe display-only commands — defer to Pass 2 so they can
-                            // call `WindowState` methods without borrow conflicts.
-                            par_term_scripting::protocol::ScriptCommand::Notify { title, body } => {
-                                pending_actions.push((
-                                    window_id,
-                                    tab_id,
-                                    PendingScriptAction::Notify { title, body },
-                                ));
-                            }
-                            par_term_scripting::protocol::ScriptCommand::SetBadge { text } => {
-                                pending_actions.push((
-                                    window_id,
-                                    tab_id,
-                                    PendingScriptAction::SetBadge { text },
-                                ));
-                            }
-                            par_term_scripting::protocol::ScriptCommand::SetVariable {
-                                name,
-                                value,
-                            } => {
-                                pending_actions.push((
-                                    window_id,
-                                    tab_id,
-                                    PendingScriptAction::SetVariable { name, value },
-                                ));
-                            }
-                            // Restricted commands — permission-checked in Pass 2.
-                            par_term_scripting::protocol::ScriptCommand::WriteText { text } => {
-                                pending_actions.push((
-                                    window_id,
-                                    tab_id,
-                                    PendingScriptAction::WriteText {
-                                        text,
-                                        config_index: i,
-                                    },
-                                ));
-                            }
-                            par_term_scripting::protocol::ScriptCommand::RunCommand { command } => {
-                                pending_actions.push((
-                                    window_id,
-                                    tab_id,
-                                    PendingScriptAction::RunCommand {
-                                        command,
-                                        config_index: i,
-                                    },
-                                ));
-                            }
-                            par_term_scripting::protocol::ScriptCommand::ChangeConfig {
-                                key,
-                                value,
-                            } => {
-                                pending_actions.push((
-                                    window_id,
-                                    tab_id,
-                                    PendingScriptAction::ChangeConfig {
-                                        key,
-                                        value,
-                                        config_index: i,
-                                    },
-                                ));
+                            CommandDisposition::Defer(action) => {
+                                pending_actions.push((window_id, tab_id, action));
                             }
                         }
                     }
@@ -666,5 +640,112 @@ impl WindowManager {
                 sw.request_redraw();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CommandDisposition, PendingScriptAction, dispose_script_command};
+    use par_term_scripting::protocol::ScriptCommand;
+
+    fn parse(json: &str) -> ScriptCommand {
+        serde_json::from_str(json).expect("valid ScriptCommand JSON")
+    }
+
+    #[test]
+    fn display_commands_stay_in_pass_one() {
+        let log = ScriptCommand::Log {
+            level: "warn".into(),
+            message: "m".into(),
+        };
+        assert!(matches!(
+            dispose_script_command(log, 0),
+            CommandDisposition::Output(line) if line == "[warn] m"
+        ));
+        let panel = ScriptCommand::SetPanel {
+            title: "t".into(),
+            content: "c".into(),
+        };
+        assert!(matches!(
+            dispose_script_command(panel, 0),
+            CommandDisposition::SetPanel { title, content } if title == "t" && content == "c"
+        ));
+        assert!(matches!(
+            dispose_script_command(ScriptCommand::ClearPanel {}, 0),
+            CommandDisposition::ClearPanel
+        ));
+    }
+
+    #[test]
+    fn plugin_only_commands_are_refused_with_an_output_line() {
+        assert!(matches!(
+            dispose_script_command(ScriptCommand::SetWidget { text: "w".into() }, 0),
+            CommandDisposition::Output(line)
+                if line == "[error] SetWidget is a plugin command; ignored"
+        ));
+        for json in [
+            r#"{"type":"SetOverlay","id":"o","position":"top-right","size":{"w":0.2,"h":0.1},"content":{"type":"text","text":"t"}}"#,
+            r#"{"type":"ClearOverlay","id":"o"}"#,
+        ] {
+            assert!(matches!(
+                dispose_script_command(parse(json), 0),
+                CommandDisposition::Output(line)
+                    if line == "[error] overlay commands are plugin-only; ignored"
+            ));
+        }
+    }
+
+    #[test]
+    fn window_state_commands_are_deferred() {
+        let notify = ScriptCommand::Notify {
+            title: "t".into(),
+            body: "b".into(),
+        };
+        assert!(matches!(
+            dispose_script_command(notify, 0),
+            CommandDisposition::Defer(PendingScriptAction::Notify { title, body })
+                if title == "t" && body == "b"
+        ));
+        assert!(matches!(
+            dispose_script_command(ScriptCommand::SetBadge { text: "x".into() }, 0),
+            CommandDisposition::Defer(PendingScriptAction::SetBadge { text }) if text == "x"
+        ));
+        let var = ScriptCommand::SetVariable {
+            name: "n".into(),
+            value: "v".into(),
+        };
+        assert!(matches!(
+            dispose_script_command(var, 0),
+            CommandDisposition::Defer(PendingScriptAction::SetVariable { name, value })
+                if name == "n" && value == "v"
+        ));
+    }
+
+    /// Restricted commands carry the script's config index so Pass 2 can
+    /// check that script's permissions.
+    #[test]
+    fn restricted_commands_are_deferred_with_their_config_index() {
+        assert!(matches!(
+            dispose_script_command(ScriptCommand::WriteText { text: "ls\n".into() }, 3),
+            CommandDisposition::Defer(PendingScriptAction::WriteText { text, config_index: 3 })
+                if text == "ls\n"
+        ));
+        let run = ScriptCommand::RunCommand {
+            command: "echo hi".into(),
+        };
+        assert!(matches!(
+            dispose_script_command(run, 4),
+            CommandDisposition::Defer(PendingScriptAction::RunCommand { command, config_index: 4 })
+                if command == "echo hi"
+        ));
+        let change = ScriptCommand::ChangeConfig {
+            key: "font_size".into(),
+            value: serde_json::json!(14),
+        };
+        assert!(matches!(
+            dispose_script_command(change, 5),
+            CommandDisposition::Defer(PendingScriptAction::ChangeConfig { key, value, config_index: 5 })
+                if key == "font_size" && value == serde_json::json!(14)
+        ));
     }
 }
