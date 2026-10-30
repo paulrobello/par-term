@@ -438,3 +438,63 @@ fn attach_by_name_finds_or_creates_without_a_profile() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The restore-policy card's criteria end to end: the scan reads each
+/// workspace's effective policy through the bare `set-workspace-restore-policy`
+/// query (criterion 1, read), the executor's chooser sends the valued form
+/// (criterion 1, set), and the choice is daemon-held — a fresh scan (the
+/// picker's reopen path) and an independent probe both report it (criterion 2).
+#[test]
+fn restore_policy_reads_sets_and_survives_a_rescan() {
+    let dir = socket_dir("restore-policy");
+    daemon(&dir, "work", &["work"]);
+    let socket = dir.join("par-mux-work.sock");
+    let mut ws = window_in(&dir);
+    scan(&mut ws);
+
+    let row = ws
+        .tmux_state
+        .mux_directory
+        .as_ref()
+        .and_then(|d| d.workspaces.iter().find(|w| w.socket == socket))
+        .cloned()
+        .expect("the scanned workspace row carries the policy column");
+    assert_eq!(
+        row.restore_policy,
+        Some(crate::session_picker_mux::MuxRestorePolicy::AgentResume),
+        "a fresh daemon's effective policy reads through the scan"
+    );
+
+    ws.handle_mux_session_request(MuxPickerAction::SetRestorePolicy {
+        ws: row,
+        policy: crate::session_picker_mux::MuxRestorePolicy::StartCommand,
+    });
+    wait_until("the daemon holds the choice", || {
+        let mut client = par_term_mux::MuxSessionClient::connect(&socket).expect("probe");
+        client
+            .send_checked("set-workspace-restore-policy -t +0")
+            .is_ok_and(|reply| {
+                reply.ok
+                    && crate::session_picker_mux::restore_policy_from_reply(&reply.body)
+                        == Some(crate::session_picker_mux::MuxRestorePolicy::StartCommand)
+            })
+    });
+
+    // The picker keeps no policy state: a reopen re-derives every row from
+    // the daemon, so the fresh scan reporting the choice IS the
+    // survived-the-picker proof.
+    let _ = scan(&mut ws);
+    let row = ws
+        .tmux_state
+        .mux_directory
+        .as_ref()
+        .and_then(|d| d.workspaces.iter().find(|w| w.socket == socket))
+        .cloned()
+        .expect("the workspace row after the rescan");
+    assert_eq!(
+        row.restore_policy,
+        Some(crate::session_picker_mux::MuxRestorePolicy::StartCommand),
+        "the rescan (the picker's reopen read) reports the daemon-held choice"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

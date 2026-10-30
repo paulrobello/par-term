@@ -19,7 +19,8 @@ use std::time::{Duration, Instant};
 pub(crate) const DAEMON_QUERY_DEADLINE: Duration = Duration::from_secs(2);
 
 pub(crate) use crate::session_picker_mux::{
-    MuxDirectory, MuxExitAction, MuxLayoutRow, MuxSessionRow, MuxWorkspaceRow, daemon_name_of,
+    MuxDirectory, MuxExitAction, MuxLayoutRow, MuxRestorePolicy, MuxSessionRow, MuxWorkspaceRow,
+    daemon_name_of, restore_policy_from_reply,
 };
 
 /// The directory the default par-mux sockets live in.
@@ -68,6 +69,7 @@ fn query_daemon(socket: &Path) -> Result<MuxDirectory, String> {
             active: w.active,
             git: None,
             exit_action: None,
+            restore_policy: None,
         })
         .collect::<Vec<_>>();
     let sessions = client
@@ -100,6 +102,34 @@ fn query_daemon(socket: &Path) -> Result<MuxDirectory, String> {
                     }
                     Err(e) if is_unknown_command(&e.to_string()) => {
                         exit_actions_supported = false;
+                    }
+                    Err(_) => {}
+                }
+            }
+            w
+        })
+        .collect::<Vec<_>>();
+    // Each workspace's effective restore policy rides the bare
+    // `set-workspace-restore-policy` form — a pure query replying the
+    // token. Capability-gated exactly like the exit actions: an older
+    // binary answers `unknown command:` once and the whole column stays
+    // bare instead of failing the scan.
+    let mut restore_policies_supported = true;
+    let workspaces = workspaces
+        .into_iter()
+        .map(|mut w| {
+            if restore_policies_supported {
+                match client.send_checked(&format!("set-workspace-restore-policy -t +{}", w.id)) {
+                    Ok(reply) if reply.ok => {
+                        w.restore_policy = restore_policy_from_reply(&reply.body);
+                    }
+                    Ok(reply) => {
+                        if reply.body.iter().any(|line| is_unknown_command(line)) {
+                            restore_policies_supported = false;
+                        }
+                    }
+                    Err(e) if is_unknown_command(&e.to_string()) => {
+                        restore_policies_supported = false;
                     }
                     Err(_) => {}
                 }
@@ -303,6 +333,7 @@ mod tests {
             active: false,
             git: None,
             exit_action: None,
+            restore_policy: None,
         };
         let rows = vec![ws(0), ws(1), ws(2)];
         let git = vec![

@@ -90,6 +90,10 @@ pub struct MuxWorkspaceRow {
     /// (a daemon predating `set-exit-action` reports none, and the row
     /// hides its chooser).
     pub exit_action: Option<MuxExitAction>,
+    /// The workspace's effective restore policy, when the daemon reported
+    /// it (a daemon predating `set-workspace-restore-policy` reports none,
+    /// and the row hides its chooser).
+    pub restore_policy: Option<MuxRestorePolicy>,
 }
 
 /// What a daemon does when a pane's process exits (the `set-exit-action`
@@ -123,6 +127,47 @@ impl MuxExitAction {
             _ => None,
         }
     }
+}
+
+/// How the daemon restores a workspace after a restart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MuxRestorePolicy {
+    /// Re-run each pane's original start command.
+    StartCommand,
+    /// Rebuild agent panes through their resume invocations (the default).
+    AgentResume,
+    /// Leave the workspace empty after a restart.
+    None,
+}
+
+impl MuxRestorePolicy {
+    /// The daemon's token for this policy.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::StartCommand => "start-command",
+            Self::AgentResume => "agent-resume",
+            Self::None => "none",
+        }
+    }
+
+    /// Decode a daemon reply token; `None` for anything unrecognized.
+    pub fn from_wire(token: &str) -> Option<Self> {
+        match token {
+            "start-command" => Some(Self::StartCommand),
+            "agent-resume" => Some(Self::AgentResume),
+            "none" => Some(Self::None),
+            _ => None,
+        }
+    }
+}
+
+/// The effective policy a bare `set-workspace-restore-policy` query
+/// replied: the first body line carrying a known token, decoded; `None`
+/// when none does (an error body, or a shape a newer daemon spells
+/// differently).
+pub fn restore_policy_from_reply(body: &[String]) -> Option<MuxRestorePolicy> {
+    body.iter()
+        .find_map(|line| MuxRestorePolicy::from_wire(line.trim()))
 }
 
 /// What a directory scan found: sessions, plus one message per daemon that
@@ -186,6 +231,11 @@ pub enum MuxPickerAction {
     SetExitAction {
         ws: MuxWorkspaceRow,
         action: MuxExitAction,
+    },
+    /// Set the daemon-side workspace restore policy.
+    SetRestorePolicy {
+        ws: MuxWorkspaceRow,
+        policy: MuxRestorePolicy,
     },
 }
 
@@ -586,6 +636,32 @@ impl MuxPickerSection {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let armed = self.ws_confirm_kill.as_ref() == Some(ws);
+                if let Some(current) = ws.restore_policy {
+                    let mut chosen = None;
+                    ui.menu_button(format!("restore: {}", current.name()), |ui| {
+                        for candidate in [
+                            MuxRestorePolicy::StartCommand,
+                            MuxRestorePolicy::AgentResume,
+                            MuxRestorePolicy::None,
+                        ] {
+                            let row = if candidate == current {
+                                ui.add_enabled(false, egui::Button::new(candidate.name()));
+                                continue;
+                            } else {
+                                ui.button(candidate.name())
+                            };
+                            if row.clicked() {
+                                chosen = Some(candidate);
+                            }
+                        }
+                    });
+                    if let Some(candidate) = chosen {
+                        action = Some(MuxPickerAction::SetRestorePolicy {
+                            ws: ws.clone(),
+                            policy: candidate,
+                        });
+                    }
+                }
                 if let Some(current) = ws.exit_action {
                     let mut chosen = None;
                     ui.menu_button(format!("exit: {}", current.name()), |ui| {
@@ -778,9 +854,11 @@ mod tests {
             active: false,
             git: None,
             exit_action: None,
+            restore_policy: None,
         };
         assert_eq!(bare.git, None);
         assert_eq!(bare.exit_action, None);
+        assert_eq!(bare.restore_policy, None);
     }
 
     /// A layout name must fit the daemon's grammar before the wire round
@@ -830,5 +908,50 @@ mod tests {
         assert_eq!(MuxExitAction::Remove.name(), "remove");
         assert_eq!(MuxExitAction::Hold.name(), "hold");
         assert_eq!(MuxExitAction::Shell.name(), "shell");
+    }
+
+    /// Restore-policy tokens decode exactly as the daemon spells them
+    /// (`start-command` / `agent-resume` / `none`); an unrecognized token
+    /// decodes to nothing. The bare query's reply body carries one token
+    /// line, and whitespace on it is the daemon's formatting, not data.
+    #[test]
+    fn restore_policy_tokens_decode_as_the_daemon_spells_them() {
+        assert_eq!(
+            MuxRestorePolicy::from_wire("start-command"),
+            Some(MuxRestorePolicy::StartCommand)
+        );
+        assert_eq!(
+            MuxRestorePolicy::from_wire("agent-resume"),
+            Some(MuxRestorePolicy::AgentResume)
+        );
+        assert_eq!(
+            MuxRestorePolicy::from_wire("none"),
+            Some(MuxRestorePolicy::None)
+        );
+        assert_eq!(MuxRestorePolicy::from_wire("keep"), None);
+        assert_eq!(MuxRestorePolicy::StartCommand.name(), "start-command");
+        assert_eq!(MuxRestorePolicy::AgentResume.name(), "agent-resume");
+        assert_eq!(MuxRestorePolicy::None.name(), "none");
+    }
+
+    /// Criterion 1 (card "Session picker: expose workspace restore
+    /// policy"): the scan decodes the bare query's reply body — the first
+    /// body line carrying a known token wins; a body with none decodes to
+    /// nothing and the row hides its chooser.
+    #[test]
+    fn the_bare_query_reply_decodes_to_the_policy() {
+        assert_eq!(
+            restore_policy_from_reply(&["agent-resume".to_string()]),
+            Some(MuxRestorePolicy::AgentResume)
+        );
+        assert_eq!(
+            restore_policy_from_reply(&[String::new(), " none ".to_string()]),
+            Some(MuxRestorePolicy::None)
+        );
+        assert_eq!(
+            restore_policy_from_reply(&["unknown command: x".to_string()]),
+            None
+        );
+        assert_eq!(restore_policy_from_reply(&[]), None);
     }
 }

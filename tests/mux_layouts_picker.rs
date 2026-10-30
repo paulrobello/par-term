@@ -1,13 +1,15 @@
-//! Wire-shape proof for the session picker's named-layout and exit-action
-//! surfaces (cards "Expose named mux layouts (save/load/list/delete) in the
-//! UI" and "Expose daemon workspace exit-action (set-exit-action) in mux
-//! UI"). The picker's scan and executor send plain verbs through
+//! Wire-shape proof for the session picker's named-layout, exit-action,
+//! and restore-policy surfaces (cards "Expose named mux layouts
+//! (save/load/list/delete) in the UI", "Expose daemon workspace
+//! exit-action (set-exit-action) in mux UI", and "Session picker: expose
+//! workspace restore policy (start-command/agent-resume/none)"). The
+//! picker's scan and executor send plain verbs through
 //! [`MuxSessionClient::send_checked`]; this drives those verbs through a
 //! live in-process daemon (`MuxServer::bind` on a temp socket, the
 //! `mux_paste_buffer` lifecycle) so the reply shapes the picker parses —
 //! newline-joined layout names, the bare `set-exit-action` token reply,
-//! the `-f`-less load refusal — are validated against the real daemon,
-//! not a mock.
+//! the bare `set-workspace-restore-policy` token reply, the `-f`-less
+//! load refusal — are validated against the real daemon, not a mock.
 //!
 //! Gated on `mux`, which is on by default. Run directly:
 //!
@@ -17,16 +19,18 @@
 
 #![cfg(feature = "mux")]
 
-use par_term::session_picker_mux::{MuxExitAction, layout_names_from_reply};
+use par_term::session_picker_mux::{
+    MuxExitAction, MuxRestorePolicy, layout_names_from_reply, restore_policy_from_reply,
+};
 use par_term_emu_core_rust::mux::MuxServer;
 use par_term_mux::MuxSessionClient;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-fn socket_path() -> PathBuf {
+fn socket_path(label: &str) -> PathBuf {
     let mut path = std::env::temp_dir();
     path.push(format!(
-        "par-term-mux-layouts-picker-{}.sock",
+        "par-term-mux-picker-{label}-{}.sock",
         std::process::id()
     ));
     let _ = std::fs::remove_file(&path);
@@ -62,7 +66,7 @@ fn body_lines(reply: &[String]) -> Vec<String> {
 
 #[test]
 fn layout_and_exit_action_verbs_answer_the_shapes_the_picker_parses() {
-    let path = socket_path();
+    let path = socket_path("layouts");
     spawn_daemon(&path);
     let mut client = connect(&path);
 
@@ -141,5 +145,71 @@ fn layout_and_exit_action_verbs_answer_the_shapes_the_picker_parses() {
     assert!(
         layout_names_from_reply(&listed.body).is_empty(),
         "the store must be empty after the delete: {listed:?}"
+    );
+}
+
+/// Criterion 1 (card "Session picker: expose workspace restore policy"):
+/// the picker's read (the scan's bare `set-workspace-restore-policy`
+/// query) and set (the executor's valued form) both ride the control
+/// socket, so both are proved against the real daemon. Criterion 2: a
+/// set choice is daemon-held — the bare query reflects it immediately
+/// and after further traffic, with no picker-side state.
+#[test]
+fn restore_policy_verbs_answer_the_shapes_the_picker_parses() {
+    let path = socket_path("restore-policy");
+    spawn_daemon(&path);
+    let mut client = connect(&path);
+
+    client
+        .send_checked("new-session -s picker-probe")
+        .expect("new-session answers");
+
+    let workspaces = client.list_workspaces().expect("list-workspaces answers");
+    let ws = workspaces.first().expect("a workspace row").id;
+
+    // Read: the bare form is a pure query; a fresh daemon replies the
+    // historical default — the token the scan decodes into the row.
+    let queried = client
+        .send_checked(&format!("set-workspace-restore-policy -t +{ws}"))
+        .expect("the bare query answers");
+    assert!(queried.ok, "the bare query must succeed: {queried:?}");
+    assert_eq!(
+        restore_policy_from_reply(&queried.body),
+        Some(MuxRestorePolicy::AgentResume),
+        "a fresh daemon's effective policy is the default: {:?}",
+        queried.body
+    );
+
+    // Set: each choice answers ok, and the bare query — the exact verb
+    // the scan sends — reflects it daemon-side from then on.
+    for policy in [MuxRestorePolicy::StartCommand, MuxRestorePolicy::None] {
+        let set = client
+            .send_checked(&format!(
+                "set-workspace-restore-policy -t +{ws} {}",
+                policy.name()
+            ))
+            .expect("the set answers");
+        assert!(set.ok, "setting {policy:?} must succeed: {set:?}");
+        let queried = client
+            .send_checked(&format!("set-workspace-restore-policy -t +{ws}"))
+            .expect("the bare query answers");
+        assert_eq!(
+            restore_policy_from_reply(&queried.body),
+            Some(policy),
+            "the bare query must reflect the {policy:?} choice daemon-side: {:?}",
+            queried.body
+        );
+    }
+
+    // A value outside the grammar is refused with the valid spellings
+    // named — the executor surfaces that as its error toast path.
+    let bad = client
+        .send_checked(&format!("set-workspace-restore-policy -t +{ws} nope"))
+        .expect("the daemon answers");
+    assert!(!bad.ok, "an unknown value must be refused: {bad:?}");
+    let refusal = bad.body.join(" ");
+    assert!(
+        refusal.contains("start-command") && refusal.contains("none"),
+        "the refusal must name the valid values: {refusal:?}"
     );
 }

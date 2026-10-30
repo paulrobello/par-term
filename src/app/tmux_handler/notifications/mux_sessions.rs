@@ -9,7 +9,8 @@
 
 use super::mux::MuxAttachPending;
 use super::mux_directory::{
-    self, MuxDirectory, MuxExitAction, MuxSessionRow, MuxWorkspaceRow, PendingScan,
+    self, MuxDirectory, MuxExitAction, MuxRestorePolicy, MuxSessionRow, MuxWorkspaceRow,
+    PendingScan,
 };
 use crate::app::window_state::WindowState;
 use std::path::{Path, PathBuf};
@@ -230,6 +231,9 @@ impl WindowState {
             }
             MuxSessionRequest::SetExitAction { ws, action } => {
                 self.set_mux_workspace_exit_action(&ws, action);
+            }
+            MuxSessionRequest::SetRestorePolicy { ws, policy } => {
+                self.set_mux_workspace_restore_policy(&ws, policy);
             }
         }
         self.focus_state.needs_redraw = true;
@@ -470,6 +474,38 @@ impl WindowState {
                 self.refresh_mux_directory();
             }
             Err(e) => self.record_mux_error(format!("par-mux: set-exit-action failed — {e}")),
+        }
+    }
+
+    /// Set a workspace's restore policy (`set-workspace-restore-policy -t
+    /// +N <policy>`). The daemon holds the choice daemon-side and
+    /// persists it in its own state file, so the picker only sends the
+    /// verb and re-reads the directory; the refreshed bare query is the
+    /// proof the choice landed.
+    fn set_mux_workspace_restore_policy(&mut self, ws: &MuxWorkspaceRow, policy: MuxRestorePolicy) {
+        let command = format!(
+            "set-workspace-restore-policy -t +{} {}",
+            ws.id,
+            policy.name()
+        );
+        match self.send_to_daemon(&ws.socket, &ws.daemon, &command) {
+            Ok(body)
+                if crate::session_picker_mux::restore_policy_from_reply(&body) == Some(policy) =>
+            {
+                self.show_toast(format!(
+                    "par-mux: workspace '{}' restore policy: {}",
+                    ws.name,
+                    policy.name()
+                ));
+                self.refresh_mux_directory();
+            }
+            Ok(body) => self.record_mux_error(format!(
+                "par-mux: set-workspace-restore-policy failed — {}",
+                body.join(" ")
+            )),
+            Err(e) => self.record_mux_error(format!(
+                "par-mux: set-workspace-restore-policy failed — {e}"
+            )),
         }
     }
 
