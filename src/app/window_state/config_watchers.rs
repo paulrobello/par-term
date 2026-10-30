@@ -42,12 +42,7 @@ impl WindowState {
         let update_path = Config::config_dir().join(".config-update.json");
 
         // Create the file if it doesn't exist so the watcher can start
-        if !update_path.exists() {
-            if let Some(parent) = update_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(&update_path, "");
-        }
+        ensure_watch_file(&update_path);
 
         match crate::config::watcher::ConfigWatcher::new(&update_path, 200) {
             Ok(watcher) => {
@@ -72,20 +67,10 @@ impl WindowState {
     pub(crate) fn init_screenshot_request_watcher(&mut self) {
         let request_path = Config::config_dir().join(SCREENSHOT_REQUEST_FILENAME);
 
-        if !request_path.exists() {
-            if let Some(parent) = request_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(&request_path, "");
-        }
+        ensure_watch_file(&request_path);
 
         let response_path = Config::config_dir().join(SCREENSHOT_RESPONSE_FILENAME);
-        if !response_path.exists() {
-            if let Some(parent) = response_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(&response_path, "");
-        }
+        ensure_watch_file(&response_path);
 
         match crate::config::watcher::ConfigWatcher::new(&request_path, 100) {
             Ok(watcher) => {
@@ -110,20 +95,10 @@ impl WindowState {
     pub(crate) fn init_shader_diagnostics_request_watcher(&mut self) {
         let request_path = Config::config_dir().join(SHADER_DIAGNOSTICS_REQUEST_FILENAME);
 
-        if !request_path.exists() {
-            if let Some(parent) = request_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(&request_path, "");
-        }
+        ensure_watch_file(&request_path);
 
         let response_path = Config::config_dir().join(SHADER_DIAGNOSTICS_RESPONSE_FILENAME);
-        if !response_path.exists() {
-            if let Some(parent) = response_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(&response_path, "");
-        }
+        ensure_watch_file(&response_path);
 
         match crate::config::watcher::ConfigWatcher::new(&request_path, 100) {
             Ok(watcher) => {
@@ -183,7 +158,7 @@ impl WindowState {
         }
 
         // Clear the file so we don't re-process it
-        let _ = std::fs::write(&update_path, "");
+        clear_watch_file(&update_path);
     }
 
     /// Check for pending screenshot request file changes (from MCP server).
@@ -215,7 +190,7 @@ impl WindowState {
             Ok(req) => req,
             Err(e) => {
                 log::error!("ACP screenshot: invalid JSON in request file: {e}");
-                let _ = std::fs::write(&request_path, "");
+                clear_watch_file(&request_path);
                 return;
             }
         };
@@ -253,7 +228,7 @@ impl WindowState {
         }
 
         // Clear request file so it is processed only once.
-        let _ = std::fs::write(&request_path, "");
+        clear_watch_file(&request_path);
     }
 
     /// Check for pending shader diagnostics request file changes (from MCP server).
@@ -284,7 +259,7 @@ impl WindowState {
             Ok(req) => req,
             Err(e) => {
                 log::error!("ACP shader diagnostics: invalid JSON in request file: {e}");
-                let _ = std::fs::write(&request_path, "");
+                clear_watch_file(&request_path);
                 return;
             }
         };
@@ -311,7 +286,7 @@ impl WindowState {
         }
 
         // Clear request file so it is processed only once.
-        let _ = std::fs::write(&request_path, "");
+        clear_watch_file(&request_path);
     }
 
     fn capture_shader_diagnostics_mcp_response(
@@ -360,4 +335,39 @@ fn shader_debug_wgsl_path(shader_name: &str) -> String {
     par_term_render::shader_debug::transpiled_wgsl_path(shader_name)
         .display()
         .to_string()
+}
+
+/// Create an empty watch file (and its directory) so a watcher can attach.
+///
+/// A failure here surfaces later only as a watcher-init failure, so the
+/// root cause is logged at the point it happens.
+fn ensure_watch_file(path: &std::path::Path) {
+    if path.exists() {
+        return;
+    }
+    if let Some(parent) = path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        log::warn!(
+            "CONFIG: failed to create watch directory {}: {e}",
+            parent.display()
+        );
+    }
+    if let Err(e) = std::fs::write(path, "") {
+        log::warn!(
+            "CONFIG: failed to create watch file {}: {e}",
+            path.display()
+        );
+    }
+}
+
+/// Truncate a processed request file. If this fails the request stays on
+/// disk and is processed again on the next change notification.
+fn clear_watch_file(path: &std::path::Path) {
+    if let Err(e) = std::fs::write(path, "") {
+        log::warn!(
+            "CONFIG: failed to clear processed request file {}: {e}",
+            path.display()
+        );
+    }
 }

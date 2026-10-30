@@ -101,7 +101,10 @@ pub(crate) mod tests {
         }
 
         fn send_command(&self, command: &str) -> std::io::Result<Vec<String>> {
-            self.sent.lock().unwrap().push(command.to_string());
+            self.sent
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .push(command.to_string());
             Ok(Vec::new())
         }
     }
@@ -396,7 +399,10 @@ pub(crate) mod tests {
         }
 
         fn send_command(&self, command: &str) -> std::io::Result<Vec<String>> {
-            self.sent.lock().unwrap().push(command.to_string());
+            self.sent
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .push(command.to_string());
             if command.starts_with("split-window") {
                 Ok(vec![format!("%{}", self.new_pane)])
             } else {

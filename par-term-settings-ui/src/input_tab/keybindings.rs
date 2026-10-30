@@ -328,81 +328,88 @@ pub fn capture_key_combo(ui: &egui::Ui) -> Option<String> {
     })
 }
 
+/// Recordable keys and the chord spelling the keybinding parser accepts
+/// for each. Keys absent here (Escape, Tab, Backspace, F13+, …) cannot be
+/// recorded.
+const RECORDABLE_KEYS: &[(egui::Key, &str)] = &[
+    (egui::Key::A, "A"),
+    (egui::Key::B, "B"),
+    (egui::Key::C, "C"),
+    (egui::Key::D, "D"),
+    (egui::Key::E, "E"),
+    (egui::Key::F, "F"),
+    (egui::Key::G, "G"),
+    (egui::Key::H, "H"),
+    (egui::Key::I, "I"),
+    (egui::Key::J, "J"),
+    (egui::Key::K, "K"),
+    (egui::Key::L, "L"),
+    (egui::Key::M, "M"),
+    (egui::Key::N, "N"),
+    (egui::Key::O, "O"),
+    (egui::Key::P, "P"),
+    (egui::Key::Q, "Q"),
+    (egui::Key::R, "R"),
+    (egui::Key::S, "S"),
+    (egui::Key::T, "T"),
+    (egui::Key::U, "U"),
+    (egui::Key::V, "V"),
+    (egui::Key::W, "W"),
+    (egui::Key::X, "X"),
+    (egui::Key::Y, "Y"),
+    (egui::Key::Z, "Z"),
+    (egui::Key::Num0, "0"),
+    (egui::Key::Num1, "1"),
+    (egui::Key::Num2, "2"),
+    (egui::Key::Num3, "3"),
+    (egui::Key::Num4, "4"),
+    (egui::Key::Num5, "5"),
+    (egui::Key::Num6, "6"),
+    (egui::Key::Num7, "7"),
+    (egui::Key::Num8, "8"),
+    (egui::Key::Num9, "9"),
+    (egui::Key::F1, "F1"),
+    (egui::Key::F2, "F2"),
+    (egui::Key::F3, "F3"),
+    (egui::Key::F4, "F4"),
+    (egui::Key::F5, "F5"),
+    (egui::Key::F6, "F6"),
+    (egui::Key::F7, "F7"),
+    (egui::Key::F8, "F8"),
+    (egui::Key::F9, "F9"),
+    (egui::Key::F10, "F10"),
+    (egui::Key::F11, "F11"),
+    (egui::Key::F12, "F12"),
+    (egui::Key::ArrowUp, "Up"),
+    (egui::Key::ArrowDown, "Down"),
+    (egui::Key::ArrowLeft, "Left"),
+    (egui::Key::ArrowRight, "Right"),
+    (egui::Key::Home, "Home"),
+    (egui::Key::End, "End"),
+    (egui::Key::PageUp, "PageUp"),
+    (egui::Key::PageDown, "PageDown"),
+    (egui::Key::Enter, "Enter"),
+    (egui::Key::Space, "Space"),
+    (egui::Key::Insert, "Insert"),
+    (egui::Key::Minus, "Minus"),
+    (egui::Key::Plus, "Plus"),
+    (egui::Key::Equals, "Equals"),
+    (egui::Key::OpenBracket, "BracketLeft"),
+    (egui::Key::CloseBracket, "BracketRight"),
+    (egui::Key::Backslash, "Backslash"),
+    (egui::Key::Semicolon, "Semicolon"),
+    (egui::Key::Colon, "Colon"),
+    (egui::Key::Comma, "Comma"),
+    (egui::Key::Period, "Period"),
+    (egui::Key::Slash, "Slash"),
+    (egui::Key::Backtick, "Backquote"),
+];
+
 fn key_to_string(key: egui::Key) -> Option<&'static str> {
-    match key {
-        egui::Key::A => Some("A"),
-        egui::Key::B => Some("B"),
-        egui::Key::C => Some("C"),
-        egui::Key::D => Some("D"),
-        egui::Key::E => Some("E"),
-        egui::Key::F => Some("F"),
-        egui::Key::G => Some("G"),
-        egui::Key::H => Some("H"),
-        egui::Key::I => Some("I"),
-        egui::Key::J => Some("J"),
-        egui::Key::K => Some("K"),
-        egui::Key::L => Some("L"),
-        egui::Key::M => Some("M"),
-        egui::Key::N => Some("N"),
-        egui::Key::O => Some("O"),
-        egui::Key::P => Some("P"),
-        egui::Key::Q => Some("Q"),
-        egui::Key::R => Some("R"),
-        egui::Key::S => Some("S"),
-        egui::Key::T => Some("T"),
-        egui::Key::U => Some("U"),
-        egui::Key::V => Some("V"),
-        egui::Key::W => Some("W"),
-        egui::Key::X => Some("X"),
-        egui::Key::Y => Some("Y"),
-        egui::Key::Z => Some("Z"),
-        egui::Key::Num0 => Some("0"),
-        egui::Key::Num1 => Some("1"),
-        egui::Key::Num2 => Some("2"),
-        egui::Key::Num3 => Some("3"),
-        egui::Key::Num4 => Some("4"),
-        egui::Key::Num5 => Some("5"),
-        egui::Key::Num6 => Some("6"),
-        egui::Key::Num7 => Some("7"),
-        egui::Key::Num8 => Some("8"),
-        egui::Key::Num9 => Some("9"),
-        egui::Key::F1 => Some("F1"),
-        egui::Key::F2 => Some("F2"),
-        egui::Key::F3 => Some("F3"),
-        egui::Key::F4 => Some("F4"),
-        egui::Key::F5 => Some("F5"),
-        egui::Key::F6 => Some("F6"),
-        egui::Key::F7 => Some("F7"),
-        egui::Key::F8 => Some("F8"),
-        egui::Key::F9 => Some("F9"),
-        egui::Key::F10 => Some("F10"),
-        egui::Key::F11 => Some("F11"),
-        egui::Key::F12 => Some("F12"),
-        egui::Key::ArrowUp => Some("Up"),
-        egui::Key::ArrowDown => Some("Down"),
-        egui::Key::ArrowLeft => Some("Left"),
-        egui::Key::ArrowRight => Some("Right"),
-        egui::Key::Home => Some("Home"),
-        egui::Key::End => Some("End"),
-        egui::Key::PageUp => Some("PageUp"),
-        egui::Key::PageDown => Some("PageDown"),
-        egui::Key::Enter => Some("Enter"),
-        egui::Key::Space => Some("Space"),
-        egui::Key::Insert => Some("Insert"),
-        egui::Key::Minus => Some("Minus"),
-        egui::Key::Plus => Some("Plus"),
-        egui::Key::Equals => Some("Equals"),
-        egui::Key::OpenBracket => Some("BracketLeft"),
-        egui::Key::CloseBracket => Some("BracketRight"),
-        egui::Key::Backslash => Some("Backslash"),
-        egui::Key::Semicolon => Some("Semicolon"),
-        egui::Key::Colon => Some("Colon"),
-        egui::Key::Comma => Some("Comma"),
-        egui::Key::Period => Some("Period"),
-        egui::Key::Slash => Some("Slash"),
-        egui::Key::Backtick => Some("Backquote"),
-        _ => None,
-    }
+    RECORDABLE_KEYS
+        .iter()
+        .find(|&&(k, _)| k == key)
+        .map(|&(_, name)| name)
 }
 
 #[cfg(test)]
@@ -433,6 +440,160 @@ mod tests {
         // epaint panics on drop if it is not cleared first.
         output.textures_delta.clear();
         recorded
+    }
+
+    /// Independent oracle for [`key_to_string`], by key family. Every
+    /// `egui::Key` outside these lists must map to `None`.
+    const LETTERS: &[(egui::Key, &str)] = &[
+        (egui::Key::A, "A"),
+        (egui::Key::B, "B"),
+        (egui::Key::C, "C"),
+        (egui::Key::D, "D"),
+        (egui::Key::E, "E"),
+        (egui::Key::F, "F"),
+        (egui::Key::G, "G"),
+        (egui::Key::H, "H"),
+        (egui::Key::I, "I"),
+        (egui::Key::J, "J"),
+        (egui::Key::K, "K"),
+        (egui::Key::L, "L"),
+        (egui::Key::M, "M"),
+        (egui::Key::N, "N"),
+        (egui::Key::O, "O"),
+        (egui::Key::P, "P"),
+        (egui::Key::Q, "Q"),
+        (egui::Key::R, "R"),
+        (egui::Key::S, "S"),
+        (egui::Key::T, "T"),
+        (egui::Key::U, "U"),
+        (egui::Key::V, "V"),
+        (egui::Key::W, "W"),
+        (egui::Key::X, "X"),
+        (egui::Key::Y, "Y"),
+        (egui::Key::Z, "Z"),
+    ];
+    const DIGITS: &[(egui::Key, &str)] = &[
+        (egui::Key::Num0, "0"),
+        (egui::Key::Num1, "1"),
+        (egui::Key::Num2, "2"),
+        (egui::Key::Num3, "3"),
+        (egui::Key::Num4, "4"),
+        (egui::Key::Num5, "5"),
+        (egui::Key::Num6, "6"),
+        (egui::Key::Num7, "7"),
+        (egui::Key::Num8, "8"),
+        (egui::Key::Num9, "9"),
+    ];
+    const FUNCTION: &[(egui::Key, &str)] = &[
+        (egui::Key::F1, "F1"),
+        (egui::Key::F2, "F2"),
+        (egui::Key::F3, "F3"),
+        (egui::Key::F4, "F4"),
+        (egui::Key::F5, "F5"),
+        (egui::Key::F6, "F6"),
+        (egui::Key::F7, "F7"),
+        (egui::Key::F8, "F8"),
+        (egui::Key::F9, "F9"),
+        (egui::Key::F10, "F10"),
+        (egui::Key::F11, "F11"),
+        (egui::Key::F12, "F12"),
+    ];
+    const NAVIGATION: &[(egui::Key, &str)] = &[
+        (egui::Key::ArrowUp, "Up"),
+        (egui::Key::ArrowDown, "Down"),
+        (egui::Key::ArrowLeft, "Left"),
+        (egui::Key::ArrowRight, "Right"),
+        (egui::Key::Home, "Home"),
+        (egui::Key::End, "End"),
+        (egui::Key::PageUp, "PageUp"),
+        (egui::Key::PageDown, "PageDown"),
+        (egui::Key::Enter, "Enter"),
+        (egui::Key::Space, "Space"),
+        (egui::Key::Insert, "Insert"),
+    ];
+    const PUNCTUATION: &[(egui::Key, &str)] = &[
+        (egui::Key::Minus, "Minus"),
+        (egui::Key::Plus, "Plus"),
+        (egui::Key::Equals, "Equals"),
+        (egui::Key::OpenBracket, "BracketLeft"),
+        (egui::Key::CloseBracket, "BracketRight"),
+        (egui::Key::Backslash, "Backslash"),
+        (egui::Key::Semicolon, "Semicolon"),
+        (egui::Key::Colon, "Colon"),
+        (egui::Key::Comma, "Comma"),
+        (egui::Key::Period, "Period"),
+        (egui::Key::Slash, "Slash"),
+        (egui::Key::Backtick, "Backquote"),
+    ];
+    const FAMILIES: &[&[(egui::Key, &str)]] = &[LETTERS, DIGITS, FUNCTION, NAVIGATION, PUNCTUATION];
+
+    fn assert_family(entries: &[(egui::Key, &str)]) {
+        for &(key, name) in entries {
+            assert_eq!(key_to_string(key), Some(name), "{key:?}");
+        }
+    }
+
+    #[test]
+    fn key_to_string_letters() {
+        assert_family(LETTERS);
+    }
+
+    #[test]
+    fn key_to_string_digits() {
+        assert_family(DIGITS);
+    }
+
+    #[test]
+    fn key_to_string_function_keys() {
+        assert_family(FUNCTION);
+    }
+
+    #[test]
+    fn key_to_string_navigation() {
+        assert_family(NAVIGATION);
+    }
+
+    #[test]
+    fn key_to_string_punctuation() {
+        assert_family(PUNCTUATION);
+    }
+
+    /// Every egui key outside the oracle is unrecordable (Escape, Tab,
+    /// Backspace, Delete, F13+, and so on).
+    #[test]
+    fn key_to_string_rejects_every_other_key() {
+        let mapped: Vec<egui::Key> = FAMILIES
+            .iter()
+            .flat_map(|f| f.iter().map(|&(k, _)| k))
+            .collect();
+        assert_eq!(mapped.len(), 71);
+        for &key in egui::Key::ALL {
+            if !mapped.contains(&key) {
+                assert_eq!(key_to_string(key), None, "{key:?} must not record");
+            }
+        }
+        for key in [
+            egui::Key::Escape,
+            egui::Key::Tab,
+            egui::Key::Backspace,
+            egui::Key::Delete,
+            egui::Key::F13,
+        ] {
+            assert_eq!(key_to_string(key), None, "{key:?}");
+        }
+    }
+
+    /// Recorded names must be accepted by the keybinding parser as the key
+    /// part of a chord.
+    #[test]
+    fn key_to_string_names_parse_as_chords() {
+        for family in FAMILIES {
+            for &(_, name) in *family {
+                let combo = format!("Ctrl+{name}");
+                par_term_keybindings::parser::parse_key_combo(&combo)
+                    .unwrap_or_else(|e| panic!("{combo:?} must parse: {e}"));
+            }
+        }
     }
 
     #[test]
