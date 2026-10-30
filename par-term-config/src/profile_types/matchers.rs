@@ -141,42 +141,6 @@ impl ProfileManager {
             .find(|p| p.name.to_lowercase() == lower)
     }
 
-    /// Find all profiles with a specific tag (case-insensitive)
-    pub fn find_by_tag(&self, tag: &str) -> Vec<&Profile> {
-        let lower = tag.to_lowercase();
-        self.profiles_ordered()
-            .into_iter()
-            .filter(|p| p.tags.iter().any(|t| t.to_lowercase() == lower))
-            .collect()
-    }
-
-    /// Filter profiles by tag search query (matches partial tag names)
-    pub fn filter_by_tags(&self, query: &str) -> Vec<&Profile> {
-        if query.is_empty() {
-            return self.profiles_ordered();
-        }
-        let lower = query.to_lowercase();
-        self.profiles_ordered()
-            .into_iter()
-            .filter(|p| {
-                p.tags.iter().any(|t| t.to_lowercase().contains(&lower))
-                    || p.name.to_lowercase().contains(&lower)
-            })
-            .collect()
-    }
-
-    /// Get all unique tags across all profiles (sorted alphabetically)
-    pub fn all_tags(&self) -> Vec<String> {
-        let mut tags: Vec<String> = self
-            .profiles
-            .values()
-            .flat_map(|p| p.tags.iter().cloned())
-            .collect();
-        tags.sort();
-        tags.dedup();
-        tags
-    }
-
     /// Find profile matching a hostname pattern for automatic switching
     /// Uses glob-style pattern matching
     pub fn find_by_hostname(&self, hostname: &str) -> Option<&Profile> {
@@ -444,39 +408,5 @@ impl ProfileManager {
                 .or(resolved_parent.ssh_extra_args),
             source: profile.source.clone(),
         })
-    }
-
-    /// Get profiles that can be parents for a given profile
-    /// (excludes the profile itself and any profiles that would create a cycle)
-    pub fn get_valid_parents(&self, profile_id: &ProfileId) -> Vec<&Profile> {
-        self.profiles_ordered()
-            .into_iter()
-            .filter(|p| {
-                if p.id == *profile_id {
-                    return false;
-                }
-                !self.has_ancestor(&p.id, profile_id)
-            })
-            .collect()
-    }
-
-    /// Check if a profile has a specific ancestor in its inheritance chain
-    fn has_ancestor(&self, profile_id: &ProfileId, ancestor_id: &ProfileId) -> bool {
-        let mut current_id = *profile_id;
-        let mut visited = vec![current_id];
-
-        while let Some(profile) = self.profiles.get(&current_id)
-            && let Some(parent_id) = profile.parent_id
-        {
-            if parent_id == *ancestor_id {
-                return true;
-            }
-            if visited.contains(&parent_id) {
-                return false;
-            }
-            visited.push(parent_id);
-            current_id = parent_id;
-        }
-        false
     }
 }

@@ -4106,6 +4106,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "tempfile",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -4197,7 +4198,6 @@ dependencies = [
 name = "par-term-terminal"
 version = "0.7.0"
 dependencies = [
- "anyhow",
  "arboard",
  "log",
  "par-term-config",
@@ -4205,6 +4205,7 @@ dependencies = [
  "parking_lot 0.13.0",
  "sysinfo 0.40.1",
  "tempfile",
+ "thiserror 2.0.21",
  "tokio",
 ]
 

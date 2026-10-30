@@ -22,6 +22,9 @@ par-term-config = { path = "../par-term-config", version = "0.16.0" }
 # Logging
 log.workspace = true
 
+# Typed IPC errors (IpcError)
+thiserror.workspace = true
+
 # Platform-specific directories for config path resolution
 dirs.workspace = true
 base64.workspace = true

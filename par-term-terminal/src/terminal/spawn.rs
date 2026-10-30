@@ -1,5 +1,5 @@
 use super::TerminalManager;
-use anyhow::Result;
+use crate::error::{Result, TerminalError};
 use par_term_emu_core_rust::terminal::TriggerEngine;
 
 /// Resolve the user's login shell PATH and return environment variables for coprocess spawning.
@@ -71,8 +71,7 @@ impl TerminalManager {
     pub fn spawn_shell(&mut self) -> Result<()> {
         log::info!("Spawning shell in PTY");
         let mut pty = self.pty_session.lock();
-        pty.spawn_shell()
-            .map_err(|e| anyhow::anyhow!("Failed to spawn shell: {}", e))?;
+        pty.spawn_shell().map_err(TerminalError::Spawn)?;
         Ok(())
     }
 
@@ -87,8 +86,7 @@ impl TerminalManager {
         log::info!("Spawning custom shell: {}", command);
         let mut pty = self.pty_session.lock();
         let args: Vec<&str> = Vec::new();
-        pty.spawn(command, &args)
-            .map_err(|e| anyhow::anyhow!("Failed to spawn custom shell: {}", e))?;
+        pty.spawn(command, &args).map_err(TerminalError::Spawn)?;
         Ok(())
     }
 
@@ -104,7 +102,7 @@ impl TerminalManager {
         let mut pty = self.pty_session.lock();
         let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         pty.spawn(command, &args_refs)
-            .map_err(|e| anyhow::anyhow!("Failed to spawn custom shell: {}", e))?;
+            .map_err(TerminalError::Spawn)?;
         Ok(())
     }
 
@@ -127,7 +125,7 @@ impl TerminalManager {
         );
         let mut pty = self.pty_session.lock();
         pty.spawn_shell_with_env(env_vars, working_dir)
-            .map_err(|e| anyhow::anyhow!("Failed to spawn shell with env: {}", e))
+            .map_err(TerminalError::Spawn)
     }
 
     /// Spawn custom shell with args, optional working directory, and environment variables
@@ -157,7 +155,7 @@ impl TerminalManager {
 
         let mut pty = self.pty_session.lock();
         pty.spawn_with_env(command, &args_refs, env_vars, working_dir)
-            .map_err(|e| anyhow::anyhow!("Failed to spawn custom shell with env: {}", e))
+            .map_err(TerminalError::Spawn)
     }
 }
 
@@ -181,8 +179,7 @@ impl TerminalManager {
             );
         }
         let mut pty = self.pty_session.lock();
-        pty.write(data)
-            .map_err(|e| anyhow::anyhow!("Failed to write to PTY: {}", e))?;
+        pty.write(data).map_err(TerminalError::Write)?;
         Ok(())
     }
 
@@ -194,8 +191,7 @@ impl TerminalManager {
     /// because the child has exited and the slave end is closed.
     pub fn write_str(&self, data: &str) -> Result<()> {
         let mut pty = self.pty_session.lock();
-        pty.write_str(data)
-            .map_err(|e| anyhow::anyhow!("Failed to write to PTY: {}", e))?;
+        pty.write_str(data).map_err(TerminalError::Write)?;
         Ok(())
     }
 
@@ -286,15 +282,13 @@ impl TerminalManager {
         let mut pty = self.pty_session.lock();
         if !start.is_empty() {
             log::debug!("Sending bracketed paste start sequence");
-            pty.write(&start)
-                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste start: {}", e))?;
+            pty.write(&start).map_err(TerminalError::Write)?;
         }
         pty.write(content.as_bytes())
-            .map_err(|e| anyhow::anyhow!("Failed to write paste content: {}", e))?;
+            .map_err(TerminalError::Write)?;
         if !end.is_empty() {
             log::debug!("Sending bracketed paste end sequence");
-            pty.write(&end)
-                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste end: {}", e))?;
+            pty.write(&end).map_err(TerminalError::Write)?;
         }
 
         Ok(())
@@ -328,8 +322,7 @@ impl TerminalManager {
 
         if !start.is_empty() {
             let mut pty = self.pty_session.lock();
-            pty.write(&start)
-                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste start: {}", e))?;
+            pty.write(&start).map_err(TerminalError::Write)?;
         }
 
         let lines: Vec<&str> = content.split('\n').collect();
@@ -344,7 +337,7 @@ impl TerminalManager {
             {
                 let mut pty = self.pty_session.lock();
                 pty.write(line_data.as_bytes())
-                    .map_err(|e| anyhow::anyhow!("Failed to write paste line: {}", e))?;
+                    .map_err(TerminalError::Write)?;
             }
 
             if i < lines.len() - 1 {
@@ -354,8 +347,7 @@ impl TerminalManager {
 
         if !end.is_empty() {
             let mut pty = self.pty_session.lock();
-            pty.write(&end)
-                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste end: {}", e))?;
+            pty.write(&end).map_err(TerminalError::Write)?;
         }
 
         log::debug!(

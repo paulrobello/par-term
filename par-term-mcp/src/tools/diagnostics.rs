@@ -36,10 +36,7 @@ pub fn handle_shader_diagnostics(params: &Value) -> Value {
     };
 
     if let Err(e) = write_json_atomic(&request, &request_path) {
-        return super::tool_error(&format!(
-            "Failed to write shader diagnostics request {}: {e}",
-            request_path.display()
-        ));
+        return super::tool_error(&format!("Failed to write shader diagnostics request: {e}"));
     }
 
     let timeout = Duration::from_secs(15);
@@ -56,10 +53,7 @@ pub fn handle_shader_diagnostics(params: &Value) -> Value {
             }
             Ok(None) => {}
             Err(e) => {
-                return super::tool_error(&format!(
-                    "Failed to read shader diagnostics response {}: {e}",
-                    response_path.display()
-                ));
+                return super::tool_error(&format!("Shader diagnostics response unusable: {e}"));
             }
         }
         std::thread::sleep(poll_interval);

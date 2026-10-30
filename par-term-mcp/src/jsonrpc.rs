@@ -15,32 +15,46 @@ use std::io::Write;
 /// An incoming JSON-RPC 2.0 message from the client.
 #[derive(Debug, Deserialize)]
 pub struct IncomingMessage {
+    /// Protocol version string; `"2.0"` per spec, not checked by the server.
     #[allow(dead_code)] // Deserialized from JSON-RPC protocol; required by spec
     pub jsonrpc: String,
+    /// Request id. `None` marks a notification, which gets no response.
     #[serde(default)]
     pub id: Option<Value>,
+    /// Method name. Messages without one are ignored.
     #[serde(default)]
     pub method: Option<String>,
+    /// Method parameters, passed through to the handler unchanged.
     #[serde(default)]
     pub params: Option<Value>,
 }
 
 /// An outgoing JSON-RPC 2.0 response.
+///
+/// Exactly one of `result` and `error` is set.
 #[derive(Debug, Serialize)]
 pub struct Response {
+    /// Always `"2.0"`.
     pub jsonrpc: &'static str,
+    /// Method result on success.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    /// Error object on failure.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<RpcError>,
+    /// The id of the request being answered (`null` for a parse error).
     pub id: Value,
 }
 
 /// A JSON-RPC 2.0 error object.
 #[derive(Debug, Serialize)]
 pub struct RpcError {
+    /// Error code: `-32700` parse error, `-32601` method not found, and
+    /// `-32001` authentication required (SEC-006, server-defined).
     pub code: i64,
+    /// Human-readable error description.
     pub message: String,
+    /// Optional structured detail; unused by this server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
 }

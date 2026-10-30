@@ -1,5 +1,5 @@
+use crate::error::{Result, TerminalError};
 use crate::scrollback_metadata::ScrollbackMetadata;
-use anyhow::Result;
 use par_term_config::Theme;
 use par_term_emu_core_rust::pty_session::PtySession;
 use par_term_emu_core_rust::terminal::{Terminal, TriggerEngine};
@@ -155,7 +155,7 @@ impl TerminalManager {
 
         let mut pty = self.pty_session.lock();
         pty.resize(cols as u16, rows as u16)
-            .map_err(|e| anyhow::anyhow!("Failed to resize PTY: {}", e))?;
+            .map_err(TerminalError::Resize)?;
 
         self.dimensions = (cols, rows);
         Ok(())
@@ -185,7 +185,7 @@ impl TerminalManager {
 
         let mut pty = self.pty_session.lock();
         pty.resize_with_pixels(cols as u16, rows as u16, width_px as u16, height_px as u16)
-            .map_err(|e| anyhow::anyhow!("Failed to resize PTY with pixels: {}", e))?;
+            .map_err(TerminalError::Resize)?;
 
         self.dimensions = (cols, rows);
         Ok(())
@@ -248,8 +248,7 @@ impl TerminalManager {
     /// signalling the child process fails.
     pub fn kill(&mut self) -> Result<()> {
         let mut pty = self.pty_session.lock();
-        pty.kill()
-            .map_err(|e| anyhow::anyhow!("Failed to kill PTY: {:?}", e))
+        pty.kill().map_err(TerminalError::Kill)
     }
 
     /// Get the current bell event count
@@ -319,7 +318,7 @@ impl TerminalManager {
         };
 
         par_term_emu_core_rust::screenshot::save_terminal(&term, path, config, scrollback_lines)
-            .map_err(|e| anyhow::anyhow!("Failed to save screenshot: {}", e))?;
+            .map_err(TerminalError::Screenshot)?;
 
         log::info!("Screenshot saved successfully");
         Ok(())
@@ -373,7 +372,7 @@ impl TerminalManager {
             _ => term.export_asciicast(session),
         };
 
-        std::fs::write(path, content)?;
+        std::fs::write(path, content).map_err(TerminalError::recording_export(path))?;
         log::info!("Recording exported successfully");
         Ok(())
     }
