@@ -162,98 +162,299 @@ pub fn parse_named_key(s: &str) -> Option<NamedKey> {
     }
 }
 
+/// Physical key code spellings accepted by [`parse_physical_key_code`],
+/// keyed by their lowercase form: letters, number row, punctuation by
+/// position, F1–F12, navigation, and special keys.
+const PHYSICAL_KEY_CODES: &[(&str, KeyCode)] = &[
+    ("keya", KeyCode::KeyA),
+    ("keyb", KeyCode::KeyB),
+    ("keyc", KeyCode::KeyC),
+    ("keyd", KeyCode::KeyD),
+    ("keye", KeyCode::KeyE),
+    ("keyf", KeyCode::KeyF),
+    ("keyg", KeyCode::KeyG),
+    ("keyh", KeyCode::KeyH),
+    ("keyi", KeyCode::KeyI),
+    ("keyj", KeyCode::KeyJ),
+    ("keyk", KeyCode::KeyK),
+    ("keyl", KeyCode::KeyL),
+    ("keym", KeyCode::KeyM),
+    ("keyn", KeyCode::KeyN),
+    ("keyo", KeyCode::KeyO),
+    ("keyp", KeyCode::KeyP),
+    ("keyq", KeyCode::KeyQ),
+    ("keyr", KeyCode::KeyR),
+    ("keys", KeyCode::KeyS),
+    ("keyt", KeyCode::KeyT),
+    ("keyu", KeyCode::KeyU),
+    ("keyv", KeyCode::KeyV),
+    ("keyw", KeyCode::KeyW),
+    ("keyx", KeyCode::KeyX),
+    ("keyy", KeyCode::KeyY),
+    ("keyz", KeyCode::KeyZ),
+    ("digit0", KeyCode::Digit0),
+    ("digit1", KeyCode::Digit1),
+    ("digit2", KeyCode::Digit2),
+    ("digit3", KeyCode::Digit3),
+    ("digit4", KeyCode::Digit4),
+    ("digit5", KeyCode::Digit5),
+    ("digit6", KeyCode::Digit6),
+    ("digit7", KeyCode::Digit7),
+    ("digit8", KeyCode::Digit8),
+    ("digit9", KeyCode::Digit9),
+    ("minus", KeyCode::Minus),
+    ("equal", KeyCode::Equal),
+    ("bracketleft", KeyCode::BracketLeft),
+    ("bracketright", KeyCode::BracketRight),
+    ("backslash", KeyCode::Backslash),
+    ("semicolon", KeyCode::Semicolon),
+    ("quote", KeyCode::Quote),
+    ("backquote", KeyCode::Backquote),
+    ("comma", KeyCode::Comma),
+    ("period", KeyCode::Period),
+    ("slash", KeyCode::Slash),
+    ("f1", KeyCode::F1),
+    ("f2", KeyCode::F2),
+    ("f3", KeyCode::F3),
+    ("f4", KeyCode::F4),
+    ("f5", KeyCode::F5),
+    ("f6", KeyCode::F6),
+    ("f7", KeyCode::F7),
+    ("f8", KeyCode::F8),
+    ("f9", KeyCode::F9),
+    ("f10", KeyCode::F10),
+    ("f11", KeyCode::F11),
+    ("f12", KeyCode::F12),
+    ("arrowup", KeyCode::ArrowUp),
+    ("arrowdown", KeyCode::ArrowDown),
+    ("arrowleft", KeyCode::ArrowLeft),
+    ("arrowright", KeyCode::ArrowRight),
+    ("home", KeyCode::Home),
+    ("end", KeyCode::End),
+    ("pageup", KeyCode::PageUp),
+    ("pagedown", KeyCode::PageDown),
+    ("insert", KeyCode::Insert),
+    ("delete", KeyCode::Delete),
+    ("enter", KeyCode::Enter),
+    ("escape", KeyCode::Escape),
+    ("space", KeyCode::Space),
+    ("tab", KeyCode::Tab),
+    ("backspace", KeyCode::Backspace),
+];
+
 /// Parse a physical key code string into a [`KeyCode`].
 ///
 /// Supports common key code names like `"KeyA"`, `"KeyZ"`, `"Digit0"`, etc.
 /// Matching is case-insensitive.  Returns `None` for unrecognised strings.
 pub fn parse_physical_key_code(s: &str) -> Option<KeyCode> {
-    match s.to_lowercase().as_str() {
-        // Letter keys
-        "keya" => Some(KeyCode::KeyA),
-        "keyb" => Some(KeyCode::KeyB),
-        "keyc" => Some(KeyCode::KeyC),
-        "keyd" => Some(KeyCode::KeyD),
-        "keye" => Some(KeyCode::KeyE),
-        "keyf" => Some(KeyCode::KeyF),
-        "keyg" => Some(KeyCode::KeyG),
-        "keyh" => Some(KeyCode::KeyH),
-        "keyi" => Some(KeyCode::KeyI),
-        "keyj" => Some(KeyCode::KeyJ),
-        "keyk" => Some(KeyCode::KeyK),
-        "keyl" => Some(KeyCode::KeyL),
-        "keym" => Some(KeyCode::KeyM),
-        "keyn" => Some(KeyCode::KeyN),
-        "keyo" => Some(KeyCode::KeyO),
-        "keyp" => Some(KeyCode::KeyP),
-        "keyq" => Some(KeyCode::KeyQ),
-        "keyr" => Some(KeyCode::KeyR),
-        "keys" => Some(KeyCode::KeyS),
-        "keyt" => Some(KeyCode::KeyT),
-        "keyu" => Some(KeyCode::KeyU),
-        "keyv" => Some(KeyCode::KeyV),
-        "keyw" => Some(KeyCode::KeyW),
-        "keyx" => Some(KeyCode::KeyX),
-        "keyy" => Some(KeyCode::KeyY),
-        "keyz" => Some(KeyCode::KeyZ),
+    let lower = s.to_lowercase();
+    PHYSICAL_KEY_CODES
+        .iter()
+        .find(|(name, _)| *name == lower)
+        .map(|&(_, code)| code)
+}
 
-        // Number row
-        "digit0" => Some(KeyCode::Digit0),
-        "digit1" => Some(KeyCode::Digit1),
-        "digit2" => Some(KeyCode::Digit2),
-        "digit3" => Some(KeyCode::Digit3),
-        "digit4" => Some(KeyCode::Digit4),
-        "digit5" => Some(KeyCode::Digit5),
-        "digit6" => Some(KeyCode::Digit6),
-        "digit7" => Some(KeyCode::Digit7),
-        "digit8" => Some(KeyCode::Digit8),
-        "digit9" => Some(KeyCode::Digit9),
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        // Punctuation/symbols by position
-        "minus" => Some(KeyCode::Minus),
-        "equal" => Some(KeyCode::Equal),
-        "bracketleft" => Some(KeyCode::BracketLeft),
-        "bracketright" => Some(KeyCode::BracketRight),
-        "backslash" => Some(KeyCode::Backslash),
-        "semicolon" => Some(KeyCode::Semicolon),
-        "quote" => Some(KeyCode::Quote),
-        "backquote" => Some(KeyCode::Backquote),
-        "comma" => Some(KeyCode::Comma),
-        "period" => Some(KeyCode::Period),
-        "slash" => Some(KeyCode::Slash),
+    /// Independent oracle for [`parse_physical_key_code`], one entry per
+    /// accepted spelling, grouped by key-code family.
+    const LETTERS: &[(&str, KeyCode)] = &[
+        ("KeyA", KeyCode::KeyA),
+        ("KeyB", KeyCode::KeyB),
+        ("KeyC", KeyCode::KeyC),
+        ("KeyD", KeyCode::KeyD),
+        ("KeyE", KeyCode::KeyE),
+        ("KeyF", KeyCode::KeyF),
+        ("KeyG", KeyCode::KeyG),
+        ("KeyH", KeyCode::KeyH),
+        ("KeyI", KeyCode::KeyI),
+        ("KeyJ", KeyCode::KeyJ),
+        ("KeyK", KeyCode::KeyK),
+        ("KeyL", KeyCode::KeyL),
+        ("KeyM", KeyCode::KeyM),
+        ("KeyN", KeyCode::KeyN),
+        ("KeyO", KeyCode::KeyO),
+        ("KeyP", KeyCode::KeyP),
+        ("KeyQ", KeyCode::KeyQ),
+        ("KeyR", KeyCode::KeyR),
+        ("KeyS", KeyCode::KeyS),
+        ("KeyT", KeyCode::KeyT),
+        ("KeyU", KeyCode::KeyU),
+        ("KeyV", KeyCode::KeyV),
+        ("KeyW", KeyCode::KeyW),
+        ("KeyX", KeyCode::KeyX),
+        ("KeyY", KeyCode::KeyY),
+        ("KeyZ", KeyCode::KeyZ),
+    ];
+    const DIGITS: &[(&str, KeyCode)] = &[
+        ("Digit0", KeyCode::Digit0),
+        ("Digit1", KeyCode::Digit1),
+        ("Digit2", KeyCode::Digit2),
+        ("Digit3", KeyCode::Digit3),
+        ("Digit4", KeyCode::Digit4),
+        ("Digit5", KeyCode::Digit5),
+        ("Digit6", KeyCode::Digit6),
+        ("Digit7", KeyCode::Digit7),
+        ("Digit8", KeyCode::Digit8),
+        ("Digit9", KeyCode::Digit9),
+    ];
+    const PUNCTUATION: &[(&str, KeyCode)] = &[
+        ("Minus", KeyCode::Minus),
+        ("Equal", KeyCode::Equal),
+        ("BracketLeft", KeyCode::BracketLeft),
+        ("BracketRight", KeyCode::BracketRight),
+        ("Backslash", KeyCode::Backslash),
+        ("Semicolon", KeyCode::Semicolon),
+        ("Quote", KeyCode::Quote),
+        ("Backquote", KeyCode::Backquote),
+        ("Comma", KeyCode::Comma),
+        ("Period", KeyCode::Period),
+        ("Slash", KeyCode::Slash),
+    ];
+    const FUNCTION: &[(&str, KeyCode)] = &[
+        ("F1", KeyCode::F1),
+        ("F2", KeyCode::F2),
+        ("F3", KeyCode::F3),
+        ("F4", KeyCode::F4),
+        ("F5", KeyCode::F5),
+        ("F6", KeyCode::F6),
+        ("F7", KeyCode::F7),
+        ("F8", KeyCode::F8),
+        ("F9", KeyCode::F9),
+        ("F10", KeyCode::F10),
+        ("F11", KeyCode::F11),
+        ("F12", KeyCode::F12),
+    ];
+    const NAVIGATION: &[(&str, KeyCode)] = &[
+        ("ArrowUp", KeyCode::ArrowUp),
+        ("ArrowDown", KeyCode::ArrowDown),
+        ("ArrowLeft", KeyCode::ArrowLeft),
+        ("ArrowRight", KeyCode::ArrowRight),
+        ("Home", KeyCode::Home),
+        ("End", KeyCode::End),
+        ("PageUp", KeyCode::PageUp),
+        ("PageDown", KeyCode::PageDown),
+        ("Insert", KeyCode::Insert),
+        ("Delete", KeyCode::Delete),
+    ];
+    const SPECIAL: &[(&str, KeyCode)] = &[
+        ("Enter", KeyCode::Enter),
+        ("Escape", KeyCode::Escape),
+        ("Space", KeyCode::Space),
+        ("Tab", KeyCode::Tab),
+        ("Backspace", KeyCode::Backspace),
+    ];
+    const FAMILIES: &[(&str, &[(&str, KeyCode)])] = &[
+        ("letters", LETTERS),
+        ("digits", DIGITS),
+        ("punctuation", PUNCTUATION),
+        ("function", FUNCTION),
+        ("navigation", NAVIGATION),
+        ("special", SPECIAL),
+    ];
 
-        // Function keys
-        "f1" => Some(KeyCode::F1),
-        "f2" => Some(KeyCode::F2),
-        "f3" => Some(KeyCode::F3),
-        "f4" => Some(KeyCode::F4),
-        "f5" => Some(KeyCode::F5),
-        "f6" => Some(KeyCode::F6),
-        "f7" => Some(KeyCode::F7),
-        "f8" => Some(KeyCode::F8),
-        "f9" => Some(KeyCode::F9),
-        "f10" => Some(KeyCode::F10),
-        "f11" => Some(KeyCode::F11),
-        "f12" => Some(KeyCode::F12),
+    fn assert_family(family: &str, entries: &[(&str, KeyCode)]) {
+        for &(name, code) in entries {
+            for spelling in [name.to_string(), name.to_lowercase(), name.to_uppercase()] {
+                assert_eq!(
+                    parse_physical_key_code(&spelling),
+                    Some(code),
+                    "{family}: {spelling:?} must parse to {code:?}"
+                );
+            }
+        }
+    }
 
-        // Navigation keys
-        "arrowup" => Some(KeyCode::ArrowUp),
-        "arrowdown" => Some(KeyCode::ArrowDown),
-        "arrowleft" => Some(KeyCode::ArrowLeft),
-        "arrowright" => Some(KeyCode::ArrowRight),
-        "home" => Some(KeyCode::Home),
-        "end" => Some(KeyCode::End),
-        "pageup" => Some(KeyCode::PageUp),
-        "pagedown" => Some(KeyCode::PageDown),
-        "insert" => Some(KeyCode::Insert),
-        "delete" => Some(KeyCode::Delete),
+    #[test]
+    fn physical_letters_parse() {
+        assert_family("letters", LETTERS);
+    }
 
-        // Special keys
-        "enter" => Some(KeyCode::Enter),
-        "escape" => Some(KeyCode::Escape),
-        "space" => Some(KeyCode::Space),
-        "tab" => Some(KeyCode::Tab),
-        "backspace" => Some(KeyCode::Backspace),
+    #[test]
+    fn physical_digits_parse() {
+        assert_family("digits", DIGITS);
+    }
 
-        _ => None,
+    #[test]
+    fn physical_punctuation_parses() {
+        assert_family("punctuation", PUNCTUATION);
+    }
+
+    #[test]
+    fn physical_function_keys_parse() {
+        assert_family("function", FUNCTION);
+    }
+
+    #[test]
+    fn physical_navigation_keys_parse() {
+        assert_family("navigation", NAVIGATION);
+    }
+
+    #[test]
+    fn physical_special_keys_parse() {
+        assert_family("special", SPECIAL);
+    }
+
+    #[test]
+    fn physical_oracle_has_no_duplicate_spellings() {
+        let mut seen = std::collections::HashSet::new();
+        for (_, entries) in FAMILIES {
+            for (name, _) in *entries {
+                assert!(seen.insert(name.to_lowercase()), "duplicate {name}");
+            }
+        }
+        assert_eq!(seen.len(), 74);
+    }
+
+    /// Aliases the named-key parser accepts but the physical parser does
+    /// not, plus out-of-range and empty inputs.
+    #[test]
+    fn physical_rejects_unknown_spellings() {
+        for input in [
+            "",
+            "a",
+            "Key",
+            "KeyAA",
+            "Digit10",
+            "F0",
+            "F13",
+            "F24",
+            "pgup",
+            "pgdn",
+            "up",
+            "down",
+            "left",
+            "right",
+            "esc",
+            "return",
+            "del",
+            "ins",
+            "Numpad0",
+            "NumpadEnter",
+            "ShiftLeft",
+            "ControlLeft",
+            "AltLeft",
+            "SuperLeft",
+            "CapsLock",
+            "IntlBackslash",
+            " KeyA",
+            "KeyA ",
+            "Key A",
+        ] {
+            assert_eq!(
+                parse_physical_key_code(input),
+                None,
+                "{input:?} must not parse as a physical key code"
+            );
+        }
+    }
+
+    /// Unicode lowercasing folds KELVIN SIGN (U+212A) to ASCII `k`; the
+    /// parser lowercases with `str::to_lowercase`, so this spelling parses.
+    #[test]
+    fn physical_lowercasing_is_unicode_aware() {
+        assert_eq!(parse_physical_key_code("\u{212A}eyA"), Some(KeyCode::KeyA));
     }
 }
