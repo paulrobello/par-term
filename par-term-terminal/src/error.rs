@@ -54,6 +54,16 @@ pub enum TerminalError {
     },
 }
 
+impl TerminalError {
+    /// `map_err` adapter building [`TerminalError::RecordingExport`] for `path`.
+    pub(crate) fn recording_export(path: &Path) -> impl FnOnce(std::io::Error) -> Self + '_ {
+        move |source| Self::RecordingExport {
+            path: path.to_path_buf(),
+            source,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::TerminalError;
@@ -71,16 +81,6 @@ mod tests {
         match term.export_recording_to_file(&session, &path, "asciicast") {
             Err(TerminalError::RecordingExport { path: p, .. }) => assert_eq!(p, path),
             other => panic!("expected RecordingExport, got {other:?}"),
-        }
-    }
-}
-
-impl TerminalError {
-    /// `map_err` adapter building [`TerminalError::RecordingExport`] for `path`.
-    pub(crate) fn recording_export(path: &Path) -> impl FnOnce(std::io::Error) -> Self + '_ {
-        move |source| Self::RecordingExport {
-            path: path.to_path_buf(),
-            source,
         }
     }
 }
