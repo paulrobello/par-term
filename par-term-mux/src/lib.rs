@@ -46,7 +46,7 @@ pub use client::{
 };
 pub use env::{is_wire_safe, new_session_env_args, quote_env_value};
 pub use resync::{
-    AttachOutcome, ClientSnapshot, GitStatusSummary, SeedGraphic, SessionSummary, SnapshotSession,
-    WindowSummary, WorkspaceSummary, pane_foreground_command, parse_session_row,
-    split_graphics_seed,
+    AttachOutcome, ClientSnapshot, EventReplay, GitStatusSummary, ReplayedEvent, SeedGraphic,
+    SessionSummary, SnapshotSession, WindowSummary, WorkspaceSummary, pane_foreground_command,
+    parse_events_reply, parse_session_row, split_graphics_seed,
 };

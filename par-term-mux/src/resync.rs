@@ -207,6 +207,77 @@ impl ClientSnapshot {
     }
 }
 
+/// One replayed daemon event: its daemon-wide monotonic sequence number,
+/// its epoch-millisecond timestamp, and the control-mode wire line
+/// exactly as a live client would have received it on the push stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayedEvent {
+    /// Daemon-wide monotonic sequence (the first event is seq 1; the ring
+    /// is daemon-lifetime, never persisted, so a restart restarts at 1).
+    pub seq: u64,
+    /// Epoch milliseconds when the daemon broadcast the line.
+    pub at_ms: u64,
+    /// The wire line (leading `%` included, trailing newline stripped).
+    pub line: String,
+}
+
+/// What an `events [--since <seq>]` reply carries: the current ring head
+/// (0 = nothing recorded yet) and every retained event after `since`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct EventReplay {
+    /// The highest sequence number the daemon has assigned (0 = none).
+    pub head: u64,
+    /// Retained events with a seq strictly greater than the `since` the
+    /// caller sent, in sequence order.
+    pub events: Vec<ReplayedEvent>,
+}
+
+/// Parse an `events` reply: the `head <seq>` header, then one
+/// `<seq> <epoch-ms> <wire-line>` row per retained event. The wire line
+/// is the rest of the row, so spaces (and any `%` text) inside it ride
+/// whole. A reply without the header — an older daemon's
+/// `unknown command: events` error body — is an error, never an empty
+/// replay: the caller must not mistake "daemon cannot answer" for
+/// "nothing happened".
+pub fn parse_events_reply(lines: &[String]) -> io::Result<EventReplay> {
+    let mut replay = EventReplay::default();
+    let mut header_seen = false;
+    for line in lines {
+        let mut words = line.splitn(2, ' ');
+        match words.next() {
+            Some("head") => {
+                let seq = words
+                    .next()
+                    .and_then(|s| s.trim().parse().ok())
+                    .ok_or_else(|| invalid_line("events header", line))?;
+                header_seen = true;
+                replay.head = seq;
+            }
+            _ => {
+                // Event row: `<seq> <epoch-ms> <wire-line>`. The wire line
+                // is the rest of the line, so the split is fixed at three.
+                let err = || invalid_line("event row", line);
+                let mut fields = line.splitn(3, ' ');
+                let seq = fields.next().and_then(|s| s.parse().ok()).ok_or_else(err)?;
+                let at_ms = fields.next().and_then(|s| s.parse().ok()).ok_or_else(err)?;
+                let line_text = fields.next().filter(|s| !s.is_empty()).ok_or_else(err)?;
+                replay.events.push(ReplayedEvent {
+                    seq,
+                    at_ms,
+                    line: line_text.to_string(),
+                });
+            }
+        }
+    }
+    if !header_seen {
+        return Err(invalid_line(
+            "events header",
+            lines.first().map(String::as_str).unwrap_or(""),
+        ));
+    }
+    Ok(replay)
+}
+
 /// What [`MuxSessionClient::create_or_attach`] did.
 #[derive(Debug, Clone)]
 pub enum AttachOutcome {
@@ -457,6 +528,29 @@ impl MuxSessionClient {
     pub fn refresh_pane(&mut self, pane: TmuxPaneId) -> io::Result<Vec<String>> {
         self.send(&format!("refresh-client -t %{pane}"))
     }
+
+    /// Replay the daemon's pane-event ring (`events [--since <seq>]`,
+    /// core 0.72.0): every lifecycle notification the daemon broadcast
+    /// while this client was away (or never received), under daemon-wide
+    /// monotonic sequence numbers. The reply carries the current ring
+    /// `head <seq>` first, then one line per retained event with a seq
+    /// strictly greater than `since`, `<seq> <epoch-ms> <wire-line>`.
+    ///
+    /// `since 0` is spelled bare `events` — the same reply either way
+    /// (the daemon reads an absent `--since` as 0) — and `--since` past
+    /// the head is an empty, healthy reply naming the head as the resume
+    /// point. A daemon that predates the verb answers an `%error` body,
+    /// which fails the parse here; callers degrade (the events are then
+    /// only the registration replay of held state) the way they do for
+    /// the other additive verbs this module sends.
+    pub fn events_since(&mut self, since: u64) -> io::Result<EventReplay> {
+        let command = if since == 0 {
+            "events".to_string()
+        } else {
+            format!("events --since {since}")
+        };
+        parse_events_reply(&self.send(&command)?)
+    }
 }
 
 /// Report env variables the line-framed wire cannot carry (a newline or
@@ -642,6 +736,81 @@ mod tests {
 
     fn lines(reply: &[&str]) -> Vec<String> {
         reply.iter().map(|l| l.to_string()).collect()
+    }
+
+    /// Criterion 1 (card "Mux reconnect: replay daemon event ring via
+    /// `events --since`"): an events reply parses into the head watermark
+    /// and one event per row, the wire line riding whole (a pane can print
+    /// any text; the row split is fixed at three fields).
+    #[test]
+    fn parses_an_events_reply_into_head_and_event_rows() {
+        let replay = parse_events_reply(&lines(&[
+            "head 3",
+            "1 1730000000000 %window-add @2",
+            "2 1730000000001 %pane-exited %3 7",
+            "3 1730000000002 %agent-state-changed %3 claude working hook",
+        ]))
+        .expect("reply parses");
+        assert_eq!(replay.head, 3);
+        assert_eq!(
+            replay.events,
+            vec![
+                ReplayedEvent {
+                    seq: 1,
+                    at_ms: 1730000000000,
+                    line: "%window-add @2".to_string(),
+                },
+                ReplayedEvent {
+                    seq: 2,
+                    at_ms: 1730000000001,
+                    line: "%pane-exited %3 7".to_string(),
+                },
+                ReplayedEvent {
+                    seq: 3,
+                    at_ms: 1730000000002,
+                    line: "%agent-state-changed %3 claude working hook".to_string(),
+                },
+            ]
+        );
+    }
+
+    /// `--since` past the head (a fresh daemon behind a watermark from a
+    /// dead one) is an empty, healthy reply naming the head as the resume
+    /// point — not an error.
+    #[test]
+    fn an_empty_ring_is_a_head_only_reply() {
+        let replay = parse_events_reply(&lines(&["head 0"])).expect("head-only reply parses");
+        assert_eq!(replay.head, 0);
+        assert!(replay.events.is_empty());
+    }
+
+    /// A reply without the header is an error — an older daemon's
+    /// `unknown command: events` body must never read as "nothing
+    /// happened", or the caller would re-baseline its watermark at 0 and
+    /// lose the resume point on the next attach.
+    #[test]
+    fn a_reply_without_a_head_header_is_an_error() {
+        assert!(parse_events_reply(&lines(&["unknown command: events"])).is_err());
+        assert!(parse_events_reply(&lines(&["%pane-exited %3 7"])).is_err());
+        assert!(parse_events_reply(&lines(&[])).is_err());
+        // A malformed head value is the same class of failure.
+        assert!(parse_events_reply(&lines(&["head x"])).is_err());
+    }
+
+    /// Malformed event rows (missing the timestamp or the wire line) fail
+    /// loudly rather than fabricating an event.
+    #[test]
+    fn malformed_event_rows_are_errors() {
+        assert!(parse_events_reply(&lines(&["head 2", "1 1730000000000"])).is_err());
+        assert!(parse_events_reply(&lines(&["head 2", "1 1730000000000 "])).is_err());
+        assert!(parse_events_reply(&lines(&["head 2", "x 1730000000000 %a"])).is_err());
+        // A wire line that is itself text starting with a token the header
+        // match would take must stay an event row: only the exact `head`
+        // token opens the header.
+        let replay = parse_events_reply(&lines(&["head 2", "1 1730000000000 head 99"]))
+            .expect("a wire line that begins with `head` is event text");
+        assert_eq!(replay.events.len(), 1);
+        assert_eq!(replay.events[0].line, "head 99");
     }
 
     #[test]

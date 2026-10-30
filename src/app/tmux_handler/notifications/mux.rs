@@ -413,6 +413,47 @@ impl WindowState {
         );
         match attach {
             Ok(outcome) => {
+                // Event-ring replay (`events --since`, core 0.72.0): on a
+                // re-attach to the daemon the watermark was baselined on,
+                // everything the daemon broadcast since that attach replays
+                // here and rides the drain like live pushes — a pane that
+                // exited, an agent that changed state, a window that moved
+                // while no client was listening all land without polling.
+                // The watermark is daemon-scoped (sequence numbers are
+                // daemon-lifetime): a different socket re-baselines, and a
+                // first attach applies nothing (the daemon-wide ring may
+                // hold other sessions' windows, and a `%window-add` for an
+                // unattached session would adopt it as a tab). A daemon
+                // predating the verb fails the query and degrades to the
+                // registration replay of held state it already does.
+                let socket = transport.socket().map(std::path::Path::to_path_buf);
+                let same_daemon = self.tmux_state.mux_event_seq_socket.is_some()
+                    && self.tmux_state.mux_event_seq_socket == socket;
+                let watermark = if same_daemon {
+                    self.tmux_state.mux_event_seq
+                } else {
+                    0
+                };
+                match transport.client().events_since(watermark) {
+                    Ok(replay) => {
+                        // The head re-baselines even across a daemon swap:
+                        // `--since` past the head comes back empty and the
+                        // next attach resumes from the new daemon's truth.
+                        self.tmux_state.mux_event_seq = replay.head;
+                        self.tmux_state.mux_event_seq_socket = socket;
+                        if same_daemon {
+                            let mut parser =
+                                par_term_emu_core_rust::tmux_control::TmuxControlParser::new(true);
+                            for event in replay.events {
+                                let line = format!("{}\n", event.line);
+                                self.tmux_state
+                                    .mux_replay_pending
+                                    .extend(parser.parse(line.as_bytes()));
+                            }
+                        }
+                    }
+                    Err(e) => crate::debug_error!("MUX", "event replay unavailable: {e}"),
+                }
                 // Auto-reconnect install tail — runs BEFORE the transport
                 // moves into the boxed trait object, because the daemon
                 // client is reachable only through the concrete
@@ -469,6 +510,7 @@ impl WindowState {
         self.tmux_state.mux_snapshot_supported = None;
         self.tmux_state.mux_file_transfer_supported = false;
         self.tmux_state.mux_focused_pane = None;
+        self.tmux_state.mux_replay_pending.clear();
         self.tmux_state.mux_screen_seeds.clear();
         self.tmux_state.mux_graphics_osc.clear();
         self.tmux_state.mux_pane_titles.clear();

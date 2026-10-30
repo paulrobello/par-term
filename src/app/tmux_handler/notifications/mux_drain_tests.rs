@@ -94,4 +94,46 @@ mod tests {
         );
         assert!(!ws.check_mux_notifications_with(|_, _, _| panic!("delivered twice")));
     }
+
+    /// Criterion 2 at the handler level (card "Mux reconnect: replay
+    /// daemon event ring via `events --since`"): lifecycle lines replayed
+    /// from the ring are queued as core notifications by the attach tail
+    /// (`mux_replay_pending`) and the drain runs them through the SAME
+    /// partition/handler path as live pushes — a `%pane-exited` that
+    /// arrived during a disconnect sets `mux_exited_panes`, the state the
+    /// exited-pane overlay and the restart key read.
+    #[test]
+    fn replayed_pane_exit_rides_the_drain_into_mux_exited_panes() {
+        let mut parser = TmuxControlParser::new(true);
+        let mut ws = crate::app::tmux_handler::notifications::mux::tests::manners_state();
+        // The transport drains nothing: every notification below is the
+        // replay, not a live push.
+        ws.tmux_state.transport = Some(Box::new(NotificationTransport(RefCell::new(Vec::new()))));
+        ws.tmux_state.mux_replay_pending = parser
+            .parse(b"%pane-exited %3 7\n%agent-state-changed %3 claude working source=hook\n");
+
+        assert!(
+            ws.check_mux_notifications_with(|_, _, _| ()),
+            "a replayed exit changes roster/overlay state"
+        );
+        assert!(
+            ws.tmux_state.mux_exited_panes.contains_key(&3),
+            "the replayed exit is reflected in the UI state: {:?}",
+            ws.tmux_state.mux_exited_panes
+        );
+        assert_eq!(
+            ws.tmux_state
+                .agent_roster
+                .iter()
+                .find(|e| e.pane == 3)
+                .map(|e| e.state.as_str()),
+            Some("working"),
+            "the replayed agent push feeds the roster cache"
+        );
+        // Consumed once: a second drain re-runs nothing.
+        assert!(
+            ws.tmux_state.mux_replay_pending.is_empty(),
+            "the replay batch is consumed by its drain"
+        );
+    }
 }

@@ -118,6 +118,12 @@ impl MuxTransport {
         ))
     }
 
+    /// The socket this client attached through (for daemon-scoped resume
+    /// watermarks that must not ride to a different daemon).
+    pub(crate) fn socket(&self) -> Option<&Path> {
+        self.socket.as_deref()
+    }
+
     /// The wrapped client, locked. Callers run short command sequences
     /// (attach, resync, probes); the send worker interleaves between
     /// calls, never inside one, because each call releases its guard

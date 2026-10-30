@@ -543,5 +543,93 @@ mod tests {
                 ws.tmux_state.mux_last_error
             );
         }
+
+        /// Criterion 2 (card "Mux reconnect: replay daemon event ring via
+        /// `events --since`"): a pane that exits while the client is
+        /// disconnected is reflected in the UI after the re-attach — no
+        /// polling. This re-attach lands on the SAME live daemon, the only
+        /// case where the ring still holds the missed interval; the
+        /// daemon-loss reconnect above rebuilds on a fresh daemon whose
+        /// ring starts empty.
+        #[test]
+        fn a_pane_exited_during_a_disconnect_is_reflected_after_the_reattach() {
+            let tag = "ring-reattach";
+            let (mut ws, path) = attached_window_with_tabs(tag, 1);
+
+            // The first attach baselined the watermark without applying
+            // anything: a first attach must not replay the daemon-wide
+            // ring (other sessions' windows would adopt as tabs).
+            let baseline = ws.tmux_state.mux_event_seq;
+            assert!(
+                ws.tmux_state.mux_event_seq_socket.is_some(),
+                "the first attach recorded the watermark's socket"
+            );
+
+            // Disconnect: drop the transport; the daemon and its ring live
+            // on.
+            let _ = ws.tmux_state.transport.take();
+
+            // While disconnected, a short-lived pane exits. The creating
+            // client drops first, so the ring records the exit with no
+            // listener — the interval the re-attach must recover.
+            let dying = {
+                let mut raw = par_term_mux::MuxSessionClient::connect(&path).expect("raw client");
+                raw.send(&format!("new-window -t {tag} -- sleep 0.3"))
+                    .expect("new-window");
+                let panes = raw.list_panes().expect("list-panes");
+                *panes.last().expect("the new pane carries the highest id")
+                // `raw` drops here: the exit happens with no one listening.
+            };
+            {
+                let mut probe = par_term_mux::MuxSessionClient::connect(&path).expect("probe");
+                wait_until("the ring records the exit", || {
+                    probe
+                        .events_since(0)
+                        .map(|replay| {
+                            replay
+                                .events
+                                .iter()
+                                .any(|e| e.line.contains(&format!("%pane-exited %{dying}")))
+                        })
+                        .unwrap_or(false)
+                });
+            }
+
+            // Re-attach to the SAME daemon, armed the way the by-name
+            // worker delivers its client.
+            ws.tmux_state.mux_attach_socket = Some(path.clone());
+            let core = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+            let (tx, rx) = std::sync::mpsc::channel();
+            tx.send(Ok(core)).unwrap();
+            drop(tx);
+            ws.tmux_state.mux_attach_pending = Some(super::super::super::mux::MuxAttachPending {
+                name: tag.to_string(),
+                rx,
+            });
+            ws.poll_mux_attach();
+
+            // The install replayed the missed interval: the pending queue
+            // holds it and the watermark advanced past the first attach's
+            // head. The registration replay of held state rides the push
+            // stream, never this queue, so a non-empty queue here is the
+            // replay's own work.
+            assert!(ws.tmux_state.transport.is_some());
+            assert!(
+                !ws.tmux_state.mux_replay_pending.is_empty(),
+                "the reconnect replay queued the missed interval"
+            );
+            assert!(
+                ws.tmux_state.mux_event_seq > baseline,
+                "the watermark advanced past the first attach's head"
+            );
+
+            // One drain reflects the missed exit in the UI state — the
+            // exited-pane overlay's map, and the pane mapped to a tab.
+            wait_until("the exited pane is reflected after reconnect", || {
+                ws.check_tmux_notifications();
+                ws.tmux_state.mux_exited_panes.contains_key(&dying)
+                    && ws.tmux_state.tmux_pane_owner(dying).is_some()
+            });
+        }
     }
 }

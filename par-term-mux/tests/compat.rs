@@ -165,6 +165,66 @@ fn sync_layer_round_trips_a_live_daemon() {
     let _ = std::fs::remove_file(&path);
 }
 
+/// The daemon's event ring through the client's [`MuxSessionClient::events_since`]:
+/// lifecycle events recorded while NO client was connected replay for a
+/// later reader, and `--since <head>` is the resume point (empty, naming
+/// the head). A short-lived pane supplies the lifecycle event; the
+/// creating client drops BEFORE the exit, so the ring records it with no
+/// listener — the exact interval a reconnecting consumer missed.
+#[test]
+fn events_replay_reads_the_gap_and_resumes_from_the_head() {
+    let path = socket_path("ring");
+    spawn_daemon(&path);
+
+    // Create a session with a short-lived second pane, then drop the
+    // client: nothing is listening when the pane exits.
+    let dying = {
+        let mut client = connect(&path);
+        client.create_or_attach("ring").expect("create_or_attach");
+        client
+            .send("new-window -t ring -- sleep 0.3")
+            .expect("new-window");
+        let panes = client.list_panes().expect("list-panes");
+        assert_eq!(panes.len(), 2, "base pane plus the short-lived one");
+        *panes.last().expect("two panes listed")
+        // `client` drops here; the exit happens with no one listening.
+    };
+
+    // A reconnecting probe re-reads the gap the dropped client's push
+    // stream lost, polling until the held pane's reap tick records it.
+    let head = {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut found = None;
+        while Instant::now() < deadline {
+            let mut probe = connect(&path);
+            let replay = probe.events_since(0).expect("the daemon answers events");
+            drop(probe);
+            if replay
+                .events
+                .iter()
+                .any(|e| e.line.contains(&format!("%pane-exited %{dying}")))
+            {
+                found = Some(replay.head);
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        found.expect("the pane exit was recorded while nobody listened")
+    };
+
+    // A fresh client resumes from the head: nothing it has not seen.
+    let mut reader = connect(&path);
+    let replay = reader.events_since(head).expect("events");
+    assert_eq!(replay.head, head, "the head is the resume point");
+    assert!(
+        replay.events.is_empty(),
+        "nothing rides after the watermark: {:?}",
+        replay.events
+    );
+
+    let _ = std::fs::remove_file(&path);
+}
+
 /// The card's regression case (send-keys key-name-like runs in mixed
 /// text): a batched write of typed text whose middle run spells `C-c`
 /// must reach the pane as characters. When the run resolved as a key

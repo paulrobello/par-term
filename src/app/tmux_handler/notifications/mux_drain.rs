@@ -183,10 +183,16 @@ impl WindowState {
         if let Some(message) = health_event {
             self.apply_mux_health_event(message);
         }
-        let (core_notifications, disconnected) = match &self.tmux_state.transport {
+        let (live_notifications, disconnected) = match &self.tmux_state.transport {
             Some(transport) => transport.drain(),
             None => return false,
         };
+        // Replayed lifecycle lines are already parsed into core
+        // notifications by the attach tail. Prepend them to the live
+        // drain: all partitioning and handlers below are shared, so a
+        // missed `%pane-exited` sets the same overlay state as a live one.
+        let mut core_notifications = std::mem::take(&mut self.tmux_state.mux_replay_pending);
+        core_notifications.extend(live_notifications);
         if disconnected {
             // The daemon died without `%exit`. Drop the dead socket; the
             // synthesized `SessionEnded` below then runs the shared
@@ -305,6 +311,7 @@ impl WindowState {
             self.tmux_state.mux_pane_titles.clear();
             self.tmux_state.mux_reconnect_titles.clear();
             self.tmux_state.mux_exited_panes.clear();
+            self.tmux_state.mux_replay_pending.clear();
             self.tmux_state.clear_mux_seed_holds();
         }
 

@@ -175,6 +175,25 @@ pub(crate) struct TmuxState {
     /// File-transfer support from the attached daemon's version (core 0.68+).
     /// Unknown versions degrade to paste-path, never a failed upload.
     pub(crate) mux_file_transfer_supported: bool,
+    /// The daemon's event-ring head (`events` verb, core 0.72.0) as of the
+    /// last replay: the resume watermark the next `events --since` sends.
+    /// In-memory on purpose — the watermark is a promise about THIS daemon
+    /// (`seq` restarts at 1 on a daemon restart), but the reply's `head`
+    /// re-baselines it, so a reconnect to a fresh daemon simply finds head
+    /// below the watermark and resumes from the daemon's truth.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_event_seq: u64,
+    /// The socket [`Self::mux_event_seq`] was baselined on: sequence
+    /// numbers are daemon-lifetime, so the watermark only applies to a
+    /// re-attach of the same daemon and re-baselines anywhere else.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_event_seq_socket: Option<std::path::PathBuf>,
+    /// Lifecycle notifications replayed from the daemon's event ring on
+    /// attach (`events --since <watermark>`, parsed into core
+    /// notifications), waiting for the next drain so they ride the SAME
+    /// partition → `ParserBridge` → `TmuxSync` path as live pushes.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_replay_pending: Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
     /// Replayed screens awaiting their pane mapping (reattach seeding:
     /// `refresh-client -t` replies, applied once the layout consumers
     /// create the panes)
@@ -313,6 +332,9 @@ impl TmuxState {
             mux_session_id: None,
             mux_snapshot_supported: None,
             mux_file_transfer_supported: false,
+            mux_event_seq: 0,
+            mux_event_seq_socket: None,
+            mux_replay_pending: Vec::new(),
             mux_screen_seeds: std::collections::HashMap::new(),
             mux_graphics_osc: std::collections::HashMap::new(),
             mux_pane_titles: std::collections::HashMap::new(),
