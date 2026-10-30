@@ -29,7 +29,8 @@ impl std::fmt::Display for SshHostSource {
 /// A discovered SSH host with connection details
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshHost {
-    /// The Host alias from SSH config, or hostname from other sources
+    /// The Host alias from SSH config, the service instance name from mDNS,
+    /// or the hostname from known_hosts and shell history
     pub alias: String,
     /// Resolved hostname or IP address
     pub hostname: Option<String>,
@@ -48,8 +49,8 @@ pub struct SshHost {
 impl SshHost {
     /// Get the display name for this host (alias or hostname)
     ///
-    /// Always [`SshHost::alias`]; sources other than `~/.ssh/config` set the
-    /// alias to the hostname.
+    /// Always [`SshHost::alias`]: the config `Host` alias, the mDNS service
+    /// instance name, or the hostname for known_hosts and history entries.
     pub fn display_name(&self) -> &str {
         &self.alias
     }

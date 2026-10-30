@@ -193,7 +193,8 @@ ScriptCommand::WriteText { text } =>
     4. Unless prompt_before_write_text is false, or the user already chose
        "Always Allow" for this script and this exact text, queue the payload
        for confirmation instead of writing it
-    5. Write to PTY via terminal_manager.write_to_pty()
+    5. Write to the tab's terminal (TerminalManager::write_str), or to the
+       daemon pane for a par-mux tab
 
 ScriptCommand::RunCommand { command } =>
     1. Reject if !script_config.allow_run_command

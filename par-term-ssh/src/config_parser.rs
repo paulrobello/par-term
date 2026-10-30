@@ -4,8 +4,10 @@
 //!
 //! Only the keys par-term can use are read: `Host`, `HostName`, `User`, `Port`,
 //! `IdentityFile`, and `ProxyJump` (case-insensitive, separated by whitespace
-//! or `=`). Every other directive, including `Include` and `Match`, is ignored,
-//! so hosts defined in included files are not discovered.
+//! or `=`). Every other directive is ignored; `Include` is not followed, so
+//! hosts defined in included files are not discovered. `Match` is not treated
+//! as a block boundary, so directives under a `Match` line are applied to the
+//! preceding `Host` entry.
 
 use super::types::{SshHost, SshHostSource};
 use std::path::Path;
