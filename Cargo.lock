@@ -3871,9 +3871,9 @@ dependencies = [
 
 [[package]]
 name = "par-mux"
-version = "0.71.0"
+version = "0.72.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2d832d43fb53efc4b1835c4acb4ddb97d85a79813a472104d370fedf9cd3021"
+checksum = "564572d56591316cded97b13af3f2a316253096ac1652a3b028f202a748cd741"
 dependencies = [
  "base64 0.22.1",
  "dirs 6.0.0",
@@ -3886,6 +3886,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "sysinfo 0.39.6",
  "toml 0.9.12+spec-1.1.0",
  "unicode-width",
  "widestring",
@@ -3958,7 +3959,7 @@ dependencies = [
  "sha2",
  "shell-words",
  "swash",
- "sysinfo",
+ "sysinfo 0.40.0",
  "tar",
  "tempfile",
  "thiserror 2.0.21",
@@ -4013,9 +4014,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core"
-version = "0.71.0"
+version = "0.72.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbb447dcc946d2da713b3bf11cff295d24777e53eed4144d6249e4c31f81799b"
+checksum = "2c9bbdcb85e011d71bf0b65c990b0356c1ce4b1b43b04cea60366c94a2ace18c"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.2",
@@ -4042,9 +4043,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.71.0"
+version = "0.72.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f3214601319782acaa189c93f54e2a67cfeb06484a76de0054c01c536c681bf"
+checksum = "02da3ec7b84f4ab5ec9c4f776b4d3ac87b45f346c5dc8889527e17e5e002c390"
 dependencies = [
  "base64 0.22.1",
  "flate2",
@@ -4202,7 +4203,7 @@ dependencies = [
  "par-term-config",
  "par-term-emu-core-rust",
  "parking_lot 0.13.0",
- "sysinfo",
+ "sysinfo 0.40.0",
  "tempfile",
  "tokio",
 ]
@@ -5730,6 +5731,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "sysinfo"
+version = "0.39.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2071df9448915b71c4fe6d25deaf1c22f12bd234f01540b77312bb8e41361e6"
+dependencies = [
+ "libc",
+ "memchr",
+ "ntapi",
+ "objc2-core-foundation",
+ "objc2-io-kit",
+ "objc2-open-directory",
+ "windows",
 ]
 
 [[package]]
