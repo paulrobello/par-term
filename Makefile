@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check check-all typecheck clean fmt lint checkall checkall-ci ci with-local-core secret-scan install install-shell-integration completions-install install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-window-state-budget check-terminology check-nomux docs-settings coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check check-all typecheck clean fmt lint checkall checkall-ci ci with-local-core secret-scan install install-shell-integration completions-install install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-window-state-budget check-terminology check-nomux check-installer-ref bump-installer-ref docs-settings coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -392,6 +392,29 @@ check-nomux:
 	@echo "Type-checking workspace without default features..."
 	cargo check --workspace --no-default-features
 
+# SEC-004: the pipe-to-shell installer gh-pages/install-shell-integration.sh
+# downloads from a pinned release tag (REF=) so it serves fixed reviewed
+# content. The pin must move with every release; these two targets own that
+# lifecycle (par-term card 01a18e7070).
+check-installer-ref:
+	@command -v python3 >/dev/null 2>&1 || { \
+		echo "python3 not found; it is required by scripts/check_installer_ref.py"; \
+		exit 1; \
+	}
+	@echo "Checking the installer release pin..."
+	python3 scripts/check_installer_ref.py
+
+bump-installer-ref:
+	@command -v python3 >/dev/null 2>&1 || { \
+		echo "python3 not found; it is required by scripts/bump_installer_ref.py"; \
+		exit 1; \
+	}
+	@test -n "$(REF)" || { \
+		echo "usage: make bump-installer-ref REF=vX.Y.Z"; \
+		exit 1; \
+	}
+	python3 scripts/bump_installer_ref.py --ref "$(REF)"
+
 # Run all checks (format, lint, test)
 all: fmt lint test build
 	@echo "All checks passed!"
@@ -415,7 +438,7 @@ pre-commit: secret-scan fmt-check lint test
 	@echo "Pre-commit checks passed!"
 
 # CI checks (what CI would run)
-ci: fmt-check lint-all check-nomux test check-line-counts check-window-state-budget check-terminology
+ci: fmt-check lint-all check-nomux test check-line-counts check-window-state-budget check-terminology check-installer-ref
 	@echo "CI checks passed!"
 
 # CI-parity gate: `ci` plus cargo-deny (push-CI's license/vulnerability/ban
