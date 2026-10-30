@@ -19,7 +19,7 @@ use anyhow::Result;
 
 #[cfg(target_os = "macos")]
 mod inner {
-    use crate::macos_ffi::dlsym_checked;
+    use crate::macos_ffi::{dlsym_checked, macos_major_version};
     use anyhow::Result;
     use objc2_app_kit::NSView;
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -47,27 +47,6 @@ mod inner {
     ///
     /// Tested on: macOS 13 (Ventura), 14 (Sonoma), 15 (Sequoia).
     const MIN_SUPPORTED_MACOS_MAJOR: u32 = 13;
-
-    static MACOS_MAJOR_VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
-
-    fn macos_major_version() -> u32 {
-        *MACOS_MAJOR_VERSION.get_or_init(|| {
-            match std::process::Command::new("sw_vers")
-                .arg("-productVersion")
-                .output()
-            {
-                Ok(output) => {
-                    let s = String::from_utf8_lossy(&output.stdout);
-                    s.trim()
-                        .split('.')
-                        .next()
-                        .and_then(|v| v.parse::<u32>().ok())
-                        .unwrap_or(0)
-                }
-                Err(_) => 0,
-            }
-        })
-    }
 
     fn load_functions() {
         // Guard: skip loading private APIs on untested/unsupported macOS versions.

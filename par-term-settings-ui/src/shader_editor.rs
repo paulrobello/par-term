@@ -5,6 +5,56 @@ use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 
 use super::{SettingsUI, ShaderEditorResult};
 
+/// Draw the compilation-error panel shared by the background and cursor shader
+/// editors (AUDIT.md ARC-005). Clears `error` when Dismiss is clicked.
+pub(super) fn show_shader_error_panel(
+    ui: &mut egui::Ui,
+    error: &mut Option<String>,
+    shader_name: &str,
+    title: &str,
+) {
+    let mut dismiss_error = false;
+
+    if let Some(error_text) = error.as_deref() {
+        let shader_path = par_term_config::Config::shader_path(shader_name);
+        let full_error = format!("File: {}\n\n{}", shader_path.display(), error_text);
+
+        ui.group(|ui| {
+            ui.horizontal(|ui| {
+                ui.colored_label(Color32::from_rgb(255, 100, 100), title);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("Dismiss").clicked() {
+                        dismiss_error = true;
+                    }
+                    if ui.button("Copy").clicked()
+                        && let Ok(mut clipboard) = Clipboard::new()
+                    {
+                        let _ = clipboard.set_text(full_error.clone());
+                    }
+                });
+            });
+            ui.label(format!("File: {}", shader_path.display()));
+            ui.separator();
+            // Multiline selectable text for copying
+            egui::ScrollArea::vertical()
+                .max_height(120.0)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(&mut { error_text })
+                            .font(egui::TextStyle::Monospace)
+                            .desired_width(f32::INFINITY)
+                            .interactive(true),
+                    );
+                });
+        });
+        ui.separator();
+    }
+
+    if dismiss_error {
+        *error = None;
+    }
+}
+
 impl SettingsUI {
     /// Show the background shader editor window
     /// Returns Some(ShaderEditorResult) if Apply was clicked
@@ -61,7 +111,12 @@ impl SettingsUI {
                 self.show_shader_search_bar(ui);
 
                 // Show error dialog if there's an error
-                self.show_shader_error(ui);
+                show_shader_error_panel(
+                    ui,
+                    &mut self.shader_editor_error,
+                    &self.temp_custom_shader,
+                    "Shader Compilation Error",
+                );
                 self.show_shader_control_warnings(ui);
 
                 // Shader source editor
@@ -349,51 +404,6 @@ impl SettingsUI {
             }
         });
         ui.separator();
-    }
-
-    /// Show the shader error panel
-    fn show_shader_error(&mut self, ui: &mut egui::Ui) {
-        let mut dismiss_error = false;
-
-        if let Some(error) = &self.shader_editor_error {
-            let error_text = error.clone();
-            let shader_path = par_term_config::Config::shader_path(&self.temp_custom_shader);
-            let full_error = format!("File: {}\n\n{}", shader_path.display(), error_text);
-
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    ui.colored_label(Color32::from_rgb(255, 100, 100), "Shader Compilation Error");
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("Dismiss").clicked() {
-                            dismiss_error = true;
-                        }
-                        if ui.button("Copy").clicked()
-                            && let Ok(mut clipboard) = Clipboard::new()
-                        {
-                            let _ = clipboard.set_text(full_error.clone());
-                        }
-                    });
-                });
-                ui.label(format!("File: {}", shader_path.display()));
-                ui.separator();
-                // Multiline selectable text for copying
-                egui::ScrollArea::vertical()
-                    .max_height(120.0)
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::TextEdit::multiline(&mut error_text.as_str())
-                                .font(egui::TextStyle::Monospace)
-                                .desired_width(f32::INFINITY)
-                                .interactive(true),
-                        );
-                    });
-            });
-            ui.separator();
-        }
-
-        if dismiss_error {
-            self.shader_editor_error = None;
-        }
     }
 
     /// Show non-fatal warnings from `// control ...` comments in the editor source.

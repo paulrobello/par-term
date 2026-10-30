@@ -298,16 +298,7 @@ pub fn count_shader_files(dir: &Path) -> usize {
 
 /// Check if directory contains any .glsl files
 pub fn has_shader_files(dir: &Path) -> bool {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            if let Some(ext) = entry.path().extension()
-                && ext == "glsl"
-            {
-                return true;
-            }
-        }
-    }
-    false
+    par_term_config::Config::has_shader_files(dir)
 }
 
 /// Extract manifest from zip data

@@ -3,6 +3,7 @@
 use arboard::Clipboard;
 use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 
+use super::shader_editor::show_shader_error_panel;
 use super::{CursorShaderEditorResult, SettingsUI};
 
 impl SettingsUI {
@@ -50,7 +51,12 @@ impl SettingsUI {
                 ui.separator();
 
                 // Show error dialog if there's an error
-                self.show_cursor_shader_error(ui);
+                show_shader_error_panel(
+                    ui,
+                    &mut self.cursor_shader_editor_error,
+                    &self.temp_cursor_shader,
+                    "Cursor Shader Compilation Error",
+                );
 
                 // Cursor shader source editor
                 let available_height = ui.available_height() - 60.0; // Reserve space for buttons
@@ -233,54 +239,6 @@ impl SettingsUI {
         }
 
         cursor_shader_apply_result
-    }
-
-    /// Show the cursor shader error panel
-    fn show_cursor_shader_error(&mut self, ui: &mut egui::Ui) {
-        let mut dismiss_error = false;
-
-        if let Some(error) = &self.cursor_shader_editor_error {
-            let error_text = error.clone();
-            let shader_path = par_term_config::Config::shader_path(&self.temp_cursor_shader);
-            let full_error = format!("File: {}\n\n{}", shader_path.display(), error_text);
-
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    ui.colored_label(
-                        Color32::from_rgb(255, 100, 100),
-                        "Cursor Shader Compilation Error",
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("Dismiss").clicked() {
-                            dismiss_error = true;
-                        }
-                        if ui.button("Copy").clicked()
-                            && let Ok(mut clipboard) = Clipboard::new()
-                        {
-                            let _ = clipboard.set_text(full_error.clone());
-                        }
-                    });
-                });
-                ui.label(format!("File: {}", shader_path.display()));
-                ui.separator();
-                // Multiline selectable text for copying
-                egui::ScrollArea::vertical()
-                    .max_height(120.0)
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::TextEdit::multiline(&mut error_text.as_str())
-                                .font(egui::TextStyle::Monospace)
-                                .desired_width(f32::INFINITY)
-                                .interactive(true),
-                        );
-                    });
-            });
-            ui.separator();
-        }
-
-        if dismiss_error {
-            self.cursor_shader_editor_error = None;
-        }
     }
 
     /// Save cursor shader source to file
