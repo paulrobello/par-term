@@ -120,7 +120,146 @@ impl WindowState {
             CommandHistoryAction::None => {}
         }
 
-        // Handle close confirmation dialog actions
+        self.handle_close_confirm_action(close_confirm);
+
+        // Handle par-mux last-tab close dialog actions (UX.md M1)
+        #[cfg(feature = "mux")]
+        self.handle_mux_last_tab_action(mux_last_tab);
+        // Without the mux feature there is no session to detach or end.
+        #[cfg(not(feature = "mux"))]
+        let _ = mux_last_tab;
+
+        // Handle quit confirmation dialog actions
+        match quit_confirm {
+            QuitConfirmAction::Quit => {
+                // User confirmed quit - proceed with shutdown
+                log::info!("Quit confirmed by user");
+                self.perform_shutdown();
+            }
+            QuitConfirmAction::Cancel => {
+                log::debug!("Quit confirmation cancelled");
+            }
+            QuitConfirmAction::None => {}
+        }
+
+        // Handle remote shell integration install action
+        match remote_install {
+            RemoteShellInstallAction::Install => {
+                // Send the install command via paste_text() which uses the same
+                // code path as Cmd+V paste — handles bracketed paste mode and
+                // correctly forwards through SSH sessions.
+                let command = RemoteShellInstallUI::install_command();
+                // paste_text appends \r internally via term.paste()
+                self.paste_text(&format!("{}\n", command));
+                self.request_redraw();
+            }
+            RemoteShellInstallAction::Cancel => {
+                self.request_redraw();
+            }
+            RemoteShellInstallAction::None => {}
+        }
+
+        self.handle_ssh_connect_action(ssh_connect);
+
+        // Handle paste special actions collected during egui rendering
+        match paste_special {
+            PasteSpecialAction::Paste(content) => {
+                self.paste_text(&content);
+                log::debug!("Pasted transformed text ({} chars)", content.len());
+            }
+            PasteSpecialAction::None => {}
+        }
+
+        // Handle search actions collected during egui rendering
+        match search {
+            crate::search::SearchAction::ScrollToMatch(offset) => {
+                self.set_scroll_target(offset);
+                self.focus_state.needs_redraw = true;
+                self.request_redraw();
+            }
+            crate::search::SearchAction::Close => {
+                self.focus_state.needs_redraw = true;
+                self.request_redraw();
+            }
+            crate::search::SearchAction::None => {}
+        }
+
+        // Handle AI Inspector actions collected during egui rendering
+        self.handle_inspector_action_after_render(inspector);
+
+        self.handle_session_picker_action(session_picker);
+
+        // Pane context menu choice (UX.md V10): the action runs on the
+        // pane the menu was opened on.
+        if let Some((pane_id, action)) = pane_menu {
+            if let Some(pm) = self
+                .tab_manager
+                .active_tab_mut()
+                .and_then(|t| t.pane_manager_mut())
+                && pm.focused_pane_id() != Some(pane_id)
+            {
+                pm.focus_pane(pane_id);
+                self.after_user_pane_focus();
+            }
+            self.is_shutting_down |= action == "close_pane" && self.close_focused_pane();
+            if action != "close_pane" {
+                self.execute_keybinding_action(action);
+            }
+            self.focus_state.needs_redraw = true;
+        }
+
+        // Adopt kind-picker choice: the same focus-then-act discipline as
+        // the pane context menu rows — adopt the pane the picker was
+        // opened on even if focus moved while it was open.
+        if let Some((pane_id, kind)) = adopt_pane {
+            if let Some(pm) = self
+                .tab_manager
+                .active_tab_mut()
+                .and_then(|t| t.pane_manager_mut())
+                && pm.focused_pane_id() != Some(pane_id)
+            {
+                pm.focus_pane(pane_id);
+                self.after_user_pane_focus();
+            }
+            #[cfg(feature = "mux")]
+            self.adopt_pane_agent(kind);
+            #[cfg(not(feature = "mux"))]
+            let _ = kind;
+            self.focus_state.needs_redraw = true;
+        }
+
+        // Session chip click (UX.md V1)
+        #[cfg(feature = "mux")]
+        if let Some(chip_action) = self.tab_bar_ui.chip_action.take() {
+            self.handle_session_chip_action(chip_action);
+        }
+
+        self.handle_shader_install(shader_install);
+
+        // Handle integrations welcome dialog responses
+        self.handle_integrations_response(&integrations);
+
+        // Open Profiles… / the Profiles drawer (UX.md PR1/PR2): the same
+        // registry actions a bound shortcut runs. The drawer's rows follow
+        // profile and chord changes (and fill after its edge button opens it).
+        if let Some(choice) = profile_launcher {
+            self.run_launcher_choice(choice);
+        }
+        self.refresh_profiles_drawer_rows();
+
+        if let Some(start) = self.debug.render_start {
+            let total = start.elapsed();
+            if total.as_millis() > 10 {
+                log::debug!(
+                    "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
+                    total.as_secs_f64() * 1000.0
+                );
+            }
+        }
+    }
+
+    /// Close-confirmation dialog result: close the confirmed tab or pane.
+    fn handle_close_confirm_action(&mut self, close_confirm: CloseConfirmAction) {
         match close_confirm {
             CloseConfirmAction::Close { tab_id, pane_id } => {
                 // "Don't ask again" (UX.md OV3): turn the setting off here and
@@ -171,45 +310,10 @@ impl WindowState {
             }
             CloseConfirmAction::None => {}
         }
+    }
 
-        // Handle par-mux last-tab close dialog actions (UX.md M1)
-        #[cfg(feature = "mux")]
-        self.handle_mux_last_tab_action(mux_last_tab);
-        // Without the mux feature there is no session to detach or end.
-        #[cfg(not(feature = "mux"))]
-        let _ = mux_last_tab;
-
-        // Handle quit confirmation dialog actions
-        match quit_confirm {
-            QuitConfirmAction::Quit => {
-                // User confirmed quit - proceed with shutdown
-                log::info!("Quit confirmed by user");
-                self.perform_shutdown();
-            }
-            QuitConfirmAction::Cancel => {
-                log::debug!("Quit confirmation cancelled");
-            }
-            QuitConfirmAction::None => {}
-        }
-
-        // Handle remote shell integration install action
-        match remote_install {
-            RemoteShellInstallAction::Install => {
-                // Send the install command via paste_text() which uses the same
-                // code path as Cmd+V paste — handles bracketed paste mode and
-                // correctly forwards through SSH sessions.
-                let command = RemoteShellInstallUI::install_command();
-                // paste_text appends \r internally via term.paste()
-                self.paste_text(&format!("{}\n", command));
-                self.request_redraw();
-            }
-            RemoteShellInstallAction::Cancel => {
-                self.request_redraw();
-            }
-            RemoteShellInstallAction::None => {}
-        }
-
-        // Handle SSH Quick Connect actions
+    /// SSH Quick Connect result.
+    fn handle_ssh_connect_action(&mut self, ssh_connect: SshConnectAction) {
         match ssh_connect {
             SshConnectAction::Connect {
                 host,
@@ -260,34 +364,10 @@ impl WindowState {
             }
             SshConnectAction::None => {}
         }
+    }
 
-        // Handle paste special actions collected during egui rendering
-        match paste_special {
-            PasteSpecialAction::Paste(content) => {
-                self.paste_text(&content);
-                log::debug!("Pasted transformed text ({} chars)", content.len());
-            }
-            PasteSpecialAction::None => {}
-        }
-
-        // Handle search actions collected during egui rendering
-        match search {
-            crate::search::SearchAction::ScrollToMatch(offset) => {
-                self.set_scroll_target(offset);
-                self.focus_state.needs_redraw = true;
-                self.request_redraw();
-            }
-            crate::search::SearchAction::Close => {
-                self.focus_state.needs_redraw = true;
-                self.request_redraw();
-            }
-            crate::search::SearchAction::None => {}
-        }
-
-        // Handle AI Inspector actions collected during egui rendering
-        self.handle_inspector_action_after_render(inspector);
-
-        // Handle tmux session picker actions collected during egui rendering
+    /// tmux / par-mux session picker result.
+    fn handle_session_picker_action(&mut self, session_picker: SessionPickerAction) {
         // Uses gateway mode: writes tmux commands to existing PTY instead of spawning process
         match session_picker {
             SessionPickerAction::Attach(session_name) => {
@@ -342,52 +422,10 @@ impl WindowState {
             }
             SessionPickerAction::None => {}
         }
+    }
 
-        // Pane context menu choice (UX.md V10): the action runs on the
-        // pane the menu was opened on.
-        if let Some((pane_id, action)) = pane_menu {
-            if let Some(pm) = self
-                .tab_manager
-                .active_tab_mut()
-                .and_then(|t| t.pane_manager_mut())
-                && pm.focused_pane_id() != Some(pane_id)
-            {
-                pm.focus_pane(pane_id);
-                self.after_user_pane_focus();
-            }
-            self.is_shutting_down |= action == "close_pane" && self.close_focused_pane();
-            if action != "close_pane" {
-                self.execute_keybinding_action(action);
-            }
-            self.focus_state.needs_redraw = true;
-        }
-
-        // Adopt kind-picker choice: the same focus-then-act discipline as
-        // the pane context menu rows — adopt the pane the picker was
-        // opened on even if focus moved while it was open.
-        if let Some((pane_id, kind)) = adopt_pane {
-            if let Some(pm) = self
-                .tab_manager
-                .active_tab_mut()
-                .and_then(|t| t.pane_manager_mut())
-                && pm.focused_pane_id() != Some(pane_id)
-            {
-                pm.focus_pane(pane_id);
-                self.after_user_pane_focus();
-            }
-            #[cfg(feature = "mux")]
-            self.adopt_pane_agent(kind);
-            #[cfg(not(feature = "mux"))]
-            let _ = kind;
-            self.focus_state.needs_redraw = true;
-        }
-
-        // Session chip click (UX.md V1)
-        #[cfg(feature = "mux")]
-        if let Some(chip_action) = self.tab_bar_ui.chip_action.take() {
-            self.handle_session_chip_action(chip_action);
-        }
-
+    /// Poll the background shader install and apply the install prompt's response.
+    fn handle_shader_install(&mut self, shader_install: ShaderInstallResponse) {
         // Check for shader installation completion from background thread
         if let Some(ref rx) = self.overlay_ui.shader_install_receiver
             && let Ok(result) = rx.try_recv()
@@ -455,27 +493,6 @@ impl WindowState {
                 // Config remains "ask" - will prompt again on next startup
             }
             ShaderInstallResponse::None => {}
-        }
-
-        // Handle integrations welcome dialog responses
-        self.handle_integrations_response(&integrations);
-
-        // Open Profiles… / the Profiles drawer (UX.md PR1/PR2): the same
-        // registry actions a bound shortcut runs. The drawer's rows follow
-        // profile and chord changes (and fill after its edge button opens it).
-        if let Some(choice) = profile_launcher {
-            self.run_launcher_choice(choice);
-        }
-        self.refresh_profiles_drawer_rows();
-
-        if let Some(start) = self.debug.render_start {
-            let total = start.elapsed();
-            if total.as_millis() > 10 {
-                log::debug!(
-                    "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
-                    total.as_secs_f64() * 1000.0
-                );
-            }
         }
     }
 }
