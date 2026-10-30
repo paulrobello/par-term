@@ -77,6 +77,9 @@ pub fn parse_shader_metadata(source: &str) -> Option<ShaderMetadata> {
 /// # Returns
 /// * `Some(ShaderMetadata)` if the file was read and metadata was parsed successfully
 /// * `None` if reading failed or no metadata was found
+///
+/// Public-API helper documented in `docs/API.md`; par-term itself reads
+/// shaders through [`MetadataCache`](super::MetadataCache) instead.
 pub fn parse_shader_metadata_from_file(path: &Path) -> Option<ShaderMetadata> {
     match std::fs::read_to_string(path) {
         Ok(source) => parse_shader_metadata(&source),
@@ -192,6 +195,10 @@ pub fn parse_cursor_shader_metadata(source: &str) -> Option<CursorShaderMetadata
 }
 
 /// Parse cursor shader metadata from a file path.
+///
+/// Returns `None` if the file cannot be read or carries no metadata block.
+/// Public-API helper documented in `docs/API.md`; par-term itself reads
+/// shaders through [`MetadataCache`](super::MetadataCache) instead.
 pub fn parse_cursor_shader_metadata_from_file(path: &Path) -> Option<CursorShaderMetadata> {
     match std::fs::read_to_string(path) {
         Ok(source) => parse_cursor_shader_metadata(&source),
