@@ -1,7 +1,7 @@
 //! Tests for the pure chat-history scans used by `process_agent_messages_tick`.
 //!
-//! `old_*` below are verbatim transcriptions of the inline loops these
-//! helpers replaced; every generated history must give the same answer.
+//! `old_*` below are frozen reference oracles for the helpers: every
+//! generated history must give the same answer from both.
 
 use super::{
     is_recoverable_tool_failure, scan_recoverable_tool_failure, shader_prompt_missing_config_update,

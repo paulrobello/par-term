@@ -10,7 +10,8 @@ use winit::event::KeyEvent;
 use winit::keyboard::{Key, NamedKey};
 
 /// The keys `handle_copy_mode_key` below answers, as `(keys, what they do)`,
-/// for the F1 help panel. Keep in step with the match arms.
+/// for the F1 help panel. Keep in step with `PLAIN_KEYS`, `CTRL_KEYS`, and
+/// `NAMED_KEYS`.
 pub(crate) const COPY_MODE_KEYS: &[(&str, &str)] = &[
     ("q / Escape", "Exit copy mode"),
     ("h j k l / arrows", "Left / Down / Up / Right"),

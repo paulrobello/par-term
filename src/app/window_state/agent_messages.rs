@@ -352,8 +352,8 @@ fn is_recoverable_tool_failure(title: &str, status: &str) -> bool {
 ///
 /// The flag survives only when a User boundary was reached, yet the scan
 /// stops at the first recoverable failure before it can reach one, so this
-/// always returns `false` today. Kept as-is: the audit refactor preserves
-/// behavior, and the retry path is driven by the live `SessionUpdate` checks.
+/// always returns `false`. Skill-failure retry is driven by the live
+/// `SessionUpdate` checks in `process_agent_messages_tick`.
 fn scan_recoverable_tool_failure(messages: &[ChatMessage]) -> bool {
     let mut detected = false;
     let mut seen_user_boundary = false;

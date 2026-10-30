@@ -3,10 +3,9 @@
 //! Every key in [`all_keys`] is driven through
 //! `WindowState::handle_copy_mode_logical_key` from several starting states,
 //! with and without Ctrl, and the resulting copy-mode state is recorded. The
-//! transcript must match `handler_golden.txt`, which was generated from the
-//! branch-chain dispatcher before it became a lookup table. Regenerate only
-//! for an intended behavior change: `PAR_TERM_BLESS_COPY_MODE=1 cargo test
-//! copy_mode_key_matrix`.
+//! transcript must match the frozen reference in `handler_golden.txt`.
+//! Regenerate only for an intended behavior change:
+//! `PAR_TERM_BLESS_COPY_MODE=1 cargo test copy_mode_key_matrix`.
 
 use crate::app::window_state::WindowState;
 use crate::copy_mode::{PendingOperator, VisualMode};
@@ -221,8 +220,8 @@ fn copy_mode_text_motion_bindings() {
     assert_eq!(run("w"), expect_word(CopyModeState::move_word_forward));
     assert_eq!(run("b"), expect_word(CopyModeState::move_word_backward));
     assert_eq!(run("e"), expect_word(CopyModeState::move_word_end));
-    // The six motions land on distinct columns from col 10, so a swapped
-    // binding cannot pass.
+    // At least six of the seven motions land on distinct columns from
+    // col 10, so a swapped binding cannot pass.
     let cols: std::collections::HashSet<usize> = ["^", "W", "B", "E", "w", "b", "e"]
         .map(run)
         .into_iter()
