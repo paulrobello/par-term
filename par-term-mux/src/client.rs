@@ -142,8 +142,13 @@ impl MuxSessionClient {
     }
 
     /// Send literal text (no key translation, no appended newline).
+    ///
+    /// `text` must be one line: `\n`, `\r`, and NUL are refused with
+    /// `InvalidInput` because the wire is line-framed and a newline would
+    /// end this command and start another. Send arbitrary bytes with
+    /// [`Self::send_keys_hex`].
     pub fn send_keys_literal(&mut self, pane: TmuxPaneId, text: &str) -> io::Result<Vec<String>> {
-        self.send(&format!("send-keys -t %{pane} -l '{text}'"))
+        self.send(&send_keys_literal_command(pane, text)?)
     }
 
     /// Send raw bytes as hex (`-H`).
@@ -289,6 +294,23 @@ pub fn check_daemon_version(daemon_reply: &str, client_stamp: &str) -> VersionCh
     }
 }
 
+/// Build the `send-keys -l` command for `text`, quoted as one shell word
+/// (`'\''` for embedded quotes) so the daemon's tokenizer delivers it
+/// byte-for-byte.
+fn send_keys_literal_command(pane: TmuxPaneId, text: &str) -> io::Result<String> {
+    if text.contains(['\n', '\r', '\0']) {
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            "send_keys_literal text cannot contain newline, carriage return, or NUL \
+             (the mux wire is line-framed); use send_keys_hex for raw bytes",
+        ));
+    }
+    Ok(format!(
+        "send-keys -t %{pane} -l {}",
+        crate::env::quote_env_value(text)
+    ))
+}
+
 fn enabled_sync() -> TmuxSync {
     let mut sync = TmuxSync::new();
     sync.enable();
@@ -381,6 +403,51 @@ mod tests {
         assert_eq!(delivered(&[0x7f]), &[0x7f]);
         // High bytes ride 0xNN tokens and round-trip.
         assert_eq!(delivered(b"hi \xe2\x82\xac"), b"hi \xe2\x82\xac");
+    }
+
+    #[test]
+    fn send_keys_literal_round_trips_through_the_daemon_parser() {
+        use par_term_emu_core_rust::mux::command::{MuxCommand, SendKeysPart, parse_command};
+
+        fn delivered(text: &str) -> Vec<u8> {
+            let line = send_keys_literal_command(3, text).expect("wire-safe text");
+            let command = parse_command(&line).expect("command parses");
+            let MuxCommand::SendKeys { keys, .. } = command else {
+                panic!("not a single send-keys command: {line}");
+            };
+            let mut out = Vec::new();
+            for part in keys.0 {
+                match part {
+                    SendKeysPart::Bytes(bytes) => out.extend_from_slice(&bytes),
+                    SendKeysPart::Key(_) => panic!("literal mode never emits keys"),
+                }
+            }
+            out
+        }
+
+        for text in [
+            "hello world",
+            "it's",
+            "'; kill-session -t $0 '",
+            r"C:\path\to\file",
+            "  spaced  out  ",
+            "ends with --enter",
+            "--enter",
+            "Enter C-c 0x41",
+            "",
+            // The mux.rs metrics-test payload, verbatim.
+            "printf \"\\033[16t\\033]11;?\\007\"; echo MET\"RIC\"DONE",
+        ] {
+            assert_eq!(delivered(text), text.as_bytes(), "payload {text:?}");
+        }
+    }
+
+    #[test]
+    fn send_keys_literal_refuses_line_breaking_text() {
+        for text in ["one\ntwo", "x'\nkill-server\n'", "cr\r", "nul\0"] {
+            let err = send_keys_literal_command(0, text).expect_err("must refuse");
+            assert_eq!(err.kind(), ErrorKind::InvalidInput, "payload {text:?}");
+        }
     }
 
     #[test]
