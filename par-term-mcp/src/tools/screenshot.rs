@@ -5,8 +5,8 @@
 //! non-GUI test harnesses.
 
 use crate::ipc::{
-    config_update_path, open_restricted_write, screenshot_request_path, screenshot_response_path,
-    try_read_screenshot_response, write_json_atomic,
+    IpcError, config_update_path, open_restricted_write, screenshot_request_path,
+    screenshot_response_path, try_read_screenshot_response, write_json_atomic,
 };
 use crate::{SCREENSHOT_FALLBACK_PATH_ENV, TerminalScreenshotRequest};
 use serde_json::Value;
@@ -32,7 +32,7 @@ pub fn handle_terminal_screenshot(params: &Value) -> Value {
         // Require the canonicalized path to live under the system temp dir
         // or the par-term app data dir.
         if let Err(e) = validate_fallback_path(&path) {
-            return super::tool_error(&e);
+            return super::tool_error(&e.to_string());
         }
         return image_tool_result_from_file(&path);
     }
@@ -53,10 +53,7 @@ pub fn handle_terminal_screenshot(params: &Value) -> Value {
     };
 
     if let Err(e) = write_json_atomic(&request, &request_path) {
-        return super::tool_error(&format!(
-            "Failed to write screenshot request {}: {e}",
-            request_path.display()
-        ));
+        return super::tool_error(&format!("Failed to write screenshot request: {e}"));
     }
 
     let timeout = Duration::from_secs(15);
@@ -104,10 +101,7 @@ pub fn handle_terminal_screenshot(params: &Value) -> Value {
             }
             Ok(None) => {}
             Err(e) => {
-                return super::tool_error(&format!(
-                    "Failed to read screenshot response {}: {e}",
-                    response_path.display()
-                ));
+                return super::tool_error(&format!("Screenshot response unusable: {e}"));
             }
         }
         std::thread::sleep(poll_interval);
@@ -165,13 +159,13 @@ fn fallback_path_allowed_roots() -> Vec<PathBuf> {
 /// Validate that the fallback screenshot path is under an allowlisted root
 /// (SEC-003). Canonicalizes the path (resolving symlinks) and requires it to
 /// start with one of [`fallback_path_allowed_roots`].
-fn validate_fallback_path(path: &Path) -> Result<(), String> {
-    let canonical = path.canonicalize().map_err(|e| {
-        format!(
-            "Fallback screenshot path {} cannot be canonicalized: {e}",
-            path.display()
-        )
-    })?;
+fn validate_fallback_path(path: &Path) -> Result<(), IpcError> {
+    let canonical = path
+        .canonicalize()
+        .map_err(|source| IpcError::FallbackPathUnresolved {
+            path: path.to_path_buf(),
+            source,
+        })?;
     for root in fallback_path_allowed_roots() {
         // The root itself may not exist on this system; only compare against
         // canonicalizable roots. If a root doesn't canonicalize, fall back to
@@ -181,9 +175,5 @@ fn validate_fallback_path(path: &Path) -> Result<(), String> {
             return Ok(());
         }
     }
-    Err(format!(
-        "Fallback screenshot path {} is outside the allowed roots \
-         (system temp or par-term data dir). Refusing to read arbitrary files.",
-        canonical.display()
-    ))
+    Err(IpcError::FallbackPathOutsideRoots { path: canonical })
 }

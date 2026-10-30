@@ -3,9 +3,8 @@
 //! Writes a JSON object of config key-value pairs to the IPC config-update
 //! file for the main par-term app to pick up.
 
-use crate::ipc::{config_update_path, open_restricted_write};
+use crate::ipc::{config_update_path, write_json_atomic};
 use serde_json::Value;
-use std::io::Write;
 
 /// Config keys that the MCP `config_update` tool is allowed to write (SEC-005).
 ///
@@ -65,7 +64,10 @@ pub fn handle_config_update(params: &Value) -> Value {
 
 /// Write config updates to the specified path atomically.
 ///
-/// Creates parent directories if needed, writes to a temp file, then renames.
+/// Rejects keys outside the allowlist and shader paths outside the shaders
+/// directory before any disk I/O, then delegates to
+/// [`write_json_atomic`](crate::ipc::write_json_atomic). Every failure is
+/// returned as an MCP tool-error result, never a panic.
 pub fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
     // SEC-005: enforce an explicit key allowlist BEFORE any disk I/O. The
     // original implementation wrote caller-supplied keys verbatim, so any
@@ -102,51 +104,9 @@ pub fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
         }
     }
 
-    // Ensure parent directory exists
-    if let Some(parent) = path.parent()
-        && let Err(e) = std::fs::create_dir_all(parent)
-    {
-        return super::tool_error(&format!(
-            "Failed to create config directory {}: {e}",
-            parent.display()
-        ));
-    }
-
-    // Atomic write: write to temp file, then rename
-    let temp_path = path.with_extension("json.tmp");
-
-    let json_bytes = match serde_json::to_vec_pretty(updates) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            return super::tool_error(&format!("Failed to serialize updates: {e}"));
-        }
-    };
-
-    // Write temp file with restricted permissions from creation (0o600 on Unix)
-    match open_restricted_write(&temp_path) {
-        Ok(mut f) => {
-            if let Err(e) = f.write_all(&json_bytes) {
-                return super::tool_error(&format!(
-                    "Failed to write temp file {}: {e}",
-                    temp_path.display()
-                ));
-            }
-        }
-        Err(e) => {
-            return super::tool_error(&format!(
-                "Failed to create temp file {}: {e}",
-                temp_path.display()
-            ));
-        }
-    }
-
-    if let Err(e) = std::fs::rename(&temp_path, path) {
-        // Clean up temp file on rename failure
-        let _ = std::fs::remove_file(&temp_path);
-        return super::tool_error(&format!(
-            "Failed to rename temp file to {}: {e}",
-            path.display()
-        ));
+    // Atomic, owner-only (0o600 on Unix) write: temp file, then rename.
+    if let Err(e) = write_json_atomic(updates, path) {
+        return super::tool_error(&format!("Failed to write config update: {e}"));
     }
 
     let keys: Vec<&str> = updates

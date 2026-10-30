@@ -4,6 +4,7 @@
 //! files, and provides atomic write / restricted-permission helpers used by
 //! both the MCP tool handlers and external consumers (e.g. the ACP harness).
 
+pub use crate::error::IpcError;
 use crate::{
     CONFIG_UPDATE_FILENAME, CONFIG_UPDATE_PATH_ENV, SCREENSHOT_REQUEST_FILENAME,
     SCREENSHOT_REQUEST_PATH_ENV, SCREENSHOT_RESPONSE_FILENAME, SCREENSHOT_RESPONSE_PATH_ENV,
@@ -20,6 +21,11 @@ use std::path::{Path, PathBuf};
 
 /// Open (or create/truncate) a file for writing with owner-only permissions
 /// (0o600) on Unix, or default permissions on other platforms.
+///
+/// # Errors
+///
+/// Returns the underlying [`std::io::Error`] if the file cannot be opened —
+/// for example a missing parent directory or a permission denial.
 pub fn open_restricted_write(path: &Path) -> Result<std::fs::File, std::io::Error> {
     let mut opts = std::fs::OpenOptions::new();
     opts.write(true).create(true).truncate(true);
@@ -43,14 +49,21 @@ pub fn open_restricted_write(path: &Path) -> Result<std::fs::File, std::io::Erro
 /// Prefer `open_restricted_write` for new files to avoid a world-readable
 /// race between creation and permission fixup. This helper is retained for
 /// fixing permissions on pre-existing files.
+///
+/// # Errors
+///
+/// Returns [`IpcError::SetPermissions`] if the permission change fails (Unix
+/// only) — for example because `path` does not exist.
 #[allow(dead_code)] // No in-crate caller since open_restricted_write took over new-file creation; retained for pre-existing files
-pub fn set_ipc_file_permissions(path: &Path) -> Result<(), String> {
+pub fn set_ipc_file_permissions(path: &Path) -> Result<(), IpcError> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o600);
-        std::fs::set_permissions(path, perms)
-            .map_err(|e| format!("Failed to set permissions on {}: {e}", path.display()))?;
+        std::fs::set_permissions(path, perms).map_err(|source| IpcError::SetPermissions {
+            path: path.to_path_buf(),
+            source,
+        })?;
     }
     #[cfg(not(unix))]
     {
@@ -131,33 +144,35 @@ pub fn resolve_ipc_path(env_var: &str, default_filename: &str) -> PathBuf {
 ///
 /// Creates parent directories if needed, writes to a `.json.tmp` temp file
 /// with restricted permissions, then renames into place.
-pub fn write_json_atomic<T: Serialize>(payload: &T, path: &Path) -> Result<(), String> {
-    if let Some(parent) = path.parent()
-        && let Err(e) = std::fs::create_dir_all(parent)
-    {
-        return Err(format!(
-            "Failed to create parent directory {}: {e}",
-            parent.display()
-        ));
+///
+/// # Errors
+///
+/// Returns [`IpcError::CreateDir`], [`IpcError::Serialize`],
+/// [`IpcError::WriteTemp`], or [`IpcError::Rename`] for the step that failed.
+/// On a rename failure the temp file is removed before returning.
+pub fn write_json_atomic<T: Serialize>(payload: &T, path: &Path) -> Result<(), IpcError> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|source| IpcError::CreateDir {
+            path: parent.to_path_buf(),
+            source,
+        })?;
     }
 
     let temp_path = path.with_extension("json.tmp");
-    let bytes = serde_json::to_vec_pretty(payload).map_err(|e| e.to_string())?;
+    let bytes = serde_json::to_vec_pretty(payload).map_err(IpcError::Serialize)?;
     // Create temp file with restricted permissions from creation (0o600 on Unix)
     open_restricted_write(&temp_path)
         .and_then(|mut f| f.write_all(&bytes))
-        .map_err(|e| {
-            format!(
-                "Failed to write temp file {}: {e}",
-                temp_path.to_string_lossy()
-            )
+        .map_err(|source| IpcError::WriteTemp {
+            path: temp_path.clone(),
+            source,
         })?;
-    std::fs::rename(&temp_path, path).map_err(|e| {
+    std::fs::rename(&temp_path, path).map_err(|source| {
         let _ = std::fs::remove_file(&temp_path);
-        format!(
-            "Failed to rename temp file to {}: {e}",
-            path.to_string_lossy()
-        )
+        IpcError::Rename {
+            path: path.to_path_buf(),
+            source,
+        }
     })?;
 
     Ok(())
@@ -168,31 +183,55 @@ pub fn write_json_atomic<T: Serialize>(payload: &T, path: &Path) -> Result<(), S
 // ---------------------------------------------------------------------------
 
 /// Read and parse a screenshot response file, returning `None` for empty files.
+///
+/// A missing file is also `Ok(None)`: the GUI app has not answered yet.
+///
+/// # Errors
+///
+/// Returns [`IpcError::ReadResponse`] if the file exists but cannot be read,
+/// or [`IpcError::ParseResponse`] if its contents are not a valid
+/// [`crate::TerminalScreenshotResponse`].
 pub fn try_read_screenshot_response(
     path: &Path,
-) -> Result<Option<crate::TerminalScreenshotResponse>, String> {
+) -> Result<Option<crate::TerminalScreenshotResponse>, IpcError> {
     try_read_json_response(path)
 }
 
 /// Read and parse a shader diagnostics response file, returning `None` for empty files.
+///
+/// A missing file is also `Ok(None)`: the GUI app has not answered yet.
+///
+/// # Errors
+///
+/// Returns [`IpcError::ReadResponse`] if the file exists but cannot be read,
+/// or [`IpcError::ParseResponse`] if its contents are not a valid
+/// [`crate::ShaderDiagnosticsResponse`].
 pub fn try_read_shader_diagnostics_response(
     path: &Path,
-) -> Result<Option<crate::ShaderDiagnosticsResponse>, String> {
+) -> Result<Option<crate::ShaderDiagnosticsResponse>, IpcError> {
     try_read_json_response(path)
 }
 
-fn try_read_json_response<T>(path: &Path) -> Result<Option<T>, String>
+fn try_read_json_response<T>(path: &Path) -> Result<Option<T>, IpcError>
 where
     T: serde::de::DeserializeOwned,
 {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e.to_string()),
+        Err(source) => {
+            return Err(IpcError::ReadResponse {
+                path: path.to_path_buf(),
+                source,
+            });
+        }
     };
     if content.trim().is_empty() {
         return Ok(None);
     }
-    let resp = serde_json::from_str::<T>(&content).map_err(|e| e.to_string())?;
+    let resp = serde_json::from_str::<T>(&content).map_err(|source| IpcError::ParseResponse {
+        path: path.to_path_buf(),
+        source,
+    })?;
     Ok(Some(resp))
 }

@@ -12,6 +12,7 @@
 //!
 //! # Module layout
 //!
+//! - [`error`] — [`IpcError`], the typed error every fallible IPC helper returns
 //! - [`jsonrpc`] — JSON-RPC 2.0 wire types, response helpers, and stdout framing
 //! - [`ipc`] — IPC path resolution, atomic writes, and restricted-permission helpers
 //! - [`tools`] — tool registration, descriptors, and dispatch
@@ -48,6 +49,7 @@
 //! The file-based IPC paths used for screenshot and diagnostics requests use
 //! restrictive permissions (0o600) to prevent unauthorized reads or writes.
 
+pub mod error;
 pub mod ipc;
 pub mod jsonrpc;
 pub mod tools;
@@ -313,6 +315,8 @@ pub struct ShaderDiagnosticsResponse {
     #[serde(default)]
     pub diagnostics: Option<ShaderDiagnostics>,
 }
+
+pub use error::IpcError;
 
 // Re-export IPC path helpers so callers don't need to name the submodule.
 pub use ipc::{
@@ -959,5 +963,33 @@ mod tests {
             mode, 0o600,
             "Atomically written IPC file should have mode 0o600, got {mode:#o}"
         );
+    }
+
+    #[test]
+    #[parallel]
+    fn test_ipc_errors_are_typed() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let missing = dir.path().join("missing.json");
+        assert!(matches!(
+            ipc::try_read_screenshot_response(&missing),
+            Ok(None)
+        ));
+
+        let garbage = dir.path().join("garbage.json");
+        std::fs::write(&garbage, "not json").unwrap();
+        match ipc::try_read_shader_diagnostics_response(&garbage) {
+            Err(IpcError::ParseResponse { path, .. }) => assert_eq!(path, garbage),
+            other => panic!("expected ParseResponse, got {other:?}"),
+        }
+
+        // A regular file as the parent makes directory creation fail.
+        let blocker = dir.path().join("blocker");
+        std::fs::write(&blocker, "").unwrap();
+        let target = blocker.join("sub").join("out.json");
+        match write_json_atomic(&serde_json::json!({}), &target) {
+            Err(IpcError::CreateDir { path, .. }) => assert_eq!(path, blocker.join("sub")),
+            other => panic!("expected CreateDir, got {other:?}"),
+        }
     }
 }
