@@ -923,7 +923,7 @@ mod write_routing_tests {
             .collect::<Vec<_>>()
             .join(" ");
         assert_eq!(
-            *sent.lock().unwrap(),
+            *sent.lock().unwrap_or_else(|p| p.into_inner()),
             vec![format!("send-keys -t %0 -H {hex}")],
             "trigger SendText must reach the daemon pane, not the hidden shell"
         );
