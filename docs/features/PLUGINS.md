@@ -62,11 +62,22 @@ par-term plugin update              # every git-installed plugin
 par-term plugin update <plugin-id>  # just one
 ```
 
+The update is pinned to the commit you reviewed. `add` records the exact
+commit it installed (`.git/par-term-installed-commit` inside the plugin),
+`update` refuses if HEAD no longer matches that record ("changed outside
+plugin add/update"), and `apply` fast-forwards to exactly the commit whose
+diff was shown — code pushed upstream after you read the diff cannot ride
+in unnoticed, and a reviewed update applies only once.
+
 If upstream rewrote history (a fast-forward is impossible), `update`
 refuses and leaves the installed code untouched; remove and re-add the
 plugin to take the rewritten version. par-term never resets plugin code,
 because the trust model is "read the code before you enable it" — a
 reset would silently discard exactly the code you were invited to read.
+
+Plugins installed before commit pinning existed (no recorded commit) are
+trusted once on their first update — that update records the commit and
+warns in the log; from then on the same pinning applies.
 
 Removal only ever deletes plugins that `plugin add` installed — a
 directory with a `.git` folder and an `origin` remote:
@@ -115,6 +126,10 @@ back restores the plugin with its settings and placement intact.
 - **Fast-forward only, never reset.** A rewritten upstream is refused
   with the remedy spelled out. The user's path to rewritten code is
   remove-and-re-add, in the open.
+- **Pinned to the reviewed commit.** The installed commit is recorded at
+  `add` and re-checked at every `update`; a plugin tree that moved outside
+  plugin add/update is refused, and `apply` lands exactly the reviewed
+  commit — nothing newer.
 - **No prompt can hang the terminal.** Every git invocation runs with
   `GIT_TERMINAL_PROMPT=0` under a hard deadline, so a private-repo URL
   or a passphrase-protected key fails as a clean error instead of

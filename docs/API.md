@@ -347,6 +347,8 @@ Terminal management, scrollback, and terminal state access.
 | Type | Description |
 |------|-------------|
 | `TerminalManager` | High-level wrapper around a PTY session. Manages I/O, resize, clipboard, inline graphics, scrollback, and coprocesses. |
+| `TerminalError` | Typed error for fallible `TerminalManager` methods (spawn, write, resize, kill, screenshot, recording export), carrying the core library error as its source. |
+| `Result<T>` | Crate result alias over `TerminalError`. |
 | `ShellLifecycleEvent` | Events emitted when the shell starts, changes CWD, or exits. |
 | `SearchMatch` | A single pattern match in the scrollback (line, column, length). |
 | `ScrollbackMetadata` | Tracks shell-integration markers and command history for timing overlays and the Assistant panel. |
@@ -532,7 +534,7 @@ Self-update and release tracking. Types are exported via submodule re-exports.
 | `install_methods` | `InstallationType`, `detect_installation()` |
 | `manifest` | Bundled asset tracking (`Manifest`, `ManifestFile`, `FileType`) |
 | `signature` | Detached minisign signature verification for downloaded releases (`verify_detached()`, `signing_key_configured()`) |
-| `http` | HTTP utilities (`download_file()`, `validate_update_url()`) |
+| `http` | HTTP utilities. Root re-export binds the par-term-update validated-HTTP surface (`HostPolicy`, `DOWNLOAD_POLICY`, `validate_download_url`, `get_validated`, `download_file`, `redact_url`); allowlists are caller-owned. |
 
 ### Key Types (via `self_updater` re-export)
 
@@ -641,6 +643,7 @@ Minimal MCP (Model Context Protocol) server over stdio. Exposes tools for ACP ag
 | Item | Description |
 |------|-------------|
 | `run_mcp_server()` | Start the stdio JSON-RPC 2.0 MCP server loop. Blocks until stdin is closed. |
+| `IpcError` | Typed error for every fallible IPC function (temp-file write, rename, permissions, serialize, response read/parse, and the screenshot fallback-path checks). Tool handlers map it to MCP error text. |
 | `set_app_version(version)` | Set the application version reported during MCP initialization. |
 | `TerminalScreenshotRequest` | IPC request written by the MCP server for the GUI to fulfill. |
 | `TerminalScreenshotResponse` | IPC response written by the GUI with the screenshot data or error. |

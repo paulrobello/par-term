@@ -23,6 +23,18 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 ### Fixed
 - macOS: `make bundle` signs `par-mux`, `par-term`, and the `.app` with the first Developer ID Application identity in the keychain (hardened runtime, timestamp), and leaves the bundle ad-hoc signed when none exists. `Info.plist` now declares `NSLocalNetworkUsageDescription` for connections to par-mux daemons and devices on the local network.
 
+### Security
+- **Agent tool auto-approval is allowlisted by exact name** (audit SEC-001). The `par-term-config` MCP namespace is no longer auto-approved wholesale; each tool name (`config_update`, `shader_diagnostics`, `command_create`, `command_list`, `command_delete`) is listed, and an unknown par-term MCP tool now prompts instead of running. `terminal_screenshot` deliberately still prompts.
+- **Agent-set shader paths are restricted to the shaders directory** (audit SEC-003). A `custom_shader`/`cursor_shader` value sent by an ACP/MCP agent must name an existing file inside the canonicalized shaders directory (symlink-safe); the config directory is no longer an auto-approved agent write root (only `.config-update.json` in it is), so a hot-reloaded `config.yaml` write can no longer bypass the check. Re-sending the current value and `null` stay allowed, so user-set paths are preserved.
+- **`send_keys_literal` rejects line-breaking text** (audit SEC-002). Text is quoted daemon-safely and `\n`/`\r`/NUL now return `InvalidInput` pointing at `send_keys_hex` — the line-framed wire could previously parse a stray newline as a second daemon command. Library-facing change for a published crate.
+- **Plugin git updates are pinned to the reviewed commit** (audit SEC-005). See [PLUGINS.md](docs/features/PLUGINS.md). Library-facing: `update_apply` refuses without a reviewed fetch.
+- **Installer URLs are pinned to the release tag** (audit SEC-004): `gh-pages/install-shell-integration.sh` downloads from `v0.50.0` instead of `main`.
+- **Self-update download errors redact the URL** (audit ARC-004 consolidation side-effect): validation failures no longer echo the query string or userinfo, which on GitHub's final download hop can carry credentials.
+
+### Changed (library)
+- **`par-term-mcp` returns typed `IpcError`s** (audit QA-002) instead of `Result<_, String>`; tool handlers map them to MCP error text. **`par-term-terminal` returns typed `TerminalError`s** instead of `anyhow` and no longer depends on it. Both are breaking API changes for library consumers of the published crates.
+- **`par-term-config`: removed zero-caller profile matcher methods** (audit QA-003) — `find_by_tag`, `filter_by_tags`, `get_valid_parents` and their private helper; the shader-path validation helpers are now `#[doc(hidden)]` pending removal. **`par-term-update` grew the shared validated-HTTP surface** (`HostPolicy`, `*_for` functions, `redact_url`) and the root `http::agent()` free function was removed; **`Config::has_shader_files`** is public on `par-term-config`. Version bumps land with the next release.
+
 ---
 
 ## [0.50.0] - 2026-10-24
