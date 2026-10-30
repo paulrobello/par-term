@@ -5,7 +5,7 @@
 //! `copy_mode_search`.
 
 use crate::app::window_state::WindowState;
-use crate::copy_mode::{SearchDirection, VisualMode};
+use crate::copy_mode::{CopyModeState, SearchDirection, VisualMode};
 use winit::event::KeyEvent;
 use winit::keyboard::{Key, NamedKey};
 
@@ -27,6 +27,113 @@ pub(crate) const COPY_MODE_KEYS: &[(&str, &str)] = &[
     ("n / N", "Next / previous match"),
     ("m + letter / ' + letter", "Set / jump to mark"),
 ];
+
+/// What a copy-mode key does once no pending prefix (search input, mark
+/// name, second `g`) is waiting. State-dependent keys (`0`, `G`, `v`, `y`,
+/// Escape) get their own variant; the dispatcher reads the state.
+#[derive(Clone, Copy)]
+pub(crate) enum CopyModeCommand {
+    /// Cursor or selection change that needs no line text.
+    Motion(fn(&mut CopyModeState)),
+    /// Motion over the cursor line's text.
+    LineMotion(fn(&mut CopyModeState, &str)),
+    /// Word motion over the cursor line's text and the configured word characters.
+    WordMotion(fn(&mut CopyModeState, &str, &str)),
+    ZeroOrLineStart,
+    CountDigit(u8),
+    GotoLineOrBottom,
+    PendingG,
+    VisualChar,
+    Yank,
+    StartSearch(SearchDirection),
+    SearchNext {
+        reverse: bool,
+    },
+    MarkSet,
+    MarkGoto,
+    Exit,
+    Escape,
+}
+
+use CopyModeCommand as C;
+
+/// Unmodified character keys. Keep in step with `COPY_MODE_KEYS`.
+const PLAIN_KEYS: &[(&str, CopyModeCommand)] = &[
+    ("h", C::Motion(CopyModeState::move_left)),
+    ("j", C::Motion(CopyModeState::move_down)),
+    ("k", C::Motion(CopyModeState::move_up)),
+    ("l", C::Motion(CopyModeState::move_right)),
+    ("0", C::ZeroOrLineStart),
+    ("$", C::Motion(CopyModeState::move_to_line_end)),
+    ("^", C::LineMotion(CopyModeState::move_to_first_non_blank)),
+    ("w", C::WordMotion(CopyModeState::move_word_forward)),
+    ("b", C::WordMotion(CopyModeState::move_word_backward)),
+    ("e", C::WordMotion(CopyModeState::move_word_end)),
+    ("W", C::LineMotion(CopyModeState::move_big_word_forward)),
+    ("B", C::LineMotion(CopyModeState::move_big_word_backward)),
+    ("E", C::LineMotion(CopyModeState::move_big_word_end)),
+    ("G", C::GotoLineOrBottom),
+    ("g", C::PendingG),
+    ("v", C::VisualChar),
+    ("V", C::Motion(CopyModeState::toggle_visual_line)),
+    ("y", C::Yank),
+    ("/", C::StartSearch(SearchDirection::Forward)),
+    ("?", C::StartSearch(SearchDirection::Backward)),
+    ("n", C::SearchNext { reverse: false }),
+    ("N", C::SearchNext { reverse: true }),
+    ("m", C::MarkSet),
+    ("'", C::MarkGoto),
+    ("1", C::CountDigit(1)),
+    ("2", C::CountDigit(2)),
+    ("3", C::CountDigit(3)),
+    ("4", C::CountDigit(4)),
+    ("5", C::CountDigit(5)),
+    ("6", C::CountDigit(6)),
+    ("7", C::CountDigit(7)),
+    ("8", C::CountDigit(8)),
+    ("9", C::CountDigit(9)),
+    ("q", C::Exit),
+];
+
+/// Character keys with Ctrl held.
+const CTRL_KEYS: &[(&str, CopyModeCommand)] = &[
+    ("u", C::Motion(CopyModeState::half_page_up)),
+    ("d", C::Motion(CopyModeState::half_page_down)),
+    ("b", C::Motion(CopyModeState::page_up)),
+    ("f", C::Motion(CopyModeState::page_down)),
+    ("v", C::Motion(CopyModeState::toggle_visual_block)),
+];
+
+/// Named keys; Ctrl is ignored for these.
+const NAMED_KEYS: &[(NamedKey, CopyModeCommand)] = &[
+    (NamedKey::Escape, C::Escape),
+    (NamedKey::ArrowLeft, C::Motion(CopyModeState::move_left)),
+    (NamedKey::ArrowRight, C::Motion(CopyModeState::move_right)),
+    (NamedKey::ArrowUp, C::Motion(CopyModeState::move_up)),
+    (NamedKey::ArrowDown, C::Motion(CopyModeState::move_down)),
+    (NamedKey::Home, C::Motion(CopyModeState::move_to_line_start)),
+    (NamedKey::End, C::Motion(CopyModeState::move_to_line_end)),
+    (NamedKey::PageUp, C::Motion(CopyModeState::page_up)),
+    (NamedKey::PageDown, C::Motion(CopyModeState::page_down)),
+];
+
+/// Classify a copy-mode key press; `None` means the key is ignored.
+pub(crate) fn copy_mode_key_command(key: &Key, ctrl: bool) -> Option<CopyModeCommand> {
+    match key {
+        Key::Character(ch) => {
+            let table = if ctrl { CTRL_KEYS } else { PLAIN_KEYS };
+            table
+                .iter()
+                .find(|(name, _)| *name == ch.as_str())
+                .map(|&(_, command)| command)
+        }
+        Key::Named(named) => NAMED_KEYS
+            .iter()
+            .find(|(name, _)| name == named)
+            .map(|&(_, command)| command),
+        _ => None,
+    }
+}
 
 impl WindowState {
     /// Check if copy mode is currently active
@@ -92,11 +199,15 @@ impl WindowState {
             self.handle_copy_mode_search_key(event);
             return;
         }
+        self.handle_copy_mode_logical_key(&event.logical_key);
+    }
 
+    /// Copy-mode dispatch outside search input; only the logical key matters.
+    pub(crate) fn handle_copy_mode_logical_key(&mut self, logical_key: &Key) {
         // Handle pending mark set (waiting for mark name after 'm')
         if self.copy_mode.pending_mark_set {
             self.copy_mode.pending_mark_set = false;
-            if let Key::Character(ref ch) = event.logical_key
+            if let Key::Character(ch) = logical_key
                 && let Some(c) = ch.chars().next()
                 && c.is_ascii_lowercase()
             {
@@ -111,7 +222,7 @@ impl WindowState {
         // Handle pending mark goto (waiting for mark name after "'")
         if self.copy_mode.pending_mark_goto {
             self.copy_mode.pending_mark_goto = false;
-            if let Key::Character(ref ch) = event.logical_key
+            if let Key::Character(ch) = logical_key
                 && let Some(c) = ch.chars().next()
                 && c.is_ascii_lowercase()
                 && self.copy_mode.goto_mark(c)
@@ -126,7 +237,7 @@ impl WindowState {
         // Handle pending 'g' (waiting for second 'g' in 'gg')
         if self.copy_mode.pending_g {
             self.copy_mode.pending_g = false;
-            if let Key::Character(ref ch) = event.logical_key
+            if let Key::Character(ch) = logical_key
                 && ch.as_str() == "g"
             {
                 self.copy_mode.goto_top();
@@ -137,206 +248,77 @@ impl WindowState {
             return;
         }
 
-        // Check modifiers for Ctrl key combinations
-        let modifiers = &self.input_handler.modifiers;
-        let ctrl = modifiers.state().control_key();
+        let ctrl = self.input_handler.modifiers.state().control_key();
+        let Some(command) = copy_mode_key_command(logical_key, ctrl) else {
+            return;
+        };
 
-        match &event.logical_key {
-            // === Directional motions ===
-            Key::Character(ch) if !ctrl => match ch.as_str() {
-                "h" => {
-                    self.copy_mode.move_left();
+        match command {
+            CopyModeCommand::Motion(motion) => {
+                motion(&mut self.copy_mode);
+                self.after_copy_mode_motion();
+            }
+            CopyModeCommand::LineMotion(motion) => {
+                if let Some(text) = self.get_copy_mode_line_text() {
+                    motion(&mut self.copy_mode, &text);
                     self.after_copy_mode_motion();
                 }
-                "j" => {
-                    self.copy_mode.move_down();
+            }
+            CopyModeCommand::WordMotion(motion) => {
+                if let Some(text) = self.get_copy_mode_line_text() {
+                    let word_chars = self.config.load().word_selection.word_characters.clone();
+                    motion(&mut self.copy_mode, &text, &word_chars);
                     self.after_copy_mode_motion();
                 }
-                "k" => {
-                    self.copy_mode.move_up();
+            }
+            CopyModeCommand::ZeroOrLineStart => {
+                // '0' can be part of a count or line start
+                if self.copy_mode.count.is_some() {
+                    self.copy_mode.push_count_digit(0);
+                } else {
+                    self.copy_mode.move_to_line_start();
                     self.after_copy_mode_motion();
                 }
-                "l" => {
-                    self.copy_mode.move_right();
+            }
+            CopyModeCommand::CountDigit(digit) => self.copy_mode.push_count_digit(digit),
+            CopyModeCommand::GotoLineOrBottom => {
+                if let Some(count) = self.copy_mode.count.take() {
+                    // {count}G goes to absolute line
+                    self.copy_mode.goto_line(count.saturating_sub(1));
+                } else {
+                    self.copy_mode.goto_bottom();
+                }
+                self.after_copy_mode_motion();
+            }
+            CopyModeCommand::PendingG => self.copy_mode.pending_g = true,
+            CopyModeCommand::VisualChar => {
+                if self.copy_mode.pending_operator.is_some() {
+                    // yv = yank to current pos (do nothing special)
+                    self.copy_mode.pending_operator = None;
+                } else {
+                    self.copy_mode.toggle_visual_char();
                     self.after_copy_mode_motion();
                 }
-
-                // === Line motions ===
-                "0" => {
-                    // '0' can be part of a count or line start
-                    if self.copy_mode.count.is_some() {
-                        self.copy_mode.push_count_digit(0);
-                    } else {
-                        self.copy_mode.move_to_line_start();
-                        self.after_copy_mode_motion();
-                    }
+            }
+            CopyModeCommand::Yank => {
+                if self.copy_mode.visual_mode != VisualMode::None {
+                    // In visual mode, yank the selection
+                    self.yank_copy_mode_selection();
+                } else {
+                    // Set pending yank operator (yy = yank line, yw = yank word, etc.)
+                    self.copy_mode.pending_operator = Some(crate::copy_mode::PendingOperator::Yank);
                 }
-                "$" => {
-                    self.copy_mode.move_to_line_end();
-                    self.after_copy_mode_motion();
-                }
-                "^" => {
-                    if let Some(text) = self.get_copy_mode_line_text() {
-                        self.copy_mode.move_to_first_non_blank(&text);
-                        self.after_copy_mode_motion();
-                    }
-                }
-
-                // === Word motions ===
-                "w" => {
-                    if let Some(text) = self.get_copy_mode_line_text() {
-                        let word_chars = self.config.load().word_selection.word_characters.clone();
-                        self.copy_mode.move_word_forward(&text, &word_chars);
-                        self.after_copy_mode_motion();
-                    }
-                }
-                "b" => {
-                    if let Some(text) = self.get_copy_mode_line_text() {
-                        let word_chars = self.config.load().word_selection.word_characters.clone();
-                        self.copy_mode.move_word_backward(&text, &word_chars);
-                        self.after_copy_mode_motion();
-                    }
-                }
-                "e" => {
-                    if let Some(text) = self.get_copy_mode_line_text() {
-                        let word_chars = self.config.load().word_selection.word_characters.clone();
-                        self.copy_mode.move_word_end(&text, &word_chars);
-                        self.after_copy_mode_motion();
-                    }
-                }
-                "W" => {
-                    if let Some(text) = self.get_copy_mode_line_text() {
-                        self.copy_mode.move_big_word_forward(&text);
-                        self.after_copy_mode_motion();
-                    }
-                }
-                "B" => {
-                    if let Some(text) = self.get_copy_mode_line_text() {
-                        self.copy_mode.move_big_word_backward(&text);
-                        self.after_copy_mode_motion();
-                    }
-                }
-                "E" => {
-                    if let Some(text) = self.get_copy_mode_line_text() {
-                        self.copy_mode.move_big_word_end(&text);
-                        self.after_copy_mode_motion();
-                    }
-                }
-
-                // === Page/buffer motions ===
-                "G" => {
-                    if let Some(count) = self.copy_mode.count.take() {
-                        // {count}G goes to absolute line
-                        self.copy_mode.goto_line(count.saturating_sub(1));
-                    } else {
-                        self.copy_mode.goto_bottom();
-                    }
-                    self.after_copy_mode_motion();
-                }
-                "g" => {
-                    self.copy_mode.pending_g = true;
-                }
-
-                // === Visual modes ===
-                "v" => {
-                    if self.copy_mode.pending_operator.is_some() {
-                        // yv = yank to current pos (do nothing special)
-                        self.copy_mode.pending_operator = None;
-                    } else {
-                        self.copy_mode.toggle_visual_char();
-                        self.after_copy_mode_motion();
-                    }
-                }
-                "V" => {
-                    self.copy_mode.toggle_visual_line();
-                    self.after_copy_mode_motion();
-                }
-
-                // === Yank ===
-                "y" => {
-                    if self.copy_mode.visual_mode != VisualMode::None {
-                        // In visual mode, yank the selection
-                        self.yank_copy_mode_selection();
-                    } else {
-                        // Set pending yank operator (yy = yank line, yw = yank word, etc.)
-                        // For simplicity, just yank current line on 'y' in normal mode
-                        self.copy_mode.pending_operator =
-                            Some(crate::copy_mode::PendingOperator::Yank);
-                    }
-                }
-
-                // === Search ===
-                "/" => {
-                    self.copy_mode.start_search(SearchDirection::Forward);
-                    self.focus_state.needs_redraw = true;
-                    self.request_redraw();
-                }
-                "?" => {
-                    self.copy_mode.start_search(SearchDirection::Backward);
-                    self.focus_state.needs_redraw = true;
-                    self.request_redraw();
-                }
-                "n" => {
-                    self.execute_copy_mode_search(false);
-                }
-                "N" => {
-                    self.execute_copy_mode_search(true);
-                }
-
-                // === Marks ===
-                "m" => {
-                    self.copy_mode.pending_mark_set = true;
-                }
-                "'" => {
-                    self.copy_mode.pending_mark_goto = true;
-                }
-
-                // === Count prefix ===
-                "1" => self.copy_mode.push_count_digit(1),
-                "2" => self.copy_mode.push_count_digit(2),
-                "3" => self.copy_mode.push_count_digit(3),
-                "4" => self.copy_mode.push_count_digit(4),
-                "5" => self.copy_mode.push_count_digit(5),
-                "6" => self.copy_mode.push_count_digit(6),
-                "7" => self.copy_mode.push_count_digit(7),
-                "8" => self.copy_mode.push_count_digit(8),
-                "9" => self.copy_mode.push_count_digit(9),
-
-                // === Exit ===
-                "q" => {
-                    self.exit_copy_mode();
-                }
-
-                _ => {}
-            },
-
-            // === Ctrl key combinations ===
-            Key::Character(ch) if ctrl => match ch.as_str() {
-                "u" => {
-                    self.copy_mode.half_page_up();
-                    self.after_copy_mode_motion();
-                }
-                "d" => {
-                    self.copy_mode.half_page_down();
-                    self.after_copy_mode_motion();
-                }
-                "b" => {
-                    self.copy_mode.page_up();
-                    self.after_copy_mode_motion();
-                }
-                "f" => {
-                    self.copy_mode.page_down();
-                    self.after_copy_mode_motion();
-                }
-                "v" => {
-                    self.copy_mode.toggle_visual_block();
-                    self.after_copy_mode_motion();
-                }
-                _ => {}
-            },
-
-            // === Named keys ===
-            Key::Named(NamedKey::Escape) => {
+            }
+            CopyModeCommand::StartSearch(direction) => {
+                self.copy_mode.start_search(direction);
+                self.focus_state.needs_redraw = true;
+                self.request_redraw();
+            }
+            CopyModeCommand::SearchNext { reverse } => self.execute_copy_mode_search(reverse),
+            CopyModeCommand::MarkSet => self.copy_mode.pending_mark_set = true,
+            CopyModeCommand::MarkGoto => self.copy_mode.pending_mark_goto = true,
+            CopyModeCommand::Exit => self.exit_copy_mode(),
+            CopyModeCommand::Escape => {
                 if self.copy_mode.visual_mode != VisualMode::None {
                     // Exit visual mode first
                     self.copy_mode.visual_mode = VisualMode::None;
@@ -351,40 +333,6 @@ impl WindowState {
                     self.exit_copy_mode();
                 }
             }
-            Key::Named(NamedKey::ArrowLeft) => {
-                self.copy_mode.move_left();
-                self.after_copy_mode_motion();
-            }
-            Key::Named(NamedKey::ArrowRight) => {
-                self.copy_mode.move_right();
-                self.after_copy_mode_motion();
-            }
-            Key::Named(NamedKey::ArrowUp) => {
-                self.copy_mode.move_up();
-                self.after_copy_mode_motion();
-            }
-            Key::Named(NamedKey::ArrowDown) => {
-                self.copy_mode.move_down();
-                self.after_copy_mode_motion();
-            }
-            Key::Named(NamedKey::Home) => {
-                self.copy_mode.move_to_line_start();
-                self.after_copy_mode_motion();
-            }
-            Key::Named(NamedKey::End) => {
-                self.copy_mode.move_to_line_end();
-                self.after_copy_mode_motion();
-            }
-            Key::Named(NamedKey::PageUp) => {
-                self.copy_mode.page_up();
-                self.after_copy_mode_motion();
-            }
-            Key::Named(NamedKey::PageDown) => {
-                self.copy_mode.page_down();
-                self.after_copy_mode_motion();
-            }
-
-            _ => {}
         }
     }
 }
