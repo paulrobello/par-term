@@ -321,74 +321,23 @@ impl WindowState {
 
         // Same bucket split as polling.rs — direct handlers TmuxSync cannot
         // translate, then the sync groups in dependency order.
-        let mut direct_notifications = Vec::new();
-        let mut session_sync = Vec::new();
-        let mut layout_sync = Vec::new();
-        let mut output_sync = Vec::new();
-        let mut other_sync = Vec::new();
-
-        for notification in notifications {
-            match &notification {
-                TmuxNotification::ControlModeStarted
-                | TmuxNotification::SessionStarted(_)
-                | TmuxNotification::SessionRenamed(_)
-                | TmuxNotification::PaneFocusChanged { .. }
-                | TmuxNotification::Error(_)
-                | TmuxNotification::Notification { .. } => {
-                    direct_notifications.push(notification);
-                }
-                TmuxNotification::WindowAdd(_)
-                | TmuxNotification::WindowClose(_)
-                | TmuxNotification::WindowRenamed { .. }
-                | TmuxNotification::SessionEnded => {
-                    session_sync.push(notification);
-                }
-                TmuxNotification::LayoutChange { .. } => {
-                    layout_sync.push(notification);
-                }
-                TmuxNotification::Output { .. } => {
-                    output_sync.push(notification);
-                }
-                TmuxNotification::Pause | TmuxNotification::Continue => {
-                    other_sync.push(notification);
-                }
-            }
-        }
-
-        // --- Direct dispatch (notifications TmuxSync does not handle) ---
-        // Focus pushes are deferred until after the layout groups: a split's
-        // `%window-pane-changed` for the NEW pane arrives in the same batch
-        // as the `%layout-change` that creates it, so applying it here (the
-        // pane not yet mapped) lost it, and native focus — the only routing
-        // source of truth — stayed on the old pane.
-        let mut deferred_focus: Option<TmuxPaneId> = None;
-        for notification in direct_notifications {
-            match notification {
-                TmuxNotification::SessionStarted(session_name) => {
-                    self.handle_mux_session_started(&session_name);
-                    needs_redraw = true;
-                }
-                TmuxNotification::SessionRenamed(session_name) => {
-                    self.handle_tmux_session_renamed(&session_name);
-                    needs_redraw = true;
-                }
-                TmuxNotification::PaneFocusChanged { pane_id } => {
-                    deferred_focus = Some(pane_id);
-                    needs_redraw = true;
-                }
-                TmuxNotification::Notification { title, body } => {
-                    notify(self, &title, &body);
-                    needs_redraw = true;
-                }
-                TmuxNotification::Error(msg) => {
-                    self.handle_tmux_error(&msg);
-                }
-                TmuxNotification::ControlModeStarted => {
-                    crate::debug_info!("MUX", "Control mode started");
-                }
-                _ => {}
-            }
-        }
+        let super::event_dispatch::EventBatch {
+            direct,
+            session: session_sync,
+            layout: layout_sync,
+            output: output_sync,
+            other: other_sync,
+        } = super::event_dispatch::EventBatch::classify(notifications);
+        // A split's focus push may precede the layout that maps its new
+        // pane. Keep only the last focus and apply it after the layouts.
+        let effects = super::event_dispatch::dispatch_direct(
+            self,
+            direct,
+            super::event_dispatch::EventSource::Mux,
+            &mut notify,
+        );
+        needs_redraw |= effects.needs_redraw;
+        let deferred_focus = effects.deferred_focus;
 
         // --- TmuxSync dispatch: group 1 — session/window structure ---
         let added_windows: Vec<_> = session_sync

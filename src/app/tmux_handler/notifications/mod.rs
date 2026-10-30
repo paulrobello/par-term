@@ -29,6 +29,7 @@
 
 #[cfg(feature = "mux")]
 pub(crate) mod agent_roster;
+mod event_dispatch;
 mod flow_control;
 mod layout;
 mod layout_apply;

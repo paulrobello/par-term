@@ -154,68 +154,20 @@ impl WindowState {
         // is set up (and window→tab mappings created) before layout changes are applied,
         // and pane mappings from layout are available before output arrives.
 
-        let mut direct_notifications = Vec::new();
-        let mut session_sync = Vec::new();
-        let mut layout_sync = Vec::new();
-        let mut output_sync = Vec::new();
-        let mut other_sync = Vec::new();
-
-        for notification in notifications {
-            match &notification {
-                TmuxNotification::ControlModeStarted
-                | TmuxNotification::SessionStarted(_)
-                | TmuxNotification::SessionRenamed(_)
-                | TmuxNotification::PaneFocusChanged { .. }
-                | TmuxNotification::Error(_)
-                | TmuxNotification::Notification { .. } => {
-                    direct_notifications.push(notification);
-                }
-                TmuxNotification::WindowAdd(_)
-                | TmuxNotification::WindowClose(_)
-                | TmuxNotification::WindowRenamed { .. }
-                | TmuxNotification::SessionEnded => {
-                    session_sync.push(notification);
-                }
-                TmuxNotification::LayoutChange { .. } => {
-                    layout_sync.push(notification);
-                }
-                TmuxNotification::Output { .. } => {
-                    output_sync.push(notification);
-                }
-                TmuxNotification::Pause | TmuxNotification::Continue => {
-                    other_sync.push(notification);
-                }
-            }
-        }
-
-        // --- Direct dispatch (notifications TmuxSync does not handle) ---
-        for notification in direct_notifications {
-            match notification {
-                TmuxNotification::ControlModeStarted => {
-                    crate::debug_info!("TMUX", "Control mode started - tmux is ready");
-                }
-                TmuxNotification::SessionStarted(session_name) => {
-                    self.handle_tmux_session_started(&session_name);
-                    needs_redraw = true;
-                }
-                TmuxNotification::SessionRenamed(session_name) => {
-                    self.handle_tmux_session_renamed(&session_name);
-                    needs_redraw = true;
-                }
-                TmuxNotification::Notification { title, body } => {
-                    self.deliver_notification(&title, &body);
-                    needs_redraw = true;
-                }
-                TmuxNotification::Error(msg) => {
-                    self.handle_tmux_error(&msg);
-                }
-                TmuxNotification::PaneFocusChanged { pane_id } => {
-                    self.handle_tmux_pane_focus_changed(pane_id);
-                    needs_redraw = true;
-                }
-                _ => {}
-            }
-        }
+        let super::event_dispatch::EventBatch {
+            direct,
+            session: session_sync,
+            layout: layout_sync,
+            output: output_sync,
+            other: other_sync,
+        } = super::event_dispatch::EventBatch::classify(notifications);
+        let effects = super::event_dispatch::dispatch_direct(
+            self,
+            direct,
+            super::event_dispatch::EventSource::Gateway,
+            |ws, title, body| ws.deliver_notification(title, body),
+        );
+        needs_redraw |= effects.needs_redraw;
 
         // --- TmuxSync dispatch: group 1 — session/window structure ---
         // Creates window→tab mappings; must run before layout and output.
