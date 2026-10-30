@@ -48,6 +48,8 @@ fn detach_mux_session_tears_down_local_state_and_the_daemon_survives() {
         state: "idle".to_string(),
         source: par_term_mux::AgentSource::Hook,
         reason: None,
+        last_input_at: None,
+        stalled: None,
     }]);
 
     assert!(ws.detach_mux_session());

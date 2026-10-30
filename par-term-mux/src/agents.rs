@@ -68,17 +68,30 @@ pub struct AgentEntry {
     /// as `msg=<standard base64>`. Missing or malformed push messages
     /// produce `None`.
     pub reason: Option<String>,
+    /// The last CLIENT-sent keystroke/paste to the pane (epoch-ms, core
+    /// 0.72) — stamped on a different clock than the agent's own hook
+    /// reports, so a supervisor can tell a human is driving. `None` when
+    /// the row lacks the token (pre-0.72 daemon, or no client ever wrote
+    /// the pane).
+    pub last_input_at: Option<u64>,
+    /// The daemon's derived hung signal (core 0.72): `stalled=1` when a
+    /// `working` agent shows no activity for five minutes. `None` when the
+    /// row carries no token.
+    pub stalled: Option<bool>,
 }
 
 impl AgentEntry {
     /// Parse a `list-agents` row: `%N <agent> <state> <source>` with
     /// fixed positions (the state is a single validated token on the
     /// wire), then zero or more trailing tokens: `key=value` tokens
-    /// (`reason=<standard base64>`, `telemetry=`, `host_telemetry=`, …)
-    /// per the ARC-060 grammar, or — from a pre-ARC-060 daemon — free
-    /// reason words. Fixed positions mean no trailing token can be
-    /// mistaken for a column; unknown `key=value` tokens are tolerated
-    /// and ignored, and only `reason=` is consumed.
+    /// (`reason=<standard base64>`, `telemetry=`, `host_telemetry=`,
+    /// `last_input_at=<epoch-ms>`, `stalled=1`, …) per the ARC-060
+    /// grammar, or — from a pre-ARC-060 daemon — free reason words. Fixed
+    /// positions mean no trailing token can be mistaken for a column;
+    /// unknown `key=value` tokens are tolerated and ignored; `reason=`,
+    /// `last_input_at=`, and `stalled=` are consumed. Tokens from a
+    /// daemon that lacks them are simply absent, and their fields stay
+    /// `None` — an old daemon's rows parse exactly as before.
     pub fn parse_list_line(line: &str) -> Option<Self> {
         use base64::Engine as _;
         use base64::engine::general_purpose::STANDARD;
@@ -89,6 +102,8 @@ impl AgentEntry {
         let state = parts.next()?.to_string();
         let source = AgentSource::parse(parts.next()?)?;
         let mut reason = None;
+        let mut last_input_at = None;
+        let mut stalled = None;
         let mut words: Vec<&str> = Vec::new();
         for token in parts {
             if let Some(encoded) = token.strip_prefix("reason=") {
@@ -99,6 +114,18 @@ impl AgentEntry {
                         None
                     }
                 };
+            } else if let Some(value) = token.strip_prefix("last_input_at=") {
+                last_input_at = match value.parse() {
+                    Ok(ms) => Some(ms),
+                    Err(e) => {
+                        log::warn!("[MUX] unparseable last_input_at token {token:?}: {e}");
+                        None
+                    }
+                };
+            } else if let Some(value) = token.strip_prefix("stalled=") {
+                // The daemon derives only `stalled=1`; `0` and unknown
+                // values degrade to their truth rather than dropping the row.
+                stalled = Some(value == "1");
             } else if !token.contains('=') {
                 words.push(token);
             }
@@ -112,6 +139,8 @@ impl AgentEntry {
             state,
             source,
             reason,
+            last_input_at,
+            stalled,
         })
     }
 
@@ -144,6 +173,9 @@ impl AgentEntry {
             state: state.to_string(),
             source: AgentSource::parse(source)?,
             reason,
+            // The push grammar carries no presence tokens.
+            last_input_at: None,
+            stalled: None,
         })
     }
 }
@@ -306,6 +338,38 @@ mod tests {
         assert_eq!(entry.state, "working");
         assert_eq!(entry.source, AgentSource::Hook);
         assert_eq!(entry.reason, None);
+    }
+
+    /// Core 0.72 presence tokens parse into their fields and leave the
+    /// row intact; the other 0.72 tokens (`last_activity_at=`,
+    /// `last_report_at=`, `ws=`) ride the tolerate-unknown path.
+    #[test]
+    fn presence_tokens_parse_into_the_entry() {
+        let entry = AgentEntry::parse_list_line(
+            "%8 pi working hook last_activity_at=1730000000000 last_input_at=1730000001000 stalled=1",
+        )
+        .unwrap();
+        assert_eq!(entry.last_input_at, Some(1_730_000_001_000));
+        assert_eq!(entry.stalled, Some(true));
+        assert_eq!(entry.reason, None);
+
+        // Absent tokens leave the fields None — the stale-daemon shape.
+        let bare = AgentEntry::parse_list_line("%8 pi working hook").unwrap();
+        assert_eq!(bare.last_input_at, None);
+        assert_eq!(bare.stalled, None);
+
+        // `stalled=0` reads as explicitly not stalled.
+        let not_stalled = AgentEntry::parse_list_line("%8 pi working hook stalled=0").unwrap();
+        assert_eq!(not_stalled.stalled, Some(false));
+    }
+
+    /// A malformed timestamp degrades to None with a warn — the row stays,
+    /// mirroring the undecodable-reason path.
+    #[test]
+    fn malformed_last_input_at_degrades_to_none() {
+        let entry = AgentEntry::parse_list_line("%9 pi working hook last_input_at=nope").unwrap();
+        assert_eq!(entry.last_input_at, None);
+        assert_eq!(entry.state, "working");
     }
 
     #[test]

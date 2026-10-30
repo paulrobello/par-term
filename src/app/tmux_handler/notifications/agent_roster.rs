@@ -69,27 +69,38 @@ impl AgentRoster {
     /// that refreshes an agent still in the same attention state (blocked,
     /// or asking the same question) keeps the last reason from either a
     /// push or `list-agents` — a state change away ends the wait and the
-    /// stale reason goes with it.
+    /// stale reason goes with it. Pushes carry no presence tokens (core
+    /// 0.72 grammar): the fetched row's `last_input_at` stays true, and
+    /// `stalled` survives only while the state is still `working` — the
+    /// only state the daemon derives it for — so a push away from
+    /// `working` ends the stall.
     pub(crate) fn apply_push(&mut self, mut entry: AgentEntry) {
-        let finished = self.entries.get(&entry.pane).is_some_and(|prev| {
+        let prev = self.entries.get(&entry.pane);
+        let finished = prev.as_ref().is_some_and(|prev| {
             prev.state.eq_ignore_ascii_case("working") && entry.state.eq_ignore_ascii_case("idle")
         });
         if finished {
             self.done_unseen.insert(entry.pane);
         }
         if entry.reason.is_none()
-            && self
-                .entries
-                .get(&entry.pane)
+            && prev
+                .as_ref()
                 .is_some_and(|prev| prev.state.eq_ignore_ascii_case(&entry.state))
             && (entry.state.eq_ignore_ascii_case("blocked")
                 || entry.state.eq_ignore_ascii_case("question"))
         {
-            entry.reason = self
-                .entries
-                .get(&entry.pane)
-                .and_then(|prev| prev.reason.clone());
+            entry.reason = prev.as_ref().and_then(|prev| prev.reason.clone());
         }
+        if entry.last_input_at.is_none() {
+            entry.last_input_at = prev.as_ref().and_then(|prev| prev.last_input_at);
+        }
+        entry.stalled = if entry.state.eq_ignore_ascii_case("working") {
+            entry
+                .stalled
+                .or(prev.as_ref().and_then(|prev| prev.stalled))
+        } else {
+            None
+        };
         self.entries.insert(entry.pane, entry);
     }
 
@@ -168,35 +179,48 @@ impl AgentRoster {
     /// `\u{1f465} 2 blocked, 1~ working`. States are grouped verbatim (nothing
     /// inferred), ordered by count desc then state asc for determinism. A `~`
     /// marks scrape-sourced counts (detected, not reported) — one character
-    /// per affected group; mixed groups split as `2+1~`. `None` hides the
-    /// widget (empty roster / no mux session). `visible` scopes the count to
-    /// the attached session (see the module doc: the cache is cross-session,
-    /// the surfaces are not).
+    /// per affected group; mixed groups split as `2+1~`. The daemon's
+    /// derived `stalled` flag (core 0.72: a `working` agent with no
+    /// activity for five minutes) groups the entry as `stalled` — a hung
+    /// agent is not a finished one, so the flag outranks a lingering
+    /// done-unseen mark — and a group holding a client-driven pane (the
+    /// row's `last_input_at`, core 0.72) gains the nerd keyboard marker
+    /// after its count. `None` hides the widget (empty roster / no mux
+    /// session). `visible` scopes the count to the attached session (see
+    /// the module doc: the cache is cross-session, the surfaces are not).
     pub(crate) fn summary_line(&self, visible: &dyn Fn(TmuxPaneId) -> bool) -> Option<String> {
-        let mut groups: std::collections::BTreeMap<&str, (u32, u32)> =
+        let mut groups: std::collections::BTreeMap<&str, (u32, u32, bool)> =
             std::collections::BTreeMap::new();
         for entry in self.iter().filter(|e| visible(e.pane)) {
             // done-unseen renders as its own group, herdr-style — the
-            // "who owes you a look" count the widget exists for.
-            let state = if self.shows_done_unseen(entry.pane) {
+            // "who owes you a look" count the widget exists for. The
+            // derived stalled flag outranks it: a hung agent is not a
+            // finished one.
+            let state = if entry.stalled == Some(true) {
+                "stalled"
+            } else if self.shows_done_unseen(entry.pane) {
                 "done"
             } else {
                 entry.state.as_str()
             };
-            let counts = groups.entry(state).or_insert((0, 0));
+            let counts = groups.entry(state).or_insert((0, 0, false));
             match entry.source {
                 AgentSource::Hook => counts.0 += 1,
                 AgentSource::Scrape => counts.1 += 1,
             }
+            counts.2 |= entry.last_input_at.is_some();
         }
         let mut parts: Vec<(u32, &str, String)> = groups
             .into_iter()
-            .map(|(state, (hook, scrape))| {
-                let count_text = match (hook, scrape) {
+            .map(|(state, (hook, scrape, driven))| {
+                let mut count_text = match (hook, scrape) {
                     (hook, 0) => hook.to_string(),
                     (0, scrape) => format!("{scrape}~"),
                     (hook, scrape) => format!("{hook}+{scrape}~"),
                 };
+                if driven {
+                    count_text.push('\u{f11c}');
+                }
                 (hook + scrape, state, count_text)
             })
             .collect();
@@ -222,9 +246,14 @@ impl AgentRoster {
 
     /// Multi-line hover text for the status-bar widget: one line per agent
     /// with pane, state, and provenance ("reported" = hook claim, "detected"
-    /// = scrape guess), plus the reason when the wire carries one. `None`
-    /// hides the tooltip. `visible` scopes the lines to the attached
-    /// session, like [`Self::summary_line`].
+    /// = scrape guess), plus the reason when the wire carries one. The
+    /// daemon's derived `stalled` flag (core 0.72) renders the state word
+    /// `stalled`, outranking a lingering done-unseen mark exactly as in
+    /// [`Self::summary_line`]; a client-driven row (the `last_input_at`
+    /// token, core 0.72) adds `· human input`. A stale daemon's rows carry
+    /// neither token and render exactly as before. `None` hides the
+    /// tooltip. `visible` scopes the lines to the attached session, like
+    /// [`Self::summary_line`].
     pub(crate) fn tooltip_text(&self, visible: &dyn Fn(TmuxPaneId) -> bool) -> Option<String> {
         let lines: Vec<String> = self
             .iter()
@@ -234,7 +263,9 @@ impl AgentRoster {
                     AgentSource::Hook => "reported",
                     AgentSource::Scrape => "detected",
                 };
-                let state = if self.shows_done_unseen(entry.pane) {
+                let state = if entry.stalled == Some(true) {
+                    "stalled"
+                } else if self.shows_done_unseen(entry.pane) {
                     "done (unseen)"
                 } else {
                     entry.state.as_str()
@@ -243,6 +274,9 @@ impl AgentRoster {
                     "{} · {} · {} (pane {})",
                     entry.agent, state, source, entry.pane
                 );
+                if entry.last_input_at.is_some() {
+                    line.push_str(" · human input");
+                }
                 if let Some(reason) = entry.reason.as_ref() {
                     line.push_str(&format!(" — {reason}"));
                 }
@@ -333,6 +367,10 @@ mod tests {
             state: state.to_string(),
             source,
             reason: None,
+            // The stale-daemon shape: no presence tokens, rendering
+            // exactly as before core 0.72.
+            last_input_at: None,
+            stalled: None,
         }
     }
 
@@ -562,6 +600,139 @@ mod tests {
         );
     }
 
+    /// Core 0.72's derived `stalled` flag groups the entry as `stalled`,
+    /// apart from plain `working`, and outranks a lingering done-unseen
+    /// mark — a hung agent is not a finished one.
+    #[test]
+    fn stalled_groups_separately_and_outranks_a_lingering_done_mark() {
+        let mut roster = AgentRoster::new();
+        roster.apply_push(entry(0, "kimi", "working", AgentSource::Hook));
+        roster.apply_push(entry(0, "kimi", "idle", AgentSource::Hook));
+        // The agent starts working again and hangs: the done-unseen mark
+        // from the earlier finish lingers in the set, but stalled renders.
+        roster.apply_push(AgentEntry {
+            stalled: Some(true),
+            ..entry(0, "kimi", "working", AgentSource::Hook)
+        });
+        assert_eq!(
+            roster.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 1 stalled"),
+            "stalled is its own group, not done and not working"
+        );
+        assert!(
+            roster
+                .tooltip_text(&all_panes)
+                .is_some_and(|t| t.contains("kimi · stalled · reported (pane 0)")),
+            "the hover names the stall"
+        );
+
+        // A plain working agent stays in the working group.
+        roster.fill_from_list(vec![
+            entry(1, "claude", "working", AgentSource::Hook),
+            AgentEntry {
+                stalled: Some(true),
+                ..entry(0, "pi", "working", AgentSource::Hook)
+            },
+        ]);
+        assert_eq!(
+            roster.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 1 stalled, 1 working")
+        );
+    }
+
+    /// A client-driven pane (the row's `last_input_at`) marks its group's
+    /// count with the nerd keyboard glyph; rows without the token — a
+    /// stale daemon's — render exactly as before.
+    #[test]
+    fn human_driven_rows_carry_the_keyboard_marker() {
+        assert!(
+            crate::settings_ui::nerd_font::nerd_font_covers('\u{f11c}'),
+            "the driven marker must be a carried nerd glyph"
+        );
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![
+            AgentEntry {
+                last_input_at: Some(1_730_000_000_000),
+                ..entry(0, "kimi", "working", AgentSource::Hook)
+            },
+            entry(1, "claude", "blocked", AgentSource::Hook),
+        ]);
+        assert_eq!(
+            roster.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 1 blocked, 1\u{f11c} working"),
+            "only the group holding the driven pane is marked"
+        );
+
+        // Two same-state agents where one is driven: the marker is
+        // group-coarse, like the scrape `~` marker beside it.
+        roster.fill_from_list(vec![
+            AgentEntry {
+                last_input_at: Some(1_730_000_000_000),
+                ..entry(0, "kimi", "working", AgentSource::Hook)
+            },
+            entry(1, "claude", "working", AgentSource::Hook),
+        ]);
+        assert_eq!(
+            roster.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 2\u{f11c} working")
+        );
+
+        // A stale daemon's rows (no token) render with no marker at all.
+        let mut stale = AgentRoster::new();
+        stale.fill_from_list(vec![entry(0, "kimi", "working", AgentSource::Hook)]);
+        assert_eq!(
+            stale.summary_line(&all_panes).as_deref(),
+            Some("\u{1f465} 1 working")
+        );
+    }
+
+    /// The hover line names the stall and the human input distinctly; a
+    /// stale daemon's rows (no tokens) gain neither suffix.
+    #[test]
+    fn tooltip_marks_stalled_and_human_input() {
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![
+            AgentEntry {
+                stalled: Some(true),
+                last_input_at: Some(1),
+                ..entry(0, "pi", "working", AgentSource::Hook)
+            },
+            entry(1, "claude", "blocked", AgentSource::Hook),
+        ]);
+        assert_eq!(
+            roster.tooltip_text(&all_panes).as_deref(),
+            Some(
+                "pi · stalled · reported (pane 0) · human input\n\
+                 claude · blocked · reported (pane 1)"
+            )
+        );
+    }
+
+    /// Pushes carry no presence tokens: the fetched row's `last_input_at`
+    /// survives a token-less push, and `stalled` ends the moment the state
+    /// leaves `working` (the only state the daemon derives it for).
+    #[test]
+    fn push_keeps_presence_and_ends_the_stall_off_working() {
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![AgentEntry {
+            stalled: Some(true),
+            last_input_at: Some(7),
+            ..entry(0, "kimi", "working", AgentSource::Hook)
+        }]);
+        // A blocked push: the stall is over, the input history stays.
+        roster.apply_push(entry(0, "kimi", "blocked", AgentSource::Hook));
+        let rendered = roster.iter().next().unwrap();
+        assert_eq!(rendered.stalled, None, "stalled is working-scoped");
+        assert_eq!(rendered.last_input_at, Some(7));
+
+        // Back to working, then finished: the stall stays gone.
+        roster.apply_push(entry(0, "kimi", "working", AgentSource::Hook));
+        roster.apply_push(entry(0, "kimi", "idle", AgentSource::Hook));
+        let rendered = roster.iter().next().unwrap();
+        assert_eq!(rendered.stalled, None);
+        assert_eq!(rendered.last_input_at, Some(7));
+    }
+
     #[test]
     fn tooltip_lists_provenance_and_reason() {
         let mut roster = AgentRoster::new();
@@ -572,6 +743,8 @@ mod tests {
             state: "blocked".to_string(),
             source: AgentSource::Scrape,
             reason: Some("waiting on approval".to_string()),
+            last_input_at: None,
+            stalled: None,
         });
         assert_eq!(
             roster.tooltip_text(&all_panes).as_deref(),
@@ -619,6 +792,8 @@ mod tests {
             state: "blocked".to_string(),
             source: AgentSource::Scrape,
             reason: Some("waiting on approval".to_string()),
+            last_input_at: None,
+            stalled: None,
         });
         let rows = roster.palette_rows(&all_panes);
         // Blocked row leads; scrape marker and reason both render; hook rows
