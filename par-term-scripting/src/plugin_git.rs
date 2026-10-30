@@ -20,6 +20,11 @@
 //!   rewrite upstream is refused, never reset — the trust model rests on the
 //!   user reading plugin code before enabling it, and a reset would silently
 //!   discard exactly that (decision D3).
+//! - Revision pinning (SEC-005): `add` records the commit it installed in
+//!   `.git/`, `update_fetch` refuses when HEAD no longer matches that record
+//!   and records the exact commit whose diff it showed, and `update_apply`
+//!   fast-forwards to that reviewed commit without fetching again, so code
+//!   pushed after the review never lands unseen.
 //! - `remove` only touches directories `add` could have created: a `.git`
 //!   directory WITH an `origin` remote. A hand-copied plugin (no `.git`) and
 //!   a bare `git init` (no remote) are both refused.
@@ -35,7 +40,7 @@ use crate::manifest::{DiscoveredPlugin, PluginManifest, validate_plugin_dir};
 /// repository; the point is that no git invocation can hang the caller
 /// forever.
 const CLONE_TIMEOUT: Duration = Duration::from_secs(180);
-/// Deadline for `git fetch` / `git pull`.
+/// Deadline for `git fetch` / the fast-forward `git merge`.
 const FETCH_TIMEOUT: Duration = Duration::from_secs(60);
 const PULL_TIMEOUT: Duration = Duration::from_secs(60);
 /// Deadline for diff/stat-producing invocations.
@@ -44,6 +49,10 @@ const DIFF_TIMEOUT: Duration = Duration::from_secs(30);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 /// How often the bounded runner re-checks whether git has exited.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
+/// Full sha of the commit par-term installed, under the plugin's `.git/`.
+const INSTALLED_COMMIT_FILE: &str = "par-term-installed-commit";
+/// Full sha of the fetched commit whose diff the user was shown.
+const REVIEWED_COMMIT_FILE: &str = "par-term-reviewed-commit";
 
 /// A fetched-but-not-applied update, for display before the fast-forward
 /// runs.
@@ -136,15 +145,96 @@ fn stage_into_place(root: &Path, staging: &Path) -> Result<DiscoveredPlugin, Str
     // Full validation runs on the final path only — validate_plugin_dir
     // requires the directory name to equal the manifest id, which is not
     // true of the staging name.
-    match validate_plugin_dir(&final_dir) {
-        Ok(plugin) => Ok(plugin),
-        Err(reason) => {
-            // Never leave behind a plugin that would only ever surface as a
-            // discovery warning.
-            let _ = std::fs::remove_dir_all(&final_dir);
-            Err(format!("cloned plugin failed validation: {reason}"))
+    let installed = validate_plugin_dir(&final_dir)
+        .map_err(|reason| format!("cloned plugin failed validation: {reason}"))
+        .and_then(|plugin| {
+            let head = head_commit(&final_dir)?;
+            write_commit_record(&final_dir, INSTALLED_COMMIT_FILE, &head)?;
+            Ok(plugin)
+        });
+    if installed.is_err() {
+        // Never leave behind a plugin that would only ever surface as a
+        // discovery warning, or one without its installed-commit record.
+        let _ = std::fs::remove_dir_all(&final_dir);
+    }
+    installed
+}
+
+/// Full sha of HEAD in `dir`.
+fn head_commit(dir: &Path) -> Result<String, String> {
+    run_git_ok(
+        Some(dir),
+        &["rev-parse", "--verify", "HEAD^{commit}"],
+        READ_TIMEOUT,
+        "git rev-parse HEAD",
+    )
+}
+
+/// Short form of `commit` for display.
+fn short_commit(dir: &Path, commit: &str) -> Result<String, String> {
+    run_git_ok(
+        Some(dir),
+        &["rev-parse", "--short", commit],
+        READ_TIMEOUT,
+        "git rev-parse --short",
+    )
+}
+
+fn commit_record_path(dir: &Path, name: &str) -> std::path::PathBuf {
+    dir.join(".git").join(name)
+}
+
+fn write_commit_record(dir: &Path, name: &str, commit: &str) -> Result<(), String> {
+    let path = commit_record_path(dir, name);
+    std::fs::write(&path, format!("{commit}\n"))
+        .map_err(|e| format!("failed to record commit in {}: {e}", path.display()))
+}
+
+/// The recorded commit, or `None` when there is no record. A record that is
+/// not a hex object id is an error, never silently ignored.
+fn read_commit_record(dir: &Path, name: &str) -> Result<Option<String>, String> {
+    let path = commit_record_path(dir, name);
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(raw) => raw,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("cannot read {}: {e}", path.display())),
+    };
+    let commit = raw.trim();
+    if commit.len() < 40 || !commit.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(format!(
+            "{} does not hold a commit id; remove and re-add the plugin",
+            path.display()
+        ));
+    }
+    Ok(Some(commit.to_string()))
+}
+
+/// Refuse when HEAD is not the commit par-term installed: the plugin's code
+/// changed outside `plugin add`/`update`, so a diff against HEAD would not
+/// show the user what changed since they last reviewed it. Plugins installed
+/// before the record existed get one now (trust on first update).
+fn verify_installed_commit(dir: &Path) -> Result<String, String> {
+    let head = head_commit(dir)?;
+    match read_commit_record(dir, INSTALLED_COMMIT_FILE)? {
+        Some(recorded) if recorded == head => {}
+        Some(recorded) => {
+            return Err(format!(
+                "{}: HEAD is {head} but par-term installed {recorded}. The plugin's code \
+                 changed outside plugin add/update, so the update was refused and nothing \
+                 was changed. Review the plugin directory, then remove and re-add it.",
+                dir.display()
+            ));
+        }
+        None => {
+            log::warn!(
+                "plugin {} has no installed-commit record (installed before revision \
+                 pinning); recording current HEAD {head}",
+                dir.display()
+            );
+            write_commit_record(dir, INSTALLED_COMMIT_FILE, &head)?;
         }
     }
+    Ok(head)
 }
 
 /// Fetch upstream for a git-installed plugin and describe what applying
@@ -152,6 +242,9 @@ fn stage_into_place(root: &Path, staging: &Path) -> Result<DiscoveredPlugin, Str
 /// the fast-forward runs.
 pub fn update_fetch(dir: &Path) -> Result<UpdatePreview, String> {
     require_installed(dir)?;
+    let head = verify_installed_commit(dir)?;
+    // A stale review from an earlier fetch must never be applied.
+    let _ = std::fs::remove_file(commit_record_path(dir, REVIEWED_COMMIT_FILE));
     let branch = run_git_ok(
         Some(dir),
         &["rev-parse", "--abbrev-ref", "HEAD"],
@@ -160,19 +253,15 @@ pub fn update_fetch(dir: &Path) -> Result<UpdatePreview, String> {
     )?;
     let fetch_args = ["fetch", "--quiet", "origin", branch.as_str()];
     run_git_ok(Some(dir), &fetch_args, FETCH_TIMEOUT, "git fetch")?;
-    let current = run_git_ok(
+    let fetched = run_git_ok(
         Some(dir),
-        &["rev-parse", "--short", "HEAD"],
-        READ_TIMEOUT,
-        "git rev-parse HEAD",
-    )?;
-    let incoming = run_git_ok(
-        Some(dir),
-        &["rev-parse", "--short", "FETCH_HEAD"],
+        &["rev-parse", "--verify", "FETCH_HEAD^{commit}"],
         READ_TIMEOUT,
         "git rev-parse FETCH_HEAD",
     )?;
-    if current == incoming {
+    let current = short_commit(dir, &head)?;
+    let incoming = short_commit(dir, &fetched)?;
+    if head == fetched {
         return Ok(UpdatePreview {
             up_to_date: true,
             current,
@@ -180,12 +269,14 @@ pub fn update_fetch(dir: &Path) -> Result<UpdatePreview, String> {
             diff: String::new(),
         });
     }
+    let range = format!("{head}..{fetched}");
     let diff = run_git_ok(
         Some(dir),
-        &["diff", "--stat", "HEAD..FETCH_HEAD"],
+        &["diff", "--stat", range.as_str()],
         DIFF_TIMEOUT,
         "git diff",
     )?;
+    write_commit_record(dir, REVIEWED_COMMIT_FILE, &fetched)?;
     Ok(UpdatePreview {
         up_to_date: false,
         current,
@@ -194,17 +285,31 @@ pub fn update_fetch(dir: &Path) -> Result<UpdatePreview, String> {
     })
 }
 
-/// Fast-forward a git-installed plugin to the fetched upstream. Refuses when
-/// a fast-forward is impossible — never resets. Nothing is changed on
-/// refusal; if upstream rewrote history, removing and re-adding the plugin
-/// is the user's explicit way to take the rewritten version (decision D3).
+/// Fast-forward a git-installed plugin to the commit [`update_fetch`] showed
+/// the user, without fetching again. Refuses when no reviewed commit is
+/// recorded, when HEAD moved since install, or when a fast-forward is
+/// impossible — never resets. Nothing is changed on refusal; if upstream
+/// rewrote history, removing and re-adding the plugin is the user's explicit
+/// way to take the rewritten version (decision D3).
 pub fn update_apply(dir: &Path) -> Result<String, String> {
     require_installed(dir)?;
-    let out = run_git(Some(dir), &["pull", "--ff-only", "--quiet"], PULL_TIMEOUT)?;
+    verify_installed_commit(dir)?;
+    let Some(reviewed) = read_commit_record(dir, REVIEWED_COMMIT_FILE)? else {
+        return Err(format!(
+            "update refused — no reviewed update is recorded for {}, so nothing was \
+             changed. Check for updates first and review the diff.",
+            dir.display()
+        ));
+    };
+    let out = run_git(
+        Some(dir),
+        &["merge", "--ff-only", "--quiet", reviewed.as_str()],
+        PULL_TIMEOUT,
+    )?;
     if !out.status.success() {
         let stderr = out.stderr.trim();
         return Err(format!(
-            "update refused — `git pull --ff-only` failed and nothing was changed. \
+            "update refused — `git merge --ff-only` failed and nothing was changed. \
              If upstream rewrote history, remove and re-add the plugin to take its version. \
              git said: {}{}",
             out.status,
@@ -215,12 +320,10 @@ pub fn update_apply(dir: &Path) -> Result<String, String> {
             }
         ));
     }
-    run_git_ok(
-        Some(dir),
-        &["rev-parse", "--short", "HEAD"],
-        READ_TIMEOUT,
-        "git rev-parse HEAD",
-    )
+    let head = head_commit(dir)?;
+    write_commit_record(dir, INSTALLED_COMMIT_FILE, &head)?;
+    let _ = std::fs::remove_file(commit_record_path(dir, REVIEWED_COMMIT_FILE));
+    short_commit(dir, &head)
 }
 
 /// Remove a git-installed plugin directory. Refuses anything `add` could not
@@ -635,6 +738,101 @@ mod tests {
         let new_head = update_apply(&dir).expect("apply should fast-forward");
         assert_eq!(new_head, preview.incoming);
         assert!(dir.join("feature.txt").exists());
+    }
+
+    fn upstream_commit(fx: &Fixture, file: &str) {
+        fs::write(fx.src.join(file), file).expect("write upstream file");
+        git_ok(&fx.src, &["add", "-A"]);
+        git_commit(&fx.src, file);
+    }
+
+    #[test]
+    fn add_records_the_installed_commit() {
+        let fx = fixture("com.test.panel", PANEL_MANIFEST);
+        add(&fx.root, &file_url(&fx.src)).expect("add should succeed");
+        let dir = installed_plugin(&fx);
+        let recorded = read_commit_record(&dir, INSTALLED_COMMIT_FILE)
+            .expect("record readable")
+            .expect("record written at add");
+        assert_eq!(recorded, git_ok(&dir, &["rev-parse", "HEAD"]));
+        // Kept under .git/, so the plugin's work tree stays clean.
+        assert_eq!(git_ok(&dir, &["status", "--porcelain"]), "");
+    }
+
+    // SEC-005: upstream moving between review and apply must not land code
+    // the user never saw.
+    #[test]
+    fn update_apply_lands_the_reviewed_commit_not_a_later_one() {
+        let fx = fixture("com.test.panel", PANEL_MANIFEST);
+        add(&fx.root, &file_url(&fx.src)).expect("add should succeed");
+        upstream_commit(&fx, "reviewed.txt");
+        let dir = installed_plugin(&fx);
+        let preview = update_fetch(&dir).expect("fetch should succeed");
+
+        upstream_commit(&fx, "unreviewed.txt");
+        let new_head = update_apply(&dir).expect("apply should fast-forward");
+        assert_eq!(new_head, preview.incoming);
+        assert!(dir.join("reviewed.txt").exists());
+        assert!(
+            !dir.join("unreviewed.txt").exists(),
+            "a commit pushed after the review must not be applied"
+        );
+        let recorded = read_commit_record(&dir, INSTALLED_COMMIT_FILE)
+            .expect("record readable")
+            .expect("record present");
+        assert_eq!(recorded, git_ok(&dir, &["rev-parse", "HEAD"]));
+    }
+
+    #[test]
+    fn update_apply_without_a_reviewed_fetch_is_refused() {
+        let fx = fixture("com.test.panel", PANEL_MANIFEST);
+        add(&fx.root, &file_url(&fx.src)).expect("add should succeed");
+        upstream_commit(&fx, "feature.txt");
+        let dir = installed_plugin(&fx);
+        let before = git_ok(&dir, &["rev-parse", "HEAD"]);
+        let err = update_apply(&dir).expect_err("must refuse an unreviewed apply");
+        assert!(
+            err.contains("no reviewed update"),
+            "unexpected error: {err}"
+        );
+        assert_eq!(git_ok(&dir, &["rev-parse", "HEAD"]), before);
+
+        // A review is consumed by the apply that lands it.
+        update_fetch(&dir).expect("fetch should succeed");
+        update_apply(&dir).expect("apply should fast-forward");
+        let err = update_apply(&dir).expect_err("a review applies once");
+        assert!(
+            err.contains("no reviewed update"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn update_fetch_refuses_when_head_moved_outside_plugin_update() {
+        let fx = fixture("com.test.panel", PANEL_MANIFEST);
+        add(&fx.root, &file_url(&fx.src)).expect("add should succeed");
+        let dir = installed_plugin(&fx);
+        fs::write(dir.join("local.txt"), "hand edit").expect("write local file");
+        git_ok(&dir, &["add", "-A"]);
+        git_commit(&dir, "local change");
+
+        let err = update_fetch(&dir).expect_err("must refuse a moved HEAD");
+        assert!(err.contains("changed outside"), "unexpected error: {err}");
+        assert!(err.contains("remove and re-add"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn update_fetch_records_a_missing_install_record_once() {
+        let fx = fixture("com.test.panel", PANEL_MANIFEST);
+        add(&fx.root, &file_url(&fx.src)).expect("add should succeed");
+        let dir = installed_plugin(&fx);
+        // A plugin installed before revision pinning has no record.
+        fs::remove_file(commit_record_path(&dir, INSTALLED_COMMIT_FILE)).expect("drop record");
+        update_fetch(&dir).expect("legacy install still updates");
+        assert_eq!(
+            read_commit_record(&dir, INSTALLED_COMMIT_FILE).expect("readable"),
+            Some(git_ok(&dir, &["rev-parse", "HEAD"]))
+        );
     }
 
     #[test]
