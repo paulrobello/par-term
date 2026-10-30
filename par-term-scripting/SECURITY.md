@@ -53,10 +53,13 @@ because:
 
 2. **Injection through event data**: A malicious terminal sequence (from `cat`
    of a hostile file) could produce a `TriggerMatched` or `CwdChanged` event
-   whose payload is forwarded to the script via `ScriptEvent`. A poorly written
-   script could then reflect that data back as a `RunCommand` or `WriteText`
-   payload. This is analogous to the terminal-injection risk documented in the
-   trigger security model (`src/app/triggers.rs`).
+   whose payload is forwarded to the script via `ScriptEvent`. (`TriggerMatched`
+   is the external core's `par_term_emu_core_rust::terminal::TerminalEvent::TriggerMatched`;
+   `par-term-scripting/src/observer.rs` maps it to `ScriptEventData::TriggerMatched`.)
+   A poorly written script could then reflect that data back as a `RunCommand`
+   or `WriteText` payload. This is analogous to the terminal-injection risk
+   documented in the trigger security model (the module documentation of
+   `src/app/triggers/mod.rs`).
 
 3. **Compromised scripts**: A script may be modified after initial deployment
    (e.g., via a writable file on a shared filesystem). The terminal cannot
@@ -172,11 +175,15 @@ pub run_command_rate_limit: u32,
 
 ---
 
-## Dispatcher Security Gate (window_manager.rs)
+## Dispatcher Security Gate (window_manager/scripting)
 
-The command dispatcher in `src/app/window_manager.rs` (the match on
-`ScriptCommand` variants) must enforce the following checks before `WriteText`
-and `RunCommand` are implemented:
+The command dispatcher lives in `src/app/window_manager/scripting/mod.rs`:
+`sync_script_running_state` matches on the `ScriptCommand` variants and queues
+`WriteText` and `RunCommand` as pending actions that are permission-checked in
+a second pass (the `RunCommand` gate checks `allow_run_command` and
+`check_command_denylist` there), and `src/app/window_manager/scripting/write_text.rs`
+holds the `WriteText` confirmation queue (`queue_script_write_text`). The
+dispatcher must enforce the following checks for `WriteText` and `RunCommand`:
 
 ```
 ScriptCommand::WriteText { text } =>
@@ -201,10 +208,11 @@ ScriptCommand::RunCommand { command } =>
 
 ## Relationship to Trigger Security Model
 
-The trigger security model (`src/app/triggers.rs`) addresses the same
-`RunCommand` / `SendText` concerns for trigger-fired actions:
+The trigger security model (the module documentation of `src/app/triggers/mod.rs`)
+addresses the same `RunCommand` / `SendText` concerns for trigger-fired actions:
 
-- `require_user_action` flag (default `true`) blocks dangerous trigger actions.
+- `prompt_before_run` flag (default `true`; formerly `require_user_action`, still
+  accepted as an alias) queues dangerous trigger actions for confirmation.
 - `check_command_denylist()` from `par-term-config` blocks known-bad patterns.
 - Per-trigger rate limiting prevents flooding.
 
