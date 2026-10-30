@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 use crate::config::Config;
-use crate::tab::{LivenessPolling, build_shell_env, spawn_refresh_task};
+use crate::tab::{build_shell_env, spawn_refresh_task};
 
 use super::pane::Pane;
 
@@ -145,8 +145,6 @@ impl Pane {
         active_fps: u32,
         inactive_fps: u32,
     ) {
-        // Pane loops redraw on output only; only the tab loop watches for a
-        // silent child death (f5ebe1d0).
         self.refresh_task = Some(spawn_refresh_task(
             &runtime,
             Arc::clone(&self.terminal),
@@ -154,7 +152,6 @@ impl Pane {
             window,
             active_fps,
             inactive_fps,
-            LivenessPolling::Off,
         ));
     }
 

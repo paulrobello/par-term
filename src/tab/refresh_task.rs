@@ -16,20 +16,13 @@ use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
-/// Whether a refresh loop also watches the child process for a silent death.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LivenessPolling {
-    /// Redraw once on the running→dead edge (see [`refresh_redraw_on_death`]).
-    RedrawOnDeath,
-    /// Redraw only when the terminal's update generation advances.
-    Off,
-}
-
 /// Spawn the adaptive refresh polling loop for one terminal.
 ///
 /// Sleeps one active-FPS interval while `is_active` is set, otherwise the
 /// inactive interval with exponential backoff (capped at 250 ms) while idle,
-/// and requests a redraw whenever the terminal's update generation advances.
+/// requests a redraw whenever the terminal's update generation advances,
+/// and redraws once when the terminal's child dies without output (the
+/// shell-exit handling runs in RedrawRequested).
 pub(crate) fn spawn_refresh_task(
     runtime: &Runtime,
     terminal: Arc<RwLock<TerminalManager>>,
@@ -37,7 +30,6 @@ pub(crate) fn spawn_refresh_task(
     window: Arc<winit::window::Window>,
     active_fps: u32,
     inactive_fps: u32,
-    liveness: LivenessPolling,
 ) -> JoinHandle<()> {
     let active_interval_ms = (1000 / active_fps.max(1)) as u64;
     let inactive_interval_ms = (1000 / inactive_fps.max(1)) as u64;
@@ -74,10 +66,8 @@ pub(crate) fn spawn_refresh_task(
                 // frozen frame. Redraw once on the running→dead edge;
                 // poll_liveness asks the OS while the flag lags the real
                 // child.
-                let died = liveness == LivenessPolling::RedrawOnDeath && {
-                    let running = term.poll_liveness();
-                    refresh_redraw_on_death(&mut was_running, running)
-                };
+                let running = term.poll_liveness();
+                let died = refresh_redraw_on_death(&mut was_running, running);
                 gen_changed || died
             } else {
                 // Lock miss: keep the previous liveness state so a
@@ -113,7 +103,6 @@ impl Tab {
             window,
             active_fps,
             inactive_fps,
-            LivenessPolling::RedrawOnDeath,
         ));
     }
 
