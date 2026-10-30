@@ -331,8 +331,8 @@ impl WindowState {
         // Mux pane drop: upload through the daemon's upload verbs instead
         // of pasting the local path — the path only means something on the
         // daemon's host, and the upload works for remote daemons too.
-        // False here means "not a daemon pane": the path-paste behavior
-        // below stays the gateway/local answer.
+        // False also covers daemons predating uploads: use the existing
+        // path-paste behavior below.
         #[cfg(feature = "mux")]
         if self.upload_dropped_file_to_mux(&path) {
             self.request_redraw();
@@ -422,6 +422,13 @@ impl WindowState {
         let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
             return false;
         };
+        // The upload verbs are daemon core 0.68+ (the attach sequence
+        // records the verdict in `mux_file_transfer_supported`). An older
+        // daemon errors the upload, so return false — the caller falls
+        // through to the paste-path behavior a non-mux pane has.
+        if !self.tmux_state.mux_file_transfer_supported {
+            return false;
+        }
         transport.submit_job(MuxJob::UploadFile {
             pane,
             path: path.to_path_buf(),

@@ -172,6 +172,9 @@ pub(crate) struct TmuxState {
     /// asked once, lazily): whether it advertises `client-snapshot v1`.
     /// `None` until probed; reset with the transport on attach and detach.
     pub(crate) mux_snapshot_supported: Option<bool>,
+    /// File-transfer support from the attached daemon's version (core 0.68+).
+    /// Unknown versions degrade to paste-path, never a failed upload.
+    pub(crate) mux_file_transfer_supported: bool,
     /// Replayed screens awaiting their pane mapping (reattach seeding:
     /// `refresh-client -t` replies, applied once the layout consumers
     /// create the panes)
@@ -309,6 +312,7 @@ impl TmuxState {
             mux_focused_pane: None,
             mux_session_id: None,
             mux_snapshot_supported: None,
+            mux_file_transfer_supported: false,
             mux_screen_seeds: std::collections::HashMap::new(),
             mux_graphics_osc: std::collections::HashMap::new(),
             mux_pane_titles: std::collections::HashMap::new(),

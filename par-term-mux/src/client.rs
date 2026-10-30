@@ -294,6 +294,37 @@ pub fn check_daemon_version(daemon_reply: &str, client_stamp: &str) -> VersionCh
     }
 }
 
+/// The daemon version the file-transfer verbs (`upload-begin`/`chunk`/
+/// `upload-commit`) arrived in.
+const FILE_TRANSFER_MIN_DAEMON_VERSION: [u64; 3] = [0, 68, 0];
+
+/// Whether a daemon answering `daemon_reply` — the raw `version` reply,
+/// `<version>+<sha>` — supports the file-transfer verbs (core 0.68+).
+///
+/// A reply that is missing, not stamp-shaped, or carries a version below
+/// [`FILE_TRANSFER_MIN_DAEMON_VERSION`] answers false: the drop handler's
+/// paste-path fallback is the safe degradation, so anything unprovable
+/// counts as unsupported.
+pub fn daemon_supports_file_transfer(daemon_reply: &str) -> bool {
+    let Some((version, sha)) = daemon_reply.split_once('+') else {
+        return false;
+    };
+    if sha.is_empty() {
+        return false;
+    }
+    let mut parts = version.split('.');
+    let parsed = (|| {
+        Some([
+            parts.next()?.parse::<u64>().ok()?,
+            parts.next()?.parse::<u64>().ok()?,
+            parts.next()?.parse::<u64>().ok()?,
+        ])
+    })();
+    parsed.is_some_and(|version| {
+        parts.next().is_none() && version >= FILE_TRANSFER_MIN_DAEMON_VERSION
+    })
+}
+
 /// Build the `send-keys -l` command for `text`, quoted as one shell word
 /// (`'\''` for embedded quotes) so the daemon's tokenizer delivers it
 /// byte-for-byte.
@@ -320,6 +351,29 @@ fn enabled_sync() -> TmuxSync {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn file_transfer_support_starts_at_core_0_68() {
+        for supported in [
+            "0.68.0+abc1234",
+            "0.68.0+unknown",
+            "0.69.0+sha",
+            "1.0.0+sha",
+        ] {
+            assert!(daemon_supports_file_transfer(supported), "{supported}");
+        }
+        for unsupported in [
+            "",
+            "unknown command: version",
+            "0+sha",
+            "0.67.99+sha",
+            "0.68.0",
+            "unknown+sha",
+            "0.68.0-rc.1+sha",
+        ] {
+            assert!(!daemon_supports_file_transfer(unsupported), "{unsupported}");
+        }
+    }
 
     #[test]
     fn same_stamp_matches_and_unknown_sha_pairs_are_inconclusive() {

@@ -360,6 +360,13 @@ impl WindowState {
                         ));
                     }
                 }
+                // File-transfer verbs arrived in daemon core 0.68: an
+                // older (or unprovable) daemon degrades drops to the
+                // paste-path fallback instead of a failed upload.
+                self.tmux_state.mux_file_transfer_supported =
+                    par_term_mux::daemon_supports_file_transfer(
+                        daemon_version.as_deref().unwrap_or(""),
+                    );
                 for window_id in &existing_windows {
                     if self.tmux_state.tmux_sync.get_tab(*window_id).is_none() {
                         self.handle_tmux_window_add(*window_id);
@@ -460,6 +467,7 @@ impl WindowState {
         }
         // Mux-only state the shared cleanup below does not know about.
         self.tmux_state.mux_snapshot_supported = None;
+        self.tmux_state.mux_file_transfer_supported = false;
         self.tmux_state.mux_focused_pane = None;
         self.tmux_state.mux_screen_seeds.clear();
         self.tmux_state.mux_graphics_osc.clear();
