@@ -11,3 +11,6 @@ mod focus;
 mod handle_window_event;
 mod shell_exit;
 mod shell_integration;
+mod window_event_display;
+mod window_event_pointer;
+mod window_event_theme;
