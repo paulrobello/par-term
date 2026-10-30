@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration completions-install install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-window-state-budget check-terminology check-nomux docs-settings coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check check-all typecheck clean fmt lint checkall checkall-ci ci with-local-core secret-scan install install-shell-integration completions-install install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-window-state-budget check-terminology check-nomux docs-settings coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -196,10 +196,12 @@ check:
 	@echo "Checking code..."
 	cargo check
 
-# Check all targets
-check-all:
-	@echo "Checking all targets..."
-	cargo check --all-targets
+# DEPRECATED alias for `checkall` (AUDIT.md ARC-009). It used to run
+# `cargo check --all-targets`, which the clippy `--all-targets` passes in
+# `lint` already cover. Entry points: `check` (fast type-check), `checkall`
+# (local gate), `checkall-ci` (CI-parity gate).
+check-all: checkall
+	@echo "note: 'make check-all' is deprecated; use 'make checkall'."
 
 # Type-check the entire workspace (alias for cargo check --workspace)
 typecheck:
@@ -413,7 +415,7 @@ pre-commit: secret-scan fmt-check lint test
 	@echo "Pre-commit checks passed!"
 
 # CI checks (what CI would run)
-ci: fmt-check lint-all check-nomux test check-all check-line-counts check-window-state-budget check-terminology
+ci: fmt-check lint-all check-nomux test check-line-counts check-window-state-budget check-terminology
 	@echo "CI checks passed!"
 
 # CI-parity gate: `ci` plus cargo-deny (push-CI's license/vulnerability/ban

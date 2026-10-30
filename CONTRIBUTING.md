@@ -174,13 +174,14 @@ Individual targets:
 | `make lint` | `cargo clippy -- -D warnings` | Lint with warnings treated as errors |
 | `make lint-all` | `cargo clippy --all-targets -- -D warnings` | Lint all targets (bins, tests, examples, benches) |
 | `make check` | `cargo check` | Type-check without producing a binary |
-| `make check-all` | `cargo check --all-targets` | Type-check all targets |
+| `make checkall` | fmt-check + lint + typecheck + test | The fast local gate (`make check-all` is a deprecated alias) |
 
 ### Pre-Commit and CI Targets
 
 ```bash
 make pre-commit    # fmt-check + lint + test — run this locally before pushing
-make ci            # fmt-check + lint-all + test + check-all — equivalent to CI checks
+make ci            # fmt-check + lint-all + check-nomux + test + line-count, budget, and terminology gates
+make checkall-ci   # ci + cargo-deny — the CI-parity gate to pass before pushing
 make all           # fmt + lint + test + build
 ```
 
