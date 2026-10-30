@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration completions-install install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-terminology check-nomux docs-settings coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration completions-install install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts check-window-state-budget check-terminology check-nomux docs-settings coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install bundle-install-local-core run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -86,6 +86,7 @@ help:
 	@echo "  make doc-open    - Generate and open rustdoc in the browser"
 	@echo "  make doc-check   - Validate Markdown links and anchors (requires lychee)"
 	@echo "  make check-line-counts - Enforce the 800-line production file limit"
+	@echo "  make check-window-state-budget - Enforce the frozen WindowState hub budget (ARC-001)"
 	@echo "  make check-terminology - Enforce the UX.md T1-T8 vocabulary in UI text and docs"
 	@echo "  make docs-settings     - Regenerate SETTINGS.md and the CONFIG_REFERENCE.md Settings column"
 	@echo "  make check-nomux       - Type-check the workspace without default features (no par-mux)"
@@ -352,6 +353,18 @@ check-line-counts:
 	@echo "Checking production file line counts..."
 	python3 scripts/check_line_counts.py
 
+# AUDIT.md ARC-001: freeze the WindowState hub. Fails when inherent
+# `impl WindowState` blocks under src/ or fields on the struct exceed the
+# ceilings frozen in scripts/check_window_state_budget.py. New behavior lands
+# as a sub-struct in src/app/window_state/; the ceilings only move down.
+check-window-state-budget:
+	@command -v python3 >/dev/null 2>&1 || { \
+		echo "python3 not found; it is required by scripts/check_window_state_budget.py"; \
+		exit 1; \
+	}
+	@echo "Checking the WindowState hub budget..."
+	python3 scripts/check_window_state_budget.py
+
 # Regenerate docs/features/SETTINGS.md and the Settings column of
 # docs/CONFIG_REFERENCE.md from the Settings layout and search registry. The
 # docs_tests tests fail (in make test) when either file drifts. macOS only:
@@ -400,7 +413,7 @@ pre-commit: secret-scan fmt-check lint test
 	@echo "Pre-commit checks passed!"
 
 # CI checks (what CI would run)
-ci: fmt-check lint-all check-nomux test check-all check-line-counts check-terminology
+ci: fmt-check lint-all check-nomux test check-all check-line-counts check-window-state-budget check-terminology
 	@echo "CI checks passed!"
 
 # CI-parity gate: `ci` plus cargo-deny (push-CI's license/vulnerability/ban

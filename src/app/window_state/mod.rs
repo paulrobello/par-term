@@ -13,13 +13,11 @@
 //! `notifications.rs`.
 //!
 //! What remains is a wide field list plus an `impl WindowState` surface spread across
-//! most of `src/app/`. No process maintains a count here, so re-measure before acting
-//! on this note instead of trusting a number written into it:
-//!
-//! ```text
-//! grep -rc '^impl WindowState' --include='*.rs' src/ | awk -F: '{s+=$2} END {print s}'
-//! grep -rl '^impl WindowState' --include='*.rs' src/ | wc -l
-//! ```
+//! most of `src/app/`. Both are frozen by `make check-window-state-budget`
+//! (`scripts/check_window_state_budget.py`, AUDIT.md ARC-001, run by `make ci`): it
+//! prints the current counts and fails when either grows past its ceiling. New state
+//! and behavior belong in a sub-struct here, not in another field or `impl WindowState`
+//! block.
 //!
 //! The remaining work is deferred to a future session:
 //!

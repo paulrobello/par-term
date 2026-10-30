@@ -30,7 +30,7 @@ make test           # Run all tests
 make test-one TEST=test_name  # Run specific test
 make all            # Format, lint, test, and build
 make pre-commit     # Run pre-commit checks (secret-scan, fmt-check, lint, test)
-make ci             # Full CI checks (fmt-check, lint-all, check-nomux, test, check-all, check-line-counts, check-terminology)
+make ci             # Full CI checks (fmt-check, lint-all, check-nomux, test, check-all, check-line-counts, check-window-state-budget, check-terminology)
 make fmt            # Format code with rustfmt
 make lint           # Run clippy
 make typecheck      # Type-check entire workspace (cargo check --workspace)
@@ -39,6 +39,7 @@ make checkall-ci    # CI-parity gate: `ci` + cargo-deny — the gate that must p
 make doc-check      # Validate markdown links and anchors (needs lychee)
 make docs-settings  # Regenerate the CONFIG_REFERENCE.md settings tables (GENERATED — never hand-edit; the settings-ui doc-freshness test fails on drift)
 make check-line-counts  # Fail on production .rs files over 800 lines (warn over 500)
+make check-window-state-budget  # Fail when WindowState's impl-block or field count exceeds its frozen ceiling (AUDIT.md ARC-001)
 make check-nomux    # cargo check --workspace --no-default-features (the no-mux build; only ci and push CI run it)
 make check-terminology  # UX.md T1-T8 vocabulary gate: "session" only means a par-mux/tmux session in UI text and docs
 cargo test -- --include-ignored  # Run all tests including PTY-dependent ones
