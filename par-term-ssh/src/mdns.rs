@@ -12,6 +12,10 @@ mod real {
     use std::time::Duration;
 
     /// mDNS discovery state.
+    ///
+    /// A non-blocking handle for a UI loop: [`MdnsDiscovery::start_scan`]
+    /// browses on a background thread, and the caller calls
+    /// [`MdnsDiscovery::poll`] each frame to collect results.
     pub struct MdnsDiscovery {
         /// Discovered hosts from mDNS
         discovered: Vec<SshHost>,
@@ -38,6 +42,12 @@ mod real {
         }
 
         /// Start an mDNS scan for SSH services.
+        ///
+        /// Browses `_ssh._tcp.local.` on a background thread for
+        /// `timeout_secs` seconds. Clears earlier results first. Does nothing
+        /// while a scan is already running. Each resolved service becomes an
+        /// [`SshHost`] whose alias is the service instance name; the
+        /// advertised name is untrusted (see [`SshHost::validate_for_connect`]).
         pub fn start_scan(&mut self, timeout_secs: u32) {
             if self.scanning {
                 return;
@@ -57,6 +67,10 @@ mod real {
         }
 
         /// Poll for newly discovered hosts. Returns true if new hosts were found.
+        ///
+        /// Never blocks. Drains everything the scan thread has sent, dropping
+        /// duplicates by hostname and port, and marks the scan finished once
+        /// the thread has exited.
         pub fn poll(&mut self) -> bool {
             let receiver = match &self.receiver {
                 Some(r) => r,

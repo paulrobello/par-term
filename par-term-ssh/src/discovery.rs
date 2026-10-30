@@ -7,6 +7,13 @@ use super::types::SshHost;
 use std::collections::HashSet;
 
 /// Discover SSH hosts from all local sources (config, known_hosts, history).
+///
+/// Sources are read in that order and the first occurrence of a host wins, so
+/// an `~/.ssh/config` entry (with its alias, user, and identity file) takes
+/// precedence over the same host seen in `known_hosts` or history. Hosts are
+/// deduplicated on the case-insensitive connection target plus port (22 when
+/// unset). Missing files are skipped. mDNS hosts are not included; see
+/// [`crate::mdns::MdnsDiscovery`].
 pub fn discover_local_hosts() -> Vec<SshHost> {
     let mut all_hosts = Vec::new();
     let mut seen = HashSet::new();

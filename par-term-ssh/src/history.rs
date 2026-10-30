@@ -1,4 +1,9 @@
 //! Shell history scanner for SSH commands.
+//!
+//! Reads bash (`~/.bash_history`), zsh (`~/.zsh_history`, extended-history
+//! timestamps stripped), and fish (`~/.local/share/fish/fish_history`) history
+//! and turns each `ssh` invocation into an [`SshHost`] with
+//! [`SshHostSource::History`].
 
 use super::types::{SshHost, SshHostSource};
 use std::collections::HashSet;
@@ -7,6 +12,9 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 /// Scan shell history files for SSH commands.
+///
+/// Missing or unreadable history files are skipped. Hosts are deduplicated by
+/// [`SshHost::connection_string`], keeping the first occurrence.
 pub fn scan_history() -> Vec<SshHost> {
     let mut hosts = Vec::new();
     let mut seen = HashSet::new();
@@ -82,6 +90,21 @@ fn scan_fish_history(path: &Path, hosts: &mut Vec<SshHost>, seen: &mut HashSet<S
 }
 
 /// Parse an SSH command line and extract host info.
+///
+/// Finds the first `ssh` word in `line` and takes the first non-option
+/// argument after it as the `[user@]host` target, reading `-p` (port) and
+/// `-i` (identity file) along the way and skipping the values of the other
+/// value-taking options. Returns `None` when there is no `ssh` word, no
+/// target, or the target looks like a path (`/`, `.`) or an assignment (`=`).
+///
+/// ```
+/// use par_term_ssh::history::parse_ssh_command;
+///
+/// let host = parse_ssh_command("ssh -p 2222 deploy@example.com").unwrap();
+/// assert_eq!(host.user.as_deref(), Some("deploy"));
+/// assert_eq!(host.port, Some(2222));
+/// assert!(parse_ssh_command("ls -la").is_none());
+/// ```
 pub fn parse_ssh_command(line: &str) -> Option<SshHost> {
     let parts: Vec<&str> = line.split_whitespace().collect();
 

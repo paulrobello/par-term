@@ -47,11 +47,17 @@ pub struct SshHost {
 
 impl SshHost {
     /// Get the display name for this host (alias or hostname)
+    ///
+    /// Always [`SshHost::alias`]; sources other than `~/.ssh/config` set the
+    /// alias to the hostname.
     pub fn display_name(&self) -> &str {
         &self.alias
     }
 
     /// Get the connection target (hostname or alias)
+    ///
+    /// [`SshHost::hostname`] when set, else [`SshHost::alias`] (a config alias
+    /// with no `HostName` is resolved by `ssh` itself).
     pub fn connection_target(&self) -> &str {
         self.hostname.as_deref().unwrap_or(&self.alias)
     }
@@ -93,6 +99,9 @@ impl SshHost {
     }
 
     /// Build a display string showing user@host:port
+    ///
+    /// The user and port parts are omitted when unset, and port 22 is never
+    /// shown. For display and deduplication only; it is not quoted for a shell.
     pub fn connection_string(&self) -> String {
         let mut s = String::new();
         if let Some(ref user) = self.user {

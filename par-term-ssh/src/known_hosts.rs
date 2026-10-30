@@ -1,13 +1,17 @@
 //! Parser for ~/.ssh/known_hosts files.
 //!
-//! Extracts hostnames from known_hosts entries. Handles both plain and
-//! hashed hostname formats, as well as bracketed `[host]:port` entries.
+//! Extracts hostnames from known_hosts entries: plain hostnames, comma-separated
+//! host lists, and bracketed `[host]:port` entries. Hashed entries (`|1|...`)
+//! cannot be reversed to a hostname and are skipped, as are `@cert-authority`
+//! and `@revoked` marker lines.
 
 use super::types::{SshHost, SshHostSource};
 use std::collections::HashSet;
 use std::path::Path;
 
 /// Parse a known_hosts file and return discovered hosts.
+///
+/// A file that cannot be read yields an empty list.
 pub fn parse_known_hosts(path: &Path) -> Vec<SshHost> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
@@ -17,6 +21,9 @@ pub fn parse_known_hosts(path: &Path) -> Vec<SshHost> {
 }
 
 /// Parse known_hosts from a string (for testing).
+///
+/// Each host becomes an [`SshHost`] with [`SshHostSource::KnownHosts`] and no
+/// user or identity file. Entries are deduplicated on host plus port.
 pub fn parse_known_hosts_str(content: &str) -> Vec<SshHost> {
     let mut seen = HashSet::new();
     let mut hosts = Vec::new();

@@ -1,6 +1,11 @@
 //! Parser for ~/.ssh/config files.
 //!
 //! Reads SSH config and extracts host entries with their connection parameters.
+//!
+//! Only the keys par-term can use are read: `Host`, `HostName`, `User`, `Port`,
+//! `IdentityFile`, and `ProxyJump` (case-insensitive, separated by whitespace
+//! or `=`). Every other directive, including `Include` and `Match`, is ignored,
+//! so hosts defined in included files are not discovered.
 
 use super::types::{SshHost, SshHostSource};
 use std::path::Path;
@@ -9,6 +14,9 @@ use std::path::Path;
 ///
 /// Skips wildcard-only hosts (e.g., `Host *`) since they're defaults, not connectable targets.
 /// Handles multi-host lines like `Host foo bar` by creating separate entries.
+///
+/// A file that cannot be read logs a warning and yields an empty list, so
+/// discovery never fails on a missing or unreadable config.
 pub fn parse_ssh_config(path: &Path) -> Vec<SshHost> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
@@ -21,6 +29,11 @@ pub fn parse_ssh_config(path: &Path) -> Vec<SshHost> {
 }
 
 /// Parse SSH config from a string (for testing).
+///
+/// Each alias of a `Host` line becomes its own [`SshHost`] with
+/// [`SshHostSource::Config`], sharing the block's settings. Aliases containing
+/// `*` or `?` are dropped, a `Port` that does not parse is treated as unset,
+/// and a leading `~/` in `IdentityFile` is expanded to the home directory.
 pub fn parse_ssh_config_str(content: &str) -> Vec<SshHost> {
     let mut hosts = Vec::new();
     let mut current_aliases: Vec<String> = Vec::new();
