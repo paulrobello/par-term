@@ -56,12 +56,14 @@ pub async fn handle_fs_read(
                         )
                     }
                 };
-                let _ = client.respond(request_id, res, err).await;
+                if let Err(e) = client.respond(request_id, res, err).await {
+                    log::warn!("ACP: failed to send response for request {request_id}: {e}");
+                }
             });
         }
         None => {
             log::error!("ACP: failed to parse {method} params: {:?}", params);
-            let _ = client
+            if let Err(e) = client
                 .respond(
                     request_id,
                     None,
@@ -71,7 +73,12 @@ pub async fn handle_fs_read(
                         data: None,
                     }),
                 )
-                .await;
+                .await
+            {
+                log::warn!(
+                    "ACP: failed to send {method} error response for request {request_id}: {e}"
+                );
+            }
         }
     }
 }
@@ -133,12 +140,14 @@ pub async fn handle_fs_write(
                         )
                     }
                 };
-                let _ = client.respond(request_id, res, err).await;
+                if let Err(e) = client.respond(request_id, res, err).await {
+                    log::warn!("ACP: failed to send response for request {request_id}: {e}");
+                }
             });
         }
         None => {
             log::error!("ACP: failed to parse {method} params: {:?}", params);
-            let _ = client
+            if let Err(e) = client
                 .respond(
                     request_id,
                     None,
@@ -148,7 +157,12 @@ pub async fn handle_fs_write(
                         data: None,
                     }),
                 )
-                .await;
+                .await
+            {
+                log::warn!(
+                    "ACP: failed to send {method} error response for request {request_id}: {e}"
+                );
+            }
         }
     }
 }
@@ -194,12 +208,14 @@ pub async fn handle_fs_list_directory(
                         )
                     }
                 };
-                let _ = client.respond(request_id, res, err).await;
+                if let Err(e) = client.respond(request_id, res, err).await {
+                    log::warn!("ACP: failed to send response for request {request_id}: {e}");
+                }
             });
         }
         None => {
             log::error!("ACP: failed to parse {method} params: {:?}", params);
-            let _ = client
+            if let Err(e) = client
                 .respond(
                     request_id,
                     None,
@@ -209,7 +225,12 @@ pub async fn handle_fs_list_directory(
                         data: None,
                     }),
                 )
-                .await;
+                .await
+            {
+                log::warn!(
+                    "ACP: failed to send {method} error response for request {request_id}: {e}"
+                );
+            }
         }
     }
 }
@@ -254,12 +275,14 @@ pub async fn handle_fs_find(
                         )
                     }
                 };
-                let _ = client.respond(request_id, res, err).await;
+                if let Err(e) = client.respond(request_id, res, err).await {
+                    log::warn!("ACP: failed to send response for request {request_id}: {e}");
+                }
             });
         }
         None => {
             log::error!("ACP: failed to parse {method} params: {:?}", params);
-            let _ = client
+            if let Err(e) = client
                 .respond(
                     request_id,
                     None,
@@ -269,7 +292,12 @@ pub async fn handle_fs_find(
                         data: None,
                     }),
                 )
-                .await;
+                .await
+            {
+                log::warn!(
+                    "ACP: failed to send {method} error response for request {request_id}: {e}"
+                );
+            }
         }
     }
 }
