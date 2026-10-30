@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [v0.49.0 — par-mux Owns the Agent Hooks and Skill](#v0490--par-mux-owns-the-agent-hooks-and-skill)
 - [v0.48.0 — Leader Key](#v0480--leader-key)
 - [v0.48.0 — Profile Shortcuts and the Open Profiles Launcher](#v0480--profile-shortcuts-and-the-open-profiles-launcher)
 - [v0.48.0 — Session Picker, Window Actions, and Detach](#v0480--session-picker-window-actions-and-detach)
@@ -29,6 +30,15 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## v0.49.0 — par-mux Owns the Agent Hooks and Skill
+
+- **Agent-state hooks and extensions are installed by the par-mux binary.** `par-term install-mux-hooks` / `uninstall-mux-hooks` / `install-mux-extensions` / `uninstall-mux-extensions`, the Settings › Sessions status rows, and the startup self-heal now run the bundled `par-mux` (`--install-agent-hooks`, `--agent-hooks-status`, `--heal-agent-hooks`, …), and the hook scripts install under par-mux's config directory. Hook entries an earlier par-term installed under its own hooks directory keep working, because the scripts are self-guarding, so nothing breaks on upgrade. To clean the old entries, run `par-term uninstall-mux-hooks` with the pre-upgrade binary before upgrading, or simply reinstall with the new one. See [par-mux Integration](../features/MUX.md#setup).
+- **The par-mux agent skill is installed by `par-mux --install-skill`.** par-term no longer ships its own copy of the skill; the integrations checkbox runs the bundled binary (beside par-term first, then on `PATH`), so the installed skill always documents the par-mux CLI you have.
+- Both changes require the bundled par-mux to be a build with these flags. The v0.49.0 release bundles one; a from-source run needs `scripts/build-par-mux.sh` to stage a matching daemon.
+- **Library consumers:** the minimum supported Rust version is 1.99.0.
 
 ---
 

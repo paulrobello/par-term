@@ -9,6 +9,23 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ---
 
+## [Unreleased]
+
+### Added
+- **par-mux named layouts and workspace exit actions in the session picker.** A per-daemon **Layouts** subsection saves the daemon's live pane tree under a name (`save-layout`), and each saved layout row offers **Load** (asks **Confirm Replace**, then sends `load-layout -f`, because loading kills live panes the layout does not cover) and **Delete** (`kill-layout`). Each workspace row gains an **exit** chooser (`remove` / `hold` / `shell`, via `set-exit-action`) showing the effective value. Both are capability-gated, so an older daemon shows neither. The new `manage_mux_layouts` action (menu item and command-palette row) opens the picker. See [MUX.md](docs/features/MUX.md#setup).
+- **par-mux graphics replay on attach.** Inline images a program placed in a pane before you attached are drawn again: pane seeds request `refresh-client -G`, and the placements are re-encoded as OSC 1337 images and fed through the pane's own emulator after its screen seed. An older daemon falls back to a plain seed. See [MUX.md](docs/features/MUX.md#inline-graphics-and-file-drops).
+- **Dropping a file on a par-mux pane uploads it to the daemon.** The background worker drives the daemon's `upload-begin` / `upload-chunk` / `upload-commit` verbs, the daemon pastes the materialized path into the pane, and a toast reports the result. The daemon's limits (64 KiB chunks, 100 MiB per file, 200-byte names) are checked before any wire traffic. Gateway and local tabs keep pasting the path.
+
+### Changed
+- **Core bumped to `par-term-emu-core-rust` 0.73.0** (from 0.66.1, via 0.68–0.72), which also rebuilds the bundled par-mux daemon: graphics replay for `refresh-client -G` and the chunked upload verbs (0.68/0.69), named layouts and workspace exit actions (0.69/0.70), per-pane activity and presence stats in `pane-info` and the roster, `report-state`, the `events` replay ring, and a per-workspace restore policy (0.72), and a daemon restart that resumes a `claude --resume` session with a continuation prompt so it starts working without a keystroke (0.73, `[daemon] agent-resume-prompt`, on by default; an empty value disables it). Also: kitty graphics from a previous view are cleared on a re-land, and a nested `claude -p` no longer takes over and then releases its parent pane's roster entry. `TerminalEvent::GraphicsAdded` became a struct variant; the scripting observer is adapted.
+- Dependency sweep: egui / egui-wgpu / egui-winit 0.37 (the bundled `default_fonts` stack is enabled explicitly, since it left egui's default features), sysinfo 0.40, jsonc-parser 0.34, lru 0.19, parking_lot 0.13 (forced by core 0.71's lock types), and muda 0.21 for the Linux override, plus in-range lockfile refreshes.
+
+### Fixed
+- macOS: `make bundle` signs `par-mux`, `par-term`, and the `.app` with the first Developer ID Application identity in the keychain (hardened runtime, timestamp), and leaves the bundle ad-hoc signed when none exists. `Info.plist` now declares `NSLocalNetworkUsageDescription` for connections to par-mux daemons and devices on the local network.
+- The status-bar system and disk monitors and the terminal environment probe degrade gracefully instead of panicking when sysinfo cannot read the system (sysinfo 0.40's fallible constructors).
+
+---
+
 ## [0.50.0] - 2026-10-24
 
 ### Added
@@ -2073,7 +2090,7 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.45.2...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.50.0...HEAD
 [0.45.2]: https://github.com/paulrobello/par-term/releases/tag/v0.45.2
 [0.45.1]: https://github.com/paulrobello/par-term/releases/tag/v0.45.1
 [0.45.0]: https://github.com/paulrobello/par-term/releases/tag/v0.45.0
