@@ -65,8 +65,8 @@ pub fn handle_config_update(params: &Value) -> Value {
 /// Write config updates to the specified path atomically.
 ///
 /// Rejects keys outside the allowlist and shader paths outside the shaders
-/// directory before any disk I/O, then delegates to
-/// [`write_json_atomic`](crate::ipc::write_json_atomic). Every failure is
+/// directory before any disk I/O, then delegates to [`write_json_atomic`].
+/// Every failure is
 /// returned as an MCP tool-error result, never a panic.
 pub fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
     // SEC-005: enforce an explicit key allowlist BEFORE any disk I/O. The

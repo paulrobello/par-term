@@ -261,22 +261,31 @@ pub const SHADER_DIAGNOSTICS_RESPONSE_FILENAME: &str = ".shader-diagnostics-resp
 /// Screenshot request written by the MCP server for the GUI app to fulfill.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalScreenshotRequest {
+    /// Unique id (`<pid>-<unix millis>`) the GUI app echoes back in its
+    /// response so stale responses can be told apart.
     pub request_id: String,
 }
 
 /// Screenshot response written by the GUI app for the MCP server to read.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalScreenshotResponse {
+    /// The `request_id` of the [`TerminalScreenshotRequest`] being answered.
     pub request_id: String,
+    /// Whether the capture succeeded; when `false`, `error` explains why.
     pub ok: bool,
+    /// Failure reason when `ok` is `false`.
     #[serde(default)]
     pub error: Option<String>,
+    /// MIME type of `data_base64`; the server assumes `image/png` when absent.
     #[serde(default)]
     pub mime_type: Option<String>,
+    /// Base64-encoded image bytes. Required when `ok` is `true`.
     #[serde(default)]
     pub data_base64: Option<String>,
+    /// Image width in pixels, if known.
     #[serde(default)]
     pub width: Option<u32>,
+    /// Image height in pixels, if known.
     #[serde(default)]
     pub height: Option<u32>,
 }
@@ -284,34 +293,50 @@ pub struct TerminalScreenshotResponse {
 /// Shader diagnostics request written by the MCP server for the GUI app to fulfill.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaderDiagnosticsRequest {
+    /// Unique id (`<pid>-<unix millis>`) the GUI app echoes back in its
+    /// response so stale responses can be told apart.
     pub request_id: String,
 }
 
 /// Per-shader diagnostics included in [`ShaderDiagnosticsResponse`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaderDiagnosticsEntry {
+    /// Configured shader file name, or `None` when no shader is set.
     pub shader: Option<String>,
+    /// Whether this shader slot is enabled in the config.
     pub enabled: bool,
+    /// Most recent compile or reload error, if the last attempt failed.
     pub last_error: Option<String>,
+    /// Path of the transpiled WGSL debug dump for this shader. The dump is
+    /// only written by debug builds, so the file may not exist.
     pub wgsl_path: Option<String>,
 }
 
 /// Live shader diagnostics returned by the GUI app.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaderDiagnostics {
+    /// Background (`custom_shader`) slot.
     pub background: ShaderDiagnosticsEntry,
+    /// Cursor (`cursor_shader`) slot.
     pub cursor: ShaderDiagnosticsEntry,
+    /// Directory shader names are resolved against.
     pub shaders_dir: String,
+    /// Path of the wrapped-GLSL debug dump (debug builds only, so the file
+    /// may not exist).
     pub wrapped_glsl_path: String,
 }
 
 /// Shader diagnostics response written by the GUI app for the MCP server to read.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaderDiagnosticsResponse {
+    /// The `request_id` of the [`ShaderDiagnosticsRequest`] being answered.
     pub request_id: String,
+    /// Whether diagnostics were collected; when `false`, `error` explains why.
     pub ok: bool,
+    /// Failure reason when `ok` is `false`.
     #[serde(default)]
     pub error: Option<String>,
+    /// The collected diagnostics when `ok` is `true`.
     #[serde(default)]
     pub diagnostics: Option<ShaderDiagnostics>,
 }
