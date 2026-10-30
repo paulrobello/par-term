@@ -15,10 +15,12 @@
 //! - tmux control mode
 
 pub mod conversion;
+pub mod error;
 pub mod scrollback_metadata;
 pub mod terminal;
 
 // Re-export main types for convenience
+pub use error::TerminalError;
 pub use scrollback_metadata::{CommandSnapshot, LineMetadata, ScrollbackMark, ScrollbackMetadata};
 pub use terminal::ShellLifecycleEvent;
 pub use terminal::TerminalManager;

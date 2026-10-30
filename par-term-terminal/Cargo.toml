@@ -24,8 +24,8 @@ parking_lot.workspace = true
 # Async runtime (for paste_with_delay)
 tokio = { workspace = true, features = ["time", "rt"] }
 
-# Error handling
-anyhow.workspace = true
+# Error handling (typed TerminalError)
+thiserror.workspace = true
 
 # Logging
 log.workspace = true
