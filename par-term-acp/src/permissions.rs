@@ -199,6 +199,54 @@ pub fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths)
     })
 }
 
+/// Tools on the embedded `par-term-config` MCP server that are auto-approved
+/// when named exactly as `mcp__par-term-config__<tool>`. Any other tool on
+/// that server, including one added later, escalates to the user (SEC-001).
+///
+/// - `config_update`: limited to the cosmetic-key allowlist in
+///   `par-term-mcp`, with shader paths confined to the shaders directory.
+/// - `shader_diagnostics`, `command_list`: read-only.
+/// - `command_create`: script commands need the user's first-run
+///   confirmation of the exact body before they run (D4b ledger).
+/// - `command_delete`: refuses user-authored commands, and `command_create`
+///   can already overwrite any agent-authored command unprompted.
+///
+/// `terminal_screenshot` is deliberately absent: it always asks the user.
+const AUTO_APPROVED_PAR_TERM_MCP_TOOLS: &[&str] = &[
+    "config_update",
+    "shader_diagnostics",
+    "command_create",
+    "command_list",
+    "command_delete",
+];
+
+/// Whether `lower` (a lower-cased tool name) is auto-approved without a path
+/// check. Exact names only: an unknown tool, whatever server it claims to
+/// come from, is not approved here.
+fn is_auto_approved_tool(lower: &str) -> bool {
+    let is_builtin_read_only = matches!(
+        lower,
+        "read"
+            | "read_file"
+            | "readfile"
+            | "readtextfile"
+            | "glob"
+            | "grep"
+            | "find"
+            | "list_directory"
+            | "listdirectory"
+            | "toolsearch"
+            | "tool_search"
+            | "config"
+            | "config_update"
+            | "configupdate"
+    );
+    is_builtin_read_only
+        || lower
+            .strip_prefix("mcp__par-term-config__")
+            .is_some_and(|tool| AUTO_APPROVED_PAR_TERM_MCP_TOOLS.contains(&tool))
+}
+
 /// Handle a `session/request_permission` RPC call from the agent.
 ///
 /// This function:
@@ -300,24 +348,7 @@ pub async fn handle_permission_request(
                     // which caused it to be auto-approved without a path-safety check. It is
                     // intentionally absent here and falls through to the `is_write_tool` branch
                     // (or escalates to the UI if it does not match any known write-tool name).
-                    let is_read_only = matches!(
-                        lower.as_str(),
-                        "read"
-                            | "read_file"
-                            | "readfile"
-                            | "readtextfile"
-                            | "glob"
-                            | "grep"
-                            | "find"
-                            | "list_directory"
-                            | "listdirectory"
-                            | "toolsearch"
-                            | "tool_search"
-                            | "config"
-                            | "config_update"
-                            | "configupdate"
-                    ) || (lower.contains("par-term-config")
-                        && !is_par_term_screenshot_tool);
+                    let is_read_only = is_auto_approved_tool(&lower);
 
                     let is_write_tool = matches!(
                         lower.as_str(),
@@ -463,6 +494,37 @@ mod tests {
         SafePaths {
             config_dir,
             shaders_dir,
+        }
+    }
+
+    #[test]
+    fn listed_par_term_mcp_tools_are_auto_approved() {
+        for tool in AUTO_APPROVED_PAR_TERM_MCP_TOOLS {
+            let name = format!("mcp__par-term-config__{tool}");
+            assert!(is_auto_approved_tool(&name), "{name} should be approved");
+        }
+        for name in ["read", "grep", "config_update"] {
+            assert!(is_auto_approved_tool(name), "{name} should be approved");
+        }
+    }
+
+    // SEC-001: approval is by exact name, so a tool added to the par-term MCP
+    // server later prompts until someone lists it on purpose.
+    #[test]
+    fn unknown_par_term_mcp_tools_are_escalated() {
+        for name in [
+            "mcp__par-term-config__future_tool",
+            "mcp__par-term-config__config_update_extra",
+            "mcp__par-term-config__terminal_screenshot",
+            "par-term-config",
+            "mcp__par-term-config__",
+            "mcp__evil__par-term-config__config_update",
+            "mcp__par-term-config-evil__config_update",
+            "terminal_screenshot",
+            "bash",
+            "",
+        ] {
+            assert!(!is_auto_approved_tool(name), "{name} must escalate");
         }
     }
 
