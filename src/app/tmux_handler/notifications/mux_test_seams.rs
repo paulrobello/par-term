@@ -16,8 +16,11 @@ use par_term_emu_core_rust::mux::MuxClient;
 use std::time::{Duration, Instant};
 
 /// How long a daemon-driven wait may take before the test fails. Generous
-/// on purpose: it bounds a hung daemon, not a slow one.
-pub(crate) const DAEMON_DEADLINE: Duration = Duration::from_secs(60);
+/// on purpose: it bounds a hung daemon, not a slow one. Sized for a cold
+/// CI runner (Linux x86_64 leg exhausted 60s on the workspace E2E test
+/// while the local 10/10-at-load-400 benchmark passed), not for this
+/// machine.
+pub(crate) const DAEMON_DEADLINE: Duration = Duration::from_secs(180);
 
 /// Poll `cond` until it holds or [`DAEMON_DEADLINE`] passes; returns
 /// whether it held. Callers that dump state on failure assert on this.
