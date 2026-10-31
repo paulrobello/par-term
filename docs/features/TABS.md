@@ -5,6 +5,7 @@ par-term provides a multi-tab interface for managing multiple shells within a si
 ## Table of Contents
 - [Overview](#overview)
 - [Creating and Closing Tabs](#creating-and-closing-tabs)
+  - [New Tabs and the Default par-mux Session](#new-tabs-and-the-default-par-mux-session)
   - [Profile Selection on New Tab](#profile-selection-on-new-tab)
   - [New Tab Position](#new-tab-position)
 - [Reopening Closed Tabs](#reopening-closed-tabs)
@@ -85,6 +86,24 @@ With the mouse, **middle-click** a tab to close it, and **double-click** empty s
 A new tab with no title of its own is named **Tab N**, where N is the lowest number no other tab in the window holds. The number stays with the tab: closing or moving other tabs never renumbers it.
 
 New tabs inherit the working directory from the current tab (if shell integration is installed) or start in the configured startup directory.
+
+### New Tabs and the Default par-mux Session
+
+By default (`use_mux_by_default: true`), a new tab in a window that is not yet attached to a par-mux session attaches the window: the tab opens immediately as a local shell, and at the same time par-term starts (or joins) the default par-mux session, named `main`. Once the attach lands, every further new tab is a daemon window in that session — it survives closing par-term and rejoins on attach; see [par-mux](MUX.md#attaching) for the attach model. Windows restored on launch follow the same default.
+
+When the session's first daemon window arrives, it replaces the untouched local first tab in the same tab-bar slot, so a fresh window ends up as one par-mux tab instead of a stray empty shell alongside it. A first tab that has already been used — anything typed into it, a manual split, or a rename — stays local.
+
+If the daemon cannot start or the session create fails, the window stays unattached and the tab is simply a local shell; a warning is logged. A later new tab tries the attach again.
+
+To keep new tabs local, turn the default off:
+
+```yaml
+use_mux_by_default: false  # default: true — new tabs attach the default par-mux session
+```
+
+**Settings UI:** Settings > Sessions > par-mux > "New tabs default to par-mux"
+
+A profile can override this per profile with its own `use_mux_by_default` setting (profile editor > Session): `false` keeps that profile's tabs local shells even when new tabs run in par-mux by default, and leaving it unset inherits the global default. Profiles that name an explicit par-mux or tmux session, a command, or an SSH host keep their own launch paths and never take the default attach.
 
 ### Profile Selection on New Tab
 
@@ -715,6 +734,9 @@ tab_inherit_cwd: true
 show_profile_drawer_button: false
 new_tab_shortcut_shows_profiles: false  # Open Profiles on Cmd+T
 new_tab_position: end  # "end" or "after_active"
+
+# par-mux default: new tabs attach the default par-mux session ("main")
+use_mux_by_default: true
 ```
 
 ## Related Documentation
@@ -722,6 +744,7 @@ new_tab_position: end  # "end" or "after_active"
 - [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md) - Tab navigation shortcuts
 - [Restoring Windows and Reopening Tabs](SESSION_MANAGEMENT.md) - Reopen closed tabs and restore windows on launch
 - [Profiles](PROFILES.md) - Open profiles in new tabs
+- [par-mux](MUX.md) - The default session new tabs attach to, and working in mux tabs
 - [SSH Host Management](SSH.md) - SSH profile-based tab creation
 - [Window Management](WINDOW_MANAGEMENT.md) - Window and tab interaction
 - [Integrations](INTEGRATIONS.md) - Shell integration for directory inheritance

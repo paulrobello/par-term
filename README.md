@@ -42,6 +42,18 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.51.0
+
+par-mux by default, a roster that covers local panes, and a hardened agent trust boundary. Core library 0.75.0 is required; the bundled par-mux daemon rebuilds with it. Sub-crates move to `par-term-acp` 0.7.0, `par-term-config` 0.17.0, `par-term-mcp` 0.3.0, `par-term-terminal` 0.8.0, `par-term-update` 0.6.0, `par-term-scripting` 0.3.0, `par-term-settings-ui` 0.21.0, and `par-term-mux` 0.5.0.
+
+- **New tabs default to par-mux** — an unattached window attaches on first Cmd+T (`use_mux_by_default`, per-profile opt-out), and the untouched first tab is replaced by the attach instead of leaving a stray local shell.
+- **Named layouts and workspace exit actions** — save the live pane tree under a name and load it later (**Confirm Replace**); each workspace row gains an exit chooser (remove / hold / shell).
+- **Graphics replay and file drops** — inline images a program placed before you attached are re-drawn on the pane, and dropping a file uploads it to the daemon with a toast.
+- **Roster everywhere** — local panes are classified into the agent roster (before attach, or on opt-out profiles), which now shows input presence and a stalled state per agent; pane context menus add viewer count and CPU time.
+- **Event replay on reconnect** — the daemon's event ring is replayed via `events --since`, so state that fired while detached is adopted instead of lost.
+- **Security hardening (audit 2026-10-30)** — agent tool auto-approval is allowlisted by exact name, agent-set shader paths are contained to the shaders directory and confirmed on first use, plugin updates are pinned to the reviewed commit, `send_keys` rejects line-breaking text, installer URLs pin the release tag, and self-update errors redact URLs.
+- **Core 0.73–0.75 daemon** — resumes Claude Code with a continuation prompt after a daemon restart, restores each agent's exec-time environment, follows tmux's resize-pane border semantics, and enables bracketed paste in the attach TUI.
+
 ### 0.50.0
 
 Adopt hand-launched agent panes, workspace git badges, and the question agent state. Core library 0.66.1 is required; `par-term-mux` moves to 0.4.0, `par-term-tmux` 0.3.1, `par-term-render` 0.12.1, and `par-term-update` 0.5.3.
