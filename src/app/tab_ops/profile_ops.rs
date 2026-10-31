@@ -68,6 +68,43 @@ impl WindowState {
         #[cfg(not(feature = "mux"))]
         let mux_only = false;
 
+        // The per-profile use_mux_by_default decision: a plain profile (no
+        // explicit session, command, or ssh launch) attaches the window to
+        // the default session when its effective default is on. The local
+        // profile tab below still opens (synchronously — the profile's own
+        // shell and working directory apply to it), and the session's
+        // windows arrive around it; once attached, new tabs are daemon
+        // windows. Off keeps the window unattached.
+        #[cfg(feature = "mux")]
+        if !cfg!(test)
+            && !mux_only
+            && profile.mux_session_name.is_none()
+            && profile.tmux_session_name.is_none()
+            && profile.command.is_none()
+            && profile.ssh_host.is_none()
+            && Self::new_tab_wants_mux(
+                profile
+                    .use_mux_by_default
+                    .unwrap_or(self.config.load().tmux.use_mux_by_default),
+                self.tmux_state.transport.is_some(),
+                self.is_gateway_active(),
+            )
+            && self.tmux_state.mux_attach_pending.is_none()
+        {
+            self.tmux_state.mux_default_tab =
+                Some(crate::app::tmux_handler::tmux_state::MuxDefaultTabOrigin::NewTab);
+            self.begin_mux_session_attach(
+                crate::app::tmux_handler::tmux_state::DEFAULT_MUX_SESSION,
+            );
+            if self.tmux_state.mux_attach_pending.is_none() {
+                self.tmux_state.mux_default_tab = None;
+                log::warn!(
+                    "par-mux: default-session attach refused for profile '{}' — \
+                     the window stays unattached",
+                    profile.name
+                );
+            }
+        }
         if !mux_only {
             match self.tab_manager.new_tab_from_profile(
                 &self.config.load(),

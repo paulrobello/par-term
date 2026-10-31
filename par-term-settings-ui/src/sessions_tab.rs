@@ -74,6 +74,31 @@ pub(crate) fn show_par_mux_section(
 
             ui.add_space(8.0);
             ui.horizontal(|ui| {
+                let mut use_mux = settings.config.tmux.use_mux_by_default;
+                let response = ui
+                    .checkbox(&mut use_mux, "New tabs default to par-mux")
+                    .search_tag(&["use_mux_by_default", "mux by default", "daemon windows"])
+                    .on_hover_text(
+                        "When on, a new tab in an unattached window opens as a local shell \
+                         right away and at the same time starts (or joins) the default \
+                         par-mux session — the window attaches, and every further new tab \
+                         is a daemon window that survives closing par-term and rejoins on \
+                         attach. Restored windows follow the same default. A profile can \
+                         opt out with its own Use Mux By Default setting. When the daemon \
+                         cannot start or the create fails, the window stays unattached and \
+                         the tab is simply the local shell (a warning is logged). When \
+                         off, new tabs are local shells and par-mux is used only on \
+                         explicit attach.",
+                    );
+                if response.changed() {
+                    settings.config.tmux.use_mux_by_default = use_mux;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
                 let mut reconnect = settings.config.tmux.mux_auto_reconnect;
                 let response = ui
                     .checkbox(&mut reconnect, "Reconnect when the daemon is lost")

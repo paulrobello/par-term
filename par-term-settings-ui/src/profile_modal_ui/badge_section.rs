@@ -416,6 +416,37 @@ impl ProfileModalUI {
                             );
                         });
                         ui.end_row();
+
+                        ui.label("Use Mux By Default:");
+                        ui.horizontal(|ui| {
+                            let global = par_term_config::defaults::bool_true();
+                            let selected = match self.temp_use_mux_by_default {
+                                None => format!("Inherit (global: {global})"),
+                                Some(true) => "On".to_string(),
+                                Some(false) => "Off".to_string(),
+                            };
+                            egui::ComboBox::from_id_salt("profile_use_mux_by_default")
+                                .selected_text(selected)
+                                .show_ui(ui, |ui| {
+                                    ui.set_min_width(160.0);
+                                    for (value, label) in [
+                                        (None, format!("Inherit (global: {global})")),
+                                        (Some(true), "On".to_string()),
+                                        (Some(false), "Off".to_string()),
+                                    ] {
+                                        let is_selected = self.temp_use_mux_by_default == value;
+                                        if ui.selectable_label(is_selected, label).clicked() {
+                                            self.temp_use_mux_by_default = value;
+                                        }
+                                    }
+                                });
+                            ui.label(
+                                egui::RichText::new("(off keeps this profile's tabs local)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
                     });
             },
         );

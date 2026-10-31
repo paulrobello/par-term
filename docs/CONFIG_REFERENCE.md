@@ -461,6 +461,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `tmux_auto_attach_session` | `string?` | `null` | Session name to auto-attach to | Sessions › tmux › tmux Integration |
 | `mux_auto_attach` | `string?` | `null` | par-mux session the first window attaches to on launch, created when missing; works with tmux integration off. The `--attach <session>` flag overrides it | Sessions › par-mux › par-mux |
 | `mux_auto_reconnect` | `bool` | `false` | Re-launch the par-mux daemon and re-create the attached session when the daemon connection is lost, restoring the window set (the restored windows hold fresh shells; capped at 3 reconnects per 60 s) | Sessions › par-mux › par-mux |
+| `use_mux_by_default` | `bool` | `true` | A new tab in an unattached window opens as a local shell and starts (or joins) the default par-mux session, so the window attaches and further new tabs are daemon windows; restored windows follow the same default. A profile can opt out per profile. When the daemon cannot start or the create fails, the window stays unattached and the tab is the local shell (a warning is logged). When off, new tabs are local shells and par-mux is used only on explicit attach | Sessions › par-mux › par-mux |
 | `tmux_default_session` | `string?` | `null` | Session used when a tmux session is started without a name (auto-attach with no session name, session picker "new"); attaches if it already exists, creates it otherwise | Sessions › tmux › tmux Integration |
 | `tmux_clipboard_sync` | `bool` | `true` | Sync clipboard with tmux paste buffer | Sessions › tmux › tmux Integration |
 | `tmux_hide_gateway_tab` | `bool` | `false` | Hide the control-mode gateway tab from the tab bar while tmux windows are active; the tab is restored when the session ends | Sessions › tmux › tmux Integration |
@@ -736,6 +737,7 @@ See [PROFILES.md](features/PROFILES.md) for full documentation.
 |-------|------|---------|-------------|--------|
 | `mux_session_name` | `string?` | `null` | par-mux session to create-or-attach when this profile opens. Detaching drops the socket; the session keeps running in the daemon. No spaces, quotes, or backslashes |  |
 | `mux_session_patterns` | `string[]` | `[]` | Glob patterns (e.g. `work-*`, `PARMux`) matched against the par-mux session name when the window attaches (session picker, profile auto-connect, or `mux_auto_attach`) to switch to this profile |  |
+| `use_mux_by_default` | `bool?` | `null` | Per-profile override of the global default: `false` keeps this profile's tabs local shells even when new tabs run in par-mux by default; absent inherits the global `use_mux_by_default` | Sessions › par-mux › par-mux |
 
 Dynamic profiles can be fetched from remote URLs:
 

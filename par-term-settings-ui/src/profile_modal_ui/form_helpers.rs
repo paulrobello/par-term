@@ -52,6 +52,7 @@ impl ProfileModalUI {
         self.temp_tmux_session_name.clear();
         self.temp_tmux_connection_mode = par_term_config::TmuxConnectionMode::default();
         self.temp_mux_session_name.clear();
+        self.temp_use_mux_by_default = None;
         self.validation_error = None;
     }
 
@@ -106,6 +107,7 @@ impl ProfileModalUI {
         self.temp_tmux_session_name = profile.tmux_session_name.clone().unwrap_or_default();
         self.temp_tmux_connection_mode = profile.tmux_connection_mode;
         self.temp_mux_session_name = profile.mux_session_name.clone().unwrap_or_default();
+        self.temp_use_mux_by_default = profile.use_mux_by_default;
     }
 
     /// Create a profile from form fields
@@ -235,6 +237,7 @@ impl ProfileModalUI {
         if !self.temp_mux_session_name.is_empty() {
             profile.mux_session_name = Some(self.temp_mux_session_name.clone());
         }
+        profile.use_mux_by_default = self.temp_use_mux_by_default;
 
         profile
     }

@@ -354,6 +354,9 @@ impl ProfileManager {
                 .mux_session_name
                 .clone()
                 .or(resolved_parent.mux_session_name),
+            use_mux_by_default: profile
+                .use_mux_by_default
+                .or(resolved_parent.use_mux_by_default),
             tmux_connection_mode: if profile.tmux_session_name.is_some() {
                 profile.tmux_connection_mode
             } else {

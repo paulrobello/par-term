@@ -278,6 +278,7 @@ impl WindowState {
                 log::error!("mux attach worker died without reporting a result");
                 self.record_mux_error("par-mux: attach failed (worker died)");
                 self.mux_restore_placeholder_retire();
+                self.mux_default_tab_attach_tail(false);
             }
             Some(Err(e)) => {
                 log::error!("par-mux attach to '{}' failed: {e}", pending.name);
@@ -286,6 +287,7 @@ impl WindowState {
                     pending.name
                 ));
                 self.mux_restore_placeholder_retire();
+                self.mux_default_tab_attach_tail(false);
             }
             Some(Ok(client)) => {
                 let socket = match reported_daemon {
@@ -297,15 +299,33 @@ impl WindowState {
                 };
                 let transport =
                     MuxTransport::with_socket(MuxSessionClient::from_core(client), socket);
-                if let Err(e) = self.install_mux_transport(&pending.name, transport) {
-                    log::error!("par-mux attach to '{}' failed: {e}", pending.name);
-                    self.record_mux_error(format!(
-                        "par-mux: attach to '{}' failed — {e}",
-                        pending.name
-                    ));
-                    self.mux_restore_placeholder_retire();
+                match self.install_mux_transport(&pending.name, transport) {
+                    Err(e) => {
+                        log::error!("par-mux attach to '{}' failed: {e}", pending.name);
+                        self.record_mux_error(format!(
+                            "par-mux: attach to '{}' failed — {e}",
+                            pending.name
+                        ));
+                        self.mux_restore_placeholder_retire();
+                        self.mux_default_tab_attach_tail(false);
+                    }
+                    Ok(_) => self.mux_default_tab_attach_tail(true),
                 }
             }
+        }
+    }
+
+    /// The mux-by-default attach tail: the requested tab already exists as
+    /// a local shell (new_tab_local ran synchronously), so both outcomes
+    /// only retire the origin marker. Failure says so with `log::warn!` —
+    /// the tab the user asked for never disappears — and success joins the
+    /// session whose windows arrive as tabs around it.
+    fn mux_default_tab_attach_tail(&mut self, attached: bool) {
+        if self.tmux_state.mux_default_tab.take().is_some() && !attached {
+            log::warn!(
+                "par-mux: default-session attach failed — the window stays unattached; \
+                 its tabs are local shells"
+            );
         }
     }
 

@@ -104,6 +104,26 @@ pub(crate) enum MuxJob {
     },
 }
 
+/// Why an unattached window began the default-session attach behind the
+/// `use_mux_by_default` flip (UX criterion: new tabs default to mux).
+/// The origin only names the caller for the attach tail's log line: the
+/// requested tab already exists as a local shell when the attach settles,
+/// and a failed attach leaves it that way — the window simply stays
+/// unattached.
+#[cfg(feature = "mux")]
+pub(crate) enum MuxDefaultTabOrigin {
+    /// A new-tab request (Cmd+T) or a plain-profile open began the attach.
+    NewTab,
+    /// Session restore began the attach for a saved local window.
+    Restore,
+}
+
+/// The par-mux session name the mux-by-default flip routes through —
+/// par-term's one-daemon-per-session convention gives it its own daemon,
+/// shared by every window that takes the default.
+#[cfg(feature = "mux")]
+pub(crate) const DEFAULT_MUX_SESSION: &str = "main";
+
 /// What a [`MuxJob`] learned, applied on the event loop.
 #[cfg(feature = "mux")]
 pub(crate) enum MuxJobResult {
@@ -248,6 +268,14 @@ pub(crate) struct TmuxState {
     /// feature like the transport types it carries.
     #[cfg(feature = "mux")]
     pub(crate) mux_attach_pending: Option<super::notifications::mux::MuxAttachPending>,
+    /// Why the in-flight attach was begun by the mux-by-default flip, if
+    /// it was. Set before [`Self::begin_mux_session_attach`], consumed by
+    /// [`super::notifications::mux::poll_mux_attach`]'s tail — the
+    /// requested tab already exists as a local shell, so the tail only
+    /// retires the marker and warns on failure. `None` for
+    /// picker/profile-attach/restore-reattach attaches.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_default_tab: Option<super::tmux_state::MuxDefaultTabOrigin>,
     /// The session-restore placeholder tab of a mux-attached window.
     /// Restore spawns one local shell tab (the `vec![None]` shape) so a
     /// failed attach never leaves an empty window; the first daemon
@@ -349,6 +377,8 @@ impl TmuxState {
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),
             #[cfg(feature = "mux")]
             mux_attach_pending: None,
+            #[cfg(feature = "mux")]
+            mux_default_tab: None,
             mux_restore_placeholder_tab: None,
             #[cfg(feature = "mux")]
             pending_mux_paste: std::cell::RefCell::new(None),

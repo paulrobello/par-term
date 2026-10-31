@@ -187,6 +187,21 @@ impl WindowManager {
 
         let mut first_restored_window = true;
         for session_window in &session.windows {
+            // The use_mux_by_default flip: a saved LOCAL window (no mux or
+            // tmux session recorded) reopens THROUGH the daemon too — the
+            // default session's windows come back as the tabs. One
+            // placeholder tab is spawned so a failed attach never leaves
+            // the window empty (the same shape the mux-restore branch
+            // uses); the daemon's windows replace it as they arrive.
+            #[cfg(feature = "mux")]
+            let mux_default_restore = !cfg!(test)
+                && restore_window_wants_mux(
+                    session_window.mux_session_name.as_deref(),
+                    session_window.tmux_session_name.as_deref(),
+                    self.config.load().tmux.use_mux_by_default,
+                );
+            #[cfg(not(feature = "mux"))]
+            let mux_default_restore = false;
             // When a tmux session is saved, the visible tabs are tmux display tabs that
             // will be re-created by the tmux session on reconnect.  Pass only a single
             // empty tab CWD so create_window_with_overrides spawns just the gateway
@@ -196,6 +211,7 @@ impl WindowManager {
             // for them (they would sit beside the daemon tab, dead).
             let tab_cwds: Vec<Option<String>> = if session_window.tmux_session_name.is_some()
                 || session_window.mux_session_name.is_some()
+                || mux_default_restore
             {
                 vec![None]
             } else {
@@ -252,6 +268,34 @@ impl WindowManager {
                 {
                     if let Err(e) = window_state.initiate_tmux_gateway(Some(session_name)) {
                         log::warn!("Session restore: tmux auto-connect failed: {}", e);
+                    }
+                } else if mux_default_restore {
+                    // The use_mux_by_default flip: a saved LOCAL window
+                    // reopens through the daemon. The placeholder tab is
+                    // the window's fallback — the attach is refused or
+                    // fails, it stays as the window's local shell (the
+                    // poll tail only logs for a Restore origin); when the
+                    // attach lands, the first daemon window tab closes it
+                    // (handle_tmux_window_add).
+                    #[cfg(feature = "mux")]
+                    {
+                        if let Some(tab) = window_state.tab_manager.tabs().first() {
+                            window_state.tmux_state.mux_restore_placeholder_tab = Some(tab.id);
+                        }
+                        window_state.tmux_state.mux_default_tab = Some(
+                            crate::app::tmux_handler::tmux_state::MuxDefaultTabOrigin::Restore,
+                        );
+                        window_state.begin_mux_session_attach(
+                            crate::app::tmux_handler::tmux_state::DEFAULT_MUX_SESSION,
+                        );
+                        if window_state.tmux_state.mux_attach_pending.is_none() {
+                            window_state.tmux_state.mux_default_tab = None;
+                            window_state.tmux_state.mux_restore_placeholder_tab = None;
+                            log::warn!(
+                                "Session restore: par-mux default-session attach refused; \
+                                 the restored window keeps its local shell"
+                            );
+                        }
                     }
                 } else {
                     // Non-tmux window: restore pane layouts, user titles, custom colors, icons
@@ -564,4 +608,43 @@ fn rotated_log_tail() -> String {
         .rev()
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// The pure routing rule behind the mux-by-default restore flip: a saved
+/// window with no recorded tmux or par-mux session reopens through the
+/// default session when the flip is on. A window that recorded a session
+/// keeps its own restore path (reattach / tmux gateway) — the flip never
+/// second-guesses an explicit choice.
+#[cfg(feature = "mux")]
+fn restore_window_wants_mux(
+    mux_session_name: Option<&str>,
+    tmux_session_name: Option<&str>,
+    use_mux_by_default: bool,
+) -> bool {
+    use_mux_by_default && mux_session_name.is_none() && tmux_session_name.is_none()
+}
+
+#[cfg(all(test, feature = "mux"))]
+mod mux_default_restore_tests {
+    use super::restore_window_wants_mux;
+
+    #[test]
+    fn a_saved_local_window_reopens_through_the_default_session() {
+        assert!(restore_window_wants_mux(None, None, true));
+    }
+
+    #[test]
+    fn the_flip_off_keeps_local_restore() {
+        assert!(!restore_window_wants_mux(None, None, false));
+    }
+
+    #[test]
+    fn a_recorded_mux_session_keeps_its_own_reattach() {
+        assert!(!restore_window_wants_mux(Some("work"), None, true));
+    }
+
+    #[test]
+    fn a_recorded_tmux_session_keeps_its_gateway() {
+        assert!(!restore_window_wants_mux(None, Some("ops"), true));
+    }
 }

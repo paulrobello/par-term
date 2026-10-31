@@ -123,11 +123,13 @@ impl WindowState {
             return;
         }
         self.detach_mux_session();
-        // The transport is gone, so new_tab() spawns a local shell rather
-        // than asking the old daemon for a window. A window that kept
-        // local tabs keeps them and needs no placeholder.
+        // The transport is gone, so new_tab_local() spawns the local shell
+        // placeholder directly — a plain new_tab() would take the
+        // use_mux_by_default route and start a default-session attach that
+        // collides with the switch attach. A window that kept local tabs
+        // keeps them and needs no placeholder.
         if self.tab_manager.tab_count() == 0 {
-            self.new_tab();
+            self.new_tab_local();
             if let Some(tab) = self.tab_manager.tabs().first() {
                 self.tmux_state.mux_restore_placeholder_tab = Some(tab.id);
             }
