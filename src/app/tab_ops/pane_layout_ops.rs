@@ -23,11 +23,12 @@ impl WindowState {
     ///
     /// Attached tabs run the same resize on the mirror and send the result
     /// as absolute pane sizes (the divider-drag path), which the daemon
-    /// echoes back as `%layout-change` (M7). The daemon's relative
-    /// `resize-pane -L/-R` grows the TARGET pane whichever side of the
-    /// divider it sits on and reaches only its direct parent split, so it
-    /// cannot express "move the divider in the arrow's direction" for a
-    /// right-hand pane or a nested layout.
+    /// echoes back as `%layout-change` (M7). Absolute sizes are used even
+    /// though the daemon's relative `resize-pane -L/-R/-U/-D` now follows
+    /// tmux border semantics (every direction grows the target pane,
+    /// daemon 0.75+): relative flags reach only the target pane's direct
+    /// parent split, so they cannot express "move the divider in the
+    /// arrow's direction" for the far pane of a split or a nested layout.
     pub(crate) fn resize_pane_by(&mut self, direction: NavigationDirection, step: ResizeStep) {
         let moved = self
             .tab_manager
