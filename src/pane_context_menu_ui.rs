@@ -1,7 +1,9 @@
 //! Right-click menu in a pane body (UX.md V10): split, zoom, rename, move,
 //! broadcast, restart, and close, when the program in the pane is not
 //! capturing the mouse. Each row runs a registry action on the pane it was
-//! opened on and shows that action's live chord.
+//! opened on and shows that action's live chord. On an attached par-mux
+//! pane the menu leads with the pane's viewer count (the pane-info
+//! presence probe at open); a local pane shows no count row.
 //!
 //! Dismissal follows the pane rename popup's frame guards: the opening
 //! click is still in egui's input on the first frame, and its release
@@ -26,6 +28,16 @@ pub(crate) const PANE_MENU_ROWS: &[Option<(&str, &str)>] = &[
     Some(("close_pane", "Close Pane")),
 ];
 
+/// The menu's viewer-count row text: `1 viewer` for one, `N viewers`
+/// otherwise. Plain text — no icon vocabulary.
+fn viewer_label(count: u32) -> String {
+    if count == 1 {
+        "1 viewer".to_string()
+    } else {
+        format!("{count} viewers")
+    }
+}
+
 /// The pane context menu's state.
 #[derive(Default)]
 pub(crate) struct PaneContextMenuUI {
@@ -33,6 +45,10 @@ pub(crate) struct PaneContextMenuUI {
     pos: egui::Pos2,
     opened_frame: Option<u64>,
     awaiting_open_release: bool,
+    /// Viewer count the daemon reported for the right-clicked pane (the
+    /// pane-info presence probe at open), `None` for a local pane, a
+    /// probe that missed its budget, or a daemon without the tail.
+    mux_viewers: Option<u32>,
 }
 
 impl PaneContextMenuUI {
@@ -41,6 +57,7 @@ impl PaneContextMenuUI {
         self.pos = pos;
         self.opened_frame = None;
         self.awaiting_open_release = true;
+        self.mux_viewers = None;
     }
 
     pub(crate) fn close(&mut self) {
@@ -49,6 +66,13 @@ impl PaneContextMenuUI {
 
     pub(crate) fn is_open(&self) -> bool {
         self.pane.is_some()
+    }
+
+    /// Show the viewer-count row for a mux pane; call right after
+    /// [`Self::open`] with what the pane-info probe returned.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) fn set_mux_viewers(&mut self, count: Option<u32>) {
+        self.mux_viewers = count;
     }
 
     /// Draw the menu; returns `(pane, action id)` for the chosen row.
@@ -73,6 +97,10 @@ impl PaneContextMenuUI {
             .show(ctx, |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_min_width(220.0);
+                    if let Some(count) = self.mux_viewers {
+                        ui.weak(viewer_label(count));
+                        ui.separator();
+                    }
                     for row in PANE_MENU_ROWS {
                         let Some((id, label)) = row else {
                             ui.separator();
@@ -123,6 +151,55 @@ mod tests {
                 "{id} has no handler"
             );
         }
+    }
+
+    /// A count of 1 reads singular, anything else plural.
+    #[test]
+    fn viewer_label_singular_and_plural() {
+        assert_eq!(viewer_label(1), "1 viewer");
+        assert_eq!(viewer_label(0), "0 viewers");
+        assert_eq!(viewer_label(12), "12 viewers");
+    }
+
+    /// The probe result rides only until the next open: setting it on one
+    /// menu does not leak into a later menu on a local pane.
+    #[test]
+    fn a_fresh_open_resets_the_viewer_row() {
+        let mut menu = PaneContextMenuUI::default();
+        menu.set_mux_viewers(Some(2));
+        assert_eq!(menu.mux_viewers, Some(2));
+        menu.open(7, egui::pos2(10.0, 10.0));
+        assert_eq!(menu.mux_viewers, None);
+    }
+
+    /// The viewer row renders without disturbing the menu: the frame runs,
+    /// the menu stays open afterwards, and Escape still closes it.
+    #[test]
+    fn the_viewer_row_renders_without_disturbing_the_menu() {
+        let ctx = egui::Context::default();
+        let mut menu = menu_with_viewers(5, Some(3));
+        frame(&ctx, &mut menu, vec![]);
+        assert!(menu.is_open());
+        frame(
+            &ctx,
+            &mut menu,
+            vec![egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+        );
+        assert!(!menu.is_open());
+    }
+
+    /// Open at a position and set the viewer row in one step.
+    fn menu_with_viewers(pane: PaneId, viewers: Option<u32>) -> PaneContextMenuUI {
+        let mut menu = PaneContextMenuUI::default();
+        menu.open(pane, egui::pos2(100.0, 100.0));
+        menu.set_mux_viewers(viewers);
+        menu
     }
 
     fn frame(

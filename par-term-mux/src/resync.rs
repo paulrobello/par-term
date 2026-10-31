@@ -590,6 +590,68 @@ pub fn pane_foreground_command(reply: &[String], pane: TmuxPaneId) -> Option<Str
     (!name.is_empty()).then_some(name)
 }
 
+/// The pane-info presence tail (core 0.72): the pane's human and process
+/// signal, as far as the daemon reported it. Each field is `None` when the
+/// row carries no token (a pre-0.72 daemon, `last_viewed_at` on a pane
+/// never viewed, `cpu_ms` on a dead pane) or when the token's value does
+/// not parse — a missing or malformed tail never fails the parse (ARC-060).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PanePresence {
+    /// Attached clients whose focused window shows this pane
+    /// zoomed-or-active (stream mirrors included).
+    pub viewer_count: Option<u32>,
+    /// Epoch-ms the pane was last viewed: `now` while a viewer holds it,
+    /// otherwise the moment the last viewer left; absent when never viewed.
+    pub last_viewed_at: Option<u64>,
+    /// Cumulative CPU-milliseconds of the pane's child plus its live
+    /// descendants; absent for a dead pane, whose child is reaped.
+    pub cpu_ms: Option<u64>,
+}
+
+/// Parse the pane-info presence tail from a `pane-info -t %N` reply, the
+/// same reply [`pane_foreground_command`] reads the `cmd=` token from:
+/// one line, `%N @W COLSxROWS [cmd=…] [exited=…]` with zero or more
+/// trailing `key=value` tokens. Known tokens (`viewer_count=`,
+/// `last_viewed_at=`, `cpu_ms=`) are consumed; a malformed value degrades
+/// to `None` with a warn, its siblings keep theirs; unknown tokens
+/// (`last_input_at=`, `viewers=`, `constraint_*=`, …) are tolerated and
+/// ignored. `None` means no line names `pane` — an `%error` reply from a
+/// daemon without `pane-info` never starts with the pane id, so it reads
+/// the same way.
+pub fn pane_presence(reply: &[String], pane: TmuxPaneId) -> Option<PanePresence> {
+    let prefix = format!("%{pane} ");
+    let line = reply.iter().find(|line| line.starts_with(&prefix))?;
+    let mut presence = PanePresence::default();
+    for token in line.split_whitespace().skip(1) {
+        if let Some(value) = token.strip_prefix("viewer_count=") {
+            presence.viewer_count = match value.parse() {
+                Ok(count) => Some(count),
+                Err(e) => {
+                    log::warn!("[MUX] unparseable viewer_count token {token:?}: {e}");
+                    None
+                }
+            };
+        } else if let Some(value) = token.strip_prefix("last_viewed_at=") {
+            presence.last_viewed_at = match value.parse() {
+                Ok(ms) => Some(ms),
+                Err(e) => {
+                    log::warn!("[MUX] unparseable last_viewed_at token {token:?}: {e}");
+                    None
+                }
+            };
+        } else if let Some(value) = token.strip_prefix("cpu_ms=") {
+            presence.cpu_ms = match value.parse() {
+                Ok(ms) => Some(ms),
+                Err(e) => {
+                    log::warn!("[MUX] unparseable cpu_ms token {token:?}: {e}");
+                    None
+                }
+            };
+        }
+    }
+    Some(presence)
+}
+
 /// Parse `sigil`N`: `name` (the `@N: name` / `$N: name` wire shapes).
 fn parse_id_name_line(line: &str, sigil: char) -> io::Result<(u64, String)> {
     let rest = line
@@ -845,6 +907,61 @@ mod tests {
             pane_foreground_command(&lines(&["%3 @1 80x24 cmd="]), 3),
             None
         );
+    }
+
+    /// Core 0.72 presence tokens parse into their fields; the other tail
+    /// tokens (`cmd=`, `future=`, `last_input_at=`, `viewers=`) ride the
+    /// tolerate-unknown path.
+    #[test]
+    fn pane_presence_parses_the_tail_tokens() {
+        let presence = pane_presence(
+            &lines(&[
+                "%3 @1 80x24 cmd=c2xlZXA= future=value viewer_count=2 last_viewed_at=1730000002000 cpu_ms=42000 last_input_at=1730000001000",
+            ]),
+            3,
+        )
+        .unwrap();
+        assert_eq!(presence.viewer_count, Some(2));
+        assert_eq!(presence.last_viewed_at, Some(1_730_000_002_000));
+        assert_eq!(presence.cpu_ms, Some(42_000));
+
+        // A bare reply (pre-0.72 daemon shape) parses with every field None.
+        let bare = pane_presence(&lines(&["%3 @1 80x24 cmd=c2xlZXA="]), 3).unwrap();
+        assert_eq!(bare, PanePresence::default());
+    }
+
+    /// A malformed value degrades to None with a warn while the rest of
+    /// the tail keeps its values — the row is never dropped.
+    #[test]
+    fn malformed_presence_tokens_degrade_to_none() {
+        let presence = pane_presence(
+            &lines(&["%9 @1 80x24 viewer_count=nope last_viewed_at=1730000002000 cpu_ms=nope"]),
+            9,
+        )
+        .unwrap();
+        assert_eq!(presence.viewer_count, None);
+        assert_eq!(presence.last_viewed_at, Some(1_730_000_002_000));
+        assert_eq!(presence.cpu_ms, None);
+        let bad_timestamp = pane_presence(
+            &lines(&["%9 @1 80x24 viewer_count=0 last_viewed_at=nope cpu_ms=0"]),
+            9,
+        )
+        .unwrap();
+        assert_eq!(bad_timestamp.last_viewed_at, None);
+        assert_eq!(bad_timestamp.viewer_count, Some(0));
+        assert_eq!(bad_timestamp.cpu_ms, Some(0));
+
+        // A reply for another pane, an error body, and an empty reply all
+        // read as "no presence known".
+        assert_eq!(
+            pane_presence(&lines(&["%4 @1 80x24 viewer_count=1"]), 9),
+            None
+        );
+        assert_eq!(
+            pane_presence(&lines(&["unknown command: pane-info"]), 9),
+            None
+        );
+        assert_eq!(pane_presence(&[], 9), None);
     }
 
     #[test]

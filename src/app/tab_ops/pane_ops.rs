@@ -427,6 +427,39 @@ impl WindowState {
         MuxJobCheck::Idle
     }
 
+    /// The right-clicked pane's pane-info presence tail, for the pane
+    /// context menu's viewer-count row. The right-click focuses the pane
+    /// under the pointer before the menu opens, so the focused pane IS the
+    /// menu's pane; the mapping to the daemon pane is the same one input
+    /// routing uses. `None` for a local pane, when the daemon missed the
+    /// budget, or when it predates the presence tail — the menu then opens
+    /// without the row. `cpu_ms`, parsed but not surfaced in the menu,
+    /// lands in the debug log here (the metric's debug surface).
+    #[cfg(feature = "mux")]
+    pub(crate) fn mux_menu_pane_presence(
+        &self,
+        pane_id: crate::pane::PaneId,
+    ) -> Option<par_term_mux::PanePresence> {
+        let tab = self.tab_manager.active_tab()?;
+        let pane = tab.pane_manager()?.focused_pane()?;
+        if pane.id != pane_id {
+            return None;
+        }
+        let mux_pane = self.tmux_state.tmux_pane_in_tab(tab.id, pane.id)?;
+        let transport = self.tmux_state.transport.as_ref()?;
+        let reply = transport
+            .query_bounded(
+                &format!("pane-info -t %{mux_pane}"),
+                MUX_MENU_PRESENCE_BUDGET,
+            )
+            .ok()?;
+        let presence = par_term_mux::pane_presence(&reply, mux_pane)?;
+        if let Some(cpu_ms) = presence.cpu_ms {
+            crate::debug_info!("MUX", "pane-info %{mux_pane}: cpu_ms={cpu_ms}ms");
+        }
+        Some(presence)
+    }
+
     /// Show the running-job close confirmation for the focused attached
     /// pane. Returns true when the dialog is now up and the close must wait
     /// for its answer; false when the close may proceed. A check the daemon
@@ -586,6 +619,13 @@ impl WindowState {
 /// cause; past it the close is held for confirmation rather than skipped.
 #[cfg(feature = "mux")]
 const MUX_JOB_CHECK_BUDGET: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// How long the pane context menu's presence probe may hold the
+/// right-click. A quarter second — shorter than the close-confirm budget,
+/// because a menu opening late is worse than a menu without the viewer
+/// row. Past it the menu opens without the row.
+#[cfg(feature = "mux")]
+const MUX_MENU_PRESENCE_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// What the daemon said about the closing attached panes' foreground jobs.
 #[cfg(feature = "mux")]

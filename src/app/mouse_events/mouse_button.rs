@@ -283,6 +283,12 @@ impl WindowState {
                     {
                         let pos = self.physical_to_logical_pos(mouse_position);
                         self.overlay_ui.pane_context_menu.open(pane_id, pos);
+                        #[cfg(feature = "mux")]
+                        if let Some(presence) = self.mux_menu_pane_presence(pane_id) {
+                            self.overlay_ui
+                                .pane_context_menu
+                                .set_mux_viewers(presence.viewer_count);
+                        }
                         self.request_redraw();
                         return;
                     }
