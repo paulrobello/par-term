@@ -101,7 +101,7 @@ impl WindowState {
         // if the user never used it during the attach — is replaced by the
         // session's first daemon window (the window-add handler).
         #[cfg(feature = "mux")]
-        self.new_tab_via_mux();
+        super::mux_default_attach::new_tab_via_mux(self);
 
         // The local shell is created synchronously in every configuration;
         // the pending first-tab migration arms in `mux_default_attach`.
@@ -115,7 +115,7 @@ impl WindowState {
         self.new_tab_local();
     }
 
-    /// The pure routing rule behind [`Self::new_tab_via_mux`]: the flip is
+    /// The pure routing rule behind `new_tab_via_mux`: the flip is
     /// on, no transport is attached (an attached window's tabs are already
     /// daemon windows), and the tmux gateway is inactive (its window
     /// already owns a multiplexer connection).
