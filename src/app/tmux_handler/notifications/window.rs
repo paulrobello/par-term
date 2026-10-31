@@ -4,6 +4,8 @@
 //! session. Each event maps to a corresponding tab operation.
 
 use crate::app::window_state::WindowState;
+#[cfg(feature = "mux")]
+use crate::tab::TabId;
 use crate::tmux::TmuxWindowId;
 
 impl WindowState {
@@ -11,8 +13,31 @@ impl WindowState {
     pub(crate) fn handle_tmux_window_add(&mut self, window_id: TmuxWindowId) {
         crate::debug_info!("TMUX", "Window added: @{}", window_id);
 
-        // Check max tabs limit
-        if self.config.load().tabs.max_tabs > 0
+        #[cfg(feature = "mux")]
+        let replacing = self
+            .tmux_state
+            .mux_default_placeholder
+            .take()
+            .and_then(|id| {
+                let tab = self.tab_manager.get_tab(id)?;
+                let untouched = tab
+                    .terminal
+                    .try_read()
+                    .is_ok_and(|term| term.pty_write_count() == 0)
+                    && tab
+                        .pane_manager()
+                        .is_none_or(|pm| pm.all_panes().len() == 1)
+                    && !tab.user_named;
+                if !untouched {
+                    log::info!("par-mux: first tab has been used; keeping it local");
+                }
+                untouched.then_some(id)
+            });
+        #[cfg(not(feature = "mux"))]
+        let replacing: Option<crate::tab::TabId> = None;
+        // Replacement is net-zero even when max_tabs is full.
+        if replacing.is_none()
+            && self.config.load().tabs.max_tabs > 0
             && self.tab_manager.tab_count() >= self.config.load().tabs.max_tabs
         {
             crate::debug_error!(
@@ -115,6 +140,16 @@ impl WindowState {
                 {
                     let _ = self.tab_manager.close_tab_fast(placeholder);
                 }
+
+                // The mux-by-default first tab: an eligible (still unused)
+                // pending local tab is replaced in its own slot — the swap
+                // is net-zero, so it bypasses max_tabs above.
+                #[cfg(feature = "mux")]
+                if let Some(placeholder) = replacing
+                    && self.tab_manager.get_tab(placeholder).is_some()
+                {
+                    self.finish_replacing_mux_default_placeholder(placeholder, tab_id);
+                }
             }
             Err(e) => {
                 crate::debug_error!(
@@ -128,5 +163,27 @@ impl WindowState {
 
         // Hide the gateway tab now that a tmux window tab exists
         self.hide_gateway_tab();
+    }
+
+    /// The second half of the mux-by-default first-tab replacement: the
+    /// eligible pending local tab closes (fast path, its PTY pre-killed)
+    /// and the daemon window's tab takes its slot, focused — it inherits
+    /// the replaced tab's attention. Not a session-undo entry: nothing the
+    /// user built is discarded, the swap ran on an untouched shell.
+    #[cfg(feature = "mux")]
+    fn finish_replacing_mux_default_placeholder(&mut self, placeholder: TabId, daemon_tab: TabId) {
+        let slot = self
+            .tab_manager
+            .tabs()
+            .iter()
+            .position(|t| t.id == placeholder);
+        let _ = self.tab_manager.close_tab_fast(placeholder);
+        if let Some(slot) = slot {
+            self.tab_manager.move_tab_to_index(daemon_tab, slot);
+        }
+        self.tab_manager.switch_to(daemon_tab);
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
+        log::info!("par-mux: unused first tab replaced in place by the daemon window's tab");
     }
 }

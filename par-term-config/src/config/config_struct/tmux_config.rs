@@ -39,10 +39,13 @@ pub struct TmuxConfig {
     /// New tabs default to par-mux: an unattached window's first new tab
     /// opens as a local shell and starts (or joins) the default par-mux
     /// session, so the window attaches and later tabs are daemon windows.
-    /// A profile can opt out per profile (`use_mux_by_default` on the
-    /// profile); when the daemon cannot start or the create fails, the
-    /// window stays unattached and the tab is simply the local shell,
-    /// with a warning logged. Default: true
+    /// Once the attach lands, the untouched first tab is replaced by the
+    /// session's first daemon window in the same slot; a first tab that
+    /// already received input stays local. A profile can opt out per
+    /// profile (`use_mux_by_default` on the profile); when the daemon
+    /// cannot start or the create fails, the window stays unattached and
+    /// the tab is simply the local shell, with a warning logged.
+    /// Default: true
     #[serde(default = "crate::defaults::bool_true")]
     pub use_mux_by_default: bool,
 

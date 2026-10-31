@@ -98,18 +98,40 @@ impl WindowState {
         // local shell (synchronously, so a tab always exists), the attach
         // to the default session runs off the event loop, and the
         // session's windows arrive around it. Once attached, further new
-        // tabs are daemon windows (the branch above).
+        // tabs are daemon windows (the branch above), and the first tab —
+        // if the user never used it during the attach — is replaced by the
+        // session's first daemon window (the window-add handler).
         #[cfg(feature = "mux")]
         self.new_tab_via_mux();
 
+        // Arm the pending first-tab migration when an attach is in flight
+        // for this request and the local tab below was actually created:
+        // the active tab changes exactly by the new tab. The is_none guard
+        // keeps an earlier request's marker from being stolen by a tab
+        // opened while that attach is still connecting.
+        let previous = self.tab_manager.active_tab_id();
         self.new_tab_local();
+        #[cfg(feature = "mux")]
+        if self.tmux_state.mux_attach_pending.is_some()
+            && matches!(
+                self.tmux_state.mux_default_tab,
+                Some(MuxDefaultTabOrigin::NewTab)
+            )
+            && self.tab_manager.active_tab_id() != previous
+            && self.tmux_state.mux_default_placeholder.is_none()
+        {
+            self.tmux_state.mux_default_placeholder = self.tab_manager.active_tab_id();
+        }
+        #[cfg(not(feature = "mux"))]
+        let _ = previous;
     }
 
     /// The `use_mux_by_default` attach-on-first-new-tab step: begin the
     /// attach to the default session so the window joins (or creates) it
     /// while the requested tab is created locally by `new_tab_local`.
-    /// The attach never blocks or removes the tab — a refused or failed
-    /// attach is logged, and the local shell is simply the tab.
+    /// The attach never blocks — a refused or failed attach is logged and
+    /// the local shell is simply the tab; a successful attach hands the
+    /// untouched tab to the window-add handler for replacement.
     #[cfg(feature = "mux")]
     fn new_tab_via_mux(&mut self) {
         if cfg!(test) {

@@ -230,6 +230,13 @@ impl WindowState {
         }
         self.tmux_state.tmux_session_name = None;
         self.tmux_state.mux_session_id = None;
+        // The pending first-tab migration is a promise about THIS attach;
+        // once the view ends it must not fire on a later session's
+        // window-add.
+        #[cfg(feature = "mux")]
+        {
+            self.tmux_state.mux_default_placeholder = None;
+        }
 
         // Clear pane mappings
         self.tmux_state.tmux_pane_owners.clear();

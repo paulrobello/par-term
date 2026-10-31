@@ -83,12 +83,14 @@ pub(crate) fn show_par_mux_section(
                          right away and at the same time starts (or joins) the default \
                          par-mux session — the window attaches, and every further new tab \
                          is a daemon window that survives closing par-term and rejoins on \
-                         attach. Restored windows follow the same default. A profile can \
-                         opt out with its own Use Mux By Default setting. When the daemon \
-                         cannot start or the create fails, the window stays unattached and \
-                         the tab is simply the local shell (a warning is logged). When \
-                         off, new tabs are local shells and par-mux is used only on \
-                         explicit attach.",
+                         attach. Once attached, the untouched local first tab is replaced \
+                         by the session's first daemon window in the same slot; a first \
+                         tab you already typed into stays local. Restored windows follow \
+                         the same default. A profile can opt out with its own Use Mux By \
+                         Default setting. When the daemon cannot start or the create \
+                         fails, the window stays unattached and the tab is simply the \
+                         local shell (a warning is logged). When off, new tabs are local \
+                         shells and par-mux is used only on explicit attach.",
                     );
                 if response.changed() {
                     settings.config.tmux.use_mux_by_default = use_mux;

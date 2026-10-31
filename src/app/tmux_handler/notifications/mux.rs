@@ -337,10 +337,19 @@ impl WindowState {
     /// The mux-by-default attach tail: the requested tab already exists as
     /// a local shell (new_tab_local ran synchronously), so both outcomes
     /// only retire the origin marker. Failure says so with `log::warn!` —
-    /// the tab the user asked for never disappears — and success joins the
-    /// session whose windows arrive as tabs around it.
+    /// the tab the user asked for never disappears — and disarms the
+    /// pending first-tab migration with it. Success leaves
+    /// `mux_default_placeholder` armed: the first daemon window-add
+    /// replaces the untouched local tab in its slot, and on a created
+    /// session that window arrives via %window-add after this tail.
     fn mux_default_tab_attach_tail(&mut self, attached: bool) {
-        if self.tmux_state.mux_default_tab.take().is_some() && !attached {
+        if self.tmux_state.mux_default_tab.take().is_some() {
+            if attached {
+                return;
+            }
+            // The local first tab stays what it already is — a plain local
+            // shell (criterion: the fallback is today's behavior).
+            self.tmux_state.mux_default_placeholder = None;
             log::warn!(
                 "par-mux: default-session attach failed — the window stays unattached; \
                  its tabs are local shells"

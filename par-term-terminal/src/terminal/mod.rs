@@ -65,6 +65,11 @@ pub struct TerminalManager {
     prev_scrollback_len: Mutex<usize>,
     /// Cached soft-wrap flags for the most recently rendered viewport.
     pub(crate) wrap_flags_cache: Mutex<Option<(usize, usize, Vec<bool>)>>,
+    /// How many write calls pushed bytes INTO this PTY (keystrokes, pastes,
+    /// feature writes). The mux-by-default first-tab migration reads it as
+    /// a conservative "this shell has been used" sentinel: any nonzero
+    /// count keeps the tab local.
+    pty_write_calls: std::sync::atomic::AtomicU64,
 }
 
 impl TerminalManager {
@@ -107,12 +112,24 @@ impl TerminalManager {
             known_graphic_times: Mutex::new(std::collections::HashMap::new()),
             prev_scrollback_len: Mutex::new(0),
             wrap_flags_cache: Mutex::new(None),
+            pty_write_calls: std::sync::atomic::AtomicU64::new(0),
         })
     }
 
     /// Set the color theme
     pub fn set_theme(&mut self, theme: Theme) {
         self.theme = theme;
+    }
+
+    /// How many write calls pushed bytes into this PTY — the conservative
+    /// "this shell has been used" sentinel the mux-by-default first-tab
+    /// migration checks before replacing the tab: any nonzero count keeps
+    /// the tab local. Keystrokes, pastes, and feature writes (snippets,
+    /// keep-alives, initial text) all count; resizes and emulator-side
+    /// processing do not.
+    pub fn pty_write_count(&self) -> u64 {
+        self.pty_write_calls
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Set cell dimensions in pixels for sixel graphics scroll calculations

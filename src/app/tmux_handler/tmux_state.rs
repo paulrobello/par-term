@@ -105,14 +105,14 @@ pub(crate) enum MuxJob {
 }
 
 /// Why an unattached window began the default-session attach behind the
-/// `use_mux_by_default` flip (UX criterion: new tabs default to mux).
-/// The origin only names the caller for the attach tail's log line: the
-/// requested tab already exists as a local shell when the attach settles,
-/// and a failed attach leaves it that way — the window simply stays
-/// unattached.
+/// `use_mux_by_default` flip (UX criterion: new tabs default to mux). A
+/// `NewTab` attach that succeeds replaces the untouched local first tab
+/// with the session's first daemon window; a failed attach leaves it a
+/// local shell. `Restore` owns no replacement beyond the restore
+/// placeholder's existing close-on-window-add.
 #[cfg(feature = "mux")]
 pub(crate) enum MuxDefaultTabOrigin {
-    /// A new-tab request (Cmd+T) or a plain-profile open began the attach.
+    /// A new-tab request (Cmd+T) began the attach.
     NewTab,
     /// Session restore began the attach for a saved local window.
     Restore,
@@ -281,6 +281,14 @@ pub(crate) struct TmuxState {
     /// picker/profile-attach/restore-reattach attaches.
     #[cfg(feature = "mux")]
     pub(crate) mux_default_tab: Option<super::tmux_state::MuxDefaultTabOrigin>,
+    /// The pending local first tab of the mux-by-default flip: set when the
+    /// tab is created alongside the default attach, consumed by the first
+    /// daemon window-add, which replaces it in its slot — unless the user
+    /// has used the tab by then (`TerminalManager::pty_write_count`), which
+    /// cancels the migration and leaves the tab local. `None` outside the
+    /// create→attach window.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_default_placeholder: Option<TabId>,
     /// The session-restore placeholder tab of a mux-attached window.
     /// Restore spawns one local shell tab (the `vec![None]` shape) so a
     /// failed attach never leaves an empty window; the first daemon
@@ -386,6 +394,8 @@ impl TmuxState {
             mux_attach_pending: None,
             #[cfg(feature = "mux")]
             mux_default_tab: None,
+            #[cfg(feature = "mux")]
+            mux_default_placeholder: None,
             mux_restore_placeholder_tab: None,
             #[cfg(feature = "mux")]
             pending_mux_paste: std::cell::RefCell::new(None),

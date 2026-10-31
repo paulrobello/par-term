@@ -178,6 +178,8 @@ impl TerminalManager {
                 data
             );
         }
+        self.pty_write_calls
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let mut pty = self.pty_session.lock();
         pty.write(data).map_err(TerminalError::Write)?;
         Ok(())
@@ -190,6 +192,8 @@ impl TerminalManager {
     /// Returns an error if the write to the PTY master fails — in practice
     /// because the child has exited and the slave end is closed.
     pub fn write_str(&self, data: &str) -> Result<()> {
+        self.pty_write_calls
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let mut pty = self.pty_session.lock();
         pty.write_str(data).map_err(TerminalError::Write)?;
         Ok(())
@@ -268,6 +272,8 @@ impl TerminalManager {
         let content = content.replace('\n', "\r");
 
         log::debug!("Pasting {} chars (bracketed paste check)", content.len());
+        self.pty_write_calls
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         let (start, end) = {
             let pty = self.pty_session.lock();
@@ -309,6 +315,8 @@ impl TerminalManager {
         if content.is_empty() {
             return Ok(());
         }
+        self.pty_write_calls
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         let (start, end) = {
             let pty = self.pty_session.lock();
@@ -457,6 +465,29 @@ impl TerminalManager {
 #[cfg(test)]
 mod tests {
     use super::TerminalManager;
+
+    /// The first-tab migration sentinel: PTY writes count, emulator-side
+    /// processing does not. The mux-by-default guard treats any nonzero
+    /// count as "this shell has been used".
+    #[test]
+    fn pty_write_count_tracks_input_not_output() {
+        let mut manager = TerminalManager::new(80, 24).unwrap();
+        assert_eq!(manager.pty_write_count(), 0, "fresh shell: nothing sent");
+
+        manager.process_mux_output(b"output does not count\n");
+        manager.process_data(b"more output\n");
+        assert_eq!(manager.pty_write_count(), 0, "output is not input");
+
+        // A write needs a live child: spawn the default shell like the app
+        // does for every real tab.
+        manager.spawn_shell().expect("spawn");
+        manager.write(b"exit\r").expect("write");
+        let _ = manager.write_str("echo done\r");
+        assert_eq!(manager.pty_write_count(), 2, "each input write counts once");
+
+        manager.paste("echo hi\n").expect("paste");
+        assert_eq!(manager.pty_write_count(), 3, "paste is input too");
+    }
 
     /// A mux mirror has no PTY master, so device-query responses generated
     /// while parsing daemon-fed output must be drained and discarded — the
