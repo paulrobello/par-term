@@ -12,6 +12,7 @@
 
 mod broadcast;
 mod lifecycle;
+mod mux_default_attach;
 mod pane_focus;
 #[cfg(test)]
 mod pane_hover_tests;

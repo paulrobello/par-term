@@ -6,8 +6,7 @@ use std::sync::Arc;
 
 use super::super::window_state::WindowState;
 use super::{ClosedTabInfo, HiddenMuxTab};
-#[cfg(feature = "mux")]
-use crate::app::tmux_handler::tmux_state::MuxDefaultTabOrigin;
+
 use crate::tmux::TmuxWindowId;
 use par_term_config::TabId;
 
@@ -104,60 +103,16 @@ impl WindowState {
         #[cfg(feature = "mux")]
         self.new_tab_via_mux();
 
-        // Arm the pending first-tab migration when an attach is in flight
-        // for this request and the local tab below was actually created:
-        // the active tab changes exactly by the new tab. The is_none guard
-        // keeps an earlier request's marker from being stolen by a tab
-        // opened while that attach is still connecting.
-        let previous = self.tab_manager.active_tab_id();
-        self.new_tab_local();
+        // The local shell is created synchronously in every configuration;
+        // the pending first-tab migration arms in `mux_default_attach`.
         #[cfg(feature = "mux")]
-        if self.tmux_state.mux_attach_pending.is_some()
-            && matches!(
-                self.tmux_state.mux_default_tab,
-                Some(MuxDefaultTabOrigin::NewTab)
-            )
-            && self.tab_manager.active_tab_id() != previous
-            && self.tmux_state.mux_default_placeholder.is_none()
         {
-            self.tmux_state.mux_default_placeholder = self.tab_manager.active_tab_id();
+            let previous = self.tab_manager.active_tab_id();
+            self.new_tab_local();
+            super::mux_default_attach::arm_default_placeholder(self, previous);
         }
         #[cfg(not(feature = "mux"))]
-        let _ = previous;
-    }
-
-    /// The `use_mux_by_default` attach-on-first-new-tab step: begin the
-    /// attach to the default session so the window joins (or creates) it
-    /// while the requested tab is created locally by `new_tab_local`.
-    /// The attach never blocks — a refused or failed attach is logged and
-    /// the local shell is simply the tab; a successful attach hands the
-    /// untouched tab to the window-add handler for replacement.
-    #[cfg(feature = "mux")]
-    fn new_tab_via_mux(&mut self) {
-        if cfg!(test) {
-            // Unit tests must not start real daemons behind their
-            // assertions: the attach worker would connect-or-spawn the
-            // default session on any machine with par-mux installed. The
-            // flip's decision rule is pinned by the pure-rule tests.
-            return;
-        }
-        if !Self::new_tab_wants_mux(
-            self.config.load().tmux.use_mux_by_default,
-            self.tmux_state.transport.is_some(),
-            self.is_gateway_active(),
-        ) || self.tmux_state.mux_attach_pending.is_some()
-        {
-            return;
-        }
-        self.tmux_state.mux_default_tab = Some(MuxDefaultTabOrigin::NewTab);
-        self.begin_mux_session_attach(crate::app::tmux_handler::tmux_state::DEFAULT_MUX_SESSION);
-        if self.tmux_state.mux_attach_pending.is_none() {
-            // Refused before any worker started (the self-attach guard, a
-            // dead socket dir, worker-spawn failure): the tab below is
-            // simply a local shell; say so.
-            self.tmux_state.mux_default_tab = None;
-            log::warn!("par-mux: default-session attach refused; the new tab stays a local shell");
-        }
+        self.new_tab_local();
     }
 
     /// The pure routing rule behind [`Self::new_tab_via_mux`]: the flip is
