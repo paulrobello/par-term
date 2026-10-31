@@ -44,13 +44,13 @@ pub(crate) fn palette_runtime_rows(
     rows.extend(crash_triage.palette_entries());
     #[cfg(feature = "mux")]
     {
-        // Rostered agents, scoped to panes the app maps so every offered
-        // row is focusable (A2b task 3).
-        let map = &tmux_state.tmux_pane_owners;
+        // Rostered agents, scoped to panes the app can show and focus: a
+        // mapped daemon pane, or a still-live local pane the detector saw
+        // (A2b task 3 + the local-pane roster card).
         rows.extend(
             tmux_state
                 .agent_roster
-                .palette_rows(&|pane| map.contains_key(&pane)),
+                .palette_rows(&|pane| tmux_state.roster_pane_visible(pane)),
         );
         // The attached par-mux session's rows, present only while a
         // transport is installed.

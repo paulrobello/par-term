@@ -31,20 +31,64 @@ use par_term_tmux::TmuxPaneId;
 
 /// The cached roster, keyed by pane for deterministic surface order (the
 /// daemon's own reply is pane-sorted).
+///
+/// Two pane-id namespaces share the map: daemon panes carry their `%N`
+/// ids verbatim, and LOCAL (non-mux) panes carry synthetic ids from
+/// [`Self::local_pane_id`] — bit 63 set over `(tab id, native pane id)`,
+/// a space no daemon `%N` id can reach. The daemon namespace is filled
+/// and cleared wholesale by the wire; the local namespace is reconciled
+/// by the throttled process detector ([`super::local_roster`]) and
+/// survives every daemon-scoped reset (`fill_from_list`, `clear`) so a
+/// detach or a daemon death never blanks local rows.
 pub(crate) struct AgentRoster {
     entries: std::collections::BTreeMap<TmuxPaneId, AgentEntry>,
     /// Panes whose agent finished (`working` → `idle`) and that the user
     /// has not focused since — herdr's "Done, unseen" signal. Cleared by
     /// [`Self::mark_seen`] at the focus seam; every removal path drops it
-    /// with the entry.
+    /// with the entry. Daemon panes only: local detection cannot know a
+    /// finish, so synthetic panes never enter here.
     done_unseen: std::collections::BTreeSet<TmuxPaneId>,
+    /// The local panes the detector last saw live — the surfaces' admission
+    /// set for synthetic ids, kept exactly in step with the synthetic
+    /// entries by [`Self::set_local_agents`].
+    local_live: std::collections::BTreeSet<TmuxPaneId>,
 }
 
 impl AgentRoster {
+    /// Bit 63 of a synthetic local-pane id. Daemon pane ids (`%N`) are
+    /// small non-negative counters, so no real id ever sets it — the two
+    /// namespaces cannot collide inside one roster.
+    const LOCAL_PANE_FLAG: u64 = 1 << 63;
+
+    /// Synthetic roster id for a local pane: `(tab id, native pane id)`
+    /// over the local flag. Tab ids restart at 1 in every window and pane
+    /// ids at 1 in every tab, but the roster is per-window, so the pair is
+    /// unique here for the window's lifetime (both counters are monotonic;
+    /// ids are never reused).
+    pub(crate) fn local_pane_id(tab_id: u64, pane_id: u64) -> TmuxPaneId {
+        Self::LOCAL_PANE_FLAG | (tab_id << 32) | pane_id
+    }
+
+    /// Whether `pane` carries the synthetic local namespace.
+    pub(crate) fn is_local_pane(pane: TmuxPaneId) -> bool {
+        pane & Self::LOCAL_PANE_FLAG != 0
+    }
+
+    /// Split a synthetic id back into `(tab id, native pane id)`.
+    /// `None` for daemon pane ids.
+    pub(crate) fn decode_local_pane(pane: TmuxPaneId) -> Option<(u64, u64)> {
+        if !Self::is_local_pane(pane) {
+            return None;
+        }
+        let local = pane & !Self::LOCAL_PANE_FLAG;
+        Some((local >> 32, local & 0xFFFF_FFFF))
+    }
+
     pub(crate) fn new() -> Self {
         Self {
             entries: std::collections::BTreeMap::new(),
             done_unseen: std::collections::BTreeSet::new(),
+            local_live: std::collections::BTreeSet::new(),
         }
     }
 
@@ -53,8 +97,10 @@ impl AgentRoster {
     /// reports is not in the reply and therefore not in the roster. Viewed
     /// state is par-term's own (the daemon's reply carries none), so a
     /// fresh fill starts every pane seen — the reattach view is new.
+    /// Local (synthetic) entries survive: the daemon's reply says nothing
+    /// about them.
     pub(crate) fn fill_from_list(&mut self, agents: Vec<AgentEntry>) {
-        self.entries.clear();
+        self.entries.retain(|pane, _| Self::is_local_pane(*pane));
         self.done_unseen.clear();
         for entry in agents {
             self.entries.insert(entry.pane, entry);
@@ -139,11 +185,76 @@ impl AgentRoster {
         }
     }
 
-    /// Drop every entry — the transport died or the session ended, and a
-    /// roster that outlives its daemon renders ghosts.
+    /// Drop every daemon entry — the transport died or the session ended,
+    /// and a roster that outlives its daemon renders ghosts. Local
+    /// (synthetic) entries survive: no daemon is involved in them.
     pub(crate) fn clear(&mut self) {
-        self.entries.clear();
+        self.entries.retain(|pane, _| Self::is_local_pane(*pane));
         self.done_unseen.clear();
+    }
+
+    /// Reconcile the local namespace from one detector pass: upsert every
+    /// detected pane, drop every synthetic entry whose pane was not in the
+    /// pass (closed pane, exited agent, or the pane became daemon-mapped).
+    /// Wholesale for the local namespace only — the daemon namespace is
+    /// untouched, and the detector skips daemon-mapped panes so a local
+    /// row can never shadow a daemon row for the same pane.
+    ///
+    /// Synthetic entries are always `working` + scrape-sourced: process
+    /// detection can see that an agent binary runs, nothing else. States
+    /// beyond `working` need hook reports, which only daemon panes carry.
+    /// Returns whether anything changed.
+    pub(crate) fn set_local_agents(&mut self, detected: Vec<(u64, u64, String)>) -> bool {
+        self.local_live = detected
+            .iter()
+            .map(|(tab, pane, _)| Self::local_pane_id(*tab, *pane))
+            .collect();
+        let keep = self.local_live.clone();
+        // A local entry the pass did not name (closed pane, exited agent,
+        // pane newly daemon-mapped) is a change; so is a named pane whose
+        // detected agent differs from the stored row.
+        let mut changed = self
+            .entries
+            .iter()
+            .filter(|(pane, _)| Self::is_local_pane(**pane))
+            .count()
+            != detected.len();
+        self.entries
+            .retain(|pane, _| !Self::is_local_pane(*pane) || keep.contains(pane));
+        for (tab_id, pane_id, agent) in detected {
+            let pane = Self::local_pane_id(tab_id, pane_id);
+            if !self
+                .entries
+                .get(&pane)
+                .is_some_and(|e| e.agent == agent && e.state.eq_ignore_ascii_case("working"))
+            {
+                changed = true;
+            }
+            self.entries.insert(
+                pane,
+                AgentEntry {
+                    pane,
+                    agent,
+                    state: "working".to_string(),
+                    source: AgentSource::Scrape,
+                    reason: None,
+                    last_input_at: None,
+                    stalled: None,
+                },
+            );
+        }
+        changed
+    }
+
+    /// Whether the detector's last pass saw `pane` (a synthetic id) live —
+    /// the surfaces' admission test for local rows.
+    pub(crate) fn local_seen(&self, pane: TmuxPaneId) -> bool {
+        self.local_live.contains(&pane)
+    }
+
+    /// Whether any local row exists at all (the empty-local fast path).
+    pub(crate) fn has_local(&self) -> bool {
+        !self.local_live.is_empty()
     }
 
     /// Done-unseen as every surface renders it: par-term's own focus mark,
@@ -255,7 +366,7 @@ impl AgentRoster {
     /// tooltip. `visible` scopes the lines to the attached session, like
     /// [`Self::summary_line`].
     pub(crate) fn tooltip_text(&self, visible: &dyn Fn(TmuxPaneId) -> bool) -> Option<String> {
-        let lines: Vec<String> = self
+        let mut lines: Vec<String> = self
             .iter()
             .filter(|e| visible(e.pane))
             .map(|entry| {
@@ -270,10 +381,14 @@ impl AgentRoster {
                 } else {
                     entry.state.as_str()
                 };
-                let mut line = format!(
-                    "{} · {} · {} (pane {})",
-                    entry.agent, state, source, entry.pane
-                );
+                // A synthetic pane id is meaningless to a user; local rows
+                // name the scope instead of printing the encoded number.
+                let pane_label = if Self::is_local_pane(entry.pane) {
+                    "local pane".to_string()
+                } else {
+                    format!("pane {}", entry.pane)
+                };
+                let mut line = format!("{} · {} · {} ({})", entry.agent, state, source, pane_label);
                 if entry.last_input_at.is_some() {
                     line.push_str(" · human input");
                 }
@@ -283,6 +398,17 @@ impl AgentRoster {
                 line
             })
             .collect();
+        // The honesty note: local rows come from process detection, which
+        // sees a running agent binary and nothing else. Never render them
+        // as blocked/question/done — those are hook-reported states.
+        if self
+            .iter()
+            .any(|e| visible(e.pane) && Self::is_local_pane(e.pane))
+        {
+            lines.push(
+                "local panes: detected working only (hook states need a par-mux pane)".to_string(),
+            );
+        }
         if lines.is_empty() {
             return None;
         }
@@ -319,13 +445,19 @@ impl AgentRoster {
             .filter(|e| visible(e.pane))
             .map(|entry| {
                 let unseen_done = self.shows_done_unseen(entry.pane);
-                let mut state = if unseen_done {
+                // Local rows say exactly what process detection knows and
+                // nothing more: a detected working binary, never the hook
+                // states (blocked/question/done) it cannot see.
+                let local = Self::is_local_pane(entry.pane);
+                let mut state = if local {
+                    "detected working (local pane; no hook states)".to_string()
+                } else if unseen_done {
                     // nerd check (U+2713 sits in no egui-stack font)
                     "done \u{f00c}".to_string()
                 } else {
                     entry.state.clone()
                 };
-                if matches!(entry.source, AgentSource::Scrape) {
+                if !local && matches!(entry.source, AgentSource::Scrape) {
                     state.push('~');
                 }
                 let mut label = format!("{}: {}", entry.agent, state);

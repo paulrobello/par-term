@@ -139,6 +139,25 @@ pub(crate) fn route_literal_bytes(
 }
 
 impl TmuxState {
+    /// The roster surfaces' `visible` predicate, admitting both namespaces:
+    /// a daemon pane renders while the app maps it (the module doc's rule),
+    /// and a synthetic local pane renders while the detector still sees the
+    /// pane live AND the daemon has not claimed it — the claim check makes
+    /// the non-shadowing rule immediate rather than waiting out the next
+    /// detection pass.
+    pub(crate) fn roster_pane_visible(&self, pane: par_term_tmux::TmuxPaneId) -> bool {
+        match super::agent_roster::AgentRoster::decode_local_pane(pane) {
+            Some((tab_id, pane_id)) => {
+                self.agent_roster.local_seen(pane)
+                    && !self
+                        .tmux_pane_owners
+                        .values()
+                        .any(|owner| *owner == (tab_id, pane_id))
+            }
+            None => self.tmux_pane_owners.contains_key(&pane),
+        }
+    }
+
     /// Runtime palette rows for the attached par-mux session, present only
     /// while a transport is installed so the palette never offers a dead
     /// action (the roster-picker pattern: runtime rows joined at open time,

@@ -52,10 +52,19 @@ impl WindowState {
             self.poll_mux_attach();
             // A landed session-directory scan redraws the picker/chip.
             let directory_landed = self.poll_mux_directory();
+            // Local (non-mux) pane detection: a throttled, off-loop process
+            // scan feeding the roster's synthetic namespace. Runs regardless
+            // of transport state — local panes exist in attached windows too.
+            // ORed in, never short-circuiting the mux drain below it.
+            let local_roster_changed = self.tmux_state.local_roster_detector.poll(
+                &self.tab_manager,
+                &self.tmux_state.tmux_pane_owners,
+                &mut self.tmux_state.agent_roster,
+            );
             if self.tmux_state.transport.is_some() {
-                return self.check_mux_notifications() | directory_landed;
+                return self.check_mux_notifications() | directory_landed | local_roster_changed;
             }
-            if directory_landed && !self.config.load().tmux.tmux_enabled {
+            if (directory_landed || local_roster_changed) && !self.config.load().tmux.tmux_enabled {
                 return true;
             }
         }

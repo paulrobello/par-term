@@ -261,6 +261,11 @@ pub(crate) struct TmuxState {
     /// its types live in the feature-gated client crate.
     #[cfg(feature = "mux")]
     pub(crate) agent_roster: super::notifications::agent_roster::AgentRoster,
+    /// The local-pane agent detector (throttle + in-flight scan receiver).
+    /// Companion to `agent_roster`'s synthetic local namespace; exists only
+    /// under the `mux` feature for the same reason.
+    #[cfg(feature = "mux")]
+    pub(crate) local_roster_detector: super::notifications::local_roster::LocalRosterDetector,
     /// In-flight profile-open attach: a worker thread runs the daemon
     /// connect/spawn (the core retries the socket for up to 10s — far too
     /// long to block the event loop), and `poll_mux_attach` completes the
@@ -375,6 +380,8 @@ impl TmuxState {
             mux_discoveries_in_flight: 0,
             #[cfg(feature = "mux")]
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),
+            #[cfg(feature = "mux")]
+            local_roster_detector: super::notifications::local_roster::LocalRosterDetector::new(),
             #[cfg(feature = "mux")]
             mux_attach_pending: None,
             #[cfg(feature = "mux")]

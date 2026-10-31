@@ -304,6 +304,12 @@ impl WindowState {
     /// the id (session ended, layout mid-rebuild) or the owning tab is gone;
     /// the caller logs and no-ops.
     pub(crate) fn focus_agent_roster_pane(&mut self, tmux_pane_id: u64) -> bool {
+        // Synthetic local namespace: resolve through the detector's pane
+        // scan instead of the daemon pane map.
+        #[cfg(feature = "mux")]
+        if super::notifications::agent_roster::AgentRoster::is_local_pane(tmux_pane_id) {
+            return super::notifications::local_roster::focus_local_roster_pane(self, tmux_pane_id);
+        }
         let Some((owner_tab_id, native_pane_id)) = self.tmux_state.tmux_pane_owner(tmux_pane_id)
         else {
             return false;

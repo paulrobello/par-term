@@ -36,6 +36,10 @@ mod layout_apply;
 mod layout_new_tab;
 mod layout_zoom;
 #[cfg(feature = "mux")]
+pub(crate) mod local_roster;
+#[cfg(all(test, feature = "mux", unix))]
+mod local_roster_tests;
+#[cfg(feature = "mux")]
 pub(crate) mod mux;
 #[cfg(all(test, feature = "mux", unix))]
 mod mux_adopt_tests;
