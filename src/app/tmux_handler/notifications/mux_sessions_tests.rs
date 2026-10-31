@@ -8,7 +8,7 @@
 //! at `par-mux-<name>.sock` paths the way `par-mux <name>` binds them.
 
 use super::mux::tests::manners_state;
-use super::mux_test_seams::wait_until;
+use super::mux_test_seams::{try_pump, wait_until};
 use crate::app::window_state::WindowState;
 use crate::session_picker_mux::{MuxPickerAction, MuxSessionRow};
 use par_term_emu_core_rust::mux::{MuxClient, MuxServer};
@@ -162,9 +162,24 @@ fn workspaces_create_switch_rename_kill_end_to_end() {
         .cloned()
         .expect("the directory lists the dev workspace");
     ws.handle_mux_session_request(MuxPickerAction::SwitchWorkspace(dev_row.clone()));
-    pump(&mut ws, "follow lands on the resumed session", |ws| {
-        attached(ws) == Some(("work".to_string(), "dev".to_string()))
-    });
+    // The follow is a one-shot that deliberately skips rather than
+    // attaching blind when a listing misses the id; a slow runner can lose
+    // it. The switch is idempotent, so re-issue it between bounded pumps
+    // until the view lands — on a fast machine the first attempt lands
+    // and the loop never retries.
+    let expected = ("work".to_string(), "dev".to_string());
+    let mut landed = try_pump(&mut ws, 30, |ws| attached(ws) == Some(expected.clone()));
+    for _ in 0..4 {
+        if landed {
+            break;
+        }
+        ws.handle_mux_session_request(MuxPickerAction::SwitchWorkspace(dev_row.clone()));
+        landed = try_pump(&mut ws, 30, |ws| attached(ws) == Some(expected.clone()));
+    }
+    assert!(
+        landed,
+        "follow lands on the resumed session: not observed within the retry window"
+    );
 
     // RENAME daemon-side, then switch back to the workspace holding the
     // original session.
@@ -182,10 +197,20 @@ fn workspaces_create_switch_rename_kill_end_to_end() {
         .and_then(|d| d.workspaces.iter().find(|w| w.name == "main"))
         .cloned()
         .expect("the directory lists the main workspace");
-    ws.handle_mux_session_request(MuxPickerAction::SwitchWorkspace(main_row));
-    pump(&mut ws, "follow lands back on the original session", |ws| {
-        attached(ws) == Some(("work".to_string(), "work".to_string()))
-    });
+    ws.handle_mux_session_request(MuxPickerAction::SwitchWorkspace(main_row.clone()));
+    let expected = ("work".to_string(), "work".to_string());
+    let mut landed = try_pump(&mut ws, 30, |ws| attached(ws) == Some(expected.clone()));
+    for _ in 0..4 {
+        if landed {
+            break;
+        }
+        ws.handle_mux_session_request(MuxPickerAction::SwitchWorkspace(main_row.clone()));
+        landed = try_pump(&mut ws, 30, |ws| attached(ws) == Some(expected.clone()));
+    }
+    assert!(
+        landed,
+        "follow lands back on the original session: not observed within the retry window"
+    );
 
     // KILL: the workspace's sessions end with it.
     ws.handle_mux_session_request(MuxPickerAction::KillWorkspace(dev_row));

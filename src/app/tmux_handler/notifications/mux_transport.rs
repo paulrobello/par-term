@@ -722,6 +722,7 @@ mod tests {
     /// the commit says, and the pane receives the path paste.
     #[test]
     fn upload_file_job_materializes_and_pastes_the_path() {
+        use super::super::mux_test_seams::DAEMON_DEADLINE;
         let path = socket_path("upload-e2e");
         spawn_daemon(&path);
         let transport = connect(&path);
@@ -768,14 +769,23 @@ mod tests {
         );
 
         // The commit pasted the materialized path into the pane: the
-        // shell's next prompt line carries it.
-        let screen = transport
-            .send_command("capture-pane -t %0 -p")
-            .expect("capture-pane");
-        assert!(
-            screen.iter().any(|l| l.contains("uploaded-body.txt")),
-            "the commit pasted the materialized path into the pane: {screen:?}"
-        );
+        // shell's next prompt line carries it. The echo can lag the paste
+        // by seconds on a slow runner, so poll the pane screen instead of
+        // capturing once.
+        let paste_deadline = std::time::Instant::now() + DAEMON_DEADLINE;
+        loop {
+            let screen = transport
+                .send_command("capture-pane -t %0 -p")
+                .unwrap_or_default();
+            if screen.iter().any(|l| l.contains("uploaded-body.txt")) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < paste_deadline,
+                "the commit pasted the materialized path into the pane: {screen:?}"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
 
         let _ = std::fs::remove_file(&file);
         let _ = std::fs::remove_file(&path);

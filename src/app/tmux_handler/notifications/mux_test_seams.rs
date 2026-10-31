@@ -37,6 +37,31 @@ pub(crate) fn poll_until(mut cond: impl FnMut() -> bool) -> bool {
     }
 }
 
+/// Drive the notifications upkeep each tick while waiting, bounded by
+/// `secs`, and return whether `done` held in time — [`wait_until`]'s
+/// pumping without its assert, so a caller can retry the operation that
+/// feeds `done` between attempts.
+pub(crate) fn try_pump(
+    ws: &mut WindowState,
+    secs: u64,
+    done: impl Fn(&WindowState) -> bool,
+) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    loop {
+        if done(ws) {
+            return true;
+        }
+        ws.check_tmux_notifications();
+        if done(ws) {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
 /// [`poll_until`], failing the test with `what` at the deadline.
 pub(crate) fn wait_until(what: &str, cond: impl FnMut() -> bool) {
     assert!(
