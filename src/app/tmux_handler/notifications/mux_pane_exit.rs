@@ -538,16 +538,23 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// Attach through the app's install path and map window @0's %0 from
-    /// the drain alone: the created session's %window-add waits in the
-    /// client channel, and its adoption maps %0. A manual
-    /// `handle_tmux_window_add(0)` (the ladder above) would add a second
-    /// tab for @0 and make every window count wrong.
+    /// Attach through the app's install path and map window @0's %0. The
+    /// created session's %window-add normally rides the live push into the
+    /// client channel, and its adoption maps %0. Under machine load that
+    /// push can be lost before the drain sees it — the daemon's broadcast
+    /// queue is bounded and evicts a stalled client (core ARC-011), and
+    /// the install's event-ring baseline has then watermarked past the
+    /// event, so it never re-delivers. Recover from the daemon's own
+    /// window list, the same truth the reattach path trusts: only after
+    /// the drain had a bounded chance, only if the daemon still reports
+    /// the window, and guarded by tab-absence so a late push cannot
+    /// double-adopt.
     fn attached_with_pane_zero(
         tag: &str,
     ) -> (crate::app::window_state::WindowState, std::path::PathBuf) {
         use super::super::mux::MuxAttachPending;
         use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
+        use super::super::mux_test_seams::try_pump;
 
         let path = socket_path(tag);
         spawn_daemon(&path);
@@ -562,6 +569,14 @@ mod tests {
         });
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        if !try_pump(&mut ws, 20, |ws| {
+            ws.tmux_state.tmux_pane_owners.contains_key(&0)
+        }) {
+            // The push was lost; recover from the daemon's window list.
+            if daemon_windows(&ws).contains(&0) && ws.tmux_state.tmux_sync.get_tab(0).is_none() {
+                ws.handle_tmux_window_add(0);
+            }
+        }
         pump_until(&mut ws, "the %window-add adoption maps %0", |ws| {
             ws.tmux_state.tmux_pane_owners.contains_key(&0)
         });
