@@ -562,7 +562,23 @@ impl Renderer {
         // Check if we need to render
         let force_render = self.needs_continuous_render();
         if !self.dirty && !force_render && egui_data.is_none() {
+            if !self.was_frame_skipped {
+                log::info!(
+                    "render gate: frames paused (clean) — content changes now reach the \
+                     screen only when another invalidation fires (card 01a198054b5d)"
+                );
+                self.was_frame_skipped = true;
+            }
             return Ok(false);
+        }
+        if self.was_frame_skipped {
+            log::info!(
+                "render gate: frames resumed (dirty={} force={}) — first repaint after a \
+                 paused stretch",
+                self.dirty,
+                force_render
+            );
+            self.was_frame_skipped = false;
         }
 
         self.preload_pane_backgrounds(panes);

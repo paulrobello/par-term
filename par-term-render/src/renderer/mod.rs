@@ -78,6 +78,13 @@ pub struct Renderer {
     // Dirty flag for optimization - only render when content has changed
     pub(crate) dirty: bool,
 
+    // Whether the previous render_split_panes call was skipped by the clean
+    // gate. Transition edges (rendered -> skipping, skipping -> rendered) are
+    // logged at info level so a stale-pixel sighting can be paired with the
+    // frame the terminal content changed but nothing repainted (card
+    // 01a198054b5d).
+    pub(crate) was_frame_skipped: bool,
+
     // Cached scrollbar state to avoid redundant GPU uploads.
     // Includes scroll position, line counts, marks, window size, AND pane viewport
     // bounds so that pane splits/resizes correctly trigger a scrollbar geometry update.
@@ -342,6 +349,7 @@ impl Renderer {
             startup_cursor_shader_error,
             size,
             dirty: true, // Start dirty to ensure initial render
+            was_frame_skipped: false,
             last_scrollbar_state: (usize::MAX, 0, 0, 0, 0, 0, 0, 0, 0, 0), // Force first update
             cursor_shader_disabled_for_alt_screen: false,
             debug_text: None,

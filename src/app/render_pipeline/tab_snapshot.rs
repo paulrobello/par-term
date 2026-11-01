@@ -249,6 +249,17 @@ impl WindowState {
             }
 
             self.frame.cache_hit = is_cache_hit;
+            if !is_cache_hit && !used_stale_cache {
+                // Content-transition evidence for the stale-pixel hunt (card
+                // 01a198054b5d): pairs with the render gate's paused/resumed
+                // edges so a sighting can show a generation advance landing
+                // entirely inside a paused stretch.
+                log::info!(
+                    "gather: cells regenerated at generation {} (cache had {})",
+                    current_generation,
+                    cache_generation
+                );
+            }
             // Re-arm a redraw when we rendered behind the live terminal because the
             // core lock was contended (`used_stale_cache`). Cleared as soon as a
             // fresh gather succeeds, so this never loops once caught up / at idle.
