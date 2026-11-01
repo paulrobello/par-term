@@ -271,6 +271,10 @@ impl WindowState {
             // held and replayed.
             self.tmux_state.mux_output_backlog.remove(&pane);
             *self.tmux_state.mux_seeds_in_flight.entry(pane).or_default() += 1;
+            log::info!(
+                "mux seed: requested for pane %{pane} (pre-seed backlog dropped, seed in \
+                 flight)"
+            );
         }
     }
 
@@ -299,6 +303,17 @@ impl WindowState {
                 Ok(payload) => {
                     let mut bytes = b"\x1b[H\x1b[2J".to_vec();
                     bytes.extend_from_slice(payload.screen.join("\n").as_bytes());
+                    let held_bytes: usize = self
+                        .tmux_state
+                        .mux_held_output
+                        .get(&pane)
+                        .map(|held| held.len())
+                        .unwrap_or(0);
+                    log::info!(
+                        "mux seed: landed for pane %{pane} (screen rows {}, held bytes \
+                         replayed after snapshot: {held_bytes})",
+                        payload.screen.len()
+                    );
                     self.tmux_state
                         .mux_held_output
                         .remove(&pane)
@@ -516,14 +531,10 @@ mod tests {
             !ws.tmux_state.mux_output_backlog.contains_key(&0),
             "the pre-seed backlog must be dropped: the seed screen already reflects it"
         );
-        let folded = ws
-            .tmux_state
-            .mux_held_output
-            .get(&0)
-            .is_some_and(|held| {
-                held.windows(b"STALE-PRE-SEED-DIFF".len())
-                    .any(|w| w == b"STALE-PRE-SEED-DIFF")
-            });
+        let folded = ws.tmux_state.mux_held_output.get(&0).is_some_and(|held| {
+            held.windows(b"STALE-PRE-SEED-DIFF".len())
+                .any(|w| w == b"STALE-PRE-SEED-DIFF")
+        });
         assert!(
             !folded,
             "pre-seed bytes must not reach the hold: replaying them after the snapshot \
