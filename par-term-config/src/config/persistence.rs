@@ -13,7 +13,7 @@ use crate::types::{BackgroundImageMode, InstallPromptState, StartupDirectoryMode
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 impl Config {
     /// Load configuration from file or create default
@@ -30,6 +30,19 @@ impl Config {
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path();
         log::info!("Config path: {:?}", config_path);
+
+        // A config file that vanished while its one-generation backup survives
+        // is a loss event (the 2026-11-01 directory deletion), not a first
+        // run: restore the backup loudly instead of silently defaulting.
+        let backup_path = Self::backup_path();
+        if restore_backup_if_lost(&config_path, &backup_path) {
+            log::warn!(
+                "Config file {:?} is missing but its backup {:?} survives — restored the \
+                 backup instead of defaulting (loss event, card 01a19903da4f)",
+                config_path,
+                backup_path
+            );
+        }
 
         if config_path.exists() {
             // Validate that the config file has not been redirected (e.g. via a
@@ -147,16 +160,28 @@ impl Config {
     /// config cannot be serialized to YAML, or if writing, syncing or renaming
     /// the temp file fails.
     pub fn save(&self) -> Result<()> {
-        crate::atomic_save::save_yaml_atomic(&Self::config_path(), self)
+        let config_path = Self::config_path();
+        // Keep a one-generation backup beside the config: on the next load, a
+        // missing config.yaml restores from it (restore_backup_if_lost) instead
+        // of silently defaulting (the 2026-11-01 loss event, card
+        // 01a19903da4f). Best-effort: a failed backup never blocks the save.
+        backup_existing_config(&config_path, &Self::backup_path());
+        crate::atomic_save::save_yaml_atomic(&config_path, self)
     }
 
     /// Get the configuration file path.
     ///
-    /// Always [`Config::config_dir`] plus `config.yaml`. These two used to resolve
-    /// the directory independently, which meant any change to one silently
-    /// desynchronised the other.
+    /// Always [`Config::config_dir`] plus `config.yaml`. The sibling backup is
+    /// dir-loss best-effort only — when the whole directory goes, the backup
+    /// goes with it; the real dir-loss guard is the migration opt-in
+    /// (`config_migration.rs`).
     pub fn config_path() -> PathBuf {
         Self::config_dir().join("config.yaml")
+    }
+
+    /// Path of the one-generation config backup written by [`Config::save`].
+    pub fn backup_path() -> PathBuf {
+        Self::config_dir().join("config.yaml.bak")
     }
 
     /// Get the configuration directory path.
@@ -595,6 +620,40 @@ fn unix_config_dir(xdg_config_home: Option<std::ffi::OsString>, home: Option<Pat
     }
 }
 
+/// Keep a one-generation backup of `config_path` at `backup_path`.
+///
+/// Best-effort by design: a failed backup is logged and skipped, never
+/// blocking the save it protects. Copied (not renamed) so the live file is
+/// never the backup's business.
+fn backup_existing_config(config_path: &Path, backup_path: &Path) {
+    if !config_path.exists() {
+        return;
+    }
+    if let Err(e) = fs::copy(config_path, backup_path) {
+        log::warn!("Could not back up the config to {backup_path:?} before saving: {e}");
+    }
+}
+
+/// Restore the backup over a missing config file; returns whether it did.
+///
+/// A config that vanished while its backup survives is a loss event, not a
+/// first run — the caller logs it loudly. A first run has no backup either,
+/// so the defaulting path stays exactly as before.
+fn restore_backup_if_lost(config_path: &Path, backup_path: &Path) -> bool {
+    if config_path.exists() || !backup_path.exists() {
+        return false;
+    }
+    fs::copy(backup_path, config_path)
+        .map(|_| true)
+        .unwrap_or_else(|e| {
+            log::error!(
+                "Config {config_path:?} is missing and its backup {backup_path:?} could not \
+                 be restored: {e}"
+            );
+            false
+        })
+}
+
 #[cfg(all(test, not(target_os = "windows")))]
 mod xdg_tests {
     use super::unix_config_dir;
@@ -638,5 +697,51 @@ mod xdg_tests {
     #[test]
     fn no_home_and_no_xdg_falls_back_to_cwd() {
         assert_eq!(unix_config_dir(None, None), PathBuf::from("."));
+    }
+}
+
+#[cfg(test)]
+mod backup_tests {
+    use super::{backup_existing_config, restore_backup_if_lost};
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn backup_copies_when_config_exists_and_skips_when_missing() {
+        let dir = tempdir().unwrap();
+        let config = dir.path().join("config.yaml");
+        let backup = dir.path().join("config.yaml.bak");
+
+        backup_existing_config(&config, &backup);
+        assert!(!backup.exists(), "no config: nothing to back up");
+
+        fs::write(&config, "generation one").unwrap();
+        backup_existing_config(&config, &backup);
+        assert_eq!(fs::read_to_string(&backup).unwrap(), "generation one");
+
+        // The live file is untouched by the backup copy.
+        fs::write(&config, "generation two").unwrap();
+        assert_eq!(fs::read_to_string(&backup).unwrap(), "generation one");
+    }
+
+    #[test]
+    fn restore_fires_only_when_config_is_lost_and_backup_survives() {
+        let dir = tempdir().unwrap();
+        let config = dir.path().join("config.yaml");
+        let backup = dir.path().join("config.yaml.bak");
+
+        // Neither file: nothing to restore (the true first-run path).
+        assert!(!restore_backup_if_lost(&config, &backup));
+
+        // Config survives: never clobber it with the backup.
+        fs::write(&config, "live").unwrap();
+        fs::write(&backup, "backup").unwrap();
+        assert!(!restore_backup_if_lost(&config, &backup));
+        assert_eq!(fs::read_to_string(&config).unwrap(), "live");
+
+        // Config lost, backup survives: restored loudly by the caller.
+        fs::remove_file(&config).unwrap();
+        assert!(restore_backup_if_lost(&config, &backup));
+        assert_eq!(fs::read_to_string(&config).unwrap(), "backup");
     }
 }

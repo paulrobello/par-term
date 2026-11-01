@@ -98,6 +98,7 @@ par-term honours **`XDG_CONFIG_HOME` only**. It does not implement the full [XDG
 |----------|---------|-------------|
 | `XDG_CONFIG_HOME` | `~/.config` | Base directory for par-term's configuration **and all other per-user data**. Config is at `$XDG_CONFIG_HOME/par-term/config.yaml`; profiles, arrangements, command history, saved windows, sounds and discovered ACP agents sit beside it. |
 | `PAR_TERM_NO_MIGRATE` | unset | Set to any non-empty value (e.g. `1`) to skip the startup legacy-config migration entirely. The migration cannot tell a deliberate relocation from a run whose `XDG_CONFIG_HOME` merely points elsewhere — a test harness or wrapper that redirects only `XDG_CONFIG_HOME` would otherwise **move the real `~/.config/par-term` into the redirected location**. Set this (or isolate `HOME`) for scratch-dir runs. |
+| `PAR_TERM_MIGRATE_HOME_CONFIG` | unset | Set to any non-empty value (e.g. `1`) to allow the startup migration to sweep `~/.config/par-term` when `XDG_CONFIG_HOME` points elsewhere. **Off by default (2026-11-01 incident):** a sweep without it drained the real config into a scratch dir and deleted the directory. Only needed once, for a genuine deliberate relocation of the home config. |
 
 The value must be an **absolute** path. As the specification requires, a relative or empty `XDG_CONFIG_HOME` is treated as invalid and ignored, falling back to `~/.config`.
 

@@ -51,7 +51,28 @@ fn migration_opted_out(value: Option<&std::ffi::OsStr>) -> bool {
 }
 
 fn migrate_from_legacy_roots(legacies: Vec<PathBuf>, canonical: &Path) {
+    let home_dot_config = dirs::home_dir().map(|home| home.join(".config").join("par-term"));
     for legacy in legacies {
+        // The real user's home config is only a migration source on explicit
+        // opt-in: with XDG_CONFIG_HOME set, a harness run's throwaway dir and
+        // a genuine user relocation are indistinguishable in-process, and the
+        // sweep drains the real config into the throwaway and removes the
+        // real directory (incidents 2026-09-28, 2026-09-30, 2026-11-01).
+        if should_skip_home_config_source(
+            &legacy,
+            home_dot_config.as_ref(),
+            home_config_migration_opted_in(
+                std::env::var_os("PAR_TERM_MIGRATE_HOME_CONFIG").as_deref(),
+            ),
+        ) {
+            log::warn!(
+                "Config migration skipped the real home config {:?}: with XDG_CONFIG_HOME \
+                 set, a harness run's throwaway dir cannot be told from a genuine \
+                 relocation. Set PAR_TERM_MIGRATE_HOME_CONFIG=1 to allow this sweep.",
+                legacy
+            );
+            continue;
+        }
         let moved = migrate_between(&legacy, canonical);
         if moved > 0 {
             log::info!(
@@ -61,6 +82,23 @@ fn migrate_from_legacy_roots(legacies: Vec<PathBuf>, canonical: &Path) {
         // Clean up the now-empty legacy dir; silently ignored if entries remain.
         let _ = std::fs::remove_dir(&legacy);
     }
+}
+
+/// Whether `legacy` is the real user's home config and may not be swept
+/// without `PAR_TERM_MIGRATE_HOME_CONFIG`. Extracted for hermetic testing:
+/// the caller compares against `dirs::home_dir()`, which a test cannot fake.
+fn should_skip_home_config_source(
+    legacy: &Path,
+    home_dot_config: Option<&PathBuf>,
+    opted_in: bool,
+) -> bool {
+    home_dot_config.is_some_and(|home| home.as_path() == legacy) && !opted_in
+}
+
+/// Whether `PAR_TERM_MIGRATE_HOME_CONFIG` allows sweeping the home config.
+/// Set to any non-empty value; an empty value reads as unset.
+fn home_config_migration_opted_in(value: Option<&std::ffi::OsStr>) -> bool {
+    value.is_some_and(|v| !v.is_empty())
 }
 
 /// Locations that may hold config from an earlier par-term, excluding `canonical`.
@@ -300,6 +338,36 @@ mod tests {
         assert!(!migration_opted_out(None));
         assert!(!migration_opted_out(Some(std::ffi::OsStr::new(""))));
         assert!(migration_opted_out(Some(std::ffi::OsStr::new("1"))));
+    }
+
+    /// The 2026-11-01 incident: with `XDG_CONFIG_HOME` set, a harness run's
+    /// throwaway dir and a genuine user relocation are indistinguishable, so
+    /// the sweep drained the real home config into the throwaway and removed
+    /// the real directory. The home config is now opt-in only.
+    #[test]
+    fn home_config_source_needs_explicit_opt_in() {
+        let home_config = dirs::home_dir().map(|home| home.join(".config").join("par-term"));
+        let other_legacy = PathBuf::from("/some/throwaway/par-term");
+        if let Some(ref home) = home_config {
+            assert!(should_skip_home_config_source(
+                home,
+                home_config.as_ref(),
+                false
+            ));
+            assert!(!should_skip_home_config_source(
+                home,
+                home_config.as_ref(),
+                true
+            ));
+        }
+        // A legacy root that is not the home config (e.g. the macOS
+        // Application Support location) sweeps as before without opt-in.
+        assert!(!should_skip_home_config_source(&other_legacy, None, false));
+        assert!(!should_skip_home_config_source(
+            &other_legacy,
+            home_config.as_ref(),
+            false
+        ));
     }
 
     /// What the gate protects: `migrate_from_legacy_roots` is the operation
