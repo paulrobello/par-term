@@ -228,6 +228,18 @@ impl CellRenderer {
         // SAFETY: kCGColorSpaceSRGB is an immutable CoreGraphics constant.
         let srgb = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceSRGB }));
         layer.setColorspace(srgb.as_deref());
+        // Optional drawable-pool cap (card 01a198054b5d): stale IOSurfaces from
+        // the compositor's drawable pool are the remaining stale-pixel suspect
+        // once cells, the frame gate, and surface reconfigures are all ruled
+        // out. PAR_TERM_MAX_DRAWABLES=2 runs the layer double-buffered; the
+        // default leaves wgpu's choice (3) untouched.
+        if let Some(count) = Self::max_drawables_override() {
+            if count >= 2 && count <= 8 {
+                layer.setMaximumDrawableCount(count as usize);
+            } else {
+                log::warn!("PAR_TERM_MAX_DRAWABLES={count} ignored: must be 2..=8");
+            }
+        }
         log::warn!(
             "CAMetalLayer after configure: opaque={} displaySync={} maxDrawables={} colorspace={}",
             layer.isOpaque(),
@@ -239,6 +251,14 @@ impl CellRenderer {
                 "none"
             }
         );
+    }
+
+    /// `PAR_TERM_MAX_DRAWABLES` as a parsed count, when set non-empty.
+    #[cfg(target_os = "macos")]
+    fn max_drawables_override() -> Option<u32> {
+        std::env::var("PAR_TERM_MAX_DRAWABLES")
+            .ok()
+            .and_then(|v| v.trim().parse::<u32>().ok())
     }
 
     /// Move the surface between `Opaque` and a compositing alpha mode when
