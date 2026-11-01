@@ -130,6 +130,10 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
                 format_bytes_per_sec(ctx.system_data.network_tx_rate)
             )
         }
+        WidgetId::LoadAverage => format!(
+            "LOAD {:>6.2} {:>6.2} {:>6.2}",
+            ctx.system_data.load_1m, ctx.system_data.load_5m, ctx.system_data.load_15m
+        ),
         WidgetId::BellIndicator => {
             if ctx.session_vars.bell_count > 0 {
                 format!("\u{1f514} {}", ctx.session_vars.bell_count)
@@ -167,7 +171,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
 /// Supported variables:
 /// - `\(session.hostname)`, `\(session.username)`, `\(session.path)`, etc.
 /// - `\(git.branch)`
-/// - `\(system.cpu)`, `\(system.memory)`
+/// - `\(system.cpu)`, `\(system.memory)`, `\(system.load)`
 pub fn interpolate_format(fmt: &str, ctx: &WidgetContext) -> String {
     let mut result = String::with_capacity(fmt.len());
     let mut chars = fmt.chars().peekable();
@@ -216,6 +220,10 @@ fn resolve_variable(name: &str, ctx: &WidgetContext) -> String {
         "git.dirty" => if ctx.git_dirty { "\u{25cf}" } else { "" }.to_string(),
         "system.cpu" => format!("{:.1}%", ctx.system_data.cpu_usage),
         "system.memory" => format_memory(ctx.system_data.memory_used, ctx.system_data.memory_total),
+        "system.load" => format!(
+            "{:>6.2} {:>6.2} {:>6.2}",
+            ctx.system_data.load_1m, ctx.system_data.load_5m, ctx.system_data.load_15m
+        ),
         "system.disk_free_percent" => format!("{:.0}%", ctx.disk_free_percent),
         "system.disk_free" => crate::status_bar::system_monitor::format_bytes(ctx.disk_free_bytes),
         "system.disk_total" => {
@@ -265,6 +273,9 @@ mod tests {
                 memory_total: 17_179_869_184, // 16 GB
                 network_rx_rate: 1024,
                 network_tx_rate: 2048,
+                load_1m: 0.0,
+                load_5m: 0.0,
+                load_15m: 0.0,
                 last_update: None,
             },
             git_branch: Some("main".to_string()),
@@ -409,6 +420,25 @@ mod tests {
     }
 
     #[test]
+    fn test_widget_text_load_average() {
+        let mut ctx = make_ctx();
+        ctx.system_data.load_1m = 1.234;
+        ctx.system_data.load_5m = 0.98;
+        ctx.system_data.load_15m = 0.7;
+        let text = widget_text(&WidgetId::LoadAverage, &ctx, None);
+        assert_eq!(text, "LOAD   1.23   0.98   0.70");
+
+        // Fixed width from 0.00 through 999.99; values >= 1000 grow only
+        // past the padding (never truncated).
+        let mut low = make_ctx();
+        low.system_data.load_1m = 0.5;
+        low.system_data.load_5m = 999.99;
+        let low_text = widget_text(&WidgetId::LoadAverage, &low, None);
+        assert_eq!(low_text, "LOAD   0.50 999.99   0.00");
+        assert_eq!(text.len(), low_text.len());
+    }
+
+    #[test]
     fn test_widget_text_network_status() {
         let ctx = make_ctx();
         let text = widget_text(&WidgetId::NetworkStatus, &ctx, None);
@@ -485,6 +515,16 @@ mod tests {
             &ctx,
         );
         assert_eq!(result, "free=250.0 GB pct=38%");
+    }
+
+    #[test]
+    fn test_interpolate_load_var() {
+        let mut ctx = make_ctx();
+        ctx.system_data.load_1m = 2.5;
+        ctx.system_data.load_5m = 1.0;
+        ctx.system_data.load_15m = 0.5;
+        let result = interpolate_format("load=\\(system.load)", &ctx);
+        assert_eq!(result, "load=  2.50   1.00   0.50");
     }
 
     #[test]

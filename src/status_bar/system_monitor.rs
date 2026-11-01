@@ -23,6 +23,12 @@ pub struct SystemMonitorData {
     pub network_rx_rate: u64,
     /// Network transmit rate (bytes/sec)
     pub network_tx_rate: u64,
+    /// 1-minute load average
+    pub load_1m: f64,
+    /// 5-minute load average
+    pub load_5m: f64,
+    /// 15-minute load average
+    pub load_15m: f64,
     /// When this data was last updated
     pub last_update: Option<Instant>,
 }
@@ -140,6 +146,11 @@ mod inner {
                             d.memory_total = sys.total_memory();
                             d.network_rx_rate = rx_rate;
                             d.network_tx_rate = tx_rate;
+                            if let Ok(la) = sysinfo::System::load_average() {
+                                d.load_1m = la.one;
+                                d.load_5m = la.five;
+                                d.load_15m = la.fifteen;
+                            }
                             d.last_update = Some(Instant::now());
                         }
 

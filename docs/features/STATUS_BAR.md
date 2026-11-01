@@ -64,6 +64,7 @@ par-term includes 15 built-in widgets plus custom and plugin widgets:
 | **CPU Usage** | `cpu_usage` | CPU usage percentage with fixed-width formatting (e.g., "CPU  42.5%") | Right | Disabled |
 | **Memory Usage** | `memory_usage` | Used/total memory with MEM prefix (e.g., "MEM   4.0 GB /  16.0 GB") | Right | Disabled |
 | **Network Status** | `network_status` | Receive/transmit rates with arrows (e.g., "↓   1.0 KB/s ↑   2.0 KB/s") | Right | Disabled |
+| **Load Average** | `load_average` | 1/5/15-minute system load averages, fixed-width to 999.99 (e.g., "LOAD   1.23   0.98   0.70") | Right | Disabled |
 | **Disk Free** | `disk_free` | Free disk space as percent + bytes (e.g., "DISK  62% (250.0 GB free)") | Right | Disabled |
 | **Bell Indicator** | `bell_indicator` | Bell emoji with count, shown when count > 0 (e.g., "🔔 3") | Right | Enabled |
 | **Update Available** | `update_available` | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
@@ -109,7 +110,7 @@ Git status polling runs on a background thread with a configurable interval. Tog
 status_bar_git_show_status: true  # default: true
 ```
 
-### System Widgets (CPU, Memory, Network)
+### System Widgets (CPU, Memory, Network, Load)
 
 System monitoring widgets are **disabled by default** to avoid unnecessary resource usage. Enable them individually in the Settings UI.
 
@@ -141,7 +142,7 @@ Widgets within each section are separated by a configurable separator character 
 |---------|-------------------|
 | **Left** | Broadcast Input (hidden unless broadcast is on), User@Hostname, Current Directory, Git Branch |
 | **Center** | Current Command |
-| **Right** | CPU (off), Memory (off), Network (off), Disk (off), Agent Usage (off), Agent Roster (on; empty until a par-mux session with agents is attached), Bell, Clock, Update Available |
+| **Right** | CPU (off), Memory (off), Network (off), Load (off), Disk (off), Agent Usage (off), Agent Roster (on; empty until a par-mux session with agents is attached), Bell, Clock, Update Available |
 
 Widgets can be moved between sections and reordered via the Settings UI.
 
@@ -183,6 +184,7 @@ Custom widgets support these variables:
 | `\(git.dirty)` | Dirty state (bullet if dirty, empty if clean) | `●` |
 | `\(system.cpu)` | CPU usage percentage | `42.5%` |
 | `\(system.memory)` | Memory usage (used / total) | `4.0 GB / 16.0 GB` |
+| `\(system.load)` | Load averages 1/5/15-min (fixed-width) | ` 1.23  0.98  0.70` |
 | `\(system.disk_free_percent)` | Free disk percentage | `62%` |
 | `\(system.disk_free)` | Free disk bytes (human-readable) | `250.0 GB` |
 | `\(system.disk_total)` | Total disk bytes (human-readable) | `500.0 GB` |

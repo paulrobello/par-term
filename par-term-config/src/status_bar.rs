@@ -46,6 +46,8 @@ pub enum WidgetId {
     MemoryUsage,
     /// Network throughput (rx/tx rates)
     NetworkStatus,
+    /// System load averages (1/5/15-minute)
+    LoadAverage,
     /// Free disk space (percent + bytes)
     DiskFree,
     /// Bell indicator with count
@@ -81,6 +83,7 @@ impl WidgetId {
             WidgetId::CpuUsage => "CPU Usage",
             WidgetId::MemoryUsage => "Memory Usage",
             WidgetId::NetworkStatus => "Network Status",
+            WidgetId::LoadAverage => "Load Average",
             WidgetId::DiskFree => "Disk Free",
             WidgetId::BellIndicator => "Bell Indicator",
             WidgetId::CurrentCommand => "Current Command",
@@ -104,6 +107,7 @@ impl WidgetId {
             WidgetId::CpuUsage => "\u{1f4bb}",         // laptop
             WidgetId::MemoryUsage => "\u{1f4be}",      // floppy disk
             WidgetId::NetworkStatus => "\u{1f310}",    // globe with meridians
+            WidgetId::LoadAverage => "\u{1f4ca}",      // bar chart
             WidgetId::DiskFree => "\u{1f4bf}",         // optical disk
             WidgetId::BellIndicator => "\u{1f514}",    // bell
             WidgetId::CurrentCommand => "\u{25b6}",    // play button
@@ -121,7 +125,10 @@ impl WidgetId {
     pub fn needs_system_monitor(&self) -> bool {
         matches!(
             self,
-            WidgetId::CpuUsage | WidgetId::MemoryUsage | WidgetId::NetworkStatus
+            WidgetId::CpuUsage
+                | WidgetId::MemoryUsage
+                | WidgetId::NetworkStatus
+                | WidgetId::LoadAverage
         )
     }
 
@@ -141,6 +148,7 @@ impl WidgetId {
             WidgetId::CpuUsage => "cpu_usage".to_string(),
             WidgetId::MemoryUsage => "memory_usage".to_string(),
             WidgetId::NetworkStatus => "network_status".to_string(),
+            WidgetId::LoadAverage => "load_average".to_string(),
             WidgetId::DiskFree => "disk_free".to_string(),
             WidgetId::BellIndicator => "bell_indicator".to_string(),
             WidgetId::CurrentCommand => "current_command".to_string(),
@@ -171,6 +179,7 @@ impl WidgetId {
             "cpu_usage" => WidgetId::CpuUsage,
             "memory_usage" => WidgetId::MemoryUsage,
             "network_status" => WidgetId::NetworkStatus,
+            "load_average" => WidgetId::LoadAverage,
             "disk_free" => WidgetId::DiskFree,
             "bell_indicator" => WidgetId::BellIndicator,
             "current_command" => WidgetId::CurrentCommand,
@@ -341,6 +350,16 @@ pub fn default_widgets() -> Vec<StatusBarWidgetConfig> {
             enabled: false,
             section: StatusBarSection::Left,
             order: 1,
+            format: None,
+        },
+        // Off by default, like the other system widgets: the default merge
+        // adds it to every existing config, so it must not change anyone's
+        // bar unasked.
+        StatusBarWidgetConfig {
+            id: WidgetId::LoadAverage,
+            enabled: false,
+            section: StatusBarSection::Right,
+            order: 9,
             format: None,
         },
     ]
