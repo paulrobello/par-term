@@ -250,6 +250,15 @@ pub(crate) struct TmuxState {
     /// when it lands so it replays after the snapshot, in arrival order.
     #[cfg(feature = "mux")]
     pub(crate) mux_held_output: std::collections::HashMap<TmuxPaneId, Vec<u8>>,
+    /// Output chunks whose terminal lock was contended when they arrived
+    /// (roster/tab switches force a full re-extract that holds the lock
+    /// exactly while a TUI is streaming). Buffered per pane in arrival
+    /// order and replayed on the pane's next output once the lock frees —
+    /// the par-mux daemon never re-sends pane output, so a dropped chunk
+    /// is a permanent hole (corrupted repaints, truncated OSC 52). Bounded
+    /// per pane; see `MAX_OUTPUT_BACKLOG_BYTES`.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_output_backlog: std::collections::HashMap<TmuxPaneId, Vec<u8>>,
     /// Off-loop window discoveries (`MuxJob::DiscoverWindow`) not yet
     /// applied — keeps the event loop polling until they land.
     #[cfg(feature = "mux")]
@@ -385,6 +394,8 @@ impl TmuxState {
             #[cfg(feature = "mux")]
             mux_held_output: std::collections::HashMap::new(),
             #[cfg(feature = "mux")]
+            mux_output_backlog: std::collections::HashMap::new(),
+            #[cfg(feature = "mux")]
             mux_discoveries_in_flight: 0,
             #[cfg(feature = "mux")]
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),
@@ -428,6 +439,7 @@ impl TmuxState {
     pub(crate) fn clear_mux_seed_holds(&mut self) {
         self.mux_seeds_in_flight.clear();
         self.mux_held_output.clear();
+        self.mux_output_backlog.clear();
         self.mux_discoveries_in_flight = 0;
     }
 

@@ -70,6 +70,8 @@ mod mux_leader_tests;
 #[cfg(all(test, feature = "mux"))]
 mod mux_mirror_read_tests;
 #[cfg(all(test, feature = "mux"))]
+mod mux_output_backlog_tests;
+#[cfg(all(test, feature = "mux"))]
 mod mux_output_hooks_tests;
 #[cfg(all(test, feature = "mux"))]
 mod mux_pane_env_tests;

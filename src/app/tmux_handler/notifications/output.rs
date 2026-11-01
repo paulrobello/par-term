@@ -9,7 +9,165 @@
 
 use crate::app::window_state::WindowState;
 
+/// Per-pane cap on lock-miss output backlog (`mux_output_backlog`): past
+/// this, the oldest bytes are dropped so the newest repaint data survives.
+/// The daemon never re-sends pane output, so this is a pressure valve, not
+/// a correctness mechanism.
+#[cfg(feature = "mux")]
+const MAX_OUTPUT_BACKLOG_BYTES: usize = 1024 * 1024;
+
 impl WindowState {
+    /// Buffer an output chunk whose terminal lock was contended. Mux only:
+    /// the par-mux daemon never re-sends pane output, so a dropped chunk is
+    /// a permanent hole (corrupted repaints, truncated OSC 52). Plain tmux
+    /// keeps its drop discipline — tmux re-sends content via pane refresh.
+    #[cfg(feature = "mux")]
+    fn buffer_output_backlog(&mut self, pane_id: crate::tmux::TmuxPaneId, data: &[u8]) {
+        let entry = self
+            .tmux_state
+            .mux_output_backlog
+            .entry(pane_id)
+            .or_default();
+        entry.extend_from_slice(data);
+        let overflow = entry.len().saturating_sub(MAX_OUTPUT_BACKLOG_BYTES);
+        if overflow > 0 {
+            crate::debug_info!(
+                "TMUX",
+                "Output backlog for pane %{} over cap, dropping {} oldest bytes",
+                pane_id,
+                overflow
+            );
+            entry.drain(0..overflow);
+        }
+    }
+
+    /// Replay output buffered while the pane's terminal lock was contended.
+    /// Called on the pane's next `%output` before the live chunk routes, so
+    /// stream order is preserved; under plain tmux this is a no-op.
+    #[cfg(feature = "mux")]
+    fn replay_output_backlog(&mut self, pane_id: crate::tmux::TmuxPaneId) {
+        let Some(buffered) = self.tmux_state.mux_output_backlog.remove(&pane_id) else {
+            return;
+        };
+        if !self.route_tmux_output_to_existing(pane_id, &buffered) {
+            // Still unmapped: restore and wait for the mapping (the live
+            // chunk's flow below may create the tab).
+            self.tmux_state.mux_output_backlog.insert(pane_id, buffered);
+        }
+    }
+
+    /// Routes through the four existing-mapping paths. Returns `true` when
+    /// the chunk was delivered or (mux) buffered behind a contended lock;
+    /// `false` only when the pane has no mapping anywhere, which sends the
+    /// caller to the create-tab path. Plain tmux keeps the tmux-era drop
+    /// discipline on lock misses (falls through as it always did).
+    fn route_tmux_output_to_existing(
+        &mut self,
+        pane_id: crate::tmux::TmuxPaneId,
+        data: &[u8],
+    ) -> bool {
+        // Direct per-tab mapping (split panes). Native pane ids restart at
+        // 1 in every tab, so the pane resolves inside its owning tab — an
+        // unscoped scan could land this output in another window's pane.
+        if let Some((owner_tab_id, native_pane_id)) = self.tmux_state.tmux_pane_owner(pane_id) {
+            // Seed-before-live causality (the blank/partial mux render): a
+            // pending reattach seed is OLDER than this chunk, so it must
+            // land first — cursor-addressed TUI updates arriving after
+            // delivery land on the seeded baseline instead of atop a stale
+            // full-screen paste over them. No-op without the mux feature.
+            #[cfg(feature = "mux")]
+            self.deliver_pending_mux_seed(pane_id);
+            // try_lock: intentional — output routing is called from the sync
+            // event loop. On a lock miss, mux buffers for replay (the daemon
+            // never re-sends); plain tmux falls through to the next path.
+            if let Some(tab) = self.tab_manager.get_tab_mut(owner_tab_id)
+                && let Some(pane_manager) = tab.pane_manager_mut()
+                && let Some(pane) = pane_manager.get_pane_mut(native_pane_id)
+                && let Ok(term) = pane.terminal.try_read()
+            {
+                term.process_mux_output(data);
+                crate::debug_trace!(
+                    "TMUX",
+                    "Routed {} bytes to pane {} (tmux %{})",
+                    data.len(),
+                    native_pane_id,
+                    pane_id
+                );
+                return true;
+            }
+            #[cfg(feature = "mux")]
+            {
+                self.buffer_output_backlog(pane_id, data);
+                return true;
+            }
+        }
+
+        // Legacy single-pane fallback: the sync map carries no owning tab,
+        // so its panes resolve by scanning.
+        if let Some(native_pane_id) = self.tmux_state.tmux_sync.get_native_pane(pane_id) {
+            for tab in self.tab_manager.tabs_mut() {
+                if let Some(pane_manager) = tab.pane_manager_mut()
+                    && let Some(pane) = pane_manager.get_pane_mut(native_pane_id)
+                    && let Ok(term) = pane.terminal.try_read()
+                {
+                    term.process_mux_output(data);
+                    crate::debug_trace!(
+                        "TMUX",
+                        "Routed {} bytes to pane {} (tmux %{}, sync fallback)",
+                        data.len(),
+                        native_pane_id,
+                        pane_id
+                    );
+                    return true;
+                }
+            }
+            #[cfg(feature = "mux")]
+            {
+                self.buffer_output_backlog(pane_id, data);
+                return true;
+            }
+        }
+
+        // No native pane mapping - check for tab-level tmux pane mapping
+        // (This is used when we create tabs for tmux panes without split pane manager)
+        for tab in self.tab_manager.tabs_mut() {
+            // try_lock: intentional — output routing from the sync event loop; must not block.
+            if tab.tmux.tmux_pane_id == Some(pane_id)
+                && let Ok(term) = tab.terminal.try_read()
+            {
+                term.process_mux_output(data);
+                crate::debug_trace!(
+                    "TMUX",
+                    "Routed {} bytes to tab terminal (tmux %{})",
+                    data.len(),
+                    pane_id
+                );
+                return true;
+            }
+        }
+
+        // First, try to find any tab with a tmux_pane_id set (existing tmux display)
+        for tab in self.tab_manager.tabs_mut() {
+            // try_lock: intentional — fallback output routing in the sync event loop.
+            if tab.tmux.tmux_pane_id.is_some()
+                && !tab.tmux.tmux_gateway_active
+                && let Ok(term) = tab.terminal.try_read()
+            {
+                term.process_mux_output(data);
+                crate::debug_trace!(
+                    "TMUX",
+                    "Routed {} bytes from pane %{} to existing tmux tab (pane %{:?})",
+                    data.len(),
+                    pane_id,
+                    tab.tmux.tmux_pane_id
+                );
+                return true;
+            }
+        }
+
+        false
+    }
+
     /// Handle pane output notification - routes to correct terminal
     pub(super) fn handle_tmux_output(&mut self, pane_id: crate::tmux::TmuxPaneId, data: &[u8]) {
         if data.is_empty() {
@@ -41,6 +199,12 @@ impl WindowState {
             return;
         }
 
+        // Mux only: replay output buffered while the pane's terminal lock
+        // was contended, before the pause check — backlog bytes are older
+        // than anything buffered during a pause, so this keeps stream order.
+        #[cfg(feature = "mux")]
+        self.replay_output_backlog(pane_id);
+
         // Check if output is paused - buffer if so
         if self.tmux_state.tmux_sync.buffer_output(pane_id, data) {
             crate::debug_trace!(
@@ -59,108 +223,8 @@ impl WindowState {
             self.tmux_state.tmux_pane_owners
         );
 
-        // Direct per-tab mapping (split panes). Native pane ids restart at
-        // 1 in every tab, so the pane resolves inside its owning tab — an
-        // unscoped scan could land this output in another window's pane.
-        if let Some((owner_tab_id, native_pane_id)) = self.tmux_state.tmux_pane_owner(pane_id) {
-            // Seed-before-live causality (the blank/partial mux render): a
-            // pending reattach seed is OLDER than this chunk, so it must
-            // land first — cursor-addressed TUI updates arriving after
-            // delivery land on the seeded baseline instead of atop a stale
-            // full-screen paste over them. No-op without the mux feature.
-            #[cfg(feature = "mux")]
-            self.deliver_pending_mux_seed(pane_id);
-            // try_lock: intentional — output routing is called from the sync event loop.
-            // On miss: this chunk of tmux output is dropped for this pane. Acceptable
-            // because tmux re-sends content via pane refresh (Ctrl+L) on next connect.
-            if let Some(tab) = self.tab_manager.get_tab_mut(owner_tab_id)
-                && let Some(pane_manager) = tab.pane_manager_mut()
-                && let Some(pane) = pane_manager.get_pane_mut(native_pane_id)
-                && let Ok(term) = pane.terminal.try_read()
-            {
-                // Route the data to this pane's terminal
-                term.process_mux_output(data);
-                crate::debug_trace!(
-                    "TMUX",
-                    "Routed {} bytes to pane {} (tmux %{})",
-                    data.len(),
-                    native_pane_id,
-                    pane_id
-                );
-                return;
-            }
-        }
-
-        // Legacy single-pane fallback: the sync map carries no owning tab,
-        // so its panes resolve by scanning.
-        if let Some(native_pane_id) = self.tmux_state.tmux_sync.get_native_pane(pane_id) {
-            for tab in self.tab_manager.tabs_mut() {
-                // try_lock: intentional — same discipline as the per-tab path.
-                if let Some(pane_manager) = tab.pane_manager_mut()
-                    && let Some(pane) = pane_manager.get_pane_mut(native_pane_id)
-                    && let Ok(term) = pane.terminal.try_read()
-                {
-                    term.process_mux_output(data);
-                    crate::debug_trace!(
-                        "TMUX",
-                        "Routed {} bytes to pane {} (tmux %{}, sync fallback)",
-                        data.len(),
-                        native_pane_id,
-                        pane_id
-                    );
-                    return;
-                }
-            }
-        }
-
-        // No native pane mapping - check for tab-level tmux pane mapping
-        // (This is used when we create tabs for tmux panes without split pane manager)
-        for tab in self.tab_manager.tabs_mut() {
-            // try_lock: intentional — output routing from the sync event loop; must not block.
-            // On miss: this tmux output chunk is dropped for this tab. Low risk as tmux
-            // provides its own backpressure (%pause / %continue protocol).
-            if tab.tmux.tmux_pane_id == Some(pane_id)
-                && let Ok(term) = tab.terminal.try_read()
-            {
-                term.process_mux_output(data);
-                crate::debug_trace!(
-                    "TMUX",
-                    "Routed {} bytes to tab terminal (tmux %{})",
-                    data.len(),
-                    pane_id
-                );
-                return;
-            }
-        }
-
-        // No direct mapping for this pane - try to find an existing tmux tab to route to
-        // This handles the case where tmux has multiple panes but we don't have native
-        // split pane rendering yet. Route all output to the first tmux-connected tab.
-        crate::debug_trace!(
-            "TMUX",
-            "No direct mapping for tmux pane %{}, looking for existing tmux tab",
-            pane_id
-        );
-
-        // First, try to find any tab with a tmux_pane_id set (existing tmux display)
-        for tab in self.tab_manager.tabs_mut() {
-            // try_lock: intentional — fallback output routing in the sync event loop.
-            // On miss: this chunk of pane output is dropped. Acceptable for the same
-            // reason as above — tmux backpressure and pane refresh handle recovery.
-            if tab.tmux.tmux_pane_id.is_some()
-                && !tab.tmux.tmux_gateway_active
-                && let Ok(term) = tab.terminal.try_read()
-            {
-                term.process_mux_output(data);
-                crate::debug_trace!(
-                    "TMUX",
-                    "Routed {} bytes from pane %{} to existing tmux tab (pane %{:?})",
-                    data.len(),
-                    pane_id,
-                    tab.tmux.tmux_pane_id
-                );
-                return;
-            }
+        if self.route_tmux_output_to_existing(pane_id, data) {
+            return;
         }
 
         // No existing tmux tab found - create one
@@ -224,10 +288,14 @@ impl WindowState {
 
                             // Route the data to the new tab's terminal
                             // try_lock: intentional — the tab was just created so contention is
-                            // extremely unlikely. On miss: the very first chunk of pane output
-                            // is dropped; subsequent output arrives normally.
+                            // extremely unlikely. On a lock miss, mux buffers the very first
+                            // chunk for replay (the daemon never re-sends); plain tmux keeps
+                            // its drop discipline (tmux re-sends via pane refresh).
                             if let Ok(term) = tab.terminal.try_read() {
                                 term.process_mux_output(data);
+                            } else {
+                                #[cfg(feature = "mux")]
+                                self.buffer_output_backlog(pane_id, data);
                             }
                         }
 

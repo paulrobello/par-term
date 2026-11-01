@@ -259,6 +259,13 @@ impl WindowState {
             return;
         }
         for &pane in panes {
+            // Stream bytes that missed the terminal lock sit in the output
+            // backlog (older than this seed request); fold them into the
+            // seed hold so replay order stays seed → backlog → held output.
+            if let Some(buffered) = self.tmux_state.mux_output_backlog.remove(&pane) {
+                let held = self.tmux_state.mux_held_output.entry(pane).or_default();
+                held.splice(0..0, buffered);
+            }
             *self.tmux_state.mux_seeds_in_flight.entry(pane).or_default() += 1;
         }
     }
