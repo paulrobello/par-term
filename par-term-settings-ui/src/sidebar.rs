@@ -80,13 +80,16 @@ impl SettingsTab {
         }
     }
 
-    /// Get the icon for this tab. Every glyph is in egui's bundled fonts.
+    /// Get the icon for this tab. Emoji glyphs ride egui's bundled emoji
+    /// fallbacks (egui 0.37 gates them behind its `monochrome_emoji_fonts`
+    /// feature — keep it enabled); the two nerd PUA glyphs ride the nerd
+    /// fallback (`nerd_font_covers`). 🗗/◫ sat in no stack font at all.
     pub fn icon(&self) -> &'static str {
         match self {
             Self::General => "🏠",
             Self::Appearance => "🎨",
-            Self::WindowsAndTabs => "🗗",
-            Self::Panes => "◫",
+            Self::WindowsAndTabs => "\u{f2d2}",
+            Self::Panes => "\u{f24d}",
             Self::Sessions => "🔗",
             Self::Profiles => "👤",
             Self::Keys => "⌨",

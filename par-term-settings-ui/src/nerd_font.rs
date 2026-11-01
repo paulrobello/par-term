@@ -537,4 +537,14 @@ mod tests {
         // snippets_tab/editor.rs use U+F00D — never revert them to ✕.
         assert!(nerd_font_covers('\u{f00d}'));
     }
+
+    #[test]
+    fn settings_sidebar_pua_icons_are_carried() {
+        // The settings sidebar's Windows & Tabs and Panes icons are nerd PUA
+        // (U+F2D2 window-restore, U+F24D clone) because 🗗 U+1F5D7 and ◫
+        // U+25EB sat in NO font of any shipped stack. Never revert them to
+        // those broken codepoints.
+        assert!(nerd_font_covers('\u{f2d2}'));
+        assert!(nerd_font_covers('\u{f24d}'));
+    }
 }

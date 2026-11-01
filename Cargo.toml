@@ -55,7 +55,7 @@ unicode-segmentation = "1.13"
 lru = "0.19"
 
 # GUI
-egui = { version = "0.37", features = ["default_fonts"] } # default_fonts left the default set in 0.37; keep the bundled stack 0.36 shipped
+egui = { version = "0.37", features = ["default_fonts", "monochrome_emoji_fonts"] } # both left the default set in 0.37; without monochrome_emoji_fonts the bundled NotoEmoji/emoji-icon fonts drop out of the stack and every emoji icon renders tofu
 egui-wgpu = "0.37"
 egui-winit = "0.37"
 rfd = "0.17.2"
