@@ -170,6 +170,14 @@ impl WindowState {
         &mut self,
         mut notify: impl FnMut(&WindowState, &str, &str),
     ) -> bool {
+        // Deferred post-attach second-seed pump (card 01a198054b5d): the
+        // panes mapped during the last drain queue here, because queueing
+        // needs the transport and the mapping call sites hold the tab
+        // borrow.
+        let pump_pending = std::mem::take(&mut self.tmux_state.mux_pump_pending);
+        if !pump_pending.is_empty() {
+            self.queue_mux_pane_seeds(&pump_pending);
+        }
         // Daemon liveness first: while a send waits on a hung daemon the
         // drain below comes back empty, so this transition toast is the
         // only feedback the UI gets that input is queuing, not landing.

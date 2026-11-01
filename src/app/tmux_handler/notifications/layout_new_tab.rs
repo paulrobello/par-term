@@ -105,6 +105,16 @@ impl WindowState {
                                 );
                                 self.tmux_state
                                     .set_tab_pane_mappings(new_tab_id, &pane_mappings);
+                                // Card 01a198054b5d: the first mapping inside
+                                // the fresh-attach window queues a second seed
+                                // (deferred one poll — queueing needs the
+                                // transport, which the tab borrow excludes).
+                                let pump = self.tmux_state.pump_fresh_attach_panes(
+                                    pane_mappings.keys().copied(),
+                                );
+                                if !pump.is_empty() {
+                                    self.tmux_state.mux_pump_pending.extend(pump);
+                                }
 
                                 // Size every new pane terminal to its layout
                                 // cell. Panes are created at the config

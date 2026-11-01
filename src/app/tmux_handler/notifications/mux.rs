@@ -534,6 +534,15 @@ impl WindowState {
                 self.update_window_title_for_mux();
                 self.apply_mux_session_profile(name);
                 self.refresh_mux_directory();
+                // The buffered %output about to drain over these seed
+                // screens predates them (card 01a198054b5d): arm the
+                // post-attach second-seed pump so each pane's first mapping
+                // queues a fresh seed whose clear+screen wipes the stale
+                // application. The pump window covers the adoption drain;
+                // each pane pumps once.
+                self.tmux_state.mux_fresh_attach_pump_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(15));
+                self.tmux_state.mux_fresh_attach_pumped.clear();
                 Ok(outcome)
             }
             Err(e) => Err(e),

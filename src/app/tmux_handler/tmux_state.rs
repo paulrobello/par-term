@@ -219,6 +219,23 @@ pub(crate) struct TmuxState {
     /// create the panes)
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) mux_screen_seeds: std::collections::HashMap<TmuxPaneId, Vec<u8>>,
+    /// Post-attach second-seed pump window (card 01a198054b5d): the
+    /// buffered %output drained right after install predates the attach
+    /// seed screens, and replaying it over them scrambles the pane buffer.
+    /// Until this instant, the first mapping of each daemon pane queues a
+    /// fresh seed whose clear+screen wipes the stale application. None
+    /// when no fresh attach armed the pump.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_fresh_attach_pump_until: Option<std::time::Instant>,
+    /// Panes already pumped inside the [`Self::mux_fresh_attach_pump_until`]
+    /// window, so a remap does not re-seed.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_fresh_attach_pumped: std::collections::HashSet<TmuxPaneId>,
+    /// Panes mapped inside the fresh-attach window awaiting their second
+    /// seed, drained by the next poll (queueing needs the transport, which
+    /// the mapping call sites cannot borrow alongside the tab).
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_pump_pending: Vec<TmuxPaneId>,
     /// Graphics placements from `refresh-client -G` seeds (reattach +
     /// mid-session re-seeds), as the finished synthetic OSC bytes
     /// (graphics_seed::graphics_seed_osc_bytes). Delivered by the same
@@ -386,6 +403,9 @@ impl TmuxState {
             mux_event_seq_socket: None,
             mux_replay_pending: Vec::new(),
             mux_screen_seeds: std::collections::HashMap::new(),
+            mux_fresh_attach_pump_until: None,
+            mux_fresh_attach_pumped: std::collections::HashSet::new(),
+            mux_pump_pending: Vec::new(),
             mux_graphics_osc: std::collections::HashMap::new(),
             mux_pane_titles: std::collections::HashMap::new(),
             mux_exited_panes: std::collections::HashMap::new(),
@@ -515,6 +535,30 @@ impl TmuxState {
     /// The owning tab and native pane for a daemon pane.
     pub(crate) fn tmux_pane_owner(&self, tmux_id: TmuxPaneId) -> Option<(TabId, PaneId)> {
         self.tmux_pane_owners.get(&tmux_id).copied()
+    }
+
+    /// Record `panes` for the post-attach second-seed pump (card
+    /// 01a198054b5d): inside the fresh-attach window, the first mapping of
+    /// each pane queues a fresh seed whose clear+screen wipes the buffered
+    /// pre-seed output that drained over the attach seed screens. Returns
+    /// the panes to pump now; the caller queues them on its next transport
+    /// touch (queueing needs the transport, which the mapping call sites
+    /// cannot borrow alongside the tab).
+    pub(crate) fn pump_fresh_attach_panes(
+        &mut self,
+        panes: impl Iterator<Item = TmuxPaneId>,
+    ) -> Vec<TmuxPaneId> {
+        let Some(until) = self.mux_fresh_attach_pump_until else {
+            return Vec::new();
+        };
+        if std::time::Instant::now() > until {
+            self.mux_fresh_attach_pump_until = None;
+            self.mux_fresh_attach_pumped.clear();
+            return Vec::new();
+        }
+        panes
+            .filter(|pane| self.mux_fresh_attach_pumped.insert(*pane))
+            .collect()
     }
 
     /// The daemon pane displayed by `native_id` inside `tab_id`. Input
