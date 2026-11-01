@@ -254,8 +254,9 @@ clean:
 install: release
 	@echo "Installing par-term to ~/.cargo/bin/..."
 	@cp target/release/par-term "$${HOME}/.cargo/bin/par-term"
-	@scripts/build-par-mux.sh "$${HOME}/.cargo/bin/par-mux"
-	@echo "Installed to ~/.cargo/bin/par-term (and par-mux daemon)"
+	@scripts/build-par-mux.sh target/release/par-mux
+	@scripts/install-par-mux-guarded.sh target/release/par-mux "$${HOME}/.cargo/bin/par-mux"
+	@echo "Installed to ~/.cargo/bin/par-term (and par-mux daemon, version-guarded)"
 
 # Install shell integration scripts to ~/.config/par-term/
 install-shell-integration:
