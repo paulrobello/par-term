@@ -45,6 +45,11 @@ pub enum TabBarAction {
     Close(TabId),
     /// Create a new tab
     NewTab,
+    /// Create a local-shell tab, skipping the par-mux routes (the daemon
+    /// `new-window` an attached window sends, and the `use_mux_by_default`
+    /// attach): the user's escape hatch for a plain shell, e.g. to restart
+    /// the daemon from while attached.
+    NewLocalTab,
     /// Open Profiles… (UX.md PR1): the chevron next to `+` opens the
     /// profile launcher, which replaced the chevron's own window (MD2).
     OpenProfiles,

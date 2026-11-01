@@ -145,6 +145,10 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("quit", "Quit par-term"),
     // Tab
     ("new_tab", "Open a new tab"),
+    (
+        "new_local_tab",
+        "Open a local shell tab, skipping par-mux (works while attached)",
+    ),
     ("close_tab", "Close the active tab"),
     (
         "duplicate_tab",

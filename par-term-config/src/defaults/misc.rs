@@ -87,6 +87,13 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Alt+P".to_string(),
             action: "select_pane_hint".to_string(),
         },
+        // A plain local shell, skipping the par-mux attach (the escape
+        // hatch when the daemon is down or misbehaving). Shift keeps it
+        // clear of Ctrl+Alt+T, which Ubuntu's desktop binds to a terminal.
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+Shift+T".to_string(),
+            action: "new_local_tab".to_string(),
+        },
         // Pane resize on iTerm2's Move Divider chords (UX.md I6)
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Ctrl+Left".to_string(),

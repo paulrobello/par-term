@@ -128,6 +128,24 @@ impl WindowState {
         use_mux_by_default && !has_transport && !gateway_active
     }
 
+    /// Create a local-shell tab unconditionally — the user's escape hatch
+    /// from the default attach: while attached it skips the daemon
+    /// `new-window` route (a daemon window the daemon owns) and the
+    /// `use_mux_by_default` attach, so a local shell exists even on a
+    /// mux-backed window (e.g. to restart the daemon from).
+    pub fn new_local_tab(&mut self) {
+        if self.config.load().tabs.max_tabs > 0
+            && self.tab_manager.tab_count() >= self.config.load().tabs.max_tabs
+        {
+            log::warn!(
+                "Cannot create new local tab: max_tabs limit ({}) reached",
+                self.config.load().tabs.max_tabs
+            );
+            return;
+        }
+        self.new_tab_local();
+    }
+
     /// Create a new local-shell tab — the classic PTY path, also the
     /// fallback when a mux-by-default tab cannot be routed (attach
     /// refused or failed).

@@ -103,6 +103,8 @@ use_mux_by_default: false  # default: true — new tabs attach the default par-m
 
 **Settings UI:** Settings > Sessions > par-mux > "New tabs default to par-mux"
 
+For a one-off local shell without changing any setting, use **New Local Tab** — the tab context menu's first item, or the `new_local_tab` action (`Cmd/Ctrl + Alt + Shift + T` by default). It creates a local shell even while attached, where an ordinary new tab is a daemon window, so it is the escape hatch for restarting a misbehaving daemon from inside the window.
+
 A profile can override this per profile with its own `use_mux_by_default` setting (profile editor > Session): `false` keeps that profile's tabs local shells even when new tabs run in par-mux by default, and leaving it unset inherits the global default. Profiles that name an explicit par-mux or tmux session, a command, or an SSH host keep their own launch paths and never take the default attach.
 
 ### Profile Selection on New Tab

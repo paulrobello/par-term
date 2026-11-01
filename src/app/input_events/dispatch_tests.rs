@@ -48,6 +48,7 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "navigate_pane_left",
     "navigate_pane_right",
     "navigate_pane_up",
+    "new_local_tab",
     "new_tab",
     "new_window",
     "next_tab",

@@ -56,6 +56,17 @@ impl TabBarUI {
                             response.clicked()
                         };
 
+                        // New Local Tab: a plain local shell, skipping the
+                        // par-mux routes (daemon new-window while attached,
+                        // use_mux_by_default attach when not).
+                        if menu_item(ui, "New Local Tab") {
+                            action = TabBarAction::NewLocalTab;
+                            close_menu = true;
+                        }
+                        ui.add_space(4.0);
+                        ui.separator();
+                        ui.add_space(4.0);
+
                         // Rename Tab
                         if self.renaming_tab {
                             ui.horizontal(|ui| {
@@ -509,9 +520,10 @@ mod tests {
         frame(&ctx, &mut bar, vec![]);
         open_menu(&mut bar, 2, 4);
 
-        // Canary: Duplicate is row 2 (Rename 0 | gap | Set Icon 1,
-        // Duplicate 2) — it reads Duplicate, so the row math is honest.
-        let at = item_y(2, 1);
+        // Canary: Duplicate is row 3 (New Local Tab 0 | gap | Rename 1 |
+        // gap | Set Icon 2, Duplicate 3) — it reads Duplicate, so the row
+        // math is honest.
+        let at = item_y(3, 2);
         frame(
             &ctx,
             &mut bar,
@@ -521,10 +533,10 @@ mod tests {
         let released = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), false)]);
         assert_eq!(released, TabBarAction::Duplicate(7), "canary released");
 
-        // Left at index 1: target 0. One separator crossed (the gap under
-        // Rename).
+        // Left at index 1: target 0. Two separators crossed (the gaps
+        // under New Local Tab and Rename).
         open_menu(&mut bar, 1, 4);
-        let at = item_y(6, 2);
+        let at = item_y(7, 3);
         frame(
             &ctx,
             &mut bar,
@@ -536,7 +548,7 @@ mod tests {
 
         // Right at index 1: target 2.
         open_menu(&mut bar, 1, 4);
-        let at = item_y(7, 2);
+        let at = item_y(8, 3);
         frame(
             &ctx,
             &mut bar,
@@ -548,7 +560,7 @@ mod tests {
 
         // Beginning at index 1: target 0.
         open_menu(&mut bar, 1, 4);
-        let at = item_y(8, 2);
+        let at = item_y(9, 3);
         frame(
             &ctx,
             &mut bar,
@@ -560,7 +572,7 @@ mod tests {
 
         // End at index 1 of 4: target 3.
         open_menu(&mut bar, 1, 4);
-        let at = item_y(9, 2);
+        let at = item_y(10, 3);
         frame(
             &ctx,
             &mut bar,
@@ -573,7 +585,7 @@ mod tests {
         // Edges: at index 0 the Left row is disabled — the click lands but
         // produces nothing; at the last index Right does the same.
         open_menu(&mut bar, 0, 4);
-        let at = item_y(6, 2);
+        let at = item_y(7, 3);
         frame(
             &ctx,
             &mut bar,
@@ -583,7 +595,7 @@ mod tests {
         let left_edge = frame(&ctx, &mut bar, vec![button(egui::pos2(150.0, at), false)]);
         assert_eq!(left_edge, TabBarAction::None, "Left is disabled at index 0");
         open_menu(&mut bar, 3, 4);
-        let at = item_y(7, 2);
+        let at = item_y(8, 3);
         frame(
             &ctx,
             &mut bar,

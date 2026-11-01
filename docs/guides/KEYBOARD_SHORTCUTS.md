@@ -321,6 +321,7 @@ without a binding there is no way to open the in-app menu.
 
 **Tab Management:**
 - `new_tab`, `close_tab`, `duplicate_tab`, `next_tab`, `prev_tab`
+- `new_local_tab` - Open a local shell tab, skipping par-mux (the daemon `new-window` route while attached, and the `use_mux_by_default` attach when not); the tab context menu offers the same item. Default chord `Cmd/Ctrl + Alt + Shift + T`
 - `move_tab_left`, `move_tab_right`
 - `switch_to_tab_1`, `switch_to_tab_2`, `switch_to_tab_3`, `switch_to_tab_4`, `switch_to_tab_5`, `switch_to_tab_6`, `switch_to_tab_7`, `switch_to_tab_8`, `switch_to_tab_9`
 - `reopen_closed_tab`

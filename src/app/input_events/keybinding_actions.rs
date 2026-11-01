@@ -213,6 +213,10 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         s.new_tab_or_show_profiles();
         true
     }),
+    ("new_local_tab", |s: &mut WindowState| {
+        s.new_local_tab();
+        true
+    }),
     ("close_tab", |s: &mut WindowState| {
         // I15 cascade tail: closing the LAST tab closes the window, the
         // same contract the menu arm already has (MenuAction::CloseTab →

@@ -68,6 +68,10 @@ impl WindowState {
                 self.new_tab();
                 self.request_redraw();
             }
+            TabBarAction::NewLocalTab => {
+                self.new_local_tab();
+                self.request_redraw();
+            }
             TabBarAction::SetColor(id, color) => {
                 if let Some(tab) = self.tab_manager.get_tab_mut(id) {
                     tab.set_custom_color(color);

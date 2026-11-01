@@ -25,6 +25,11 @@ const NOT_IN_MENU: &[(&str, &str)] = &[
         "reached through Settings... (MenuAction::OpenSettings), which also serves the \
          macOS application menu",
     ),
+    (
+        "new_local_tab",
+        "the tab context menu and its chord create it; the menu bar's New Tab covers \
+         the default (par-mux) attach flow",
+    ),
 ];
 
 /// Menu commands that run no registry action, each with the reason.
