@@ -259,13 +259,17 @@ impl WindowState {
             return;
         }
         for &pane in panes {
-            // Stream bytes that missed the terminal lock sit in the output
-            // backlog (older than this seed request); fold them into the
-            // seed hold so replay order stays seed → backlog → held output.
-            if let Some(buffered) = self.tmux_state.mux_output_backlog.remove(&pane) {
-                let held = self.tmux_state.mux_held_output.entry(pane).or_default();
-                held.splice(0..0, buffered);
-            }
+            // Stream bytes that missed the terminal lock predate this seed
+            // request — the refresh-client pump forces the TUI's full redraw,
+            // so the seed's clear+screen already contains their effect.
+            // Replaying them after the snapshot would re-apply stale
+            // cursor-addressed diffs over the fresh frame and scramble the
+            // pane's buffer (the 2026-11-01 stale-pixel sighting: pane
+            // contents garbled exactly like two writers interleaving). The
+            // lock-miss backlog for a seeded pane is therefore dropped, not
+            // folded into the hold; only bytes arriving after the pump are
+            // held and replayed.
+            self.tmux_state.mux_output_backlog.remove(&pane);
             *self.tmux_state.mux_seeds_in_flight.entry(pane).or_default() += 1;
         }
     }
@@ -491,6 +495,42 @@ mod tests {
         // handle_tmux_window_add would add a duplicate @0 tab here).
         drain_until_linked(&mut ws, "initial attach");
         (ws, path)
+    }
+
+    /// The 2026-11-01 stale-pixel incident: lock-miss backlog bytes predate
+    /// the seed pump, and the seed's clear+screen already contains their
+    /// effect. Queueing seeds must DROP the backlog, not fold it into the
+    /// hold — replaying pre-seed diffs after the snapshot scrambles the
+    /// pane's buffer.
+    #[test]
+    fn queueing_seeds_drops_the_lock_miss_backlog_instead_of_folding_it() {
+        let (mut ws, path) = attached("backlog-drop");
+
+        ws.tmux_state
+            .mux_output_backlog
+            .insert(0, b"STALE-PRE-SEED-DIFF".to_vec());
+
+        ws.queue_mux_pane_seeds(&[0]);
+
+        assert!(
+            !ws.tmux_state.mux_output_backlog.contains_key(&0),
+            "the pre-seed backlog must be dropped: the seed screen already reflects it"
+        );
+        let folded = ws
+            .tmux_state
+            .mux_held_output
+            .get(&0)
+            .is_some_and(|held| {
+                held.windows(b"STALE-PRE-SEED-DIFF".len())
+                    .any(|w| w == b"STALE-PRE-SEED-DIFF")
+            });
+        assert!(
+            !folded,
+            "pre-seed bytes must not reach the hold: replaying them after the snapshot \
+             scrambles the buffer"
+        );
+
+        let _ = std::fs::remove_file(&path);
     }
 
     /// Criterion 3: break/join/reorder/zoom driven daemon-side (as another
