@@ -382,6 +382,7 @@ impl WindowState {
         self.tmux_state.mux_fresh_attach_pump_until =
             Some(std::time::Instant::now() + std::time::Duration::from_secs(15));
         self.tmux_state.mux_fresh_attach_pumped.clear();
+        log::info!("mux seed: post-attach pump armed for attach '{name}' (15s window)");
         let attach = attach_sequence(&transport, name, size, cell_px, &colors, &env).map(
             |AttachSequence {
                  daemon_version,

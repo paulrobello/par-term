@@ -558,6 +558,9 @@ impl TmuxState {
         }
         panes
             .filter(|pane| self.mux_fresh_attach_pumped.insert(*pane))
+            .inspect(|pane| {
+                log::info!("mux seed: pump will cover pane %{pane} on its first mapping");
+            })
             .collect()
     }
 
