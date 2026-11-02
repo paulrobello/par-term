@@ -259,34 +259,36 @@ impl WindowState {
             return;
         }
         for &pane in panes {
-            // Stream bytes that missed the terminal lock predate this seed
-            // request — the refresh-client pump forces the TUI's full redraw,
-            // so the seed's clear+screen already contains their effect.
-            // Replaying them after the snapshot would re-apply stale
-            // cursor-addressed diffs over the fresh frame and scramble the
-            // pane's buffer (the 2026-11-01 stale-pixel sighting: pane
-            // contents garbled exactly like two writers interleaving). The
-            // lock-miss backlog for a seeded pane is therefore dropped, not
-            // folded into the hold; only bytes arriving after the pump are
-            // held and replayed.
-            self.tmux_state.mux_output_backlog.remove(&pane);
+            // Card 01a19947 (core seed-ordering contract, adopted with the
+            // 0.77.0 pin): the pre-request backlog SURVIVES the request.
+            // The daemon enqueues the seed reply after every %output
+            // enqueued before the snapshot (one FIFO per client
+            // connection), so the reply subsumes them, and the drop moves
+            // to the reply — the only exact boundary. Bytes produced during
+            // the seed arrive after the reply and are kept.
             *self.tmux_state.mux_seeds_in_flight.entry(pane).or_default() += 1;
             log::info!(
-                "mux seed: requested for pane %{pane} (pre-seed backlog dropped, seed in \
-                 flight)"
+                "mux seed: requested for pane %{pane} (seed in flight, drop deferred to the \
+                 reply)"
             );
         }
     }
 
     /// Install landed seeds. Each reply is a clear plus the pane's screen
-    /// at the moment the daemon answered; output held while it was in
+    /// at the moment the daemon answered, enqueued after every `%output`
+    /// the daemon emitted before the snapshot (the core seed-ordering
+    /// contract, card 01a19947): the pre-reply backlog is exactly the
+    /// bytes the snapshot subsumes, so it drops here, at the reply —
+    /// dropping earlier (at the request) would also discard bytes
+    /// produced during the seed. Output held while the seed was in
     /// flight follows the snapshot inside the same seed, so nothing newer
-    /// than the snapshot is lost. Output the daemon emitted between the
-    /// move and the snapshot is replayed on top of it — the same overlap
-    /// the synchronous seed had, widened only by the worker's queue delay.
-    /// A pane still waiting on a later request keeps holding.
+    /// than the snapshot is lost. A pane still waiting on a later request
+    /// keeps holding.
     fn land_mux_pane_seeds(&mut self, seeds: Vec<(TmuxPaneId, std::io::Result<PaneSeedPayload>)>) {
         for (pane, reply) in seeds {
+            // The reply's position in the client FIFO is the drop
+            // boundary: everything already buffered for this pane was
+            // received (and enqueued) before the reply.
             let left = match self.tmux_state.mux_seeds_in_flight.get_mut(&pane) {
                 Some(count) => {
                     *count = count.saturating_sub(1);
@@ -301,6 +303,12 @@ impl WindowState {
             }
             match reply {
                 Ok(payload) => {
+                    // The reply's position in the client FIFO is the drop
+                    // boundary: everything already buffered for this pane
+                    // was received before the reply and is subsumed by the
+                    // seed (card 01a19947). A FAILED seed subsumes nothing,
+                    // so the backlog only drops on success.
+                    let dropped_backlog = self.tmux_state.mux_output_backlog.remove(&pane);
                     let mut bytes = b"\x1b[H\x1b[2J".to_vec();
                     bytes.extend_from_slice(payload.screen.join("\n").as_bytes());
                     let held_bytes: usize = self
@@ -310,9 +318,10 @@ impl WindowState {
                         .map(|held| held.len())
                         .unwrap_or(0);
                     log::info!(
-                        "mux seed: landed for pane %{pane} (screen rows {}, held bytes \
-                         replayed after snapshot: {held_bytes})",
-                        payload.screen.len()
+                        "mux seed: landed for pane %{pane} (screen rows {}, pre-reply backlog \
+                         bytes dropped: {}, held bytes replayed after snapshot: {held_bytes})",
+                        payload.screen.len(),
+                        dropped_backlog.as_ref().map_or(0, Vec::len)
                     );
                     self.tmux_state
                         .mux_held_output
@@ -364,6 +373,7 @@ mod tests {
     use super::super::mux_test_seams::{SettledSend, poll_until, quiesce, wait_until};
     use crate::app::tmux_handler::tmux_state::PaneSeedPayload;
     use crate::app::window_state::WindowState;
+    use par_term_tmux::TmuxPaneId;
     use std::time::{Duration, Instant};
 
     fn send(ws: &WindowState, cmd: &str) -> Vec<String> {
@@ -512,36 +522,74 @@ mod tests {
         (ws, path)
     }
 
-    /// The 2026-11-01 stale-pixel incident: lock-miss backlog bytes predate
-    /// the seed pump, and the seed's clear+screen already contains their
-    /// effect. Queueing seeds must DROP the backlog, not fold it into the
-    /// hold — replaying pre-seed diffs after the snapshot scrambles the
-    /// pane's buffer.
+    /// Card 01a19947 (core seed-ordering contract, adopted with the 0.77.0
+    /// pin): which buffered bytes predate a seed reply is only knowable at
+    /// the reply — the request keeps the backlog intact, the reply drops
+    /// exactly the pre-reply bytes (the seed subsumes them), and bytes
+    /// produced during the seed arrive after the reply and survive.
     #[test]
-    fn queueing_seeds_drops_the_lock_miss_backlog_instead_of_folding_it() {
+    fn seed_reply_drops_the_pre_reply_backlog_request_keeps_it() {
         let (mut ws, path) = attached("backlog-drop");
 
         ws.tmux_state
             .mux_output_backlog
-            .insert(0, b"STALE-PRE-SEED-DIFF".to_vec());
+            .insert(0, b"PRE-REPLY-DIFF".to_vec());
 
         ws.queue_mux_pane_seeds(&[0]);
 
         assert!(
-            !ws.tmux_state.mux_output_backlog.contains_key(&0),
-            "the pre-seed backlog must be dropped: the seed screen already reflects it"
+            ws.tmux_state.mux_output_backlog.contains_key(&0),
+            "the request must keep the backlog: only the reply is the exact boundary \
+             (card 01a19947)"
         );
         let folded = ws.tmux_state.mux_held_output.get(&0).is_some_and(|held| {
-            held.windows(b"STALE-PRE-SEED-DIFF".len())
-                .any(|w| w == b"STALE-PRE-SEED-DIFF")
+            held.windows(b"PRE-REPLY-DIFF".len())
+                .any(|w| w == b"PRE-REPLY-DIFF")
         });
         assert!(
             !folded,
-            "pre-seed bytes must not reach the hold: replaying them after the snapshot \
-             scrambles the buffer"
+            "pre-request bytes must not move into the hold: they drop at the reply"
+        );
+
+        ws.land_mux_pane_seeds(test_seed_payload(0));
+
+        assert!(
+            !ws.tmux_state.mux_output_backlog.contains_key(&0),
+            "the reply drops the pre-reply backlog: the seed subsumes it"
         );
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// A FAILED seed subsumes nothing: the pre-request backlog must
+    /// survive so the ordinary replay path can still deliver it.
+    #[test]
+    fn failed_seed_keeps_the_backlog_it_does_not_subsume() {
+        let (mut ws, path) = attached("backlog-keep");
+
+        ws.tmux_state
+            .mux_output_backlog
+            .insert(0, b"UNSUBSUMED".to_vec());
+
+        ws.queue_mux_pane_seeds(&[0]);
+        ws.land_mux_pane_seeds(vec![(0, Err(std::io::Error::other("timed out")))]);
+
+        assert!(
+            ws.tmux_state.mux_output_backlog.contains_key(&0),
+            "a failed seed subsumes nothing: the backlog must survive for the next replay"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    fn test_seed_payload(pane: TmuxPaneId) -> Vec<(TmuxPaneId, std::io::Result<PaneSeedPayload>)> {
+        vec![(
+            pane,
+            Ok(PaneSeedPayload {
+                screen: vec!["snapshot".to_string()],
+                graphics_osc: Vec::new(),
+            }),
+        )]
     }
 
     /// Card 01a198054b5d: a fresh attach arms the second-seed pump — the
