@@ -109,9 +109,9 @@ impl WindowState {
                                 // the fresh-attach window queues a second seed
                                 // (deferred one poll — queueing needs the
                                 // transport, which the tab borrow excludes).
-                                let pump = self.tmux_state.pump_fresh_attach_panes(
-                                    pane_mappings.keys().copied(),
-                                );
+                                let pump = self
+                                    .tmux_state
+                                    .pump_fresh_attach_panes(pane_mappings.keys().copied());
                                 if !pump.is_empty() {
                                     self.tmux_state.mux_pump_pending.extend(pump);
                                 }

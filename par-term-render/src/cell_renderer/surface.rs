@@ -234,7 +234,7 @@ impl CellRenderer {
         // out. PAR_TERM_MAX_DRAWABLES=2 runs the layer double-buffered; the
         // default leaves wgpu's choice (3) untouched.
         if let Some(count) = Self::max_drawables_override() {
-            if count >= 2 && count <= 8 {
+            if (2..=8).contains(&count) {
                 layer.setMaximumDrawableCount(count as usize);
             } else {
                 log::warn!("PAR_TERM_MAX_DRAWABLES={count} ignored: must be 2..=8");

@@ -262,7 +262,8 @@ impl WindowState {
             ) {
                 Ok(pane_mappings) => {
                     crate::debug_info!("TMUX", "Storing pane mappings: {:?}", pane_mappings);
-                    self.tmux_state.set_tab_pane_mappings(tab_id, &pane_mappings);
+                    self.tmux_state
+                        .set_tab_pane_mappings(tab_id, &pane_mappings);
                     // Card 01a198054b5d: first mapping in the fresh-attach
                     // window queues the post-attach second seed (deferred one
                     // poll — see pump_fresh_attach_panes).

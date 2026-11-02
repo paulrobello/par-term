@@ -373,6 +373,15 @@ impl WindowState {
         let colors = mux_client_colors_hex(&self.config.load());
         let env = crate::tab::build_shell_env(self.config.load().shell.shell_env.as_ref())
             .unwrap_or_default();
+        // Arm the post-attach second-seed pump BEFORE the attach sequence:
+        // existing windows are adopted (and their panes mapped) inside the
+        // attach closure, so the pump window must already be open when the
+        // first set_tab_pane_mappings lands (card 01a198054b5d — the
+        // buffered %output that drains over the seed screens predates
+        // them; the pump's clear+screen wipes that stale application).
+        self.tmux_state.mux_fresh_attach_pump_until =
+            Some(std::time::Instant::now() + std::time::Duration::from_secs(15));
+        self.tmux_state.mux_fresh_attach_pumped.clear();
         let attach = attach_sequence(&transport, name, size, cell_px, &colors, &env).map(
             |AttachSequence {
                  daemon_version,
@@ -534,15 +543,6 @@ impl WindowState {
                 self.update_window_title_for_mux();
                 self.apply_mux_session_profile(name);
                 self.refresh_mux_directory();
-                // The buffered %output about to drain over these seed
-                // screens predates them (card 01a198054b5d): arm the
-                // post-attach second-seed pump so each pane's first mapping
-                // queues a fresh seed whose clear+screen wipes the stale
-                // application. The pump window covers the adoption drain;
-                // each pane pumps once.
-                self.tmux_state.mux_fresh_attach_pump_until =
-                    Some(std::time::Instant::now() + std::time::Duration::from_secs(15));
-                self.tmux_state.mux_fresh_attach_pumped.clear();
                 Ok(outcome)
             }
             Err(e) => Err(e),

@@ -544,7 +544,19 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// Criterion 3: break/join/reorder/zoom driven daemon-side (as another
+    /// Card 01a198054b5d: a fresh attach arms the second-seed pump — the
+    /// first mapping of each pane is recorded for the deferred seed queue,
+    /// so the buffered pre-seed output that drained over the attach seed
+    /// screens gets wiped by the pump's clear+screen.
+    #[test]
+    fn fresh_attach_arms_the_second_seed_pump_for_each_mapped_pane() {
+        let (ws, path) = attached("pump-arm");
+        assert!(
+            ws.tmux_state.mux_fresh_attach_pumped.contains(&0),
+            "the first mapped pane must be recorded for the post-attach pump"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
     /// client or the CLI would) keep every pane linked to the tab of its
     /// own window, leave no orphaned mirror, and re-seed a moved pane's new
     /// mirror with its screen — all from the daemon's broadcasts alone.
