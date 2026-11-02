@@ -455,6 +455,23 @@ impl WindowState {
         // `begin_mux_session_attach` sees a free window.
         self.trigger_mux_reconnect();
 
+        // The fresh-attach pump window expired: one bounded sweep for
+        // windows whose `%window-add` was lost (ring eviction, first-attach
+        // baseline discard). Until expiry a missing window is assumed
+        // merely late; the sweep is the once-per-attach proof-of-loss
+        // (card 01a19e10). After the `SessionEnded` teardown above cleared
+        // the attach state, the arm is already None and this is a no-op.
+        if let Some(until) = self.tmux_state.mux_fresh_attach_pump_until
+            && std::time::Instant::now() >= until
+        {
+            self.tmux_state.mux_fresh_attach_pump_until = None;
+            let adopted = self.adopt_missing_windows();
+            if adopted > 0 {
+                log::info!("mux: sweep adopted {adopted} window(s) missed at attach");
+                needs_redraw = true;
+            }
+        }
+
         needs_redraw
     }
 
