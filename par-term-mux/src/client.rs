@@ -12,7 +12,9 @@ use par_term_emu_core_rust::mux::MuxClient;
 use par_term_tmux::{ParserBridge, SyncAction, TmuxPaneId, TmuxSync, send_keys_arguments};
 use std::io::{self, ErrorKind};
 use std::path::Path;
-use std::sync::mpsc::TryRecvError;
+// Core 0.77.0 moved MuxClient's notification channel from std mpsc to
+// crossbeam; its TryRecvError is deliberately not named here so this crate
+// needs no crossbeam-channel dependency of its own.
 
 /// A par-term client attached to a par-mux daemon.
 pub struct MuxSessionClient {
@@ -84,8 +86,10 @@ impl MuxSessionClient {
         loop {
             match self.client.notifications().try_recv() {
                 Ok(note) => core_notes.push(note),
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
+                // The channel is crossbeam's (core 0.77.0); its error type is
+                // never named — the predicates carry the distinction.
+                Err(err) if err.is_empty() => break,
+                Err(_disconnected) => {
                     disconnected = true;
                     break;
                 }
