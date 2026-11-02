@@ -302,19 +302,18 @@ pub fn check_daemon_version(daemon_reply: &str, client_stamp: &str) -> VersionCh
 /// `upload-commit`) arrived in.
 const FILE_TRANSFER_MIN_DAEMON_VERSION: [u64; 3] = [0, 68, 0];
 
-/// Whether a daemon answering `daemon_reply` — the raw `version` reply,
-/// `<version>+<sha>` — supports the file-transfer verbs (core 0.68+).
-///
-/// A reply that is missing, not stamp-shaped, or carries a version below
-/// [`FILE_TRANSFER_MIN_DAEMON_VERSION`] answers false: the drop handler's
-/// paste-path fallback is the safe degradation, so anything unprovable
-/// counts as unsupported.
-pub fn daemon_supports_file_transfer(daemon_reply: &str) -> bool {
-    let Some((version, sha)) = daemon_reply.split_once('+') else {
-        return false;
-    };
+/// The daemon version the `window-add-replay` verb arrived in (core
+/// 0.77.0): the session's live windows' `%window-add` lines, rebuilt by
+/// the same builder the spawn broadcasts use.
+const WINDOW_ADD_REPLAY_MIN_DAEMON_VERSION: [u64; 3] = [0, 77, 0];
+
+/// Parse a `version` reply — `<major>.<minor>.<patch>+<sha>` — into its
+/// three components. Not stamp-shaped (missing `+sha`, missing or extra
+/// components, non-numeric) parses to `None`.
+fn parse_daemon_version_reply(daemon_reply: &str) -> Option<[u64; 3]> {
+    let (version, sha) = daemon_reply.split_once('+')?;
     if sha.is_empty() {
-        return false;
+        return None;
     }
     let mut parts = version.split('.');
     let parsed = (|| {
@@ -324,9 +323,28 @@ pub fn daemon_supports_file_transfer(daemon_reply: &str) -> bool {
             parts.next()?.parse::<u64>().ok()?,
         ])
     })();
-    parsed.is_some_and(|version| {
-        parts.next().is_none() && version >= FILE_TRANSFER_MIN_DAEMON_VERSION
-    })
+    parsed.filter(|_| parts.next().is_none())
+}
+
+/// Whether a daemon answering `daemon_reply` — the raw `version` reply,
+/// `<version>+<sha>` — supports the file-transfer verbs (core 0.68+).
+///
+/// A reply that is missing, not stamp-shaped, or carries a version below
+/// [`FILE_TRANSFER_MIN_DAEMON_VERSION`] answers false: the drop handler's
+/// paste-path fallback is the safe degradation, so anything unprovable
+/// counts as unsupported.
+pub fn daemon_supports_file_transfer(daemon_reply: &str) -> bool {
+    parse_daemon_version_reply(daemon_reply)
+        .is_some_and(|version| version >= FILE_TRANSFER_MIN_DAEMON_VERSION)
+}
+
+/// Whether a daemon answering `daemon_reply` supports the
+/// `window-add-replay` verb (core 0.77+). Same degradation rule as
+/// [`daemon_supports_file_transfer`]: anything unprovable counts as
+/// unsupported, and the caller keeps its pre-0.77 recovery.
+pub fn daemon_supports_window_add_replay(daemon_reply: &str) -> bool {
+    parse_daemon_version_reply(daemon_reply)
+        .is_some_and(|version| version >= WINDOW_ADD_REPLAY_MIN_DAEMON_VERSION)
 }
 
 /// Build the `send-keys -l` command for `text`, quoted as one shell word
@@ -376,6 +394,30 @@ mod tests {
             "0.68.0-rc.1+sha",
         ] {
             assert!(!daemon_supports_file_transfer(unsupported), "{unsupported}");
+        }
+    }
+
+    /// The `window-add-replay` recovery verb starts at the same train as
+    /// the seed-ordering contract (core 0.77.0): a 0.76-era daemon keeps
+    /// the list-windows fallback, anything stamp-broken counts as no.
+    #[test]
+    fn window_add_replay_support_starts_at_core_0_77() {
+        for supported in ["0.77.0+abc1234", "0.77.1+sha", "0.78.0+sha", "1.0.0+sha"] {
+            assert!(daemon_supports_window_add_replay(supported), "{supported}");
+        }
+        for unsupported in [
+            "",
+            "unknown command: version",
+            "0+sha",
+            "0.76.0+761624a1",
+            "0.77.0",
+            "unknown+sha",
+            "1.2.3.4+sha",
+        ] {
+            assert!(
+                !daemon_supports_window_add_replay(unsupported),
+                "{unsupported}"
+            );
         }
     }
 

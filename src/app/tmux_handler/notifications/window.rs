@@ -10,8 +10,21 @@ use crate::tmux::TmuxWindowId;
 
 impl WindowState {
     /// Handle window add notification - creates a new tab
+    /// Create the tab for a daemon window. Refuses duplicates: the
+    /// attach's existing-windows adoption, a recovery, and a late
+    /// broadcast can race the same window (`recover_window_add` consumes
+    /// a lost push's slot while the push itself may still sit queued in
+    /// the client channel), and re-adding would orphan the first tab.
     pub(crate) fn handle_tmux_window_add(&mut self, window_id: TmuxWindowId) {
         crate::debug_info!("TMUX", "Window added: @{}", window_id);
+        if self.tmux_state.tmux_sync.get_tab(window_id).is_some() {
+            crate::debug_info!(
+                "TMUX",
+                "Window @{} already mapped; ignoring duplicate add",
+                window_id
+            );
+            return;
+        }
 
         #[cfg(feature = "mux")]
         let replacing = self

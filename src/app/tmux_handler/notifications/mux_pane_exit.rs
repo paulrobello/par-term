@@ -13,6 +13,10 @@
 use crate::app::window_state::WindowState;
 use par_term_emu_core_rust::tmux_control::TmuxNotification as CoreNotification;
 use par_term_tmux::TmuxPaneId;
+// Only the cfg(test) recovery helper names this type; keeping the import
+// test-gated keeps the no-mux and non-test builds lint-clean.
+#[cfg(test)]
+use par_term_tmux::TmuxWindowId;
 
 /// One held-pane lifecycle push, parsed from its wire line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +125,75 @@ impl WindowState {
             }
             Err(e) => log::warn!("par-mux: re-seed of respawned pane %{pane} failed: {e}"),
         }
+    }
+
+    /// Recover a daemon window whose `%window-add` push was lost (the
+    /// client channel's bounded ring evicts; the first-attach baseline
+    /// discards recorded events). Core 0.77's `window-add-replay -t
+    /// <session>` re-sends the session's live windows' `%window-add`
+    /// lines — built by the same builder the spawn broadcasts use, so no
+    /// drift — as pushes on the issuing client's notification channel
+    /// (the reply body itself is empty), and one drain applies them
+    /// through the ordinary path. Older daemons fall back to
+    /// reconstructing from `list-windows` rows. Returns whether the
+    /// window is now mapped.
+    ///
+    /// The CALLER owns the proof the push is really lost (a drain
+    /// deadline), not merely late: a merely-delayed push plus this
+    /// recovery is safe only because [`WindowState::handle_tmux_window_add`]
+    /// refuses duplicates. Test-only today: the production attach reply
+    /// already carries the session's windows, so no production path needs
+    /// the recovery yet — the mux_pane_exit fixture's pump-miss branch is
+    /// the proof-of-loss caller (card 01a19dfd80f1).
+    #[cfg(test)]
+    pub(crate) fn recover_window_add(&mut self, window_id: TmuxWindowId) -> bool {
+        if self.tmux_state.tmux_sync.get_tab(window_id).is_some() {
+            return true;
+        }
+        let capable = self.tmux_state.mux_window_add_replay_supported
+            && self.tmux_state.mux_session_id.is_some();
+        if capable {
+            let session = self.tmux_state.mux_session_id.unwrap_or(0);
+            let failure = self.tmux_state.transport.as_ref().and_then(|transport| {
+                transport
+                    .send_command(&format!("window-add-replay -t ${session}"))
+                    .err()
+            });
+            match failure {
+                Some(e) => log::warn!("par-mux: window-add-replay failed: {e}"),
+                None => {
+                    // The replay's %window-add lines arrive as pushes on
+                    // the client channel; the drain applies them through
+                    // the ordinary path (the duplicate guard absorbs any
+                    // push that was merely queued, not lost).
+                    self.check_mux_notifications();
+                    if self.tmux_state.tmux_sync.get_tab(window_id).is_some() {
+                        return true;
+                    }
+                }
+            }
+        }
+        // Older-daemon fallback (and the safety net when the replay's
+        // pushes have not landed): reconstruct from list-windows rows
+        // ("@N: name").
+        let present = {
+            let Some(transport) = &self.tmux_state.transport else {
+                return false;
+            };
+            transport.send_command("list-windows").ok().map(|rows| {
+                rows.iter().any(|row| {
+                    row.strip_prefix('@')
+                        .and_then(|rest| rest.split(':').next())
+                        .and_then(|token| token.parse::<TmuxWindowId>().ok())
+                        .is_some_and(|id| id == window_id)
+                })
+            })
+        };
+        if present == Some(true) {
+            self.handle_tmux_window_add(window_id);
+            return true;
+        }
+        false
     }
 
     /// Restart a daemon pane's process in place via `respawn-pane`. The
@@ -572,10 +645,10 @@ mod tests {
         if !try_pump(&mut ws, 20, |ws| {
             ws.tmux_state.tmux_pane_owners.contains_key(&0)
         }) {
-            // The push was lost; recover from the daemon's window list.
-            if daemon_windows(&ws).contains(&0) && ws.tmux_state.tmux_sync.get_tab(0).is_none() {
-                ws.handle_tmux_window_add(0);
-            }
+            // The push was lost; recover through the capability-gated verb
+            // with the list-windows fallback (the spawned daemon is the
+            // pinned core, so the verb exists).
+            ws.recover_window_add(0);
         }
         pump_until(&mut ws, "the %window-add adoption maps %0", |ws| {
             ws.tmux_state.tmux_pane_owners.contains_key(&0)
@@ -608,6 +681,47 @@ mod tests {
             .iter()
             .filter_map(|l| l.strip_prefix('@')?.split(':').next()?.parse().ok())
             .collect()
+    }
+
+    /// Card 01a19dfd80f1: the recovery prefers core 0.77's
+    /// `window-add-replay` verb — the reply is the emit form of the same
+    /// `%window-add` notification the broadcasts carry, so the recovered
+    /// tab is the real one. The dedupe guard in `handle_tmux_window_add`
+    /// absorbs the push that may still be queued behind it, so a merely
+    /// late push can never double-create the tab.
+    #[test]
+    fn recovery_uses_the_replay_verb_and_refuses_duplicates() {
+        let (mut ws, path) = attached_with_pane_zero("replay-recovery");
+
+        // A second window, created daemon-side while this client holds its
+        // notifications undrained: exactly the state the recovery exists
+        // for — the window exists, the client has not mapped it.
+        send_ok(&ws, "new-window");
+        // Force the capability flag: the in-process daemon's stamp shape
+        // is not guaranteed, and the probe logic is pinned by its own unit
+        // matrix — here the point is the verb wire path on a real daemon.
+        ws.tmux_state.mux_window_add_replay_supported = true;
+        assert!(
+            ws.tmux_state.tmux_sync.get_tab(1).is_none(),
+            "@1 must be unmapped before the recovery (no drain since new-window)"
+        );
+        assert!(ws.recover_window_add(1), "the verb recovers @1");
+        assert!(
+            ws.tmux_state.tmux_sync.get_tab(1).is_some(),
+            "@1 mapped through the replay verb"
+        );
+        assert_eq!(ws.tab_manager.tab_count(), 2, "one tab per window");
+
+        // Drain: the queued %window-add push for @1 now fires; the dedupe
+        // guard must absorb it — still two tabs.
+        quiesce(&mut ws);
+        assert_eq!(
+            ws.tab_manager.tab_count(),
+            2,
+            "the late broadcast must not re-create @1's tab"
+        );
+
+        let _ = std::fs::remove_file(&path);
     }
 
     /// Card 01a0ef3b criterion 1: Cmd+W (close pane) on a tab whose only

@@ -425,6 +425,12 @@ impl WindowState {
                     par_term_mux::daemon_supports_file_transfer(
                         daemon_version.as_deref().unwrap_or(""),
                     );
+                // The window-add-replay recovery verb arrived in core
+                // 0.77: an older daemon keeps the list-windows fallback.
+                self.tmux_state.mux_window_add_replay_supported =
+                    par_term_mux::daemon_supports_window_add_replay(
+                        daemon_version.as_deref().unwrap_or(""),
+                    );
                 for window_id in &existing_windows {
                     if self.tmux_state.tmux_sync.get_tab(*window_id).is_none() {
                         self.handle_tmux_window_add(*window_id);

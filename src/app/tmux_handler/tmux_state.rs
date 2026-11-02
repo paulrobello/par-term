@@ -195,6 +195,10 @@ pub(crate) struct TmuxState {
     /// File-transfer support from the attached daemon's version (core 0.68+).
     /// Unknown versions degrade to paste-path, never a failed upload.
     pub(crate) mux_file_transfer_supported: bool,
+    /// `window-add-replay` support from the attached daemon's version
+    /// (core 0.77+). False keeps the list-windows recovery for older
+    /// daemons.
+    pub(crate) mux_window_add_replay_supported: bool,
     /// The daemon's event-ring head (`events` verb, core 0.72.0) as of the
     /// last replay: the resume watermark the next `events --since` sends.
     /// In-memory on purpose — the watermark is a promise about THIS daemon
@@ -399,6 +403,7 @@ impl TmuxState {
             mux_session_id: None,
             mux_snapshot_supported: None,
             mux_file_transfer_supported: false,
+            mux_window_add_replay_supported: false,
             mux_event_seq: 0,
             mux_event_seq_socket: None,
             mux_replay_pending: Vec::new(),
