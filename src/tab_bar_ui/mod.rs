@@ -12,6 +12,8 @@
 //! - `tab_painter`: Horizontal per-tab painting (`render_tab_with_width`).
 //! - `title_utils`: HTML title parsing, emoji sanitization, and styled segment rendering.
 
+#[cfg(test)]
+mod chip_budget_tests;
 mod context_menu;
 mod drag_drop;
 #[cfg(test)]
@@ -33,6 +35,14 @@ use tab_rendering::TabRenderParams;
 /// Width reserved for the profile chevron (▾) button in the tab bar split button.
 /// Accounts for the button min_size (14px) plus egui button frame padding (~4px each side).
 pub(super) const CHEVRON_RESERVED: f32 = 28.0;
+
+/// Upper bound on the session chip's rendered label width, as a fraction of
+/// the horizontal bar width (card 01a1a2e65b98): the chip is ellipsized past
+/// this so a long workspace name cannot consume the bar.
+pub(super) const CHIP_MAX_WIDTH_FRACTION: f32 = 0.35;
+/// Floor for the chip label cap on very narrow windows, so the chip stays
+/// legible when `fraction * bar_width` would shrink below a useful label.
+pub(super) const CHIP_MIN_WIDTH_FLOOR: f32 = 80.0;
 
 /// Actions that can be triggered from the tab bar
 #[derive(Debug, Clone, PartialEq)]
@@ -184,6 +194,7 @@ impl TabBarUI {
                                 ui,
                                 chip,
                                 tab_height - TAB_DRAW_SHRINK_Y * 2.0,
+                                (config.tabs.tab_bar_width - 16.0).max(0.0),
                             ) {
                                 self.chip_action = Some(chip_action);
                             }

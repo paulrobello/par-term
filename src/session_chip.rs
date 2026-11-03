@@ -111,8 +111,47 @@ impl SessionChip {
     }
 }
 
+/// The chip label clamped to `max_width`: the session name is ellipsized
+/// until the measured galley fits, so a long workspace name cannot consume
+/// the whole tab bar. Returns the (possibly unchanged) label.
+pub(crate) fn clamp_label(ui: &egui::Ui, label: String, color: Color32, max_width: f32) -> String {
+    if max_width.is_infinite() || max_width <= 0.0 {
+        return label;
+    }
+    let font_id = egui::TextStyle::Button.resolve(ui.style());
+    let fits = |text: &str| -> bool {
+        ui.painter()
+            .layout_no_wrap(text.to_owned(), font_id.clone(), color)
+            .size()
+            .x
+            <= max_width
+    };
+    if fits(&label) {
+        return label;
+    }
+    let mut chars: Vec<char> = label.chars().collect();
+    // Reserve the ellipsis before measuring each candidate.
+    loop {
+        let mut candidate: String = chars.iter().take(chars.len().saturating_sub(1)).collect();
+        if candidate.chars().count() > 1 {
+            candidate.push('…');
+        }
+        if chars.len() <= 2 || fits(&candidate) {
+            return candidate;
+        }
+        chars.pop();
+    }
+}
+
 /// Draw the chip into `ui` (the tab bar's row) and return a click action.
-pub fn show(ui: &mut egui::Ui, chip: &SessionChip, height: f32) -> Option<SessionChipAction> {
+/// `max_label_width` caps the rendered label width (ellipsis truncation);
+/// pass `f32::INFINITY` for no cap.
+pub fn show(
+    ui: &mut egui::Ui,
+    chip: &SessionChip,
+    height: f32,
+    max_label_width: f32,
+) -> Option<SessionChipAction> {
     if !chip.is_visible() {
         return None;
     }
@@ -122,7 +161,8 @@ pub fn show(ui: &mut egui::Ui, chip: &SessionChip, height: f32) -> Option<Sessio
     } else {
         chip.health.color()
     };
-    let button = egui::Button::new(RichText::new(chip.label()).color(color))
+    let label = clamp_label(ui, chip.label(), color, max_label_width);
+    let button = egui::Button::new(RichText::new(label).color(color))
         .min_size(egui::vec2(0.0, height))
         .fill(Color32::TRANSPARENT);
     if ui.add(button).on_hover_text(chip.tooltip()).clicked() {

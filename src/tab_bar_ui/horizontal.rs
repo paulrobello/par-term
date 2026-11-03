@@ -66,11 +66,6 @@ impl TabBarUI {
         // The in-app menu shares the tab bar strip, so it needs no space of its
         // own in the terminal grid — but it does take width from the tabs.
         let show_app_menu = crate::menu::AppMenuUi::enabled();
-        let app_menu_width = if show_app_menu {
-            crate::menu::AppMenuUi::BUTTON_WIDTH + tab_spacing
-        } else {
-            0.0
-        };
 
         let bar_bg = config.tab_colors.tab_bar_background;
         let frame =
@@ -87,69 +82,6 @@ impl TabBarUI {
             // so tabs/buttons don't render underneath them.
             let total_bar_width = (ui.available_width() - right_reserved_width.max(0.0)).max(0.0);
 
-            // Calculate minimum total width needed for all tabs at min_width
-            let min_total_tabs_width = if tab_count > 0 {
-                tab_count as f32 * config.tab_colors.tab_min_width
-                    + (tab_count - 1) as f32 * tab_spacing
-            } else {
-                0.0
-            };
-
-            // Available width for tabs (without scroll buttons initially).
-            // Budget: left_padding + app_menu_width + tabs + tab_spacing (cursor gap)
-            //         + new_tab_btn_width = total
-            let base_tabs_area_width =
-                (total_bar_width - new_tab_btn_width - tab_spacing - left_padding - app_menu_width)
-                    .max(0.0);
-
-            // Determine if scrolling is needed
-            let needs_scroll = tab_count > 0 && min_total_tabs_width > base_tabs_area_width;
-            self.needs_horizontal_scroll = needs_scroll;
-
-            // Actual tabs area width (accounting for scroll buttons if needed)
-            let tabs_area_width = if needs_scroll {
-                (base_tabs_area_width - 2.0 * scroll_btn_width - 2.0 * tab_spacing).max(0.0)
-            } else {
-                base_tabs_area_width
-            };
-
-            // Calculate tab width
-            let tab_width = if tab_count == 0 || needs_scroll {
-                config.tab_colors.tab_min_width
-            } else if config.tab_colors.tab_stretch_to_fill {
-                let total_spacing = (tab_count - 1) as f32 * tab_spacing;
-                let stretched = (tabs_area_width - total_spacing) / tab_count as f32;
-                stretched.max(config.tab_colors.tab_min_width)
-            } else {
-                config.tab_colors.tab_min_width
-            };
-
-            // Calculate max scroll offset
-            let max_scroll = if needs_scroll {
-                (min_total_tabs_width - tabs_area_width).max(0.0)
-            } else {
-                0.0
-            };
-
-            // UX.md V13: a newly active tab scrolls into view once.
-            if needs_scroll && self.scrolled_to_active != active_tab_id {
-                if let Some(index) =
-                    active_tab_id.and_then(|id| visible_tabs.iter().position(|t| t.id == id))
-                {
-                    self.scroll_offset = Self::scroll_to_show(
-                        self.scroll_offset,
-                        index,
-                        tab_width,
-                        tab_spacing,
-                        tabs_area_width,
-                    );
-                }
-                self.scrolled_to_active = active_tab_id;
-            }
-
-            // Clamp scroll offset
-            self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
-
             // Fixed-height row prevents any child widget (ScrollArea, buttons)
             // from expanding the vertical space and pushing tab pills down.
             ui.allocate_ui_with_layout(
@@ -164,10 +96,83 @@ impl TabBarUI {
                     if show_app_menu {
                         self.app_menu.show(ui, profiles, btn_h);
                     }
-                    // Session chip (UX.md V1) — left of the tabs
-                    if let Some(chip_action) = crate::session_chip::show(ui, chip, btn_h) {
+                    // Session chip (UX.md V1) — left of the tabs. Clamped so a
+                    // long workspace name cannot consume the bar (card
+                    // 01a1a2e65b98: the chip was unbudgeted and a stretched
+                    // single tab pushed the + button off the bar).
+                    if let Some(chip_action) = crate::session_chip::show(
+                        ui,
+                        chip,
+                        btn_h,
+                        (total_bar_width * super::CHIP_MAX_WIDTH_FRACTION)
+                            .max(super::CHIP_MIN_WIDTH_FLOOR),
+                    ) {
                         self.chip_action = Some(chip_action);
                     }
+
+                    // Budget the tabs from what the row has actually consumed
+                    // so far — left padding, app menu, and the chip included.
+                    // Measuring the real cursor instead of re-deriving each
+                    // element's width keeps the + button inside the bar no
+                    // matter what renders to the left of the tabs.
+                    let used_before_tabs = ui.min_rect().width();
+                    let min_total_tabs_width = if tab_count > 0 {
+                        tab_count as f32 * config.tab_colors.tab_min_width
+                            + (tab_count - 1) as f32 * tab_spacing
+                    } else {
+                        0.0
+                    };
+                    let base_tabs_area_width =
+                        (total_bar_width - used_before_tabs - new_tab_btn_width - tab_spacing)
+                            .max(0.0);
+
+                    // Determine if scrolling is needed
+                    let needs_scroll = tab_count > 0 && min_total_tabs_width > base_tabs_area_width;
+                    self.needs_horizontal_scroll = needs_scroll;
+
+                    // Actual tabs area width (accounting for scroll buttons if needed)
+                    let tabs_area_width = if needs_scroll {
+                        (base_tabs_area_width - 2.0 * scroll_btn_width - 2.0 * tab_spacing).max(0.0)
+                    } else {
+                        base_tabs_area_width
+                    };
+
+                    // Calculate tab width
+                    let tab_width = if tab_count == 0 || needs_scroll {
+                        config.tab_colors.tab_min_width
+                    } else if config.tab_colors.tab_stretch_to_fill {
+                        let total_spacing = (tab_count - 1) as f32 * tab_spacing;
+                        let stretched = (tabs_area_width - total_spacing) / tab_count as f32;
+                        stretched.max(config.tab_colors.tab_min_width)
+                    } else {
+                        config.tab_colors.tab_min_width
+                    };
+
+                    // Calculate max scroll offset
+                    let max_scroll = if needs_scroll {
+                        (min_total_tabs_width - tabs_area_width).max(0.0)
+                    } else {
+                        0.0
+                    };
+
+                    // UX.md V13: a newly active tab scrolls into view once.
+                    if needs_scroll && self.scrolled_to_active != active_tab_id {
+                        if let Some(index) = active_tab_id
+                            .and_then(|id| visible_tabs.iter().position(|t| t.id == id))
+                        {
+                            self.scroll_offset = Self::scroll_to_show(
+                                self.scroll_offset,
+                                index,
+                                tab_width,
+                                tab_spacing,
+                                tabs_area_width,
+                            );
+                        }
+                        self.scrolled_to_active = active_tab_id;
+                    }
+
+                    // Clamp scroll offset
+                    self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
 
                     if needs_scroll {
                         // Left scroll button
