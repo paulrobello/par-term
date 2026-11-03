@@ -42,6 +42,16 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.52.0
+
+Attach reliability is the headline: lost pane output, scrambled post-attach panes, and missing tabs after a fresh attach are fixed. Plus a Load Average status-bar widget and a New Local Tab action. Core library 0.77.0 is required; the bundled par-mux daemon rebuilds with it. Sub-crates move to `par-term-config` 0.18.0, `par-term-render` 0.13.0, `par-term-settings-ui` 0.22.0, and `par-term-mux` 0.6.0.
+
+- **Attach reliability** — pane output dropped on a missed lock is buffered and replayed in order; pre-seed output no longer scrambles fresh-attach panes; a lost `%window-add` is recovered by a once-per-attach sweep (core 0.77's `window-add-replay`, `list-windows` fallback on older daemons).
+- **Load Average widget** — 1/5/15-minute system load in the status bar (`load_average`, off by default), with `\(system.load)` for custom widgets.
+- **New Local Tab** — a tab context-menu item and keybind that spawns a local shell even while attached; `mux_detach_opens_local_tab` keeps a window usable after detaching its last tab (both default off).
+- **Safer installs and config migration** — `make install` only replaces the bundled par-mux when it is strictly newer than the installed daemon, and the home config is an opt-in migration source so an `XDG_CONFIG_HOME` override can no longer drain the real config.
+- **Core 0.76–0.77 daemon** — seed replies are enqueued after the `%output` they subsume (the exact drop boundary for pre-seed output) and the `window-add-replay` verb backs the attach recovery sweep.
+
 ### 0.51.0
 
 par-mux by default, a roster that covers local panes, and a hardened agent trust boundary. Core library 0.75.0 is required; the bundled par-mux daemon rebuilds with it. Sub-crates move to `par-term-acp` 0.7.0, `par-term-config` 0.17.0, `par-term-mcp` 0.3.0, `par-term-terminal` 0.8.0, `par-term-update` 0.6.0, `par-term-scripting` 0.3.0, `par-term-settings-ui` 0.21.0, and `par-term-mux` 0.5.0.

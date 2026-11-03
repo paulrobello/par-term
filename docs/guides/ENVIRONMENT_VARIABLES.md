@@ -133,6 +133,7 @@ On Windows, `%APPDATA%\par-term` is used and the XDG variables are ignored entir
 | `WAYLAND_DISPLAY` | — | Wayland compositor socket name (Linux). Used when running under a Wayland compositor. |
 | `TMPDIR` / `TEMP` / `TMP` | — | Temporary directory override. Used to locate or create the debug log file. |
 | `PAR_TERM_IN_APP_MENU` | unset | Force the in-app egui menu on (`1`) or off (`0`). Unset means on where no native menu bar can be attached — Linux and BSD — and off on macOS and Windows, which have a native menu. |
+| `PAR_TERM_MAX_DRAWABLES` | unset | Cap the macOS CAMetalLayer drawable pool to 2–8 (applied after every surface configure, since wgpu rewrites layer properties per configure). Unset leaves wgpu's default pool size untouched. Diagnostic knob for the stale-pixel investigation — leave it unset unless chasing a rendering fault. |
 
 ---
 

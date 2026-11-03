@@ -174,6 +174,8 @@ Detach closes the par-term side and leaves the session running in the daemon:
 - **Action** — `detach` is a bindable action (`action: detach` in your keybindings config); the older id `mux-detach` still works.
 - Windows arrangements that captured `mux_session_name` reattach on restore.
 
+When the explicit Detach leaves the window with no tabs (every tab was a daemon window), the window would otherwise sit empty. With **Settings → Sessions → par-mux → Open a local tab when detaching the last tab** (`mux_detach_opens_local_tab`, default off) enabled, par-term opens a fresh local shell tab in that window instead. A daemon death keeps the current behavior — only the explicit Detach action triggers this.
+
 Reattach by opening the profile (or restoring an arrangement) again: the stale-daemon check runs, existing windows become tabs, and every pane is reseeded. Sessions also survive a par-term crash for the same reason — the daemon kept them.
 
 Reattach also replays the daemon's event ring (`events --since`, core 0.72+): every lifecycle broadcast the daemon made while no client was attached — a pane that exited, an agent that changed state, a window that moved — is parsed through the same path as live pushes and applied with them, so the reopened view lands current without polling. The replay position is scoped to the daemon it was learned from: a reattach to the same daemon applies only the missed interval; a first attach applies nothing (the ring is daemon-wide and may hold other sessions' events); a different daemon re-baselines from the reply's current head. A daemon older than the verb cannot answer the query, and the reattach proceeds on seeding and state re-registration alone.
