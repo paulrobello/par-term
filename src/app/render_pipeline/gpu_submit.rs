@@ -495,8 +495,9 @@ impl WindowState {
                                 .is_some_and(|last| g > last)
                         {
                             self.debug.skips_with_advanced_generation += 1;
-                            crate::debug_log!(
-                                "RENDER",
+                            // Fault canary: must be visible in normal runs
+                            // (debug_level=Off), so log::warn, not debug_log!.
+                            log::warn!(
                                 "LOST-INVALIDATION watcher: frame skipped while pane \
                                  content generation advanced (rendered={:?} current={})",
                                 self.debug.last_rendered_generation,
