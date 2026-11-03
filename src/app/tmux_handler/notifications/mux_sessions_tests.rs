@@ -13,6 +13,7 @@ use crate::app::window_state::WindowState;
 use crate::session_picker_mux::{MuxPickerAction, MuxSessionRow};
 use par_term_emu_core_rust::mux::{MuxClient, MuxServer};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// A private socket directory for one test. Short: macOS caps a socket
 /// path at 104 bytes.
@@ -60,6 +61,47 @@ fn pump(ws: &mut WindowState, what: &str, done: impl Fn(&WindowState) -> bool) {
             done(ws)
         }
     });
+}
+
+/// Re-issue `op` between bounded pumps until `done` holds, failing with
+/// `what` if it never does. The picker actions are one-shot inline sends
+/// that fail fast when the daemon's send worker holds the client, so a
+/// loaded runner can lose the send — waiting longer cannot recover it,
+/// re-issuing can (the switch steps inline retry for the same reason). On
+/// a fast machine the first attempt lands and the loop never re-issues.
+/// `done` may rescan app state (`scan`), so it takes `&mut WindowState`.
+fn retried(
+    ws: &mut WindowState,
+    what: &str,
+    mut op: impl FnMut(&mut WindowState),
+    mut done: impl FnMut(&mut WindowState) -> bool,
+) {
+    let mut attempt = |ws: &mut WindowState| -> bool {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            if done(ws) {
+                return true;
+            }
+            ws.check_tmux_notifications();
+            if done(ws) {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    };
+    if attempt(ws) {
+        return;
+    }
+    for _ in 0..4 {
+        op(ws);
+        if attempt(ws) {
+            return;
+        }
+    }
+    panic!("{what}: not observed within the retry window");
 }
 
 /// A complete directory scan. The scan gives each daemon a fixed reply
@@ -133,15 +175,23 @@ fn workspaces_create_switch_rename_kill_end_to_end() {
     pump(&mut ws, "attach to work", |ws| attached(ws).is_some());
 
     // CREATE: the daemon spawns the workspace's first session named after
-    // the workspace, and makes the workspace its active one.
-    ws.handle_mux_session_request(MuxPickerAction::NewWorkspace {
-        socket: socket.clone(),
-        daemon: "work".to_string(),
-        name: "dev".to_string(),
-    });
-    wait_until("the new workspace's session is listed", || {
-        scan(&mut ws).iter().any(|r| r.name == "dev")
-    });
+    // the workspace, and makes the workspace its active one. The picker
+    // actions here ride the inline-send path, which fails fast when the
+    // daemon's send worker holds the client — a loaded runner can lose the
+    // send, so each op is re-issued between bounded pumps (the switch
+    // steps below retry for the same reason).
+    retried(
+        &mut ws,
+        "the created workspace is listed",
+        |ws| {
+            ws.handle_mux_session_request(MuxPickerAction::NewWorkspace {
+                socket: socket.clone(),
+                daemon: "work".to_string(),
+                name: "dev".to_string(),
+            });
+        },
+        |ws| scan(ws).iter().any(|r| r.name == "dev"),
+    );
     let workspaces = daemon_workspaces(&socket);
     let dev = workspaces
         .iter()
@@ -182,14 +232,18 @@ fn workspaces_create_switch_rename_kill_end_to_end() {
     );
 
     // RENAME daemon-side, then switch back to the workspace holding the
-    // original session.
-    ws.handle_mux_session_request(MuxPickerAction::RenameWorkspace(
-        dev_row.clone(),
-        "lab".to_string(),
-    ));
-    wait_until("the workspace reads its new name", || {
-        daemon_workspaces(&socket).iter().any(|w| w.name == "lab")
-    });
+    // original session. Re-issued between bounded pumps like the create.
+    retried(
+        &mut ws,
+        "the workspace reads its new name",
+        |ws| {
+            ws.handle_mux_session_request(MuxPickerAction::RenameWorkspace(
+                dev_row.clone(),
+                "lab".to_string(),
+            ));
+        },
+        |_ws| daemon_workspaces(&socket).iter().any(|w| w.name == "lab"),
+    );
     let main_row = ws
         .tmux_state
         .mux_directory
@@ -212,12 +266,19 @@ fn workspaces_create_switch_rename_kill_end_to_end() {
         "follow lands back on the original session: not observed within the retry window"
     );
 
-    // KILL: the workspace's sessions end with it.
-    ws.handle_mux_session_request(MuxPickerAction::KillWorkspace(dev_row));
-    wait_until("the workspace and its session are gone", || {
-        !daemon_workspaces(&socket).iter().any(|w| w.name == "lab")
-            && daemon_sessions(&socket) == vec!["work".to_string()]
-    });
+    // KILL: the workspace's sessions end with it. Re-issued between
+    // bounded pumps like the create.
+    retried(
+        &mut ws,
+        "the workspace and its session are gone",
+        |ws| {
+            ws.handle_mux_session_request(MuxPickerAction::KillWorkspace(dev_row.clone()));
+        },
+        |_ws| {
+            !daemon_workspaces(&socket).iter().any(|w| w.name == "lab")
+                && daemon_sessions(&socket) == vec!["work".to_string()]
+        },
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
