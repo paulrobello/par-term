@@ -480,7 +480,29 @@ impl WindowState {
 
             match render_result {
                 Ok(rendered) => {
-                    if !rendered {
+                    if rendered {
+                        if let Some(g) = active_pane_content_generation(self) {
+                            self.debug.last_rendered_generation = Some(g);
+                        }
+                    } else {
+                        // Lost-invalidation watcher (card 01a198054b5d): a skip is
+                        // only correct when the pane content generation has not
+                        // advanced past what the screen last showed.
+                        if let Some(g) = active_pane_content_generation(self)
+                            && self
+                                .debug
+                                .last_rendered_generation
+                                .is_some_and(|last| g > last)
+                        {
+                            self.debug.skips_with_advanced_generation += 1;
+                            crate::debug_log!(
+                                "RENDER",
+                                "LOST-INVALIDATION watcher: frame skipped while pane \
+                                 content generation advanced (rendered={:?} current={})",
+                                self.debug.last_rendered_generation,
+                                g
+                            );
+                        }
                         // ARC-004: per-frame hot path — use the custom debug macros
                         // (DEBUG_LEVEL-gated, near-zero overhead) instead of log::trace!.
                         crate::debug_trace!("RENDER", "Skipped rendering - no changes");
@@ -518,4 +540,13 @@ impl WindowState {
 
         actions
     }
+}
+
+/// Focused pane's terminal content generation, read through `try_read` so the
+/// watcher never contends with the PTY/mux reader threads (card 01a198054b5d).
+fn active_pane_content_generation(ws: &WindowState) -> Option<u64> {
+    let tab = ws.tab_manager.active_tab()?;
+    let pane = tab.pane_manager()?.focused_pane()?;
+    let term = pane.terminal.try_read().ok()?;
+    Some(term.update_generation())
 }

@@ -25,6 +25,15 @@ pub(crate) struct DebugState {
     pub(crate) last_egui_time: Duration,
     /// Timestamp of the last `about_to_wait` call (for inter-frame gap detection).
     pub(crate) last_about_to_wait: Option<Instant>,
+    /// Gather-path lock misses since window start: the terminal `try_read`
+    /// failed and the frame fell back to cached cells (card 01a198054b5d).
+    pub(crate) gather_lock_misses: u64,
+    /// Terminal content generation of the last frame that actually rendered.
+    pub(crate) last_rendered_generation: Option<u64>,
+    /// Gate skips observed while the pane content generation had advanced
+    /// past the last rendered generation — the lost-invalidation signature
+    /// the hunt is after (card 01a198054b5d).
+    pub(crate) skips_with_advanced_generation: u64,
 }
 
 impl Default for DebugState {
@@ -46,6 +55,9 @@ impl DebugState {
             fps_value: 0.0,
             last_egui_time: Duration::ZERO,
             last_about_to_wait: None,
+            gather_lock_misses: 0,
+            last_rendered_generation: None,
+            skips_with_advanced_generation: 0,
         }
     }
 }

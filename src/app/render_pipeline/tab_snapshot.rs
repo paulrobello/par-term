@@ -290,6 +290,7 @@ impl WindowState {
             // Terminal locked (e.g., upload in progress) — use cached cells so the
             // rest of the render pipeline (including file transfer overlay) can
             // proceed. With no cache there is nothing to draw, so skip the frame.
+            self.debug.gather_lock_misses += 1;
             cache_cells.map(|cached| TabCellsSnapshot {
                 cells: cached,
                 wrap_flags: cache_wrap_flags,

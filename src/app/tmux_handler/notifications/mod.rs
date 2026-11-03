@@ -47,6 +47,8 @@ mod mux_adopt_tests;
 mod mux_attach;
 #[cfg(all(test, feature = "mux"))]
 mod mux_attach_flow_tests;
+#[cfg(all(test, feature = "mux", unix))]
+mod mux_attach_torture_tests;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_attention;
 #[cfg(all(test, feature = "mux", unix))]
