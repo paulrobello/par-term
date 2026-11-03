@@ -63,6 +63,14 @@ pub struct TmuxConfig {
     #[serde(default = "crate::defaults::bool_false")]
     pub mux_auto_reconnect: bool,
 
+    /// When the user explicitly detaches from par-mux and the window has
+    /// no tabs left (every tab was a daemon window), open a fresh local
+    /// shell tab so the window stays usable. Only the explicit Detach
+    /// action triggers this — a daemon death keeps the current behavior.
+    /// Default: false
+    #[serde(default = "crate::defaults::bool_false")]
+    pub mux_detach_opens_local_tab: bool,
+
     /// Hide the tmux control-mode gateway tab while tmux windows are active.
     /// When enabled, the tab running `tmux -CC` is hidden from the tab bar once
     /// the first tmux window tab appears. It is restored when the session ends.
@@ -137,6 +145,7 @@ impl Default for TmuxConfig {
             use_mux_by_default: crate::defaults::bool_true(),
             tmux_clipboard_sync: crate::defaults::bool_true(),
             mux_auto_reconnect: crate::defaults::bool_false(),
+            mux_detach_opens_local_tab: crate::defaults::bool_false(),
             tmux_hide_gateway_tab: crate::defaults::bool_false(),
             tmux_profile: None,
             tmux_show_status_bar: crate::defaults::bool_false(),

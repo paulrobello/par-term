@@ -523,3 +523,55 @@ fn restore_policy_reads_sets_and_survives_a_rescan() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// mux_detach_opens_local_tab (default off): with the option off, detaching
+/// a window whose only tab is a daemon window leaves it empty; with the
+/// option on, the same detach leaves exactly one fresh local shell tab.
+#[test]
+fn detach_opens_local_tab_per_option() {
+    let dir = socket_dir("detach-local-tab");
+    // `_one` keeps the daemon alive to scope end (it serves both phases).
+    let _one = daemon(&dir, "one", &["one"]);
+
+    // OFF (default): the window ends with no tabs.
+    let mut ws = window_in(&dir);
+    let rows = scan(&mut ws);
+    let row = rows.iter().find(|r| r.name == "one").unwrap().clone();
+    ws.handle_mux_session_request(MuxPickerAction::Attach(row));
+    pump(&mut ws, "attach one", |ws| attached(ws).is_some());
+    pump(&mut ws, "one's tab", |ws| ws.tab_manager.tab_count() > 0);
+    ws.handle_mux_session_request(MuxPickerAction::Detach);
+    assert!(attached(&ws).is_none(), "detached");
+    assert_eq!(
+        ws.tab_manager.tab_count(),
+        0,
+        "option off (default): detaching the only tab leaves no tabs"
+    );
+    drop(ws);
+
+    // ON: the same detach leaves exactly one fresh local tab.
+    let mut ws = window_in(&dir);
+    let mut cfg = crate::config::Config::default();
+    cfg.tmux.mux_detach_opens_local_tab = true;
+    ws.config.store(std::sync::Arc::new(cfg));
+    let rows = scan(&mut ws);
+    let row = rows.iter().find(|r| r.name == "one").unwrap().clone();
+    ws.handle_mux_session_request(MuxPickerAction::Attach(row));
+    pump(&mut ws, "attach one (on)", |ws| attached(ws).is_some());
+    pump(&mut ws, "one's tab (on)", |ws| {
+        ws.tab_manager.tab_count() > 0
+    });
+    ws.handle_mux_session_request(MuxPickerAction::Detach);
+    assert!(attached(&ws).is_none(), "detached (on)");
+    assert_eq!(
+        ws.tab_manager.tab_count(),
+        1,
+        "option on: exactly one local tab remains"
+    );
+    let tab = ws.tab_manager.tabs().first().expect("local tab");
+    assert!(
+        tab.tmux.tmux_pane_id.is_none(),
+        "the remaining tab is a local shell, not a daemon window"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

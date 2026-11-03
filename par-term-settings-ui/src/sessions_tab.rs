@@ -120,6 +120,29 @@ pub(crate) fn show_par_mux_section(
             });
 
             ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let mut open_local = settings.config.tmux.mux_detach_opens_local_tab;
+                let response = ui
+                    .checkbox(
+                        &mut open_local,
+                        "Open a local tab when detaching the last tab",
+                    )
+                    .search_tag(&["mux_detach_opens_local_tab", "detach", "local tab"])
+                    .on_hover_text(
+                        "When you detach from par-mux and the window has no tabs left \
+                         (every tab was a daemon window), open a fresh local shell tab so \
+                         the window stays usable. Off leaves the window empty, as before. \
+                         Only the explicit Detach action triggers this; a daemon death \
+                         keeps the current behavior.",
+                    );
+                if response.changed() {
+                    settings.config.tmux.mux_detach_opens_local_tab = open_local;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(8.0);
             show_hook_status(ui, settings);
 
             ui.add_space(8.0);

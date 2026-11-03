@@ -589,6 +589,13 @@ impl WindowState {
         self.show_toast("par-mux: detached (session keeps running in the daemon)");
         self.tmux_state.mux_daemon = None;
         self.refresh_mux_directory();
+        // mux_detach_opens_local_tab: the cleanup above closed every mux
+        // display tab, which empties a window whose only tab was one. Only
+        // the explicit Detach action reaches here.
+        if self.config.load().tmux.mux_detach_opens_local_tab && self.tab_manager.tabs().is_empty()
+        {
+            self.new_local_tab();
+        }
         self.focus_state.needs_redraw = true;
         self.request_redraw();
         true
