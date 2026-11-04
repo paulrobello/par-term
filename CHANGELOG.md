@@ -11,6 +11,9 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Added
+- **Drag-and-drop status-bar widget reordering.** The Settings → Status Bar → Widgets section's three columns (Left / Center / Right) are now side-by-side, and widgets rearrange by dragging: drop above or below any row in any column, or on a column's empty area to append, with an insertion line previewing the landing spot. A click without a drag still toggles the widget, and the right-click menu (Move Up / Move Down / Move to <section> / Delete) stays as a fallback. `order` values renumber densely per section on every move, so they stay tidy. See [STATUS_BAR.md](docs/features/STATUS_BAR.md).
+
 ## [0.52.0] - 2026-11-03
 
 ### Added
