@@ -10,6 +10,7 @@ use crate::app::handler::wake::{WakeRequest, apply_wake_decision, reduce_wake_re
 use crate::app::window_manager::WindowManager;
 
 use std::sync::Arc;
+use std::time::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -220,6 +221,10 @@ impl ApplicationHandler<AppEvent> for WindowManager {
         // Route event to the appropriate terminal window
         let (should_close, shader_states, grid_size) =
             if let Some(window_state) = self.windows.get_mut(&window_id) {
+                if is_resize {
+                    window_state.debug.last_window_resize_at = Some(Instant::now());
+                    window_state.debug.announced_post_resize_present = false;
+                }
                 let close = window_state.handle_window_event(event_loop, event);
                 // Capture shader states to sync to settings window
                 let states = (

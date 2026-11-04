@@ -34,6 +34,18 @@ pub(crate) struct DebugState {
     /// past the last rendered generation — the lost-invalidation signature
     /// the hunt is after (card 01a198054b5d).
     pub(crate) skips_with_advanced_generation: u64,
+    /// Wall-clock time of the last winit `Resized` event — the trigger of
+    /// the surface reconfigure whose stale-pixel corruption persisted until
+    /// a pane-level resize (card 01a198054b5d sighting 3).
+    pub(crate) last_window_resize_at: Option<Instant>,
+    /// The last 64 frames as (time, focused-pane content generation,
+    /// rendered?) — the timeline dumped when a render-fault canary fires or
+    /// on the first post-resize present, so a stale-pixel sighting carries
+    /// its own frame history (card 01a198054b5d).
+    pub(crate) frame_history: VecDeque<(Instant, Option<u64>, bool)>,
+    /// Whether the first post-resize present has already been announced for
+    /// the current resize (one line per resize, not per frame).
+    pub(crate) announced_post_resize_present: bool,
 }
 
 impl Default for DebugState {
@@ -58,6 +70,9 @@ impl DebugState {
             gather_lock_misses: 0,
             last_rendered_generation: None,
             skips_with_advanced_generation: 0,
+            last_window_resize_at: None,
+            frame_history: VecDeque::with_capacity(64),
+            announced_post_resize_present: false,
         }
     }
 }

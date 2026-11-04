@@ -20,6 +20,7 @@ use crate::app::window_state::WindowState;
 use crate::progress_bar::ProgressBarSnapshot;
 use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
 use par_term_render::RenderError;
+use std::time::{Duration, Instant};
 
 impl WindowState {
     /// Run egui overlays and GPU render pass.
@@ -480,15 +481,34 @@ impl WindowState {
 
             match render_result {
                 Ok(rendered) => {
+                    let generation = active_pane_content_generation(self);
                     if rendered {
-                        if let Some(g) = active_pane_content_generation(self) {
+                        if let Some(g) = generation {
                             self.debug.last_rendered_generation = Some(g);
+                        }
+                        // Card 01a198054b5d sighting 3: a window resize (surface
+                        // reconfigure) corrupted a pane until a pane resize forced
+                        // a repaint, with no canary firing. Announce the first
+                        // present after each resize, once per resize, so the next
+                        // sighting carries the generation trajectory.
+                        let now = Instant::now();
+                        if !self.debug.announced_post_resize_present
+                            && let Some(resize_at) = self.debug.last_window_resize_at
+                            && now.duration_since(resize_at) < Duration::from_secs(30)
+                        {
+                            self.debug.announced_post_resize_present = true;
+                            log::warn!(
+                                "POST-RESIZE present: rendered_generation={:?} \
+                                 resize {}s ago",
+                                self.debug.last_rendered_generation,
+                                now.duration_since(resize_at).as_secs()
+                            );
                         }
                     } else {
                         // Lost-invalidation watcher (card 01a198054b5d): a skip is
                         // only correct when the pane content generation has not
                         // advanced past what the screen last showed.
-                        if let Some(g) = active_pane_content_generation(self)
+                        if let Some(g) = generation
                             && self
                                 .debug
                                 .last_rendered_generation
@@ -503,10 +523,19 @@ impl WindowState {
                                 self.debug.last_rendered_generation,
                                 g
                             );
+                            dump_frame_history(self);
                         }
                         // ARC-004: per-frame hot path — use the custom debug macros
                         // (DEBUG_LEVEL-gated, near-zero overhead) instead of log::trace!.
                         crate::debug_trace!("RENDER", "Skipped rendering - no changes");
+                    }
+                    // Frame-history ring for render-fault forensics.
+                    let now = Instant::now();
+                    self.debug
+                        .frame_history
+                        .push_back((now, generation, rendered));
+                    while self.debug.frame_history.len() > 64 {
+                        self.debug.frame_history.pop_front();
                     }
                 }
                 Err(e) => {
@@ -550,4 +579,16 @@ fn active_pane_content_generation(ws: &WindowState) -> Option<u64> {
     let pane = tab.pane_manager()?.focused_pane()?;
     let term = pane.terminal.try_read().ok()?;
     Some(term.update_generation())
+}
+
+/// Emit the frame-history ring as warn lines, oldest first, so a
+/// stale-pixel sighting logs its own recent frame timeline (card
+/// 01a198054b5d).
+fn dump_frame_history(ws: &WindowState) {
+    for (i, (at, generation, rendered)) in ws.debug.frame_history.iter().enumerate().rev() {
+        let age_ms = at.elapsed().as_millis();
+        log::warn!(
+            "FRAME-HISTORY[{i}] {age_ms}ms ago: generation={generation:?} rendered={rendered}"
+        );
+    }
 }
