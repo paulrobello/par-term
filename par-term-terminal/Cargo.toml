@@ -37,6 +37,7 @@ sysinfo = { workspace = true, features = ["system"] }
 arboard.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 tempfile.workspace = true
 
 [features]
