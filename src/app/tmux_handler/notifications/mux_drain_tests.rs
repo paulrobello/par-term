@@ -136,4 +136,36 @@ mod tests {
             "the replay batch is consumed by its drain"
         );
     }
+
+    /// Card 01a1a8b8: a liveness recovery ("responding again") must not
+    /// clear the attach's stale-version verdict. An old daemon responds
+    /// fine while still missing every daemon-side fix; `Connected` on the
+    /// chip erased the only persistent stale-daemon signal while the
+    /// mismatched daemon's tree was already grafted into tabs.
+    #[test]
+    fn responding_again_does_not_clear_version_stale() {
+        let mut ws = crate::app::tmux_handler::notifications::mux::tests::manners_state();
+        ws.tmux_state.mux_version_stale = true;
+        ws.tmux_state.mux_health = crate::session_chip::MuxHealth::Stale;
+        ws.apply_mux_health_event("par-mux daemon responding again".to_string());
+        assert_eq!(
+            ws.tmux_state.mux_health,
+            crate::session_chip::MuxHealth::Stale,
+            "a stale-version daemon that recovered liveness stays Stale"
+        );
+    }
+
+    /// The control for the stale-guard: without a version mismatch the
+    /// recovery transition still returns the chip to Connected.
+    #[test]
+    fn responding_again_recovers_to_connected_when_not_stale() {
+        let mut ws = crate::app::tmux_handler::notifications::mux::tests::manners_state();
+        ws.tmux_state.mux_version_stale = false;
+        ws.tmux_state.mux_health = crate::session_chip::MuxHealth::Unresponsive;
+        ws.apply_mux_health_event("par-mux daemon responding again".to_string());
+        assert_eq!(
+            ws.tmux_state.mux_health,
+            crate::session_chip::MuxHealth::Connected
+        );
+    }
 }

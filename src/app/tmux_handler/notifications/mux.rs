@@ -402,6 +402,7 @@ impl WindowState {
                 let client_stamp = par_term_emu_core_rust::mux::build_stamp();
                 match check_daemon_version(daemon_version.as_deref().unwrap_or(""), client_stamp) {
                     VersionCheck::Match | VersionCheck::Unknown => {
+                        self.tmux_state.mux_version_stale = false;
                         self.tmux_state.mux_health = crate::session_chip::MuxHealth::Connected;
                     }
                     VersionCheck::Mismatch { daemon, client } => {
@@ -410,6 +411,7 @@ impl WindowState {
                              client {client}; daemon-side fixes are missing until the \
                              daemon is restarted (par-mux --restart)"
                         );
+                        self.tmux_state.mux_version_stale = true;
                         self.tmux_state.mux_health = crate::session_chip::MuxHealth::Stale;
                         self.record_mux_error(format!(
                             "par-mux: daemon older than this client ({daemon} vs {client}) \
@@ -573,6 +575,7 @@ impl WindowState {
         // Mux-only state the shared cleanup below does not know about.
         self.tmux_state.mux_snapshot_supported = None;
         self.tmux_state.mux_file_transfer_supported = false;
+        self.tmux_state.mux_version_stale = false;
         self.tmux_state.mux_focused_pane = None;
         self.tmux_state.mux_replay_pending.clear();
         self.tmux_state.mux_screen_seeds.clear();
@@ -675,6 +678,7 @@ impl WindowState {
         self.tmux_state.mux_graphics_osc.clear();
         self.tmux_state.mux_pane_titles.clear();
         self.tmux_state.mux_exited_panes.clear();
+        self.tmux_state.mux_version_stale = false;
         self.tmux_state.clear_mux_seed_holds();
         self.tmux_state.agent_roster.clear();
         self.handle_tmux_session_ended();

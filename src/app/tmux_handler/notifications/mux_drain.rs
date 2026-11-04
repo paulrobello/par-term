@@ -20,8 +20,16 @@ impl WindowState {
     pub(super) fn apply_mux_health_event(&mut self, message: String) {
         crate::debug_info!("MUX", "daemon health: {message}");
         let recovered = message.contains("responding again");
+        // A liveness recovery only restores the chip when the daemon is not
+        // version-stale: an old daemon responds fine while still missing every
+        // daemon-side fix, so `Connected` here would erase the attach's
+        // stale-verdict and its persistent warning (card 01a1a8b8).
         self.tmux_state.mux_health = if recovered {
-            crate::session_chip::MuxHealth::Connected
+            if self.tmux_state.mux_version_stale {
+                crate::session_chip::MuxHealth::Stale
+            } else {
+                crate::session_chip::MuxHealth::Connected
+            }
         } else {
             crate::session_chip::MuxHealth::Unresponsive
         };

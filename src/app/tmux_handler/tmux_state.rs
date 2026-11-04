@@ -346,6 +346,12 @@ pub(crate) struct TmuxState {
     /// Daemon health for the session chip (UX.md V1), updated from each
     /// `daemon_health_event` transition and the attach's version check.
     pub(crate) mux_health: crate::session_chip::MuxHealth,
+    /// The attach's version verdict: the connected daemon is older than
+    /// this client. A liveness recovery ("responding again") must not
+    /// clear it — an old daemon responds fine while still missing every
+    /// daemon-side fix, and `Connected` on the chip would erase the only
+    /// persistent stale-daemon signal (card 01a1a8b8).
+    pub(crate) mux_version_stale: bool,
     /// The last par-mux error, shown on the session chip until the user
     /// dismisses it (UX.md M12). Session teardown deliberately leaves it:
     /// "connection lost" must still be readable after the view ends.
@@ -438,6 +444,7 @@ impl TmuxState {
             tmux_pane_owners: std::collections::HashMap::new(),
             mux_daemon: None,
             mux_health: crate::session_chip::MuxHealth::Connected,
+            mux_version_stale: false,
             mux_last_error: None,
             mux_error_toast: None,
             #[cfg(feature = "mux")]
