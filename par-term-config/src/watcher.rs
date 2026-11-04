@@ -304,6 +304,13 @@ mod tests {
         let config_path: PathBuf = temp_dir.path().join("config.yaml");
         fs::write(&config_path, "font_size: 12.0\n").expect("Failed to write config");
 
+        // The write above happened just before the subscription arms; on
+        // macOS the FSEvents backend can deliver that historical write as
+        // an initial event, so age it past the backend's delivery window
+        // before watching — the test verifies creation fabricates no event,
+        // not the backend's latency.
+        std::thread::sleep(Duration::from_millis(1500));
+
         let watcher: ConfigWatcher =
             ConfigWatcher::new(&config_path, 100).expect("Failed to create watcher");
 
