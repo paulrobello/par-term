@@ -4204,6 +4204,7 @@ dependencies = [
  "par-term-config",
  "par-term-emu-core-rust",
  "parking_lot 0.13.0",
+ "serde_json",
  "sysinfo 0.40.1",
  "tempfile",
  "thiserror 2.0.21",
