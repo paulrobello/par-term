@@ -285,6 +285,11 @@ impl WindowState {
     /// than the snapshot is lost. A pane still waiting on a later request
     /// keeps holding.
     fn land_mux_pane_seeds(&mut self, seeds: Vec<(TmuxPaneId, std::io::Result<PaneSeedPayload>)>) {
+        // When the last in-flight seed lands, the attach pump is complete:
+        // flag the next rendered frame to dump the frame-history ring, so an
+        // attach-era corruption sighting logs the frames of the attach itself
+        // (card 01a198054b5d).
+        let had_in_flight = !self.tmux_state.mux_seeds_in_flight.is_empty();
         for (pane, reply) in seeds {
             // The reply's position in the client FIFO is the drop
             // boundary: everything already buffered for this pane was
@@ -348,6 +353,11 @@ impl WindowState {
                     }
                 }
             }
+        }
+        // Attach-pump completion: the last seed landed and nothing is in
+        // flight anymore. The renderer's next rendered frame dumps the ring.
+        if had_in_flight && self.tmux_state.mux_seeds_in_flight.is_empty() {
+            self.debug.pending_frame_dump_reason = Some("ATTACH-SEEDS-LANDED");
         }
     }
 

@@ -38,14 +38,19 @@ pub(crate) struct DebugState {
     /// the surface reconfigure whose stale-pixel corruption persisted until
     /// a pane-level resize (card 01a198054b5d sighting 3).
     pub(crate) last_window_resize_at: Option<Instant>,
-    /// The last 64 frames as (time, focused-pane content generation,
-    /// rendered?) — the timeline dumped when a render-fault canary fires or
-    /// on the first post-resize present, so a stale-pixel sighting carries
-    /// its own frame history (card 01a198054b5d).
+    /// The last 256 frames as (time, focused-pane content generation,
+    /// rendered?) — the timeline dumped when a render-fault canary fires,
+    /// on the first post-resize present, or at attach seed-land, so a
+    /// stale-pixel sighting carries its own frame history (card
+    /// 01a198054b5d).
     pub(crate) frame_history: VecDeque<(Instant, Option<u64>, bool)>,
     /// Whether the first post-resize present has already been announced for
     /// the current resize (one line per resize, not per frame).
     pub(crate) announced_post_resize_present: bool,
+    /// Set by the mux attach path when the seed pump drains (last seed
+    /// landed): the next rendered frame dumps the frame-history ring, so an
+    /// attach-era corruption sighting logs the frames of the attach itself.
+    pub(crate) pending_frame_dump_reason: Option<&'static str>,
 }
 
 impl Default for DebugState {
@@ -71,8 +76,9 @@ impl DebugState {
             last_rendered_generation: None,
             skips_with_advanced_generation: 0,
             last_window_resize_at: None,
-            frame_history: VecDeque::with_capacity(64),
+            frame_history: VecDeque::with_capacity(256),
             announced_post_resize_present: false,
+            pending_frame_dump_reason: None,
         }
     }
 }

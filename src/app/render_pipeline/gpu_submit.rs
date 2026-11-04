@@ -503,6 +503,7 @@ impl WindowState {
                                 self.debug.last_rendered_generation,
                                 now.duration_since(resize_at).as_secs()
                             );
+                            dump_frame_history(self);
                         }
                     } else {
                         // Lost-invalidation watcher (card 01a198054b5d): a skip is
@@ -529,13 +530,19 @@ impl WindowState {
                         // (DEBUG_LEVEL-gated, near-zero overhead) instead of log::trace!.
                         crate::debug_trace!("RENDER", "Skipped rendering - no changes");
                     }
-                    // Frame-history ring for render-fault forensics.
+                    // Frame-history ring for render-fault forensics (card
+                    // 01a198054b5d). 256 frames ≈ 10s at 26fps — wide enough
+                    // to cover a full mux-attach corruption era.
                     let now = Instant::now();
                     self.debug
                         .frame_history
                         .push_back((now, generation, rendered));
-                    while self.debug.frame_history.len() > 64 {
+                    while self.debug.frame_history.len() > 256 {
                         self.debug.frame_history.pop_front();
+                    }
+                    if let Some(reason) = self.debug.pending_frame_dump_reason.take() {
+                        log::warn!("FRAME-HISTORY dump ({reason}):");
+                        dump_frame_history(self);
                     }
                 }
                 Err(e) => {
