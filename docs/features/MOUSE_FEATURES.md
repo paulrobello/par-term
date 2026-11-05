@@ -130,6 +130,10 @@ mouse_double_click_threshold: 500  # milliseconds (default)
 mouse_triple_click_threshold: 500  # milliseconds (default)
 ```
 
+### Selecting in Mouse-Tracking Apps
+
+When the program in a pane enables mouse tracking (vim, tmux, `par-mux attach`, …), clicks and drags go to that program instead of starting a local selection. Hold **Shift** while clicking or dragging to bypass tracking and select text locally — the same convention as iTerm2, Kitty, and Alacritty. The first time a pane consumes a press this way, a toast names the Shift bypass (once per pane).
+
 ## URL Handling
 
 ### Opening URLs

@@ -509,6 +509,7 @@ impl WindowState {
             // Still track button state so mouse motion reporting works correctly.
             // ButtonEvent mode only reports motion when button_pressed is true,
             // so we must set this even though the click was consumed by tracking.
+            let mut hint_shift_select = false;
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.active_mouse_mut().button_pressed = state == ElementState::Pressed;
                 // Record (or clear) the press position consumed by mouse tracking.
@@ -517,6 +518,9 @@ impl WindowState {
                 // pane-focus click as a drag-selection that wipes the clipboard.
                 if state == ElementState::Pressed {
                     tab.active_mouse_mut().tracking_press_position = Some(mouse_position);
+                    // The press went to the pane's app, so no local selection will
+                    // start — name the Shift bypass once per pane (UX.md OV7 toast).
+                    hint_shift_select = tab.active_mouse_mut().should_hint_shift_select();
                     // Clear any stale local selection state.  When mouse tracking
                     // (e.g. tmux) owns the press, handle_left_mouse_press is never
                     // called, so any previous local selection would otherwise stay
@@ -553,6 +557,9 @@ impl WindowState {
                     );
                     self.handle_left_mouse_release();
                 }
+            }
+            if hint_shift_select {
+                self.show_toast("Mouse goes to the app — Shift+drag to select text");
             }
             return; // Exit early: terminal app handled the input
         }

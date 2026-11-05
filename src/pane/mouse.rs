@@ -19,6 +19,9 @@ pub struct MouseState {
     /// tmux to interpret a pane-focus click as a drag-selection, which would wipe the clipboard.
     /// Cleared on button release or when the press was not consumed by mouse tracking.
     pub(crate) tracking_press_position: Option<(f64, f64)>,
+    /// Whether the one-time "Shift+drag selects text" discoverability hint
+    /// has fired for this pane. The hint never repeats for the same pane.
+    pub(crate) shift_select_hint_shown: bool,
     pub(crate) detected_urls: Vec<url_detection::DetectedUrl>, // URLs detected in visible terminal area
     pub(crate) url_detect_scroll_offset: usize, // scroll_offset used when detected_urls were computed
     pub(crate) hovered_url: Option<String>,     // URL currently under mouse cursor
@@ -50,6 +53,7 @@ impl MouseState {
             click_position: None,
             click_pixel_position: None,
             tracking_press_position: None,
+            shift_select_hint_shown: false,
             detected_urls: Vec::new(),
             url_detect_scroll_offset: 0,
             hovered_url: None,
@@ -64,6 +68,20 @@ impl MouseState {
     // Test accessors for integration tests
     pub fn test_new() -> Self {
         Self::new()
+    }
+    /// Whether this pane still owes the one-time Shift+drag
+    /// discoverability hint for a tracking-consumed press. True at most
+    /// once per pane.
+    pub(crate) fn should_hint_shift_select(&mut self) -> bool {
+        if self.shift_select_hint_shown {
+            false
+        } else {
+            self.shift_select_hint_shown = true;
+            true
+        }
+    }
+    pub fn test_should_hint_shift_select(&mut self) -> bool {
+        self.should_hint_shift_select()
     }
     pub fn test_set_button_pressed(&mut self, v: bool) {
         self.button_pressed = v;

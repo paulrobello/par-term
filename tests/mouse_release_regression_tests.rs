@@ -381,3 +381,39 @@ fn test_mouse_state_divider_drag_cleared_on_release() {
     }
     assert!(state.test_dragging_divider().is_none());
 }
+
+// ============================================================================
+// Shift+drag discoverability hint: once per pane, never re-fires
+// ============================================================================
+
+#[test]
+fn test_tracking_hint_fires_once_per_pane() {
+    // A press consumed by mouse tracking forwards the event to the pane's
+    // app, so no local selection starts. The once-per-pane hint names the
+    // Shift bypass (mouse_button.rs tracking-forward branch).
+    let mut state = MouseState::test_new();
+    assert!(
+        state.test_should_hint_shift_select(),
+        "the first tracking-consumed press owes the hint"
+    );
+    // Rapid clicks, drags, and every later press: the hint never repeats.
+    for _ in 0..5 {
+        assert!(
+            !state.test_should_hint_shift_select(),
+            "later presses must not re-hint"
+        );
+    }
+}
+
+#[test]
+fn test_tracking_hint_independent_per_pane() {
+    // MouseState is per pane: a fresh pane starts with the hint owed even
+    // after a sibling pane already showed it.
+    let mut first = MouseState::test_new();
+    assert!(first.test_should_hint_shift_select());
+    let mut second = MouseState::test_new();
+    assert!(
+        second.test_should_hint_shift_select(),
+        "a new pane owes its own hint"
+    );
+}
