@@ -14,7 +14,7 @@ REPO="paulrobello/par-term"
 # Pinned to a release tag, not main, so what this pipe-to-shell installer
 # fetches is fixed reviewed content. Bump it on each release; every file in
 # the util list below must exist at this tag or the download fails.
-REF="v0.52.0"
+REF="v0.53.0"
 BASE_URL="https://raw.githubusercontent.com/$REPO/$REF/shell_integration"
 
 # Markers for RC file updates
