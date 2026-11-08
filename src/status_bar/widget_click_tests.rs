@@ -136,3 +136,121 @@ fn agent_roster_click_in_center_opens_palette() {
         Some(StatusBarAction::OpenAgentPalette)
     );
 }
+
+/// One clickable widget per section, all with live text: the narrow-window
+/// comparison needs three real segments so hiding has something to hide.
+fn three_clickable_widgets() -> Config {
+    let mut config = Config::default();
+    config.status_bar.status_bar_enabled = true;
+    config.status_bar.status_bar_position = StatusBarPosition::Top;
+    let widget = |id: WidgetId, section: StatusBarSection, order: i32| StatusBarWidgetConfig {
+        id,
+        enabled: true,
+        section,
+        order,
+        format: None,
+    };
+    config.status_bar.status_bar_widgets = vec![
+        widget(WidgetId::AgentUsage, StatusBarSection::Left, 0),
+        widget(WidgetId::AgentRoster, StatusBarSection::Center, 0),
+        widget(WidgetId::UpdateAvailable, StatusBarSection::Right, 0),
+    ];
+    config
+}
+
+/// Bar state with all three widgets live: seeded usage store, roster line,
+/// and an available update. The records TempDir is returned so the caller
+/// keeps it alive for the whole test body.
+fn bar_with_three_live_segments() -> (StatusBarUI, tempfile::TempDir) {
+    let mut bar = StatusBarUI::new();
+    let records = seed_usage(&mut bar);
+    bar.agent_roster_summary = Some("ag1 ag2".to_string());
+    bar.update_available_version = Some("1.2.3".to_string());
+    (bar, records)
+}
+
+/// Run one full click sequence (two hovers, press, release) at `pos` in a
+/// window `width` points wide, returning the action the bar reported.
+fn click_at_width(
+    bar: &mut StatusBarUI,
+    config: &Config,
+    width: f32,
+    pos: Pos2,
+) -> Option<StatusBarAction> {
+    let ctx = egui::Context::default();
+    let session = SessionVariables::default();
+    let screen = Rect {
+        min: Pos2::ZERO,
+        max: pos2(width, 800.0),
+    };
+    let mut action = None;
+    let frame = |pos, pressed: Option<bool>| RawInput {
+        screen_rect: Some(screen),
+        events: {
+            let mut events = vec![egui::Event::PointerMoved(pos)];
+            if let Some(pressed) = pressed {
+                events.push(egui::Event::PointerButton {
+                    pos,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: Default::default(),
+                });
+            }
+            events
+        },
+        ..Default::default()
+    };
+    for pressed in [None, None, Some(true), Some(false)] {
+        ctx.begin_pass(frame(pos, pressed));
+        action = bar.render(&ctx, config, &session, false).1;
+        ctx.end_pass().textures_delta.clear();
+    }
+    action
+}
+
+#[test]
+fn wide_window_keeps_all_three_widgets_clickable() {
+    let config = three_clickable_widgets();
+    let (mut bar, _records) = bar_with_three_live_segments();
+
+    assert_eq!(
+        click_at_width(&mut bar, &config, 1200.0, LEFT_CLICK),
+        Some(StatusBarAction::OpenAgentUsagePanel),
+        "left-section widget clickable at its planned rect"
+    );
+    assert_eq!(
+        click_at_width(&mut bar, &config, 1200.0, CENTER_CLICK),
+        Some(StatusBarAction::OpenAgentPalette),
+        "center-section widget centered between the flanks"
+    );
+    assert_eq!(
+        click_at_width(&mut bar, &config, 1200.0, RIGHT_CLICK),
+        Some(StatusBarAction::ShowUpdateDialog),
+        "right-section widget flush right"
+    );
+}
+
+#[test]
+fn narrow_window_hides_every_segment_nothing_clickable() {
+    // 8pt window: the content width clamps to 0, the plan hides every
+    // segment ("or nothing at all"), and none of the positions that are
+    // clickable at full width report an action anymore.
+    let config = three_clickable_widgets();
+    let (mut bar, _records) = bar_with_three_live_segments();
+
+    assert_eq!(
+        click_at_width(&mut bar, &config, 8.0, LEFT_CLICK),
+        None,
+        "hidden left widget must not be clickable"
+    );
+    assert_eq!(
+        click_at_width(&mut bar, &config, 8.0, CENTER_CLICK),
+        None,
+        "hidden center widget must not be clickable"
+    );
+    assert_eq!(
+        click_at_width(&mut bar, &config, 8.0, RIGHT_CLICK),
+        None,
+        "hidden right widget must not be clickable"
+    );
+}

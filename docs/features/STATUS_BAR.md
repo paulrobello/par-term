@@ -136,6 +136,10 @@ The status bar divides into three sections:
 
 Widgets within each section are separated by a configurable separator character (default: ` │ `).
 
+### Narrow Windows
+
+When the window is too narrow for every widget, widgets nearest the bar's horizontal center hide first, working outward, until the remaining widgets fit; on a distance tie the right-side widget hides first. The leftmost and rightmost widgets therefore survive longest, and if even they cannot fit the bar draws no widgets at all rather than overlapping text. Widget click targets follow visibility: a hidden widget is neither drawn nor clickable, and the layout is recomputed every frame from the widgets' current text widths.
+
 ### Default Widget Placement
 
 | Section | Widgets (in order) |

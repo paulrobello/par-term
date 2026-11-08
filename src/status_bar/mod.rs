@@ -36,6 +36,7 @@
 //! the central dispatch function. This is tracked as ARC-009 in AUDIT.md.
 
 pub mod disk_monitor;
+pub mod fit;
 pub mod git_poller;
 pub mod plugins_upkeep;
 pub mod system_monitor;
@@ -408,9 +409,12 @@ impl StatusBarUI {
         };
 
         // Widgets that open something on click get the same treatment in
-        // every section; all other widgets render as plain labels.
+        // every section; all other widgets render as plain labels. Segments
+        // are placed at planned rects (see below) so a hidden segment is
+        // never added as a widget and cannot be clicked.
         let roster_tooltip = self.agent_roster_tooltip.clone();
         let render_widget = |ui: &mut egui::Ui,
+                             rect: egui::Rect,
                              w: &StatusBarWidgetConfig,
                              text: &str|
          -> Option<StatusBarAction> {
@@ -428,11 +432,11 @@ impl StatusBarUI {
                 }
                 WidgetId::AgentRoster => (make_rich_text(text), StatusBarAction::OpenAgentPalette),
                 _ => {
-                    ui.label(make_rich_text(text));
+                    ui.put(rect, egui::Label::new(make_rich_text(text)));
                     return None;
                 }
             };
-            let response = ui.add(egui::Label::new(rich).sense(egui::Sense::click()));
+            let response = ui.put(rect, egui::Label::new(rich).sense(egui::Sense::click()));
             // The roster's hover carries the per-agent provenance detail the
             // bar text cannot fit.
             if w.id == WidgetId::AgentRoster
@@ -460,87 +464,129 @@ impl StatusBarUI {
                     ui.set_min_size(egui::vec2(content_width, content_height));
                     ui.set_max_size(egui::vec2(content_width, content_height));
 
-                    ui.horizontal_centered(|ui| {
-                        // Clip widgets to the available content width so
-                        // right-to-left layouts cannot expand past the bar edge.
-                        ui.set_clip_rect(ui.max_rect());
+                    // Measure every non-empty segment for this frame, then
+                    // plan center-out visibility against the content width.
+                    // Widget texts are dynamic (clock, git branch, cpu), so
+                    // the plan is recomputed per frame from current
+                    // measurements.
+                    struct Segment<'a> {
+                        widget: &'a StatusBarWidgetConfig,
+                        text: String,
+                        width: f32,
+                        section: StatusBarSection,
+                    }
 
-                        // === Left section ===
-                        let left_widgets = sorted_widgets_for_section(
+                    let measure = |text: &str| -> f32 {
+                        ui.painter()
+                            .layout_no_wrap(
+                                text.to_owned(),
+                                egui::FontId::monospace(font_size),
+                                fg_color,
+                            )
+                            .size()
+                            .x
+                    };
+
+                    let mut segments: Vec<Segment> = Vec::new();
+                    for section in [
+                        StatusBarSection::Left,
+                        StatusBarSection::Center,
+                        StatusBarSection::Right,
+                    ] {
+                        for w in sorted_widgets_for_section(
                             &config.status_bar.status_bar_widgets,
-                            StatusBarSection::Left,
-                        );
-                        let mut first = true;
-                        for w in &left_widgets {
+                            section,
+                        ) {
                             let text = widget_text(&w.id, &widget_ctx, w.format.as_deref());
                             if text.is_empty() {
                                 continue;
                             }
-                            if !first {
-                                ui.label(make_sep(separator));
-                            }
-                            first = false;
-                            if let Some(a) = render_widget(ui, w, &text) {
-                                action = Some(a);
-                            }
+                            let width = measure(&text);
+                            segments.push(Segment {
+                                widget: w,
+                                text,
+                                width,
+                                section,
+                            });
                         }
+                    }
 
-                        // === Center section ===
-                        let center_widgets = sorted_widgets_for_section(
-                            &config.status_bar.status_bar_widgets,
-                            StatusBarSection::Center,
-                        );
-                        if !center_widgets.is_empty() {
-                            ui.with_layout(
-                                egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-                                |ui| {
-                                    let mut first = true;
-                                    for w in &center_widgets {
-                                        let text =
-                                            widget_text(&w.id, &widget_ctx, w.format.as_deref());
-                                        if text.is_empty() {
-                                            continue;
-                                        }
-                                        if !first {
-                                            ui.label(make_sep(separator));
-                                        }
-                                        first = false;
-                                        if let Some(a) = render_widget(ui, w, &text) {
-                                            action = Some(a);
-                                        }
-                                    }
-                                },
-                            );
-                        }
+                    let sep_width = measure(separator);
+                    let widths: Vec<f32> = segments.iter().map(|s| s.width).collect();
+                    let plan = fit::plan_visible_segments(&widths, sep_width, content_width);
 
-                        // === Right section ===
-                        let right_widgets = sorted_widgets_for_section(
-                            &config.status_bar.status_bar_widgets,
-                            StatusBarSection::Right,
-                        );
-                        if !right_widgets.is_empty() {
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    let mut first = true;
-                                    for w in right_widgets.iter().rev() {
-                                        let text =
-                                            widget_text(&w.id, &widget_ctx, w.format.as_deref());
-                                        if text.is_empty() {
-                                            continue;
-                                        }
-                                        if !first {
-                                            ui.label(make_sep(separator));
-                                        }
-                                        first = false;
-                                        if let Some(a) = render_widget(ui, w, &text) {
-                                            action = Some(a);
-                                        }
-                                    }
-                                },
-                            );
+                    // Visible totals per section: the Left group anchors
+                    // flush left, the Right group flush right, and the
+                    // Center group centers between the two. Planned rects
+                    // stay disjoint because the plan's kept total is bounded
+                    // by the content width.
+                    let group_total = |section: StatusBarSection| -> f32 {
+                        let mut total = 0.0;
+                        let mut seen = 0usize;
+                        for (seg, &keep) in segments.iter().zip(plan.iter()) {
+                            if keep && seg.section == section {
+                                if seen > 0 {
+                                    total += sep_width;
+                                }
+                                total += seg.width;
+                                seen += 1;
+                            }
                         }
-                    });
+                        total
+                    };
+                    let center_total = group_total(StatusBarSection::Center);
+                    let right_total = group_total(StatusBarSection::Right);
+
+                    // Draw only the plan's visible segments, at planned
+                    // rects: Left flush left, Right flush right, Center
+                    // centered between the flanks. The rects are disjoint by
+                    // construction, so a crowded row cannot smear one
+                    // section into the next; the clip rect stays as a
+                    // backstop.
+                    ui.set_clip_rect(ui.max_rect());
+                    let row = ui.max_rect();
+                    let seg_rect = |x: f32, width: f32| {
+                        egui::Rect::from_min_size(
+                            egui::pos2(x, row.top()),
+                            egui::vec2(width, row.height()),
+                        )
+                    };
+
+                    // Draw one section's visible segments sequentially from
+                    // `x_start`, separators between drawn neighbors, and
+                    // return the end x.
+                    let mut draw_group =
+                        |ui: &mut egui::Ui, section: StatusBarSection, x_start: f32| -> f32 {
+                            let mut x = x_start;
+                            let mut first = true;
+                            for (seg, &keep) in segments.iter().zip(plan.iter()) {
+                                if !keep || seg.section != section {
+                                    continue;
+                                }
+                                if !first {
+                                    ui.put(
+                                        seg_rect(x, sep_width),
+                                        egui::Label::new(make_sep(separator)),
+                                    );
+                                    x += sep_width;
+                                }
+                                if let Some(a) =
+                                    render_widget(ui, seg_rect(x, seg.width), seg.widget, &seg.text)
+                                {
+                                    action = Some(a);
+                                }
+                                x += seg.width;
+                                first = false;
+                            }
+                            x
+                        };
+
+                    let left_end = draw_group(ui, StatusBarSection::Left, row.left());
+                    let right_start = row.right() - right_total;
+                    draw_group(ui, StatusBarSection::Right, right_start);
+                    let between = row.right() - right_total - left_end;
+                    let center_x = left_end + ((between - center_total) * 0.5).max(0.0);
+                    draw_group(ui, StatusBarSection::Center, center_x);
                 });
             });
 
