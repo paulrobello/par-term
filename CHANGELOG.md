@@ -11,8 +11,21 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-11-08
+
 ### Added
 - **Drag-and-drop status-bar widget reordering.** The Settings → Status Bar → Widgets section's three columns (Left / Center / Right) are now side-by-side, and widgets rearrange by dragging: drop above or below any row in any column, or on a column's empty area to append, with an insertion line previewing the landing spot. A click without a drag still toggles the widget, and the right-click menu (Move Up / Move Down / Move to <section> / Delete) stays as a fallback. `order` values renumber densely per section on every move, so they stay tidy. See [STATUS_BAR.md](docs/features/STATUS_BAR.md).
+- **Mouse-press bypass toast.** When a pane's app consumes a left press (mouse tracking or alt-screen), no local selection starts — the terminal convention is that Shift bypasses tracking, and the first consumed press per pane now posts an info toast naming that bypass instead of leaving it undiscovered. Once per pane. See [MOUSE_FEATURES.md](docs/features/MOUSE_FEATURES.md).
+
+### Changed
+- **Core bumped to `par-term-emu-core-rust` 0.80.0** (from 0.77.0, via 0.78.1 and 0.79.0), which also rebuilds the bundled par-mux daemon: the daemon→client relay's three silent drop sites are closed — a stalled client's bounded queue no longer evicts whole chunks (backpressure propagates to the daemon socket instead), the Buffering→Live attach flush retries when the live queue is full, and a lagged websocket subscriber recovers via an in-band damage-less screen resync instead of leaving a hole (0.78.1; the fix behind the stale-pixel card's interleaved-garble class). Control-command rejections log peer credentials (pid/image path or uid) for attribution, a fresh default-instance daemon start hands off to the `com.paulrobello.par-mux` launchd job when loaded (`PAR_MUX_NO_LAUNCHD=1` opts out), and the attach TUI's window picker lists windows only (0.79.0). The attach TUI gains layout selection — `select-layout` with prefix chords M-1..M-5, rebindable as `layout-*` client keys — its tab strip keeps configured width bounds, orphaned iTerm2 multipart transfers are bounded (fail-oldest cap 8, SEC-001), and the mux config split into a config/ directory with public paths unchanged (0.80.0).
+- **Deeper stale-pixel diagnostics.** The frame-history ring widens to 256 frames and dumps at the post-resize present and the attach seed-land boundary, so a corruption era's frame timeline lands in the debug log at the heal; an env-gated asciicast replay harness feeds recorded pane bytes through a fresh grid as the emitter-vs-parser bisect oracle (card 01a198054b5d).
+- Dependency sweep: 21 crates refreshed in-range at the lock level (no manifest changes).
+- **Sub-crate versions for this release**: `par-term-settings-ui` 0.23.0 (drag-and-drop widget reordering), `par-term-config` 0.18.1 (config-watcher test-support tweak), `par-term-terminal` 0.8.1 (asciicast replay harness dev-dependency).
+
+### Fixed
+- **Narrow windows no longer smash status-bar segments together.** The bar measures every segment each frame and hides the ones nearest its center first, working outward until the remainder fits — edge segments survive longest, and when nothing fits, nothing is drawn. Hidden widgets are neither drawn nor clickable, and the underlying egui mixed-layout overlap (which could smear sections into each other even when the total width fit) is gone. See [STATUS_BAR.md](docs/features/STATUS_BAR.md).
+- **A liveness recovery no longer clears the stale-daemon chip.** The version-mismatch "daemon older than this client" verdict now survives a "responding again" event — previously the first healthy tick flipped the stale chip back to Connected moments after the warning, erasing the persistent signal while the tab still mirrored the wrong daemon. Both session teardowns reset the verdict.
 
 ## [0.52.0] - 2026-11-03
 

@@ -42,6 +42,15 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.53.0
+
+Status-bar polish and quieter mouse behavior: segments hide center-out on narrow windows instead of overlapping text, widgets rearrange by drag-and-drop in Settings, and a toast explains the Shift+drag bypass when a pane's app consumes a mouse press. Core library 0.80.0 is required; the bundled par-mux daemon rebuilds with it and its relay can no longer silently drop chunks — the fix behind the stale-pixel garble sightings. Sub-crates move to `par-term-settings-ui` 0.23.0, `par-term-config` 0.18.1, and `par-term-terminal` 0.8.1.
+
+- **Narrow-window status bar** — center-out segment hiding keeps the edge info visible until it physically cannot fit; hidden widgets are neither drawn nor clickable.
+- **Drag-and-drop widget reordering** — drag rows between the Left / Center / Right columns with an insertion preview; a click still toggles, and the right-click menu stays as fallback.
+- **Mouse bypass toast** — the first consumed press per pane posts an info toast naming the Shift+drag bypass.
+- **Core 0.78–0.80 relay** — no more silent chunk drops in the daemon→client relay: backpressure replaces queue eviction, the attach flush retries, and lagged websocket subscribers resync in-band (the stale-pixel garble fix).
+
 ### 0.52.0
 
 Attach reliability is the headline: lost pane output, scrambled post-attach panes, and missing tabs after a fresh attach are fixed. Plus a Load Average status-bar widget and a New Local Tab action. Core library 0.77.0 is required; the bundled par-mux daemon rebuilds with it. Sub-crates move to `par-term-config` 0.18.0, `par-term-render` 0.13.0, `par-term-settings-ui` 0.22.0, and `par-term-mux` 0.6.0.
