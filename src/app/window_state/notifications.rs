@@ -25,10 +25,13 @@
 //! per-window rather than a single process-global map.
 
 use super::WindowState;
+use super::budget_notifications::{
+    budget_refusal_allowed, budget_refusal_message, budget_store_ordinal,
+};
 use crate::pane::PaneId;
 use crate::tab::TabId;
 use par_term_emu_core_rust::terminal::Urgency;
-use par_term_terminal::TerminalManager;
+use par_term_terminal::{BudgetRefusal, TerminalManager};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::Instant;
@@ -116,6 +119,7 @@ impl WindowState {
         // the terminal locks (matches the borrow-safety pattern used elsewhere in
         // this file, e.g. `check_session_exit_notifications`).
         let mut notifications_to_send: Vec<CollectedNotification> = Vec::new();
+        let mut budget_refusals: Vec<(TabId, BudgetRefusal)> = Vec::new();
 
         for tab in self.tab_manager.tabs() {
             // Every pane's terminal (falls back to tab.terminal when there's no pane manager),
@@ -153,6 +157,16 @@ impl WindowState {
                         });
                     }
                 }
+
+                // ENH-062 budget refusals ride the same per-terminal poll:
+                // refused inline images/transfers surface instead of dropping
+                // silently. Drained even when OSC notifications are pending,
+                // so a refusal never waits behind an unrelated queue.
+                if let Ok(term) = terminal.try_read() {
+                    for refusal in term.take_budget_events() {
+                        budget_refusals.push((tab.id, refusal));
+                    }
+                }
             }
         }
 
@@ -161,6 +175,18 @@ impl WindowState {
                 n.tab_id, n.pane_id, n.terminal, &n.title, &n.message, n.urgency, n.osc_id,
                 n.actions,
             );
+        }
+
+        for (tab_id, refusal) in budget_refusals {
+            let (title, message) = budget_refusal_message(tab_id, &refusal);
+            if budget_refusal_allowed(
+                (tab_id, budget_store_ordinal(refusal.store)),
+                Instant::now(),
+            ) {
+                self.deliver_notification(&title, &message);
+            } else {
+                log::info!("Budget-refusal notification suppressed within window: {message}");
+            }
         }
     }
 

@@ -1,6 +1,7 @@
 use crate::error::{Result, TerminalError};
 use crate::scrollback_metadata::ScrollbackMetadata;
 use par_term_config::Theme;
+use par_term_emu_core_rust::graphics::BudgetStore;
 use par_term_emu_core_rust::pty_session::PtySession;
 use par_term_emu_core_rust::terminal::{Terminal, TriggerEngine};
 use parking_lot::{Mutex, RwLock};
@@ -16,6 +17,17 @@ pub enum ShellLifecycleEvent {
     },
     /// A command has finished executing (OSC 133 D marker).
     CommandFinished { absolute_line: usize },
+}
+
+/// One refusal by the core's unified untrusted-output memory budget (ENH-062),
+/// drained from a terminal: which store hit the budget and how many bytes the
+/// refused/evicted allocation accounted for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BudgetRefusal {
+    /// Which store the refused allocation targeted
+    pub store: BudgetStore,
+    /// Bytes the refused/evicted allocation accounted for
+    pub bytes: usize,
 }
 
 // Re-export clipboard types for use in other modules
@@ -289,6 +301,33 @@ impl TerminalManager {
         let terminal = pty.terminal();
         let term = terminal.write();
         term.has_notifications()
+    }
+
+    /// Take pending refusals by the core's unified untrusted-output memory
+    /// budget (ENH-062): one aggregate cap over the graphics store, the
+    /// in-flight iTerm2 multipart buffer, and file-transfer payloads. Uses
+    /// the core's subscription-filtered drain so other terminal events stay
+    /// queued for their own consumers.
+    pub fn take_budget_events(&self) -> Vec<BudgetRefusal> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.write();
+        term.set_event_subscription(
+            std::iter::once(
+                par_term_emu_core_rust::terminal::TerminalEventKind::OutputBudgetExceeded,
+            )
+            .collect(),
+        );
+        term.poll_subscribed_events()
+            .into_iter()
+            .filter_map(|event| match event {
+                par_term_emu_core_rust::terminal::TerminalEvent::OutputBudgetExceeded {
+                    store,
+                    bytes,
+                } => Some(BudgetRefusal { store, bytes }),
+                _ => None,
+            })
+            .collect()
     }
 
     /// Take a screenshot of the terminal and save to file
@@ -751,5 +790,39 @@ impl Drop for TerminalManager {
         }
 
         log::info!("Terminal manager shutdown complete");
+    }
+}
+
+#[cfg(test)]
+mod budget_event_tests {
+    use super::*;
+    use par_term_emu_core_rust::graphics::BudgetStore;
+
+    /// An over-budget declared transfer refused by the core surfaces exactly
+    /// once through `take_budget_events`, and the drain empties the queue.
+    #[test]
+    fn refused_transfer_surfaces_once_through_take_budget_events() {
+        let manager = TerminalManager::new(80, 24).unwrap();
+        let oversize = 300 * 1024 * 1024usize;
+        let wire = format!("\x1b]1337;MultipartFile=inline=1;size={oversize};name=YQ==\x07");
+        manager.process_data(wire.as_bytes());
+
+        let refusals = manager.take_budget_events();
+        assert_eq!(refusals.len(), 1, "one refusal expected, got {refusals:?}");
+        assert_eq!(refusals[0].store, BudgetStore::Multipart);
+        assert_eq!(refusals[0].bytes, oversize);
+
+        assert!(
+            manager.take_budget_events().is_empty(),
+            "the refusal must be drained by the first take"
+        );
+    }
+
+    /// Ordinary shell output must not surface as a budget refusal.
+    #[test]
+    fn ordinary_output_emits_no_budget_events() {
+        let manager = TerminalManager::new(80, 24).unwrap();
+        manager.process_data(b"plain shell output\r\n");
+        assert!(manager.take_budget_events().is_empty());
     }
 }

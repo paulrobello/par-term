@@ -59,6 +59,7 @@ pub(crate) mod agent_state;
 mod agent_tick_helpers;
 pub(crate) mod anti_idle;
 mod automation_target;
+mod budget_notifications;
 mod clipboard_sync;
 pub(crate) mod config_updates;
 mod config_watchers;
