@@ -5,10 +5,9 @@
 
 use super::{Tab, TabInitParams};
 use crate::config::Config;
-use crate::config::SessionLogFormat;
 use crate::pane::{Pane, PaneManager};
 use crate::profile::Profile;
-use crate::session_logger::{SessionLogger, create_shared_logger};
+use crate::session_logger::create_shared_logger;
 use crate::tab::activity_state::TabActivityMonitor;
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::tab::profile_state::TabProfileState;
@@ -131,74 +130,17 @@ impl Tab {
         // Create shared session logger
         let session_logger = create_shared_logger();
 
-        // Set up session logging if enabled
-        if config.session_log.auto_log_sessions {
-            let logs_dir = config.logs_dir();
-
-            // SEC-010: Ensure the logs directory exists with owner-only permissions
-            // (0o700) so session logs are not world-listable.
-            if let Err(e) = std::fs::create_dir_all(&logs_dir) {
-                log::warn!("Failed to create logs directory {:?}: {}", logs_dir, e);
-            } else {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    let _ =
-                        std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o700));
-                }
-            }
-
-            let title_with_ts = Some(format!(
-                "{} - {}",
-                session_title,
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
-            ));
-
-            match SessionLogger::new(
-                config.session_log.session_log_format,
-                &logs_dir,
-                (config.cols, config.rows),
-                title_with_ts,
-            ) {
-                Ok(mut logger) => {
-                    logger.set_redact_passwords(config.session_log.session_log_redact_passwords);
-                    if let Err(e) = logger.start() {
-                        log::warn!("Failed to start session logging: {}", e);
-                    } else {
-                        log::info!("Session logging started: {:?}", logger.output_path());
-
-                        // Set up output callback to record PTY output
-                        let logger_clone = Arc::clone(&session_logger);
-                        terminal.set_output_callback(move |data: &[u8]| {
-                            if let Some(ref mut logger) = *logger_clone.lock() {
-                                logger.record_output(data);
-                            }
-                        });
-
-                        *session_logger.lock() = Some(logger);
-                    }
-                }
-                Err(e) => {
-                    log::warn!("Failed to create session logger: {}", e);
-                }
-            }
-        }
-
         let terminal = Arc::new(RwLock::new(terminal));
 
-        // v3 session logs need the graphics store at finalization; hand the
-        // logger a handle to the terminal so stop() can run the core lib's
-        // graphics-aware export (the store is crate-internal to emu-core).
-        if config.session_log.session_log_format == SessionLogFormat::AsciicastV3
-            && let Some(ref mut logger) = *session_logger.lock()
-        {
-            let tm = Arc::clone(&terminal);
-            logger.set_v3_exporter(Box::new(move |session| {
-                tm.try_read()
-                    .ok()
-                    .map(|tm| tm.export_session_asciicast_v3(session))
-            }));
-        }
+        // Arm auto-logging (shared with Tab::new_from_pane's promote path):
+        // the callback lands on the same terminal the primary pane wraps, and
+        // the v3 exporter rides the Arc'd terminal.
+        super::session_logging::arm_auto_session_logger(
+            &session_logger,
+            &terminal,
+            config,
+            &session_title,
+        );
 
         // Send initial text after optional delay (only when a runtime is provided)
         if let Some(runtime) = params.runtime
@@ -439,7 +381,7 @@ impl Tab {
     pub fn new_from_pane(
         id: TabId,
         pane: Pane,
-        _config: &Config,
+        config: &Config,
         _runtime: Arc<Runtime>,
         tab_number: usize,
     ) -> Self {
@@ -447,6 +389,16 @@ impl Tab {
         let terminal = Arc::clone(&pane.terminal);
         let is_active = Arc::clone(&pane.is_active);
         let session_logger = Arc::clone(&pane.session_logger);
+
+        // Promoted tabs arm auto-logging too: the pane's logger slot is born
+        // empty, so without this the promoted tab would never record a .cast
+        // (card 01a1dae3). An existing (mux-mirror) logger is preserved.
+        super::session_logging::arm_auto_session_logger(
+            &session_logger,
+            &terminal,
+            config,
+            &format!("Tab {tab_number}"),
+        );
 
         // Create a PaneManager with this pane as the single root
         let pane_manager = PaneManager::new_with_pane(pane);

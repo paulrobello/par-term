@@ -119,6 +119,11 @@ Enable automatic recording for every tab in your configuration:
 auto_log_sessions: true
 ```
 
+Every tab records, including tabs created by promoting a pane out of a split
+(move pane to its own tab/window): the promote path arms the same auto-logger
+on the pane's terminal. A pane that already carries an armed logger (a mux
+mirror) keeps it.
+
 ### Method 4: Settings UI
 
 1. Press `F12` to open Settings
