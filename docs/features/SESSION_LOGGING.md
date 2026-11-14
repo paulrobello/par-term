@@ -286,7 +286,7 @@ The `.cast` files follow the asciinema v2 specification:
 - `r` - Resize (terminal dimensions changed)
 - `m` - Marker (annotation)
 
-par-term writes `o` (output) and `r` (resize) events. The logger has a redaction-aware `i` (input) path (`SessionLogger::record_input`), but no caller feeds it keyboard input, so `i` events are not produced today. `m` (marker) is part of the asciinema v2 specification and is handled by the writer, but par-term never constructs one either.
+par-term writes `o` (output) and `r` (resize) events. Resize events land whenever the recorded tab terminal actually changes size — the tab relayout path and the per-frame layout pass both record them, and an armed per-pane logger records its pane's resizes (the mux layout-reflow path sizes daemon panes through that seam). A mux display tab's shared stream carries no per-mirror `r` events: its panes have independent geometries, so the stream has no single size timeline. The logger also has a redaction-aware `i` (input) path (`SessionLogger::record_input`), but no caller feeds it keyboard input, so `i` events are not produced today. `m` (marker) is part of the asciinema v2 specification and is handled by the writer, but par-term never constructs one either.
 
 In **asciicast v3**, event times become per-event relative intervals, resize payloads become `"COLSxROWS"` strings, and the `g` event carries a JSON object per inline graphic (protocol, placement, dimensions, base64 `data`). `g` events are keyed to the moment each image entered the terminal's graphics store, re-anchored to the recording start so they stay aligned with the text stream.
 

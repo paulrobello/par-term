@@ -162,13 +162,22 @@ impl Pane {
         }
     }
 
-    /// Resize the terminal to match the pane bounds
-    pub fn resize_terminal(&self, cols: usize, rows: usize) {
+    /// Resize the terminal to match the pane bounds.
+    ///
+    /// Returns whether a real resize fired (dimensions changed). Records the
+    /// resize onto the pane's own session logger, so an armed per-pane
+    /// recording carries `r` events — the mux layout reflow
+    /// (`update_layout_from_tmux`) sizes daemon leaves through here.
+    pub fn resize_terminal(&self, cols: usize, rows: usize) -> bool {
+        let mut resized = false;
         if let Ok(mut term) = self.terminal.try_write()
             && term.dimensions() != (cols, rows)
         {
             let _ = term.resize(cols, rows);
+            resized = true;
+            crate::session_logger::record_slot_resize(&self.session_logger, cols, rows);
         }
+        resized
     }
 
     /// Resize the terminal and update cell pixel dimensions.
@@ -183,12 +192,16 @@ impl Pane {
         rows: usize,
         cell_width: u32,
         cell_height: u32,
-    ) {
+    ) -> bool {
+        let mut resized = false;
         if let Ok(mut term) = self.terminal.try_write() {
             term.set_cell_dimensions(cell_width, cell_height);
             if term.dimensions() != (cols, rows) {
                 let _ = term.resize(cols, rows);
+                resized = true;
+                crate::session_logger::record_slot_resize(&self.session_logger, cols, rows);
             }
         }
+        resized
     }
 }

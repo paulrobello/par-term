@@ -301,12 +301,22 @@ pub(super) fn gather_pane_render_data(
         // fought, flipping 104<->107 (measured). Content may draw a few
         // pixels under the divider padding or scrollbar; that is the cost.
         if !tab_is_daemon_driven {
-            pane.resize_terminal_with_cell_dims(
+            let tab_logger = std::sync::Arc::clone(&tab.session_logger);
+            let tab_terminal = std::sync::Arc::clone(&tab.terminal);
+            let resized = pane.resize_terminal_with_cell_dims(
                 cols,
                 rows,
                 sizing.cell_width as u32,
                 sizing.cell_height as u32,
             );
+            // The tab logger records the tab terminal's stream; the primary
+            // pane shares that Arc, so a real resize of it is an `r` event on
+            // the recording. Non-primary panes of a mux display tab share no
+            // single-geometry slot in that stream — the daemon layout sizes
+            // them, and daemon tabs never enter this branch.
+            if resized && std::sync::Arc::ptr_eq(&pane.terminal, &tab_terminal) {
+                crate::session_logger::record_slot_resize(&tab_logger, cols, rows);
+            }
         }
 
         // The scrollbar is drawn at the viewport's right edge. The

@@ -57,3 +57,15 @@ mod writers;
 
 pub use core::{SessionLogger, SharedSessionLogger, create_shared_logger};
 pub use writers::contains_password_prompt;
+
+/// Record a resize onto whichever logger `slot` holds, if it is active.
+///
+/// `r` events follow the logger whose recorded stream changes geometry, not
+/// the pane: the tab logger carries the tab terminal's timeline (plain tabs),
+/// an armed pane logger carries its own pane's timeline. A slot without an
+/// active logger makes this a no-op, so resize paths can call it freely.
+pub fn record_slot_resize(slot: &SharedSessionLogger, cols: usize, rows: usize) {
+    if let Some(ref mut logger) = *slot.lock() {
+        logger.record_resize(cols, rows);
+    }
+}

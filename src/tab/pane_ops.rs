@@ -328,7 +328,20 @@ impl Tab {
             self.pane_manager = Some(pm);
         } else if let Some(ref mut pm) = self.pane_manager {
             pm.set_bounds(bounds);
+            let dims_before = self.terminal.try_read().ok().map(|t| t.dimensions());
             pm.resize_all_terminals_with_padding(cell_width, cell_height, padding, 0.0);
+            // The tab logger records tab.terminal's stream (the primary pane
+            // shares that Arc), so a real transition of that terminal's
+            // geometry belongs in the recording as an `r` event. A mux tab's
+            // tab.terminal is the hidden shell, whose resizes are not part of
+            // the recorded mirror stream — skip.
+            if self.tmux.tmux_pane_id.is_none()
+                && let Ok(term) = self.terminal.try_read()
+                && dims_before.is_none_or(|d| d != term.dimensions())
+            {
+                let (cols, rows) = term.dimensions();
+                crate::session_logger::record_slot_resize(&self.session_logger, cols, rows);
+            }
         }
     }
 

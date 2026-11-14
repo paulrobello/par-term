@@ -373,4 +373,80 @@ mod arm_tests {
         let logger = guard.as_ref().expect("the pre-armed slot must survive");
         assert_eq!(logger.output_path(), &prearmed_path);
     }
+
+    /// Card 01a1dbf5: a real resize of the tab terminal must land an `r`
+    /// event in the recording (streamed v2), so replays reconstruct the
+    /// geometry timeline instead of rendering at the header's stale size.
+    #[test]
+    fn tab_terminal_resize_records_r_event() {
+        let temp = TempDir::new().unwrap();
+        let config = test_config(&temp);
+        let mut tab = source_tab(&config); // armed via new_internal, terminal 80x24
+
+        // Drive the real local relayout path to a 100x30 grid.
+        tab.set_pane_bounds_with_padding(
+            crate::pane::PaneBounds {
+                x: 0.0,
+                y: 0.0,
+                width: 1000.0,
+                height: 600.0,
+            },
+            10.0,
+            20.0,
+            0.0,
+        );
+
+        let dims = tab.terminal.try_read().unwrap().dimensions();
+        assert_eq!(dims, (100, 30), "relayout must resize the tab terminal");
+        let guard = tab.session_logger.lock();
+        let logger = guard.as_ref().unwrap();
+        let content = std::fs::read_to_string(logger.output_path()).unwrap();
+        assert!(
+            content.contains("\"r\",\"100x30\""),
+            "cast must carry the resize event: {content:?}"
+        );
+    }
+
+    /// The per-pane resize seam: `Pane::resize_terminal` records onto an
+    /// armed pane logger — the path the mux layout reflow
+    /// (`update_layout_from_tmux`) uses to size daemon leaves.
+    #[test]
+    fn pane_resize_records_to_armed_pane_logger() {
+        let temp = TempDir::new().unwrap();
+        let config = test_config(&temp);
+        let source = source_tab(&config);
+        let pane_id = source.pane_manager.as_ref().unwrap().all_panes()[0].id;
+
+        // Arm the pane's own slot as a mux mirror path would.
+        let pane_path = {
+            let pm = source.pane_manager.as_ref().unwrap();
+            let pane = pm.get_pane(pane_id).unwrap();
+            let mut slot = pane.session_logger.lock();
+            let mut logger = SessionLogger::new(
+                config.session_log.session_log_format,
+                temp.path(),
+                (80, 24),
+                Some("pane".to_string()),
+            )
+            .unwrap();
+            logger.start().unwrap();
+            let path = logger.output_path().clone();
+            *slot = Some(logger);
+            path
+        };
+
+        let resized = source
+            .pane_manager
+            .as_ref()
+            .unwrap()
+            .get_pane(pane_id)
+            .unwrap()
+            .resize_terminal(120, 40);
+        assert!(resized, "the pane must actually resize");
+        let content = std::fs::read_to_string(&pane_path).unwrap();
+        assert!(
+            content.contains("\"r\",\"120x40\""),
+            "pane recording must carry the resize event: {content:?}"
+        );
+    }
 }
