@@ -50,6 +50,7 @@
 
 pub mod core;
 pub(crate) mod format_writers;
+mod redaction;
 #[cfg(test)]
 mod tests;
 mod writers;

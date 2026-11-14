@@ -4,7 +4,7 @@
 //! These are split from `core.rs` to keep each file under 500 lines.
 
 use anyhow::{Context, Result};
-use par_term_emu_core_rust::terminal::RecordingEventType;
+use par_term_emu_core_rust::terminal::{RecordingEvent, RecordingEventType};
 
 use super::core::SessionLogger;
 use super::writers::html_escape;
@@ -100,66 +100,81 @@ impl SessionLogger {
         Ok(())
     }
 
-    /// Serialize the recording session to asciicast v2 format and write it to the log file.
-    pub(super) fn write_asciicast(&mut self) -> Result<()> {
+    /// Write the asciicast v2 header line and flush it.
+    ///
+    /// v2 is the fault-hunt evidence format: the header and every event reach
+    /// disk as they are produced, so a crash, a kill, or a stop-less tab
+    /// teardown still leaves a parseable transcript instead of a 0-byte file
+    /// (the old buffer-until-finalize design). Called from `start()`.
+    pub(super) fn write_asciicast_header(&mut self) -> Result<()> {
         use std::io::Write;
-        if let Some(ref recording) = self.recording {
-            // Write asciicast v2 format
-            // Header line (JSON object)
+
+        let Some(recording) = &self.recording else {
+            return Ok(());
+        };
+        let (width, height, timestamp, title, env) = (
+            recording.initial_size.0,
+            recording.initial_size.1,
+            recording.created_at / 1000, // Convert to seconds
+            recording.title.clone(),
+            recording.env.clone(),
+        );
+
+        if let Some(ref mut writer) = self.writer {
             let header = serde_json::json!({
                 "version": 2,
-                "width": recording.initial_size.0,
-                "height": recording.initial_size.1,
-                "timestamp": recording.created_at / 1000, // Convert to seconds
-                "title": &recording.title,
-                "env": recording.env,
+                "width": width,
+                "height": height,
+                "timestamp": timestamp,
+                "title": &title,
+                "env": env,
             });
+            writeln!(writer, "{}", header).with_context(|| {
+                format!("Failed to write asciicast header to {:?}", self.output_path)
+            })?;
+            writer.flush().with_context(|| {
+                format!("Failed to flush asciicast header to {:?}", self.output_path)
+            })?;
+        }
+        Ok(())
+    }
 
-            if let Some(ref mut writer) = self.writer {
-                writeln!(writer, "{}", header).with_context(|| {
-                    format!("Failed to write asciicast header to {:?}", self.output_path)
-                })?;
+    /// Append one event line to an asciicast v2 transcript and flush it, so
+    /// the line is on disk the moment its bytes were processed.
+    pub(super) fn write_asciicast_event(&mut self, event: &RecordingEvent) -> Result<()> {
+        use std::io::Write;
 
-                // Event lines (JSON arrays)
-                for event in &recording.events {
-                    let time_seconds = event.timestamp as f64 / 1000.0;
-
-                    match event.event_type {
-                        RecordingEventType::Output => {
-                            let data_str = String::from_utf8_lossy(&event.data);
-                            let line = serde_json::json!([time_seconds, "o", data_str]);
-                            writeln!(writer, "{}", line)?;
-                        }
-                        RecordingEventType::Input => {
-                            let data_str = String::from_utf8_lossy(&event.data);
-                            let line = serde_json::json!([time_seconds, "i", data_str]);
-                            writeln!(writer, "{}", line)?;
-                        }
-                        RecordingEventType::Resize => {
-                            if let Some((cols, rows)) = event.metadata {
-                                let line = serde_json::json!([
-                                    time_seconds,
-                                    "r",
-                                    format!("{}x{}", cols, rows)
-                                ]);
-                                writeln!(writer, "{}", line)?;
-                            }
-                        }
-                        RecordingEventType::Marker => {
-                            let label = String::from_utf8_lossy(&event.data);
-                            let line = serde_json::json!([time_seconds, "m", label]);
-                            writeln!(writer, "{}", line)?;
-                        }
-                        RecordingEventType::Metadata => {
-                            // Metadata events store key-value pairs; emit as asciicast marker
-                            let data_str = String::from_utf8_lossy(&event.data);
-                            let line = serde_json::json!([time_seconds, "m", data_str]);
-                            writeln!(writer, "{}", line)?;
-                        }
-                    }
+        let Some(ref mut writer) = self.writer else {
+            return Ok(());
+        };
+        let time_seconds = event.timestamp as f64 / 1000.0;
+        match event.event_type {
+            RecordingEventType::Output => {
+                let data_str = String::from_utf8_lossy(&event.data);
+                let line = serde_json::json!([time_seconds, "o", data_str]);
+                writeln!(writer, "{}", line)?;
+            }
+            RecordingEventType::Input => {
+                let data_str = String::from_utf8_lossy(&event.data);
+                let line = serde_json::json!([time_seconds, "i", data_str]);
+                writeln!(writer, "{}", line)?;
+            }
+            RecordingEventType::Resize => {
+                if let Some((cols, rows)) = event.metadata {
+                    let line = serde_json::json!([time_seconds, "r", format!("{}x{}", cols, rows)]);
+                    writeln!(writer, "{}", line)?;
                 }
             }
+            RecordingEventType::Marker | RecordingEventType::Metadata => {
+                // Metadata events store key-value pairs; emit as asciicast marker
+                let data_str = String::from_utf8_lossy(&event.data);
+                let line = serde_json::json!([time_seconds, "m", data_str]);
+                writeln!(writer, "{}", line)?;
+            }
         }
+        writer.flush().with_context(|| {
+            format!("Failed to flush asciicast event to {:?}", self.output_path)
+        })?;
         Ok(())
     }
 
@@ -241,7 +256,9 @@ pub(super) fn finalize_format(logger: &mut SessionLogger) -> Result<()> {
     match logger.format {
         SessionLogFormat::Plain => Ok(()),
         SessionLogFormat::Html => logger.write_html_footer(),
-        SessionLogFormat::Asciicast => logger.write_asciicast(),
+        // Streaming v2: every event line was written (and flushed) as it was
+        // recorded, so finalization has nothing left to serialize.
+        SessionLogFormat::Asciicast => Ok(()),
         SessionLogFormat::AsciicastV3 => logger.write_asciicast_v3(),
     }
 }

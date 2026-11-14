@@ -5,7 +5,7 @@
 //! - [`html_escape`]: Escape HTML special characters for the HTML log format.
 //! - [`contains_password_prompt`]: Heuristic check for password-prompt strings.
 
-use crate::session_logger::core::PASSWORD_PROMPT_PATTERNS;
+use crate::session_logger::redaction::PASSWORD_PROMPT_PATTERNS;
 
 /// Strip ANSI escape sequences from raw PTY output.
 ///

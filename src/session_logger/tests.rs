@@ -1,6 +1,7 @@
 //! Tests for the session logger.
 
-use super::core::{REDACTION_MARKER, SessionLogger};
+use super::core::SessionLogger;
+use super::redaction::REDACTION_MARKER;
 use super::writers::{contains_password_prompt, html_escape, strip_ansi_escapes};
 use crate::config::SessionLogFormat;
 use tempfile::TempDir;
@@ -375,6 +376,79 @@ fn test_redaction_marker_emitted_once_per_period() {
 /// QA-030: a failed write must stop logging and be reportable, rather than
 /// leaving the UI claiming an active transcript that has silently truncated.
 ///
+/// Asciicast v2 is the fault-hunt evidence format: the transcript must reach
+/// disk as events are produced, because the ends that matter (a crash, or a
+/// tab torn down through a shutdown_fast path that never stops its logger)
+/// never run `stop()`. A 0-byte file until stop is the bug this pins.
+#[test]
+fn asciicast_events_reach_disk_without_stop() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut logger = SessionLogger::new(
+        SessionLogFormat::Asciicast,
+        temp_dir.path(),
+        (80, 24),
+        Some("Streaming Test".to_string()),
+    )
+    .unwrap();
+
+    logger.start().unwrap();
+    logger.record_output(b"hello ");
+    logger.record_output(b"streamed world\n");
+
+    let content = std::fs::read_to_string(logger.output_path()).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert!(
+        lines[0].contains("\"version\":2"),
+        "header must be on disk before stop(): {content:?}"
+    );
+    assert!(
+        lines.len() >= 3,
+        "both output events must be on disk before stop(): {content:?}"
+    );
+    assert!(content.contains("streamed world"));
+
+    // The transcript stays intact through a normal stop as well.
+    let path = logger.stop().unwrap();
+    let content = std::fs::read_to_string(&path).unwrap();
+    assert!(content.contains("hello "));
+    assert!(content.contains("streamed world"));
+}
+
+/// Toggling logging off and back on (Cmd+Shift+R twice) released the file
+/// handle in `stop()`; a restarted logger must reopen the file in append mode
+/// or every event of the new segment is silently discarded and the file stays
+/// at its first-stop size.
+#[test]
+fn stop_then_start_reopens_writer_and_appends_parseable_segment() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut logger = SessionLogger::new(
+        SessionLogFormat::Asciicast,
+        temp_dir.path(),
+        (80, 24),
+        Some("Toggle Test".to_string()),
+    )
+    .unwrap();
+
+    logger.start().unwrap();
+    logger.record_output(b"first segment\n");
+    let path = logger.stop().unwrap();
+    let first = std::fs::read_to_string(&path).unwrap();
+    assert!(first.contains("first segment"));
+
+    logger.start().unwrap();
+    logger.record_output(b"second segment\n");
+    let path = logger.stop().unwrap();
+    let both = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        both.contains("first segment"),
+        "restart must append, not truncate: {both:?}"
+    );
+    assert!(
+        both.contains("second segment"),
+        "restarted segment must be recorded: {both:?}"
+    );
+}
+
 /// Unix-only: the failure is provoked with a read-only file descriptor, which
 /// Windows reports differently.
 #[cfg(unix)]

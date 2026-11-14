@@ -69,6 +69,14 @@ graph TD
 - Supports timing-accurate playback
 - Records terminal output events only; keyboard input is never captured
 - Can be shared on asciinema.org
+- **Streamed to disk**: the header is written when logging starts and every
+  event line is flushed as it is recorded, so the transcript survives a crash,
+  a kill, or an unclean shutdown. The `.cast` file is non-zero within moments
+  of the first pane output — a 0-byte file means nothing was recorded, not
+  "still buffering".
+- Toggling logging off and back on (`Cmd+Shift+R` twice) reopens the same file
+  in append mode and starts a new segment (a second header line); players
+  treat each header as a new recording segment.
 
 ### Asciicast v3 (Opt-in)
 - Everything v2 records, plus a `g` (graphics) event per inline image
@@ -80,6 +88,10 @@ graph TD
   as an image is captured verbatim. Only enable where that is acceptable.
 - Text-only fallback: if the terminal is unavailable at finalization, the log
   serializes without `g` events and stays a valid v3 file
+- **Buffered, not streamed**: v3 assembles one JSON document at finalization
+  (the graphics exporter serializes the whole session in a single pass), so a
+  v3 transcript needs a clean stop to be written at all — use v2 for
+  crash-evidence capture.
 
 ## Starting a Recording
 
