@@ -615,6 +615,104 @@ mod tests {
         );
         let _ = std::fs::remove_file(&path);
     }
+
+    /// Card 01a1dac2 (2026-11-14 sightings): the lock-miss backlog cap used
+    /// to drop the oldest bytes with no healing — a permanent hole under
+    /// diff-based TUI repaints. Overflow now arms exactly one capture-pane
+    /// seed; the reply drops the whole pre-reply backlog and the snapshot
+    /// repaints the pane, so the dropped head cannot hole the screen.
+    /// Output pushed after the seed arms is held behind it (the seed's own
+    /// hold seam) and follows the snapshot inside the seed. RED pre-fix: no
+    /// seed armed at all.
+    #[test]
+    fn backlog_overflow_arms_one_seed_and_the_reply_heals_the_dropped_head() {
+        let (mut ws, path) = attached("overflow-seed");
+
+        // Hold the pane's terminal write lock so every %output takes the
+        // lock-miss backlog path.
+        let (tab, native) = ws
+            .tmux_state
+            .tmux_pane_owner(0)
+            .expect("%0 mapped after attach");
+        let term_arc = ws
+            .tab_manager
+            .get_tab(tab)
+            .and_then(|t| t.pane_manager())
+            .and_then(|pm| pm.get_pane(native))
+            .map(|p| std::sync::Arc::clone(&p.terminal))
+            .expect("pane %0's terminal");
+        let _guard = term_arc.blocking_write();
+
+        let chunk = vec![b'x'; 64 * 1024];
+        for _ in 0..17 {
+            ws.handle_tmux_output(0, &chunk);
+        }
+        assert_eq!(
+            ws.tmux_state.mux_seeds_in_flight.get(&0),
+            Some(&1),
+            "overflow arms exactly one seed [probe: backlog={:?} held={:?} try_read_ok={} x_count={} paused={} owners={:?} native={:?}]",
+            ws.tmux_state.mux_output_backlog.get(&0).map(|b| b.len()),
+            ws.tmux_state.mux_held_output.get(&0).map(|h| h.len()),
+            term_arc.try_read().is_ok(),
+            pane_text(&ws, 0).matches('x').count(),
+            ws.tmux_state.tmux_sync.is_paused(),
+            ws.tmux_state.tmux_pane_owners,
+            ws.tmux_state.tmux_sync.get_native_pane(0),
+        );
+        let backlog_len = ws.tmux_state.mux_output_backlog[&0].len();
+        assert!(
+            backlog_len <= 1024 * 1024,
+            "the cap still holds: {backlog_len} bytes buffered"
+        );
+
+        // Output pushed while the seed is in flight is held behind it.
+        for _ in 0..3 {
+            ws.handle_tmux_output(0, &chunk);
+        }
+        assert!(
+            ws.tmux_state.mux_held_output.contains_key(&0),
+            "post-seed output must be held behind the in-flight seed"
+        );
+        drop(_guard);
+
+        // The reply drops the whole pre-reply backlog and the snapshot
+        // repaints the pane; attach-era pump seeds may also land and repaint
+        // on top — every one of them paints the daemon's screen, so the
+        // final screen is the daemon's grid either way (the invariant under
+        // test, not which seed won).
+        let healed = poll_until(|| {
+            ws.check_mux_notifications();
+            ws.tmux_state.mux_seeds_in_flight.is_empty()
+                && ws.tmux_state.mux_output_backlog.is_empty()
+                && ws.tmux_state.mux_held_output.is_empty()
+                && ws.tmux_state.mux_screen_seeds.is_empty()
+        });
+        assert!(
+            healed,
+            "the seed never landed: in_flight {:?}, backlog {}, held {:?}, pending seeds {:?}",
+            ws.tmux_state.mux_seeds_in_flight,
+            ws.tmux_state
+                .mux_output_backlog
+                .get(&0)
+                .map(Vec::len)
+                .unwrap_or(0),
+            ws.tmux_state.mux_held_output.get(&0).map(Vec::len),
+            ws.tmux_state.mux_screen_seeds.keys().collect::<Vec<_>>(),
+        );
+
+        // No hole: the pane's screen equals the daemon's grid.
+        quiesce(&mut ws);
+        let daemon_screen = send(&ws, "capture-pane -t %0 -p");
+        let pane_text_raw = pane_text(&ws, 0);
+        let pane_lines: Vec<&str> = pane_text_raw.lines().map(str::trim_end).collect();
+        let daemon_lines: Vec<&str> = daemon_screen.iter().map(|l| l.trim_end()).collect();
+        assert_eq!(
+            pane_lines, daemon_lines,
+            "the pane's screen must equal the daemon's grid after the heal"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
     /// client or the CLI would) keep every pane linked to the tab of its
     /// own window, leave no orphaned mirror, and re-seed a moved pane's new
     /// mirror with its screen — all from the daemon's broadcasts alone.

@@ -38,6 +38,19 @@ impl WindowState {
                 overflow
             );
             entry.drain(0..overflow);
+            // The daemon never re-sends pane output, so the dropped head was a
+            // permanent hole under diff-based TUI repaints (the 2026-11-14
+            // sightings, cards 01a1a556/01a189b5: whole-chunk loss never
+            // heals). Arm a full pane refresh: the seed reply is enqueued
+            // after the bytes it subsumes (core seed-ordering contract, card
+            // 01a19947), so land_mux_pane_seeds drops the whole pre-reply
+            // backlog at the reply — the only exact boundary — and the
+            // snapshot repaints the hole. One seed per pane at a time: while
+            // one is in flight a further overflow adds nothing, because the
+            // landing seed drops the backlog whole.
+            if !self.tmux_state.mux_seeds_in_flight.contains_key(&pane_id) {
+                self.queue_mux_pane_seeds(&[pane_id]);
+            }
         }
     }
 
