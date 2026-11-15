@@ -173,7 +173,19 @@ impl Pane {
         if let Ok(mut term) = self.terminal.try_write()
             && term.dimensions() != (cols, rows)
         {
-            let _ = term.resize(cols, rows);
+            // The core reflows the grid BEFORE the PTY ioctl/SIGWINCH, so a
+            // failed resize leaves the grid at the new size while the child
+            // keeps drawing old-width lines the TUI never rewrites — exactly
+            // the persistent pane-corruption shape of card 01a198054b5d.
+            // Surface the failure instead of swallowing it.
+            if let Err(e) = term.resize(cols, rows) {
+                log::warn!(
+                    "Pane {} resize to {}x{} failed: {e} — PTY child may still hold the old size",
+                    self.id,
+                    cols,
+                    rows
+                );
+            }
             resized = true;
             crate::session_logger::record_slot_resize(&self.session_logger, cols, rows);
         }
@@ -197,7 +209,14 @@ impl Pane {
         if let Ok(mut term) = self.terminal.try_write() {
             term.set_cell_dimensions(cell_width, cell_height);
             if term.dimensions() != (cols, rows) {
-                let _ = term.resize(cols, rows);
+                if let Err(e) = term.resize(cols, rows) {
+                    log::warn!(
+                        "Pane {} resize (cell-dims) to {}x{} failed: {e} — PTY child may still hold the old size",
+                        self.id,
+                        cols,
+                        rows
+                    );
+                }
                 resized = true;
                 crate::session_logger::record_slot_resize(&self.session_logger, cols, rows);
             }
