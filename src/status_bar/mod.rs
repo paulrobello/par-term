@@ -331,10 +331,12 @@ impl StatusBarUI {
 
         // Validate time format — update last-known-good on success, fall back on failure
         {
-            use chrono::format::strftime::StrftimeItems;
             let valid = !config.status_bar.status_bar_time_format.is_empty()
-                && StrftimeItems::new(&config.status_bar.status_bar_time_format)
-                    .all(|item| !matches!(item, chrono::format::Item::Error));
+                && jiff::fmt::strtime::format(
+                    &config.status_bar.status_bar_time_format,
+                    &jiff::ZonedDateTime::now(),
+                )
+                .is_ok();
             if valid {
                 self.last_valid_time_format = config.status_bar.status_bar_time_format.clone();
             }

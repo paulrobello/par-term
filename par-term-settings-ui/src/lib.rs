@@ -324,8 +324,12 @@ pub struct UpdateCheckInfo {
 
 /// Format a timestamp string for display in the UI.
 pub fn format_timestamp(timestamp: &str) -> String {
-    match chrono::DateTime::parse_from_rfc3339(timestamp) {
-        Ok(dt) => dt.format("%Y-%m-%d %H:%M").to_string(),
+    // Parse as Timestamp (plain RFC3339 offsets like chrono's "+00:00" are
+    // accepted; ZonedDateTime::parse would demand a [tz] annotation and fail
+    // on every chrono-era stored string). Timestamp renders in UTC, matching
+    // what chrono showed for the app's stored UTC stamps.
+    match timestamp.parse::<jiff::Timestamp>() {
+        Ok(ts) => ts.strftime("%Y-%m-%d %H:%M").to_string(),
         Err(_) => timestamp.to_string(),
     }
 }

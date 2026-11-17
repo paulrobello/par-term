@@ -136,7 +136,7 @@ impl SnapshotData {
         };
 
         Self {
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: jiff::Timestamp::now().to_string(),
             scope: scope.to_config_str(),
             environment,
             terminal: terminal_info,

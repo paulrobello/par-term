@@ -42,7 +42,7 @@ regex.workspace = true
 shell-words.workspace = true
 
 # Correct local date/time arithmetic for snippet built-in variables (QA-001)
-chrono.workspace = true
+jiff.workspace = true
 
 # File watching for config hot reload
 notify = { workspace = true, optional = true }

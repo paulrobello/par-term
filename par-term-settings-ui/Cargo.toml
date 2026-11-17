@@ -50,7 +50,7 @@ parking_lot.workspace = true
 open.workspace = true
 
 # Date/time for screenshots
-chrono.workspace = true
+jiff.workspace = true
 
 # Image loading
 image.workspace = true

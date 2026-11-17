@@ -119,7 +119,7 @@ pub fn capture_arrangement(
         name,
         monitor_layout,
         windows: window_snapshots,
-        created_at: chrono::Utc::now().to_rfc3339(),
+        created_at: jiff::Timestamp::now().to_string(),
         order: 0,
     }
 }

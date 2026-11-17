@@ -230,7 +230,7 @@ impl CrashTriageState {
              - Exit status: {exit_code}\n\
              {facts}\n\n\
              ## Last output\n\n```\n{tail}\n```\n",
-            time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S %Z"),
+            time = jiff::ZonedDateTime::now().strftime("%Y-%m-%d %H:%M:%S %Z"),
             tail = tail.join("\n"),
         );
         std::fs::write(&path, body)
@@ -263,7 +263,7 @@ impl CrashTriageState {
              - Exit status: {exit_code} (non-zero; signal deaths report 1)\n\
              - Process: {shell_line}\n\n\
              ## Last output\n\n```\n{tail}\n```\n",
-            time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S %Z"),
+            time = jiff::ZonedDateTime::now().strftime("%Y-%m-%d %H:%M:%S %Z"),
             tail = tail.join("\n"),
         );
         std::fs::write(&path, body)

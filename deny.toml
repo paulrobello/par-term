@@ -55,12 +55,6 @@ ignore = [
     # when the lockfile moved to quick-xml 0.41.0; cargo-deny ≥0.20 fails on
     # ignore entries that match no crate.
     "RUSTSEC-2026-0206",  # rustybuzz unmaintained — not a vulnerability. It is our text shaper (par-term, par-term-fonts) and also arrives transitively via usvg/resvg, so it cannot simply be dropped. The advisory states no safe upgrade exists; the successor is harfrust, and porting the shaping layer to it is tracked as its own work item. Revisit when that lands or when resvg moves first.
-
-    # RUSTSEC-2026-0543 (2026-11-17): chrono unmaintained — not a vulnerability. chrono is a direct
-    # dependency of par-term and par-term-config; the advisory states no safe upgrade exists, and the
-    # recommended successors are jiff or time. Migrating both crates off chrono is filed as its own
-    # backlog card. Revisit when that migration lands or when the advisory gains a patch release.
-    "RUSTSEC-2026-0543",
 ]
 
 # ---------------------------------------------------------------------------

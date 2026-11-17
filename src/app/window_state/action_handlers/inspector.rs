@@ -30,7 +30,7 @@ impl WindowState {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_file_name(format!(
                         "par-term-snapshot-{}.json",
-                        chrono::Local::now().format("%Y-%m-%d-%H%M%S")
+                        jiff::ZonedDateTime::now().strftime("%Y-%m-%d-%H%M%S")
                     ))
                     .add_filter("JSON", &["json"])
                     .save_file()

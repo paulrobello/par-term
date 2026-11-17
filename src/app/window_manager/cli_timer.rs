@@ -78,7 +78,9 @@ impl WindowManager {
             }
             _ => {
                 // Generate timestamped filename
-                let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+                let timestamp = jiff::ZonedDateTime::now()
+                    .strftime("%Y%m%d_%H%M%S")
+                    .to_string();
                 let path = PathBuf::from(format!("par-term-{}.png", timestamp));
                 log::info!("Using auto-generated screenshot path: {:?}", path);
                 path

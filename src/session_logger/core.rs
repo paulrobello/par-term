@@ -9,7 +9,7 @@
 use crate::config::SessionLogFormat;
 use crate::session_logger::writers::{html_escape, strip_ansi_escapes};
 use anyhow::{Context, Result};
-use chrono::{Local, Utc};
+use jiff::Timestamp;
 use par_term_emu_core_rust::terminal::{RecordingEvent, RecordingEventType, RecordingSession};
 use parking_lot::Mutex;
 use std::fs::{File, OpenOptions};
@@ -85,7 +85,9 @@ impl SessionLogger {
         title: Option<String>,
     ) -> Result<Self> {
         // Generate filename with timestamp
-        let timestamp = Local::now().format("%Y%m%d_%H%M%S");
+        let timestamp = jiff::ZonedDateTime::now()
+            .strftime("%Y%m%d_%H%M%S")
+            .to_string();
         let filename = format!("session_{}.{}", timestamp, format.extension());
         let output_path = log_dir.join(filename);
 
@@ -122,7 +124,7 @@ impl SessionLogger {
 
             Some(RecordingSession {
                 id: uuid::Uuid::new_v4().to_string(),
-                created_at: Utc::now().timestamp_millis() as u64,
+                created_at: Timestamp::now().as_millisecond() as u64,
                 initial_size: dimensions,
                 env,
                 events: Vec::new(),
@@ -177,7 +179,7 @@ impl SessionLogger {
         // times as added_at - created_at, so keeping the construction stamp
         // would offset every graphic by the construct-to-start gap.
         if let Some(ref mut recording) = self.recording {
-            recording.created_at = Utc::now().timestamp_millis() as u64;
+            recording.created_at = Timestamp::now().as_millisecond() as u64;
         }
 
         // Write format-specific header / startup comment.

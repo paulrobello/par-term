@@ -47,7 +47,7 @@ pub(crate) fn arm_auto_session_logger(
     let title_with_ts = Some(format!(
         "{} - {}",
         title,
-        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+        jiff::ZonedDateTime::now().strftime("%Y-%m-%d %H:%M:%S")
     ));
 
     match SessionLogger::new(
@@ -142,7 +142,7 @@ impl Tab {
             let session_title = Some(format!(
                 "{} - {}",
                 self.title,
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+                jiff::ZonedDateTime::now().strftime("%Y-%m-%d %H:%M:%S")
             ));
 
             let mut logger = SessionLogger::new(

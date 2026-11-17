@@ -230,11 +230,11 @@ pub(super) fn render_scrollbar_mark_tooltip(ctx: &egui::Context, mark: Option<&S
     }
 
     if let Some(start_time) = mark.start_time {
-        use chrono::{DateTime, Local, Utc};
-        let dt = DateTime::<Utc>::from_timestamp_millis(start_time as i64)
+        use jiff::Timestamp;
+        let ts = Timestamp::from_millisecond(start_time as i64)
             .expect("window_state: start_time millis out of valid timestamp range");
-        let local: DateTime<Local> = dt.into();
-        lines.push(format!("Time: {}", local.format("%H:%M:%S")));
+        let local = ts.to_zoned_datetime(jiff::tz::TimeZone::system());
+        lines.push(format!("Time: {}", local.strftime("%H:%M:%S")));
     }
 
     if let Some(duration_ms) = mark.duration_ms {

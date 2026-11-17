@@ -19,7 +19,6 @@
 //! expanded tmux format strings.
 
 use crate::TmuxSession;
-use chrono::Local;
 
 /// Context for format string expansion.
 /// Contains all the data needed to expand format variables.
@@ -174,8 +173,10 @@ fn expand_pane(ctx: &FormatContext) -> String {
 
 /// Expand the {time:FORMAT} variable.
 fn expand_time(format: &str) -> String {
-    let now = Local::now();
-    now.format(format).to_string()
+    let now = jiff::ZonedDateTime::now();
+    // chrono rendered unknown strftime directives as empty output; jiff errors
+    // on them instead, so fall back to empty to keep that behavior.
+    jiff::fmt::strtime::format(format, &now).unwrap_or_default()
 }
 
 /// Get the system hostname.

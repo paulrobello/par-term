@@ -25,7 +25,7 @@ pub struct WidgetContext {
     pub git_dirty: bool,
     /// Whether to show ahead/behind/dirty in the git widget
     pub git_show_status: bool,
-    /// Time format string (chrono strftime syntax)
+    /// Time format string (jiff strtime syntax)
     pub time_format: String,
     /// Available update version string (e.g., "0.20.0"), None if up-to-date
     pub update_available_version: Option<String>,
@@ -89,7 +89,12 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
     }
 
     match id {
-        WidgetId::Clock => chrono::Local::now().format(&ctx.time_format).to_string(),
+        WidgetId::Clock => {
+            // chrono rendered unknown strftime directives as empty output; jiff
+            // errors on them instead, so fall back to empty to keep that behavior.
+            jiff::fmt::strtime::format(&ctx.time_format, &jiff::ZonedDateTime::now())
+                .unwrap_or_default()
+        }
         WidgetId::UsernameHostname => {
             format!(
                 "{}@{}",

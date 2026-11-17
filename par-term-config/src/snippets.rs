@@ -1054,11 +1054,11 @@ impl BuiltInVariable {
     /// Resolve the variable to its string value.
     pub fn resolve(&self) -> String {
         match self {
-            // QA-001: Use chrono for correct calendar arithmetic. The previous
+            // QA-001: Use jiff for correct calendar arithmetic. The previous
             // implementation derived the date from `secs / 86400` with every month
             // treated as 30 days, which produced month=13 in late December and a
             // wrong day-of-month year-round.
-            Self::Date => chrono::Local::now().format("%Y-%m-%d").to_string(),
+            Self::Date => jiff::ZonedDateTime::now().strftime("%Y-%m-%d").to_string(),
             Self::Time => {
                 use std::time::{SystemTime, UNIX_EPOCH};
                 let duration = SystemTime::now()

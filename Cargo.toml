@@ -75,7 +75,7 @@ mdns-sd = "0.21"
 url = "2"
 
 # Date / time
-chrono = "0.4.45"
+jiff = "1.0"
 
 # Text / regex
 regex = "1.12.4"
@@ -232,7 +232,7 @@ egui-winit.workspace = true
 rfd.workspace = true
 
 # Date/time for screenshots
-chrono.workspace = true
+jiff.workspace = true
 
 # Image loading for background images
 image.workspace = true

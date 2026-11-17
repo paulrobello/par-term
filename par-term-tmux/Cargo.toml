@@ -22,7 +22,7 @@ par-term-emu-core-rust.workspace = true
 winit.workspace = true
 
 # Date/time for status format
-chrono.workspace = true
+jiff.workspace = true
 
 # Regex for sanitizing tmux output
 regex.workspace = true

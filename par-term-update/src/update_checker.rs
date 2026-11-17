@@ -4,7 +4,7 @@
 //! It respects the configured check frequency (daily, weekly, monthly, or never)
 //! and can notify users when updates are available.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use par_term_config::{Config, UpdateCheckFrequency};
 use parking_lot::Mutex;
 use semver::Version;
@@ -100,15 +100,14 @@ impl UpdateChecker {
         };
 
         // Parse the timestamp
-        let Ok(last_check) = DateTime::parse_from_rfc3339(last_check_str) else {
+        let Ok(last_check) = last_check_str.parse::<Timestamp>() else {
             // Invalid timestamp, should check
             return true;
         };
 
         // Check if enough time has passed
-        let now = Utc::now();
-        let elapsed = now.signed_duration_since(last_check.with_timezone(&Utc));
-        let elapsed_secs = elapsed.num_seconds();
+        let now = Timestamp::now();
+        let elapsed_secs = (now - last_check).as_secs();
 
         elapsed_secs >= check_interval_secs as i64
     }
@@ -282,13 +281,17 @@ pub fn fetch_latest_release() -> Result<UpdateInfo, String> {
 
 /// Get the current timestamp in ISO 8601 format
 pub fn current_timestamp() -> String {
-    Utc::now().to_rfc3339()
+    Timestamp::now().to_string()
 }
 
 /// Format a timestamp for display
 pub fn format_timestamp(timestamp: &str) -> String {
-    match DateTime::parse_from_rfc3339(timestamp) {
-        Ok(dt) => dt.format("%Y-%m-%d %H:%M").to_string(),
+    // Parse as Timestamp (plain RFC3339 offsets like chrono's "+00:00" are
+    // accepted; ZonedDateTime::parse would demand a [tz] annotation and fail
+    // on every chrono-era stored string). Timestamp renders in UTC, matching
+    // what chrono showed for the app's stored UTC stamps.
+    match timestamp.parse::<jiff::Timestamp>() {
+        Ok(ts) => ts.strftime("%Y-%m-%d %H:%M").to_string(),
         Err(_) => timestamp.to_string(),
     }
 }
@@ -369,13 +372,13 @@ mod tests {
         config.updates.update_check_frequency = UpdateCheckFrequency::Daily;
 
         // Set last check to 2 days ago
-        let two_days_ago = Utc::now() - chrono::Duration::days(2);
-        config.updates.last_update_check = Some(two_days_ago.to_rfc3339());
+        let two_days_ago = Timestamp::now() - jiff::SignedDuration::from_hours(48);
+        config.updates.last_update_check = Some(two_days_ago.to_string());
         assert!(checker.should_check(&config));
 
         // Set last check to 1 hour ago
-        let one_hour_ago = Utc::now() - chrono::Duration::hours(1);
-        config.updates.last_update_check = Some(one_hour_ago.to_rfc3339());
+        let one_hour_ago = Timestamp::now() - jiff::SignedDuration::from_hours(1);
+        config.updates.last_update_check = Some(one_hour_ago.to_string());
         assert!(!checker.should_check(&config));
     }
 
@@ -383,6 +386,15 @@ mod tests {
     fn test_current_timestamp_format() {
         let ts = current_timestamp();
         // Should be parseable as RFC 3339
-        assert!(DateTime::parse_from_rfc3339(&ts).is_ok());
+        assert!(ts.parse::<Timestamp>().is_ok());
+    }
+
+    #[test]
+    fn test_chrono_era_timestamps_still_parse_and_display() {
+        // chrono's to_rfc3339() persisted "+00:00" offsets for years; those
+        // stored strings must keep parsing and rendering after the jiff move.
+        let stored = "2026-11-17T12:34:56.123456789+00:00";
+        assert!(stored.parse::<Timestamp>().is_ok());
+        assert_eq!(format_timestamp(stored), "2026-11-17 12:34");
     }
 }

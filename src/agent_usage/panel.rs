@@ -10,8 +10,8 @@
 
 use crate::agent_usage::records::ModelUsage;
 use crate::agent_usage::store::UsageSnapshot;
-use chrono::{DateTime, Utc};
 use egui::{Context, Frame, Key, Window, epaint::Shadow};
+use jiff::Timestamp;
 
 /// Days drawn in the tokens-by-day chart.
 const CHART_DAYS: usize = 7;
@@ -263,12 +263,12 @@ impl AgentUsagePanel {
 /// Human reset countdown ("3h12m") from an RFC3339 timestamp.
 fn reset_countdown(resets_at: Option<&str>) -> Option<String> {
     let raw = resets_at?;
-    let parsed = DateTime::parse_from_rfc3339(raw).ok()?;
-    let remaining = parsed.signed_duration_since(Utc::now());
-    if remaining <= chrono::Duration::zero() {
+    let parsed = raw.parse::<Timestamp>().ok()?;
+    let remaining_secs = parsed.as_second() - Timestamp::now().as_second();
+    if remaining_secs <= 0 {
         return None;
     }
-    let mins = remaining.num_minutes();
+    let mins = remaining_secs / 60;
     Some(if mins >= 60 {
         format!("resets in {}h{}m", mins / 60, mins % 60)
     } else {
@@ -506,7 +506,7 @@ mod tests {
     fn reset_countdown_formats_hours_and_minutes() {
         // 2h5m out, so a minute-boundary race cannot round the hours down
         // between constructing the timestamp and reading the countdown.
-        let in_2h = (Utc::now() + chrono::Duration::minutes(125)).to_rfc3339();
+        let in_2h = (Timestamp::now() + jiff::SignedDuration::from_secs(125 * 60)).to_string();
         let text = reset_countdown(Some(&in_2h)).expect("parses future timestamp");
         assert!(text.starts_with("resets in 2h"), "got: {text}");
     }
@@ -515,7 +515,7 @@ mod tests {
     fn reset_countdown_rejects_garbage_and_past() {
         assert_eq!(reset_countdown(None), None);
         assert_eq!(reset_countdown(Some("not a date")), None);
-        let past = (Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
+        let past = (Timestamp::now() - jiff::SignedDuration::from_hours(1)).to_string();
         assert_eq!(reset_countdown(Some(&past)), None);
     }
 

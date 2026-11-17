@@ -23,7 +23,7 @@ native-tls.workspace = true
 url.workspace = true
 
 # Date/time for tracking last check timestamp
-chrono.workspace = true
+jiff.workspace = true
 
 # Semantic version comparison
 semver.workspace = true

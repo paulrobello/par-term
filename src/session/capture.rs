@@ -60,7 +60,7 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
     }
 
     SessionState {
-        saved_at: chrono::Utc::now().to_rfc3339(),
+        saved_at: jiff::Timestamp::now().to_string(),
         windows: session_windows,
     }
 }
