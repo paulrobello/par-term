@@ -700,12 +700,14 @@ No `config.yaml` keys. Actions and display only.
 #### Scrollback
 
 - Scrollback lines: — `scrollback_lines`
+- Reflow like xterm.js on resize — `xterm_resize_reflow`
 
 #### Unicode
 
 - Unicode version: — `unicode_version`
 - Ambiguous width: — `ambiguous_width`
 - Normalization: — `normalization_form`
+- Emoji widths per code point — `codepoint_emoji_widths`
 - Answerback string: — `answerback_string`
 
 #### Anti-Idle Keep-Alive

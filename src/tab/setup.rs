@@ -34,6 +34,16 @@ pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, con
     );
     terminal.set_width_config(width_config);
 
+    // Opt-in xterm.js-style reflow resize (default: legacy resize)
+    if config.scrollback.xterm_resize_reflow {
+        terminal.set_xterm_resize(true);
+    }
+
+    // Opt-in per-code-point emoji widths (default: cluster mode)
+    if config.unicode.codepoint_emoji_widths {
+        terminal.set_codepoint_widths(true);
+    }
+
     // Apply Unicode normalization form
     terminal.set_normalization_form(to_core_normalization_form(
         config.unicode.normalization_form,

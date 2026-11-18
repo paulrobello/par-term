@@ -47,6 +47,23 @@ pub(crate) fn show_scrollback_section(
                     &mut c.scrollback.scrollback_lines
                 });
             });
+
+            if ui
+                .checkbox(
+                    &mut settings.config.scrollback.xterm_resize_reflow,
+                    "Reflow like xterm.js on resize",
+                )
+                .search_tag(&["xterm_resize_reflow"])
+                .on_hover_text(
+                    "Resize panes with the xterm.js-style reflow: the cursor tracks its row and \
+                     scrollback lines return when the pane grows. Default (off) keeps par-term's \
+                     legacy resize. Applies live to running panes.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
         },
     );
 }

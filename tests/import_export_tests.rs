@@ -89,6 +89,7 @@ fn test_merge_config_overrides_multiple_non_default_fields() {
         font_family: "Fira Code".to_string(),
         scrollback: ScrollbackConfig {
             scrollback_lines: 50000,
+            xterm_resize_reflow: false,
         },
         ..Config::default()
     };

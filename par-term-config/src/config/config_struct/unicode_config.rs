@@ -27,6 +27,12 @@ pub struct UnicodeConfig {
     /// - none: No normalization
     #[serde(default = "crate::defaults::normalization_form")]
     pub normalization_form: NormalizationForm,
+
+    /// Count emoji width per code point (wcwidth-style) instead of the
+    /// default cluster mode, so hosts that count wcwidth per code point
+    /// agree with the grid.
+    #[serde(default)]
+    pub codepoint_emoji_widths: bool,
 }
 
 impl Default for UnicodeConfig {
@@ -35,6 +41,7 @@ impl Default for UnicodeConfig {
             unicode_version: crate::defaults::unicode_version(),
             ambiguous_width: crate::defaults::ambiguous_width(),
             normalization_form: crate::defaults::normalization_form(),
+            codepoint_emoji_widths: false,
         }
     }
 }

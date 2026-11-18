@@ -347,4 +347,66 @@ pub(super) fn apply_terminal_settings(
             }
         }
     }
+
+    // Apply the live scrollback capacity across all tabs and split panes when
+    // changed (a smaller cap drops the oldest lines; the config value already
+    // seeds every new terminal's capacity at construction).
+    if changes.scrollback_lines {
+        let cap = config.scrollback.scrollback_lines;
+        for tab in window_state.tab_manager.tabs_mut() {
+            let tab_terminal = Arc::clone(&tab.terminal);
+            if let Ok(term) = tab.terminal.try_read() {
+                term.set_max_scrollback(cap);
+            }
+            if let Some(pm) = tab.pane_manager_mut() {
+                for pane in pm.all_panes_mut() {
+                    if !Arc::ptr_eq(&pane.terminal, &tab_terminal)
+                        && let Ok(term) = pane.terminal.try_read()
+                    {
+                        term.set_max_scrollback(cap);
+                    }
+                }
+            }
+        }
+    }
+
+    // Toggle xterm.js-style reflow resize live across all tabs and split panes
+    if changes.xterm_resize_reflow {
+        let on = config.scrollback.xterm_resize_reflow;
+        for tab in window_state.tab_manager.tabs_mut() {
+            let tab_terminal = Arc::clone(&tab.terminal);
+            if let Ok(term) = tab.terminal.try_read() {
+                term.set_xterm_resize(on);
+            }
+            if let Some(pm) = tab.pane_manager_mut() {
+                for pane in pm.all_panes_mut() {
+                    if !Arc::ptr_eq(&pane.terminal, &tab_terminal)
+                        && let Ok(term) = pane.terminal.try_read()
+                    {
+                        term.set_xterm_resize(on);
+                    }
+                }
+            }
+        }
+    }
+
+    // Toggle per-code-point emoji widths live across all tabs and split panes
+    if changes.codepoint_emoji_widths {
+        let on = config.unicode.codepoint_emoji_widths;
+        for tab in window_state.tab_manager.tabs_mut() {
+            let tab_terminal = Arc::clone(&tab.terminal);
+            if let Ok(term) = tab.terminal.try_read() {
+                term.set_codepoint_widths(on);
+            }
+            if let Some(pm) = tab.pane_manager_mut() {
+                for pane in pm.all_panes_mut() {
+                    if !Arc::ptr_eq(&pane.terminal, &tab_terminal)
+                        && let Ok(term) = pane.terminal.try_read()
+                    {
+                        term.set_codepoint_widths(on);
+                    }
+                }
+            }
+        }
+    }
 }

@@ -62,8 +62,15 @@ pub(crate) struct ConfigChanges {
     // Unicode width settings
     pub unicode_width: bool,
 
+    // Opt-in per-code-point emoji widths
+    pub codepoint_emoji_widths: bool,
+
     // Unicode normalization form
     pub normalization_form: bool,
+
+    // Scrollback capacity (live via set_max_scrollback) and reflow mode
+    pub scrollback_lines: bool,
+    pub xterm_resize_reflow: bool,
 
     // Background (mode, image, and solid color)
     pub bg_mode: bool,
@@ -222,7 +229,14 @@ impl ConfigChanges {
             unicode_width: new.unicode.unicode_version != old.unicode.unicode_version
                 || new.unicode.ambiguous_width != old.unicode.ambiguous_width,
 
+            codepoint_emoji_widths: new.unicode.codepoint_emoji_widths
+                != old.unicode.codepoint_emoji_widths,
+
             normalization_form: new.unicode.normalization_form != old.unicode.normalization_form,
+
+            scrollback_lines: new.scrollback.scrollback_lines != old.scrollback.scrollback_lines,
+            xterm_resize_reflow: new.scrollback.xterm_resize_reflow
+                != old.scrollback.xterm_resize_reflow,
 
             bg_mode: new.image.background_mode != old.image.background_mode,
             bg_color: new.image.background_color != old.image.background_color,

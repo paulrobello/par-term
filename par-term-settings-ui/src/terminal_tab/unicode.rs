@@ -152,6 +152,24 @@ pub(crate) fn show_unicode_section(
                 );
         });
 
+        ui.horizontal(|ui| {
+            if ui
+                .checkbox(
+                    &mut settings.config.unicode.codepoint_emoji_widths,
+                    "Emoji widths per code point",
+                )
+                .search_tag(&["codepoint_emoji_widths"])
+                .on_hover_text(
+                    "Count emoji width per code point (wcwidth-style) instead of the default \
+                     cluster mode, so hosts that count wcwidth per code point agree with the grid.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
         ui.add_space(8.0);
 
         ui.horizontal(|ui| {
