@@ -511,13 +511,62 @@ mod tests {
     }
 
     fn attached(tag: &str) -> (WindowState, std::path::PathBuf) {
+        attached_inner(tag, None)
+    }
+
+    /// Card 01a1ef80: `attached` with every PTY child pinned to a quiet,
+    /// deterministic program, so the screen-equals-grid heal invariant no
+    /// longer reads the host's shell config. A login shell whose prompt
+    /// framework redraws asynchronously (starship/p10k eval external
+    /// commands at startup) repaints the pane after the heal's seeds have
+    /// landed — deterministic on hosts with a plain prompt, a persistent
+    /// mismatch on hosts where the redraw lands late. Both ends of the
+    /// wire pin, or the mismatch persists: the client's hidden local panes
+    /// spawn `cat` via `custom_shell` (login flag off — `cat -l` would
+    /// print usage and exit), and the daemon's panes run
+    /// `$SHELL -c 'printf …; sleep …'` via the pane factory's
+    /// `default_command` (the core's own quiet-child test seam, see
+    /// `ShellPaneFactory::default_command`). The pin is unix-only:
+    /// Windows has no `cat`/`printf`, and its legs are green on the host
+    /// shell today, so they keep the unpinned path.
+    fn attached_pinned(tag: &str) -> (WindowState, std::path::PathBuf) {
+        #[cfg(unix)]
+        let quiet_default_command = Some("printf PAR-MUX-PANE-READY; sleep 300");
+        #[cfg(not(unix))]
+        let quiet_default_command = None;
+        attached_inner(tag, quiet_default_command)
+    }
+
+    fn attached_inner(
+        tag: &str,
+        quiet_default_command: Option<&str>,
+    ) -> (WindowState, std::path::PathBuf) {
         let path = socket_path(tag);
-        spawn_daemon(&path);
+        match quiet_default_command {
+            Some(cmd) => {
+                let tree = par_term_emu_core_rust::mux::MuxTree::new(Box::new(
+                    par_term_emu_core_rust::mux::ShellPaneFactory {
+                        default_command: Some(cmd.to_string()),
+                        ..par_term_emu_core_rust::mux::ShellPaneFactory::default()
+                    },
+                ));
+                let server = par_term_emu_core_rust::mux::MuxServer::bind_with_tree(&path, tree)
+                    .expect("daemon binds");
+                std::thread::spawn(move || server.run());
+            }
+            None => spawn_daemon(&path),
+        }
         let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
         let (tx, rx) = std::sync::mpsc::channel();
         tx.send(Ok(core_client)).unwrap();
         drop(tx);
         let mut ws = manners_state();
+        if quiet_default_command.is_some() {
+            let mut config = crate::config::Config::default();
+            config.shell.custom_shell = Some("cat".to_string());
+            config.shell.login_shell = false;
+            ws.config.store(std::sync::Arc::new(config));
+        }
         ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
             name: tag.to_string(),
             rx,
@@ -623,10 +672,13 @@ mod tests {
     /// repaints the pane, so the dropped head cannot hole the screen.
     /// Output pushed after the seed arms is held behind it (the seed's own
     /// hold seam) and follows the snapshot inside the seed. RED pre-fix: no
-    /// seed armed at all.
+    /// seed armed at all. Runs on [`attached_pinned`]: the heal invariant
+    /// compares the pane's screen to the daemon's grid, so both children
+    /// must be deterministic — a host prompt framework that repaints after
+    /// the seeds land breaks it (card 01a1ef80).
     #[test]
     fn backlog_overflow_arms_one_seed_and_the_reply_heals_the_dropped_head() {
-        let (mut ws, path) = attached("overflow-seed");
+        let (mut ws, path) = attached_pinned("overflow-seed");
 
         // Hold the pane's terminal write lock so every %output takes the
         // lock-miss backlog path.
