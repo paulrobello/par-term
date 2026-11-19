@@ -124,6 +124,13 @@ Every tab records, including tabs created by promoting a pane out of a split
 on the pane's terminal. A pane that already carries an armed logger (a mux
 mirror) keeps it.
 
+**par-mux tabs** record too: the tab's cast captures every mirror pane's
+daemon-fed output (each pane terminal's output callback feeds the tab's
+logger), so an attached session's whole visible stream — seeds and live
+output — is replayable. A fresh attach arms one logger per adopted tab;
+casts created within the same second get numeric-suffixed filenames so a
+many-window attach never interleaves two recordings into one file.
+
 ### Method 4: Settings UI
 
 1. Press `F12` to open Settings
