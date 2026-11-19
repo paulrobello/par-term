@@ -3886,9 +3886,9 @@ dependencies = [
 
 [[package]]
 name = "par-mux"
-version = "0.83.0"
+version = "0.84.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84e6870f57be5e68bd0452eac50d956c623ca46ae0558011263dd47b83682bb2"
+checksum = "651c513905479e9be6f06290d62a03900924cf30942b50ac16f089398d504da8"
 dependencies = [
  "base64 0.22.1",
  "crossbeam-channel",
@@ -4030,9 +4030,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core"
-version = "0.83.0"
+version = "0.84.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e61af3eec0146f36fae4a62629e1676d9399525dcc56500d60812064bbd737a"
+checksum = "5a831eb164d237ef5abb59802e05c2f1fa3aa584fa3980eb7accd9f71d26a4a0"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.2",
@@ -4060,9 +4060,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.83.0"
+version = "0.84.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f943e8633ffe3ec9c09646d55af5360c6467c9c59d00b3091642d89e48f3fa8e"
+checksum = "29cdd768740e0060c075a5050af0e2559d1574bc44c21f33d97536be018e5233"
 dependencies = [
  "base64 0.22.1",
  "flate2",
