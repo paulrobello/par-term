@@ -187,12 +187,24 @@ pub(crate) fn drain_send_worker(transport: &dyn TmuxTransport) {
     let mut results = Vec::new();
     wait_until("the send worker drains its queue", || {
         results.extend(transport.take_job_results());
-        !results.is_empty()
+        results
+            .iter()
+            .any(|result| matches!(result, MuxJobResult::PaneSeeds(seeds) if seeds.is_empty()))
     });
+    // ENH-045: layout adoption queues a fire-once PaneModes probe per new
+    // pane, and its result can land in the same take as the barrier (the
+    // probe ran FIFO ahead of it) or trail it in the channel (an earlier
+    // take may return it before the barrier arrives). It carries no
+    // barrier relevance, so partition it out; everything else still
+    // fails the only-the-barrier assertion.
+    let (reflow_probes, barrier_results): (Vec<_>, Vec<_>) = results
+        .into_iter()
+        .partition(|result| matches!(result, MuxJobResult::PaneModes(_)));
     assert!(
-        matches!(results.as_slice(), [MuxJobResult::PaneSeeds(seeds)] if seeds.is_empty()),
-        "only the barrier was in flight ({} results)",
-        results.len()
+        matches!(barrier_results.as_slice(), [MuxJobResult::PaneSeeds(seeds)] if seeds.is_empty()),
+        "only the barrier was in flight ({} probe + {} other results)",
+        reflow_probes.len(),
+        barrier_results.len()
     );
 }
 

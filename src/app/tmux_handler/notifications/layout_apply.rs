@@ -192,6 +192,13 @@ impl WindowState {
                     if !pump.is_empty() {
                         self.tmux_state.mux_pump_pending.extend(pump);
                     }
+                    // ENH-045: probe the reflow mode of any pane whose
+                    // mode this session has not learned yet — new mirrors
+                    // must run the daemon's reflow mode, not just local
+                    // config.
+                    #[cfg(feature = "mux")]
+                    self.tmux_state
+                        .submit_mux_reflow_probe(new_mappings.keys().copied());
 
                     crate::debug_info!(
                         "TMUX",
@@ -273,6 +280,13 @@ impl WindowState {
                     if !pump.is_empty() {
                         self.tmux_state.mux_pump_pending.extend(pump);
                     }
+                    // ENH-045: probe the reflow mode of any pane whose
+                    // mode this session has not learned yet — new mirrors
+                    // must run the daemon's reflow mode, not just local
+                    // config.
+                    #[cfg(feature = "mux")]
+                    self.tmux_state
+                        .submit_mux_reflow_probe(pane_mappings.keys().copied());
 
                     crate::debug_info!(
                         "TMUX",

@@ -583,6 +583,8 @@ impl WindowState {
         self.tmux_state.mux_pane_titles.clear();
         self.tmux_state.mux_reconnect_titles.clear();
         self.tmux_state.mux_exited_panes.clear();
+        self.tmux_state.mux_reflow_modes.clear();
+        self.tmux_state.mux_reflow_probed.clear();
         self.tmux_state.clear_mux_seed_holds();
         self.tmux_state.agent_roster.clear();
         self.handle_tmux_session_ended();
@@ -776,6 +778,24 @@ pub(crate) mod tests {
     /// thread; `run()` serves until process end.
     pub(crate) fn spawn_daemon(path: &Path) {
         let server = MuxServer::bind(path).expect("daemon binds");
+        std::thread::spawn(move || server.run());
+    }
+
+    /// ENH-045 helper: the default daemon with xterm-resize-reflow panes —
+    /// the advertising half of the mirror lockstep tests. The factory
+    /// exports the socket path exactly as `bind` does so panes it spawns
+    /// keep the Phase-5 env contract.
+    pub(crate) fn spawn_reflow_daemon(path: &Path) {
+        let factory = par_term_emu_core_rust::mux::pane::ShellPaneFactory {
+            socket_path: Some(path.to_string_lossy().into_owned()),
+            xterm_resize_reflow: true,
+            ..Default::default()
+        };
+        let server = MuxServer::bind_with_tree(
+            path,
+            par_term_emu_core_rust::mux::tree::MuxTree::new(Box::new(factory)),
+        )
+        .expect("daemon binds");
         std::thread::spawn(move || server.run());
     }
 

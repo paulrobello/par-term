@@ -228,6 +228,7 @@ impl WindowState {
         if core_notifications.is_empty() && !disconnected {
             self.apply_pending_mux_screen_seeds();
             self.apply_pending_mux_pane_titles();
+            self.apply_pending_mux_reflow_modes();
             return paste_sent;
         }
 
@@ -457,6 +458,7 @@ impl WindowState {
 
         self.apply_pending_mux_screen_seeds();
         self.apply_pending_mux_pane_titles();
+        self.apply_pending_mux_reflow_modes();
 
         // Auto-reconnect fires last: the `SessionEnded` teardown above has
         // closed the mux tabs and cleared the attach state, so

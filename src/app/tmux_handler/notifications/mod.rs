@@ -91,6 +91,8 @@ mod mux_panes;
 mod mux_reattach_scrollback_tests;
 #[cfg(feature = "mux")]
 pub(crate) mod mux_reconnect;
+#[cfg(all(test, feature = "mux", unix))]
+mod mux_reflow_tests;
 #[cfg(all(test, feature = "mux"))]
 mod mux_roster_titles_tests;
 #[cfg(all(test, feature = "mux"))]

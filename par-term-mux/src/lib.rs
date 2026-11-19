@@ -39,6 +39,10 @@ mod agents;
 mod client;
 mod env;
 mod resync;
+pub mod resync_presence;
+pub use resync_presence::{PanePresence, pane_presence};
+#[cfg(test)]
+mod resync_tests;
 
 pub use agents::{ADOPTABLE_KINDS, AgentEntry, AgentSource, adopt_reply_state};
 pub use client::{
@@ -47,8 +51,7 @@ pub use client::{
 };
 pub use env::{is_wire_safe, new_session_env_args, quote_env_value};
 pub use resync::{
-    AttachOutcome, ClientSnapshot, EventReplay, GitStatusSummary, PanePresence, ReplayedEvent,
-    SeedGraphic, SessionSummary, SnapshotSession, WindowSummary, WorkspaceSummary,
-    pane_foreground_command, pane_presence, parse_events_reply, parse_session_row,
-    split_graphics_seed,
+    AttachOutcome, ClientSnapshot, EventReplay, GitStatusSummary, ReplayedEvent, SeedGraphic,
+    SessionSummary, SnapshotSession, WindowSummary, WorkspaceSummary, pane_foreground_command,
+    parse_events_reply, parse_session_row, split_graphics_seed,
 };

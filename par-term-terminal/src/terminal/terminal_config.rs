@@ -48,6 +48,26 @@ impl TerminalManager {
         term.set_xterm_resize(on);
     }
 
+    /// The xterm-style reflow mode the terminal currently runs — the read
+    /// side of [`Self::set_xterm_resize`], the lockstep probe a mux mirror
+    /// asserts against.
+    pub fn xterm_resize(&self) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.read();
+        term.xterm_resize()
+    }
+
+    /// Export the visible screen only (no scrollback) as plain text — the
+    /// `capture-pane -p` shape a mux heal invariant compares the mirror
+    /// against.
+    pub fn export_visible_text(&self) -> String {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.read();
+        term.content()
+    }
+
     /// Change the live scrollback capacity. A smaller cap drops the oldest
     /// lines like a scroll and rebases graphics anchors; a larger cap grows
     /// the buffer in place.

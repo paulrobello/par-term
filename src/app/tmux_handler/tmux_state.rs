@@ -93,6 +93,12 @@ pub(crate) enum MuxJob {
     DiscoverWindow(crate::tmux::TmuxWindowId),
     /// One `refresh-client -t %N` per pane: each pane's current screen.
     SeedPanes(Vec<TmuxPaneId>),
+    /// `pane-info` probes per pane: which run xterm-style resize reflow
+    /// (ENH-045). Fire-once per pane per session (guarded by
+    /// `mux_reflow_probed`), submitted at layout adoption so a mirror
+    /// learns its daemon's reflow mode before or shortly after its first
+    /// resize.
+    PaneModes(Vec<TmuxPaneId>),
     /// Upload a local file into a daemon pane: `upload-begin`/`chunk`/
     /// `commit` on the worker, the materialized path bracket-pasted into
     /// `pane` at commit. `file_name` is the bare name the daemon stages
@@ -136,6 +142,11 @@ pub(crate) enum MuxJobResult {
     /// placements re-encoded as synthetic OSC bytes (empty without `-G`
     /// support or placements).
     PaneSeeds(Vec<(TmuxPaneId, std::io::Result<PaneSeedPayload>)>),
+    /// Each pane's xterm-resize-reflow advertisement from `pane-info`:
+    /// `(pane, advertised)` for every pane asked about. A pane that was
+    /// never advertised reports `false` — absence of the token is the
+    /// daemon-off default, so both sides agree mirrors stay legacy.
+    PaneModes(Vec<(TmuxPaneId, bool)>),
     /// A pane upload settled: the materialized path in the pane (the
     /// commit reply) on success, the failing step's error otherwise.
     UploadFinished {
@@ -261,6 +272,27 @@ pub(crate) struct TmuxState {
     /// read it. Lives for the session like `mux_pane_titles`.
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) mux_exited_panes: std::collections::HashMap<TmuxPaneId, Option<i32>>,
+    /// ENH-045 lockstep: reflow modes the daemon advertised per pane
+    /// (`pane-info` presence token `reflow=`), waiting for their mirrors
+    /// to map. Entries land from PaneModes job results; the end-of-poll
+    /// sweep applies each to its mirror terminal (setting the same mode
+    /// twice is harmless) and drops the entry once applied or the pane's
+    /// mapping is gone. Absence of an entry means nothing was advertised —
+    /// mirrors keep their legacy reflow (the daemon-off default).
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_reflow_modes: std::collections::HashMap<TmuxPaneId, bool>,
+    /// Panes whose reflow mode has been probed (or whose probe is queued)
+    /// this session — the fire-once guard so each `%layout-change`
+    /// adoption probes only panes it has not asked about yet. Cleared
+    /// with the rest of the session-scoped mux state on detach.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_reflow_probed: std::collections::HashSet<TmuxPaneId>,
+    /// `PaneModes` reflow probes queued on the send worker and not yet
+    /// answered, so the off-loop job counter (`mux_jobs_in_flight`) keeps
+    /// the poll loop (and the test `quiesce` seam) waiting until their
+    /// results land and the drain consumes them.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_mode_probes_in_flight: usize,
     /// Daemon panes with a screen seed requested off-loop and not yet
     /// landed, counted per outstanding request. While a pane is here its
     /// live output waits in `mux_held_output`: the seed is a clear plus a
@@ -420,6 +452,9 @@ impl TmuxState {
             mux_graphics_osc: std::collections::HashMap::new(),
             mux_pane_titles: std::collections::HashMap::new(),
             mux_exited_panes: std::collections::HashMap::new(),
+            mux_reflow_modes: std::collections::HashMap::new(),
+            mux_reflow_probed: std::collections::HashSet::new(),
+            mux_mode_probes_in_flight: 0,
             #[cfg(feature = "mux")]
             mux_seeds_in_flight: std::collections::HashMap::new(),
             #[cfg(feature = "mux")]
@@ -480,7 +515,9 @@ impl TmuxState {
     #[cfg(feature = "mux")]
     pub(crate) fn mux_jobs_in_flight(&self) -> bool {
         self.transport.is_some()
-            && (!self.mux_seeds_in_flight.is_empty() || self.mux_discoveries_in_flight > 0)
+            && (!self.mux_seeds_in_flight.is_empty()
+                || self.mux_discoveries_in_flight > 0
+                || self.mux_mode_probes_in_flight > 0)
     }
 
     /// UX.md T8: whether the attached control session is par-mux. Only
@@ -574,6 +611,34 @@ impl TmuxState {
                 log::info!("mux seed: pump will cover pane %{pane} on its first mapping");
             })
             .collect()
+    }
+
+    /// Queue a reflow-mode probe for panes whose mode is not yet known
+    /// this session (ENH-045): each unprobed pane goes into one
+    /// `PaneModes` job on the transport's send worker, and the drain's
+    /// `apply_mux_job_results` arms the pending map that
+    /// `apply_pending_mux_reflow_modes` applies from. No-op without a
+    /// transport (nothing is attached) and for panes already probed —
+    /// the fire-once guard keeps every later `%layout-change` cheap.
+    /// Lives on `TmuxState` so a layout-adoption call site holding a tab
+    /// borrow can reach it through the `tmux_state` field alone.
+    #[cfg(feature = "mux")]
+    pub(crate) fn submit_mux_reflow_probe(&mut self, panes: impl IntoIterator<Item = TmuxPaneId>) {
+        let fresh: Vec<TmuxPaneId> = panes
+            .into_iter()
+            .filter(|pane| self.mux_reflow_probed.insert(*pane))
+            .collect();
+        if fresh.is_empty() {
+            return;
+        }
+        let Some(transport) = &self.transport else {
+            return;
+        };
+        if transport.submit_job(MuxJob::PaneModes(fresh)) {
+            self.mux_mode_probes_in_flight += 1;
+        } else {
+            log::warn!("par-mux: could not queue reflow-mode probe");
+        }
     }
 
     /// The daemon pane displayed by `native_id` inside `tab_id`. Input

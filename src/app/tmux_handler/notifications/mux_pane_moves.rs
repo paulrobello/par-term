@@ -52,6 +52,16 @@ impl WindowState {
                     self.finish_new_mux_window(window, &panes);
                 }
                 MuxJobResult::PaneSeeds(seeds) => self.land_mux_pane_seeds(seeds),
+                MuxJobResult::PaneModes(modes) => {
+                    // Seed the pending map; the end-of-poll sweep applies
+                    // (and retries lock misses) — see
+                    // apply_pending_mux_reflow_modes.
+                    self.tmux_state.mux_mode_probes_in_flight =
+                        self.tmux_state.mux_mode_probes_in_flight.saturating_sub(1);
+                    for (pane, mode) in modes {
+                        self.tmux_state.mux_reflow_modes.insert(pane, mode);
+                    }
+                }
                 MuxJobResult::UploadFinished { path, result } => match result {
                     Ok(materialized) => {
                         self.show_toast(format!("Uploaded {} → {}", path.display(), materialized))
@@ -63,6 +73,44 @@ impl WindowState {
             }
         }
         applied
+    }
+
+    /// Apply the daemon-advertised reflow modes (`mux_reflow_modes`,
+    /// ENH-045) to their mirrors once the panes map. An entry applies
+    /// `set_xterm_resize` to its mirror terminal and drops from the map;
+    /// a pane without a mapping yet (the layout consumer has not created
+    /// it) stays pending for the next poll; a locked terminal retries the
+    /// same way. Absence of an entry leaves a mirror on its legacy reflow
+    /// — the daemon-off default the card pins.
+    pub(super) fn apply_pending_mux_reflow_modes(&mut self) {
+        if self.tmux_state.mux_reflow_modes.is_empty() {
+            return;
+        }
+        let panes: Vec<(TmuxPaneId, bool)> = self
+            .tmux_state
+            .mux_reflow_modes
+            .iter()
+            .map(|(pane, mode)| (*pane, *mode))
+            .collect();
+        for (pane, mode) in panes {
+            let Some((tab_id, native)) = self.tmux_state.tmux_pane_owner(pane) else {
+                continue; // not mapped yet — retried next poll
+            };
+            if let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                && let Some(pane_manager) = tab.pane_manager_mut()
+                && let Some(pane_obj) = pane_manager.get_pane_mut(native)
+                && let Ok(term) = pane_obj.terminal.try_write()
+            {
+                term.set_xterm_resize(mode);
+                self.tmux_state.mux_reflow_modes.remove(&pane);
+                crate::debug_info!("MUX", "applied reflow mode {mode} to mirror for %{pane}");
+            }
+            // try_write miss or missing pane objects: the entry stays and
+            // the next poll retries — the same discipline as the seed
+            // sweep. A pane whose mapping is gone (closed) also stays; the
+            // detach cleanup clears the map with the rest of the session
+            // state, so nothing outlives the session.
+        }
     }
 
     /// The loop-side half of [`Self::adopt_new_mux_window`]: refit the
@@ -510,6 +558,23 @@ mod tests {
             .unwrap_or_default()
     }
 
+    /// The pane's visible screen only (no scrollback) — the shape the
+    /// daemon's `capture-pane -p` reply frames, so the heal invariant
+    /// compares like with like.
+    #[cfg(unix)]
+    fn pane_text_visible(ws: &WindowState, pane: u64) -> String {
+        let Some((tab, native)) = ws.tmux_state.tmux_pane_owner(pane) else {
+            return String::new();
+        };
+        ws.tab_manager
+            .get_tab(tab)
+            .and_then(|t| t.pane_manager())
+            .and_then(|pm| pm.get_pane(native))
+            .and_then(|p| p.terminal.try_read().ok())
+            .map(|t| t.export_visible_text())
+            .unwrap_or_default()
+    }
+
     fn attached(tag: &str) -> (WindowState, std::path::PathBuf) {
         attached_inner(tag, None)
     }
@@ -752,11 +817,34 @@ mod tests {
             ws.tmux_state.mux_screen_seeds.keys().collect::<Vec<_>>(),
         );
 
+        // A fresh deterministic re-seed: every earlier seed paints the
+        // daemon's screen, but whichever lands last wins the replace, and
+        // only a seed requested after the heal has no held bytes behind it
+        // (the heal emptied them) — so its snapshot alone is what the
+        // final screen shows, regardless of how earlier seeds (and the
+        // ENH-045 probe's extra attach-pump tick) ordered. The heal
+        // invariant is per-seed truth, not a particular winner.
+        ws.queue_mux_pane_seeds(&[0]);
+        let reseeded = poll_until(|| {
+            ws.check_mux_notifications();
+            ws.tmux_state.mux_screen_seeds.is_empty()
+                && ws.tmux_state.mux_seeds_in_flight.is_empty()
+        });
+        assert!(
+            reseeded,
+            "the re-seed never landed: in_flight {:?}, pending {:?}",
+            ws.tmux_state.mux_seeds_in_flight,
+            ws.tmux_state.mux_screen_seeds.keys().collect::<Vec<_>>(),
+        );
+
         // No hole: the pane's screen equals the daemon's grid.
         quiesce(&mut ws);
         let daemon_screen = send(&ws, "capture-pane -t %0 -p");
-        let pane_text_raw = pane_text(&ws, 0);
-        let pane_lines: Vec<&str> = pane_text_raw.lines().map(str::trim_end).collect();
+        // Visible screen only: the replayed held bytes legitimately live
+        // in scrollback (the daemon never saw the test-injected chunks), so
+        // a full-buffer export would mismatch the visible-only capture.
+        let pane_visible_raw = pane_text_visible(&ws, 0);
+        let pane_lines: Vec<&str> = pane_visible_raw.lines().map(str::trim_end).collect();
         let daemon_lines: Vec<&str> = daemon_screen.iter().map(|l| l.trim_end()).collect();
         assert_eq!(
             pane_lines, daemon_lines,

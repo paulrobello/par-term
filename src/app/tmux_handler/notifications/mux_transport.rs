@@ -419,6 +419,19 @@ fn run_job(
                 })
                 .collect(),
         ),
+        MuxJob::PaneModes(panes) => MuxJobResult::PaneModes(
+            panes
+                .into_iter()
+                .map(|pane| {
+                    let advertised = send(&format!("pane-info -t %{pane}"))
+                        .ok()
+                        .and_then(|info| par_term_mux::pane_presence(&info, pane))
+                        .and_then(|presence| presence.xterm_resize_reflow)
+                        .unwrap_or(false);
+                    (pane, advertised)
+                })
+                .collect(),
+        ),
     }
 }
 
