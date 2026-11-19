@@ -7,7 +7,6 @@ authors = ["Paul Robello <probello@gmail.com>"]
 description = "Configuration system for par-term terminal emulator"
 license = "MIT"
 repository = "https://github.com/paulrobello/par-term"
-homepage = "https://github.com/paulrobello/par-term"
 keywords = ["terminal", "config", "configuration"]
 categories = ["config"]
 # `doc_config_values.rs` reads `../docs/CONFIG_REFERENCE.md` at run time. That
@@ -20,14 +19,12 @@ exclude = ["tests/doc_config_values.rs"]
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
-toml.workspace = true
 
 # UUID for profile identifiers
 uuid.workspace = true
 
 # Error handling
 anyhow.workspace = true
-thiserror.workspace = true
 
 # Logging
 log.workspace = true

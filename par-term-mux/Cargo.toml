@@ -7,7 +7,6 @@ authors = ["Paul Robello <probello@gmail.com>"]
 description = "par-mux control-mode client for par-term terminal emulator"
 license = "MIT"
 repository = "https://github.com/paulrobello/par-term"
-homepage = "https://github.com/paulrobello/par-term"
 keywords = ["terminal", "mux", "control-mode", "multiplexer"]
 categories = ["command-line-utilities"]
 

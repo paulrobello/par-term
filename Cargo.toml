@@ -15,7 +15,6 @@ par-term-emu-core-rust = { version = "0.84.0", default-features = false, feature
 tokio = { version = "1.52", features = ["full"] }
 
 # Serialization
-jsonc-parser = { version = "0.34", default-features = false, features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 serde_yaml_ng = "0.10.0"
@@ -107,7 +106,6 @@ description = "Cross-platform GPU-accelerated terminal emulator with inline grap
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/paulrobello/par-term"
-homepage = "https://github.com/paulrobello/par-term"
 documentation = "https://github.com/paulrobello/par-term/blob/main/README.md"
 keywords = ["terminal", "emulator", "tui", "gpu", "graphics"]
 categories = ["command-line-utilities", "gui"]
@@ -191,7 +189,6 @@ arc-swap.workspace = true
 tokio.workspace = true
 
 # Configuration
-jsonc-parser.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
@@ -221,9 +218,6 @@ url.workspace = true           # URL parsing for shader download validation
 
 # Audio playback for bell sound (feature-gated: `audio`)
 rodio = { version = "0.23.0", features = ["mp3"], optional = true }
-
-# Desktop notifications
-notify-rust = "4.18"
 
 # GUI for settings interface
 egui.workspace = true
@@ -292,6 +286,11 @@ workspace = true
 # Windows/Linux: use default backends (ReadDirectoryChangesW on Windows, inotify on Linux)
 [target.'cfg(not(target_os = "macos"))'.dependencies.notify]
 workspace = true
+
+# Desktop notifications (Linux XDG/DBus, Windows toast) — macOS uses the
+# native notify_macos path, so this dep must not compile in there.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+notify-rust = "4.18"
 
 [dev-dependencies]
 tempfile.workspace = true

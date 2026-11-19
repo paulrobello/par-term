@@ -7,7 +7,6 @@ authors = ["Paul Robello <probello@gmail.com>"]
 description = "SSH host management and discovery for par-term terminal emulator"
 license = "MIT"
 repository = "https://github.com/paulrobello/par-term"
-homepage = "https://github.com/paulrobello/par-term"
 keywords = ["terminal", "ssh", "mdns", "discovery"]
 categories = ["network-programming"]
 

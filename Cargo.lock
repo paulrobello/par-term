@@ -2433,15 +2433,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jsonc-parser"
-version = "0.34.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ecded084f9b9a718d39668a42657c32253663d1f6afb3fbb9134f0305f73f48"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "keyboard-types"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3780,7 +3771,6 @@ dependencies = [
  "hostname",
  "image",
  "jiff",
- "jsonc-parser",
  "libc",
  "log",
  "lru 0.19.0",
@@ -3872,8 +3862,6 @@ dependencies = [
  "sha2",
  "shell-words",
  "tempfile",
- "thiserror 2.0.21",
- "toml 1.2.1+spec-1.1.0",
  "uuid",
 ]
 
@@ -4063,7 +4051,6 @@ dependencies = [
 name = "par-term-terminal"
 version = "0.8.1"
 dependencies = [
- "arboard",
  "log",
  "par-term-config",
  "par-term-emu-core-rust",
