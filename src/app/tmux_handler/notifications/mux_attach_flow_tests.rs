@@ -718,3 +718,105 @@ fn a_pinned_active_tab_keeps_its_profile_on_mux_attach() {
     assert_eq!(tab.profile.auto_applied_profile_id, None);
     assert!(ws.last_toast_text().is_none());
 }
+
+/// `PAR_MUX_SOCKET` without the pane env is a deliberate operator choice:
+/// run `f` with it pointed at `socket` and `PAR_MUX_ENV` absent (the
+/// test process may itself live in a pane), restoring both after.
+fn with_socket_env_only<T>(socket: &Path, f: impl FnOnce() -> T) -> T {
+    let saved_env = std::env::var_os("PAR_MUX_ENV");
+    let saved_socket = std::env::var_os("PAR_MUX_SOCKET");
+    // SAFETY: sole writer of both keys for the duration of `f`.
+    unsafe {
+        std::env::remove_var("PAR_MUX_ENV");
+        std::env::set_var("PAR_MUX_SOCKET", socket);
+    }
+    let out = f();
+    // SAFETY: restoring the sole-writer keys.
+    unsafe {
+        match saved_env {
+            Some(v) => std::env::set_var("PAR_MUX_ENV", v),
+            None => std::env::remove_var("PAR_MUX_ENV"),
+        }
+        match saved_socket {
+            Some(v) => std::env::set_var("PAR_MUX_SOCKET", v),
+            None => std::env::remove_var("PAR_MUX_SOCKET"),
+        }
+    }
+    out
+}
+
+/// Card 01a1f5f0b: with `PAR_MUX_SOCKET` naming a live daemon on a custom
+/// path, `--attach <name>` connects to THAT daemon — the named-directory
+/// scan never runs, and no second daemon is silently spawned at
+/// `par-mux-<name>.sock` (the trap that manufactured a phantom
+/// no-live-output regression).
+#[test]
+fn env_socket_attach_connects_the_named_daemon_without_spawning() {
+    let path = socket_path("envsock");
+    spawn_daemon(&path);
+    {
+        let mut setup = MuxSessionClient::connect(&path).expect("setup client");
+        let outcome = setup.create_or_attach("env-ov").expect("create session");
+        assert!(matches!(outcome, AttachOutcome::Created(_)));
+    }
+
+    let named_spawn = par_term_emu_core_rust::mux::ipc::default_socket_path("env-ov");
+    let mut ws = manners_state();
+    with_socket_env_only(&path, || {
+        ws.attach_mux_session_by_name("env-ov");
+        let deadline = Instant::now() + DAEMON_DEADLINE;
+        while Instant::now() < deadline {
+            ws.poll_mux_attach();
+            if ws.tmux_state.transport.is_some()
+                || (ws.tmux_state.mux_attach_pending.is_none() && ws.last_toast_text().is_some())
+            {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    });
+    assert!(
+        ws.tmux_state.transport.is_some(),
+        "the attach must install a transport from the env-named daemon; toast: {:?}",
+        ws.last_toast_text()
+    );
+    assert!(
+        !named_spawn.exists(),
+        "no daemon may be silently spawned at {} while PAR_MUX_SOCKET names a live one",
+        named_spawn.display()
+    );
+    let _ = std::fs::remove_file(&named_spawn);
+}
+
+/// Card 01a1f5f0b criterion 2: a `PAR_MUX_SOCKET` with no running daemon
+/// surfaces the failure instead of silently spawning a fresh named one.
+#[test]
+fn dead_env_socket_surfaces_instead_of_spawning() {
+    let dead = socket_path("deadsock");
+    // No spawn_daemon: the path names nothing.
+    let named_spawn = par_term_emu_core_rust::mux::ipc::default_socket_path("dead-ov");
+    let mut ws = manners_state();
+    with_socket_env_only(&dead, || {
+        ws.attach_mux_session_by_name("dead-ov");
+        let deadline = Instant::now() + DAEMON_DEADLINE;
+        while Instant::now() < deadline {
+            ws.poll_mux_attach();
+            if ws.tmux_state.transport.is_some()
+                || (ws.tmux_state.mux_attach_pending.is_none() && ws.last_toast_text().is_some())
+            {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    });
+    assert!(
+        ws.tmux_state.transport.is_none(),
+        "a dead PAR_MUX_SOCKET must not install a transport"
+    );
+    assert!(
+        !named_spawn.exists(),
+        "a dead PAR_MUX_SOCKET must not silently spawn {}",
+        named_spawn.display()
+    );
+    let _ = std::fs::remove_file(&named_spawn);
+}

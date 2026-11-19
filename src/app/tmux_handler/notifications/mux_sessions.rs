@@ -568,9 +568,30 @@ impl WindowState {
             self.show_toast("par-mux: an attach is already in progress");
             return;
         }
-        let Some(dir) = self.mux_socket_dir() else {
-            self.show_toast("par-mux: no socket directory is available");
-            return;
+        // An explicit `PAR_MUX_SOCKET` (outside any pane — the pane env
+        // contract sets `PAR_MUX_ENV=1`, and a pane's inherited socket
+        // names its HOST, not a user's choice) wins over the
+        // named-directory scan, and no other daemon is ever spawned: a
+        // missing session is created on the named daemon by the finish
+        // side's attach, never on a fresh named socket (card 01a1f5f0b —
+        // the silent spawn left the intended daemon unread while the app
+        // talked to one nobody fed). The create-missing flow only: the
+        // hand-bound path must never create, and a custom-socket daemon
+        // is invisible to the directory it resolves from. The env path
+        // needs no socket directory, so it bypasses that gate.
+        let env_socket = if create_missing && std::env::var_os("PAR_MUX_ENV").is_none() {
+            std::env::var_os("PAR_MUX_SOCKET").map(std::path::PathBuf::from)
+        } else {
+            None
+        };
+        let dir = if env_socket.is_some() {
+            None
+        } else {
+            let Some(dir) = self.mux_socket_dir() else {
+                self.show_toast("par-mux: no socket directory is available");
+                return;
+            };
+            Some(dir)
         };
         self.detach_for_switch();
         self.tmux_state.mux_attach_socket = None;
@@ -580,6 +601,30 @@ impl WindowState {
         let spawned = std::thread::Builder::new()
             .name("mux-attach".into())
             .spawn(move || {
+                if let Some(env_socket) = env_socket {
+                    let client = par_term_emu_core_rust::mux::MuxClient::connect(&env_socket)
+                        .map_err(|e| {
+                            std::io::Error::new(
+                                e.kind(),
+                                format!(
+                                    "PAR_MUX_SOCKET {} has no running daemon: {e}",
+                                    env_socket.display()
+                                ),
+                            )
+                        });
+                    if client.is_ok() {
+                        let daemon = env_socket
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| wanted.clone())
+                            .trim_start_matches("par-mux-")
+                            .to_string();
+                        let _ = daemon_tx.send((daemon, env_socket));
+                    }
+                    let _ = tx.send(client);
+                    return;
+                }
+                let dir = dir.expect("the scan path always carries a directory");
                 let listed = mux_directory::scan(&dir, mux_directory::DAEMON_QUERY_DEADLINE)
                     .sessions
                     .into_iter()
