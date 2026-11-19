@@ -84,12 +84,27 @@ impl SessionLogger {
         dimensions: (usize, usize),
         title: Option<String>,
     ) -> Result<Self> {
-        // Generate filename with timestamp
+        // Generate filename with timestamp. Uniqueness: an attach batch can
+        // arm a logger for every adopted tab within the same second, and a
+        // plain timestamp would have them all truncate-and-interleave one
+        // file (measured: a 31-window attach collapsed onto 3 corrupt
+        // casts). Arming is single-threaded (event loop / UI thread), so an
+        // existence check suffices — no create-race window.
         let timestamp = jiff::ZonedDateTime::now()
             .strftime("%Y%m%d_%H%M%S")
             .to_string();
-        let filename = format!("session_{}.{}", timestamp, format.extension());
-        let output_path = log_dir.join(filename);
+        let mut output_path = log_dir.join(format!("session_{}.{}", timestamp, format.extension()));
+        for n in 2..1000 {
+            if !output_path.exists() {
+                break;
+            }
+            output_path = log_dir.join(format!(
+                "session_{}_{}.{}",
+                timestamp,
+                n,
+                format.extension()
+            ));
+        }
 
         log::info!(
             "Creating session logger: {:?} (format: {:?})",

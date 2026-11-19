@@ -491,3 +491,68 @@ fn write_failure_deactivates_the_logger() {
         "restarting an unwritable logger must surface the error"
     );
 }
+
+/// A same-second filename collision must not share one file: an attach
+/// batch arms a logger per adopted tab within one second, and a shared
+/// path truncates and interleaves two writers into a torn, unreplayable
+/// cast (measured: 31-window attach collapsed onto 3 corrupt casts).
+#[test]
+fn same_second_loggers_get_distinct_files() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut first = SessionLogger::new(
+        SessionLogFormat::Asciicast,
+        temp.path(),
+        (80, 24),
+        Some("first".to_string()),
+    )
+    .unwrap();
+    let mut second = SessionLogger::new(
+        SessionLogFormat::Asciicast,
+        temp.path(),
+        (80, 24),
+        Some("second".to_string()),
+    )
+    .unwrap();
+    first.start().unwrap();
+    second.start().unwrap();
+    assert_ne!(
+        first.output_path(),
+        second.output_path(),
+        "two loggers armed in the same second must not share a file"
+    );
+
+    let (first_path, second_path) = (
+        first.output_path().to_path_buf(),
+        second.output_path().to_path_buf(),
+    );
+    first.record_output(b"FIRST-MARKER\n");
+    second.record_output(b"SECOND-MARKER\n");
+    drop(first);
+    drop(second);
+
+    // Each file parses cleanly and carries only its own writer's marker.
+    for (logger_name, path, marker) in [
+        ("first", &first_path, "FIRST-MARKER"),
+        ("second", &second_path, "SECOND-MARKER"),
+    ] {
+        let content = std::fs::read_to_string(path).unwrap();
+        for line in content.lines() {
+            serde_json::from_str::<serde_json::Value>(line).unwrap_or_else(|e| {
+                panic!("{logger_name} cast line is not valid JSON ({e}): {line}")
+            });
+        }
+        assert!(
+            content.contains(marker),
+            "{logger_name} cast must carry its marker"
+        );
+        let other = if marker == "FIRST-MARKER" {
+            "SECOND-MARKER"
+        } else {
+            "FIRST-MARKER"
+        };
+        assert!(
+            !content.contains(other),
+            "{logger_name} cast must not carry the other writer's bytes"
+        );
+    }
+}
