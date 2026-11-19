@@ -90,10 +90,7 @@ fn is_sensitive_path(canonical: &std::path::Path) -> bool {
         }
     }
     // System credential and configuration directories.
-    if canonical.starts_with("/etc/") || canonical == std::path::Path::new("/etc") {
-        return true;
-    }
-    false
+    canonical.starts_with("/etc/") || canonical == std::path::Path::new("/etc")
 }
 
 /// Resolve `path` to an absolute, symlink-free path suitable for comparison

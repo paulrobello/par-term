@@ -205,10 +205,15 @@ pub fn show_sequence_form(
     let mut step_to_move_up: Option<usize> = None;
     let mut step_to_move_down: Option<usize> = None;
     let step_count = settings.actions_tab.temp_action_steps.len();
-    for step_idx in 0..step_count {
+    for (step_idx, step) in settings
+        .actions_tab
+        .temp_action_steps
+        .iter_mut()
+        .enumerate()
+    {
         ui.horizontal(|ui| {
             ui.label(format!("{}.", step_idx + 1));
-            let current_id = settings.actions_tab.temp_action_steps[step_idx].0.clone();
+            let current_id = step.0.clone();
             let display_text = action_ids
                 .iter()
                 .find(|(id, _)| id == &current_id)
@@ -226,20 +231,14 @@ pub fn show_sequence_form(
                 .show_ui(ui, |ui| {
                     for (id, title) in &action_ids {
                         let label = format!("{} ({})", title, id);
-                        if ui
-                            .selectable_label(
-                                settings.actions_tab.temp_action_steps[step_idx].0 == *id,
-                                &label,
-                            )
-                            .clicked()
-                        {
-                            settings.actions_tab.temp_action_steps[step_idx].0 = id.clone();
+                        if ui.selectable_label(step.0 == *id, &label).clicked() {
+                            step.0 = id.clone();
                             *changes_this_frame = true;
                         }
                     }
                 });
             ui.label("delay:");
-            let mut delay = settings.actions_tab.temp_action_steps[step_idx].1;
+            let mut delay = step.1;
             if ui
                 .add(
                     egui::DragValue::new(&mut delay)
@@ -248,11 +247,11 @@ pub fn show_sequence_form(
                 )
                 .changed()
             {
-                settings.actions_tab.temp_action_steps[step_idx].1 = delay;
+                step.1 = delay;
                 *changes_this_frame = true;
             }
             let behavior_labels = ["Abort", "Stop", "Continue"];
-            let cur_behavior = settings.actions_tab.temp_action_steps[step_idx].2;
+            let cur_behavior = step.2;
             let cur_behavior_idx = match cur_behavior {
                 par_term_config::snippets::SequenceStepBehavior::Abort => 0,
                 par_term_config::snippets::SequenceStepBehavior::Stop => 1,
@@ -269,7 +268,7 @@ pub fn show_sequence_form(
                             _ => par_term_config::snippets::SequenceStepBehavior::Continue,
                         };
                         if ui.selectable_label(cur_behavior_idx == i, label).clicked() {
-                            settings.actions_tab.temp_action_steps[step_idx].2 = behavior;
+                            step.2 = behavior;
                             *changes_this_frame = true;
                         }
                     }

@@ -101,7 +101,7 @@ serial_test = { version = "4.0.1", default-features = false }
 name = "par-term"
 version = "0.53.0"
 edition = "2024"
-rust-version = "1.99"
+rust-version = "1.100"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Cross-platform GPU-accelerated terminal emulator with inline graphics support (Sixel, iTerm2, Kitty)"
 readme = "README.md"

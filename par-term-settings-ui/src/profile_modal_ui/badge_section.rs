@@ -285,10 +285,12 @@ impl ProfileModalUI {
                             false,
                         );
 
-                        for index in 0..4 {
+                        for (index, channel) in
+                            self.temp_shader_channels.iter_mut().enumerate().take(4)
+                        {
                             ui.label(format!("iChannel{}:", index));
                             ui.horizontal(|ui| {
-                                ui.text_edit_singleline(&mut self.temp_shader_channels[index]);
+                                ui.text_edit_singleline(channel);
                                 ui.label(egui::RichText::new("(blank = inherit)").small().weak());
                             });
                             ui.end_row();

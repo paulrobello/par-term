@@ -200,10 +200,12 @@ pub(super) fn show_snippet_edit_form(
                             ui.label(""); // Delete column header
                             ui.end_row();
 
-                            for i in 0..settings.snippets_tab.temp_snippet_variables.len() {
-                                let (ref mut name, ref mut value) =
-                                    settings.snippets_tab.temp_snippet_variables[i];
-
+                            for (i, (name, value)) in settings
+                                .snippets_tab
+                                .temp_snippet_variables
+                                .iter_mut()
+                                .enumerate()
+                            {
                                 let name_response = ui.add(
                                     egui::TextEdit::singleline(name)
                                         .desired_width(120.0)

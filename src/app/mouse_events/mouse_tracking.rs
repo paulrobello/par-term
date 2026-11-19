@@ -98,11 +98,7 @@ impl WindowState {
         }
 
         // On alt screen without mouse tracking - still consume event to prevent selection
-        if alt_screen_active {
-            return true;
-        }
-
-        false // Event not consumed, handle normally
+        alt_screen_active // Event not consumed, handle normally
     }
 
     pub(crate) fn active_terminal_mouse_tracking_enabled_at(
