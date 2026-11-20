@@ -62,7 +62,7 @@ jobs:
         # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/1.99.1
         uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
         with:
-          toolchain: 1.99.1
+          toolchain: 1.100.0
 
       - name: Install Linux dependencies
         run: |

@@ -741,6 +741,7 @@ mod tests {
     /// compares the pane's screen to the daemon's grid, so both children
     /// must be deterministic — a host prompt framework that repaints after
     /// the seeds land breaks it (card 01a1ef80).
+    #[cfg(unix)]
     #[test]
     fn backlog_overflow_arms_one_seed_and_the_reply_heals_the_dropped_head() {
         let (mut ws, path) = attached_pinned("overflow-seed");
