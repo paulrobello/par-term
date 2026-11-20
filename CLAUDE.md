@@ -210,7 +210,7 @@ The crates.io release ships the **library only** — the `par-mux` daemon binary
 scripts/build-par-mux.sh target/dev-release/par-mux
 ```
 
-The core's spawn resolution looks next to `current_exe()` first (walking out of `deps/`), then on `PATH`. Release packaging bundles the daemon: `make bundle` puts it in the .app next to par-term, `make install` puts it in `~/.cargo/bin`, and the release workflow ships `par-term-bundle-*` archives (tar.gz on Linux, zip on Windows) alongside the bare par-term binaries the self-updater consumes.
+The core's spawn resolution looks next to `current_exe()` first (walking out of `deps/`), then on `PATH`. Release packaging bundles the daemon: `make bundle` puts it in the .app next to par-term, and on macOS `make install` installs both the `~/.cargo/bin` binaries and the .app bundle to `/Applications` (Linux/Windows install the binaries only). The release workflow ships `par-term-bundle-*` archives (tar.gz on Linux, zip on Windows) alongside the bare par-term binaries the self-updater consumes.
 
 ## Common Development Workflows
 

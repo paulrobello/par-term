@@ -250,13 +250,26 @@ clean:
 	@echo "Removing project-root log files..."
 	@rm -f *.log
 
-# Install the binary (reuses release build)
+# Install the binary (reuses release build); on macOS also installs the
+# app bundle to /Applications and the ACP bridge
 install: release
+ifeq ($(shell uname),Darwin)
+install: bundle install-acp
+endif
 	@echo "Installing par-term to ~/.cargo/bin/..."
 	@cp target/release/par-term "$${HOME}/.cargo/bin/par-term"
 	@scripts/build-par-mux.sh target/release/par-mux
 	@scripts/install-par-mux-guarded.sh target/release/par-mux "$${HOME}/.cargo/bin/par-mux"
 	@echo "Installed to ~/.cargo/bin/par-term (and par-mux daemon, version-guarded)"
+ifeq ($(shell uname),Darwin)
+	@echo "Installing par-term.app to /Applications..."
+	@if [ -d "/Applications/par-term.app" ]; then \
+		echo "Removing existing /Applications/par-term.app..."; \
+		rm -rf /Applications/par-term.app; \
+	fi
+	@cp -R target/release/bundle/par-term.app /Applications/
+	@echo "✅ Installed to /Applications/par-term.app"
+endif
 
 # Install shell integration scripts to ~/.config/par-term/
 install-shell-integration:
@@ -536,19 +549,9 @@ else
 	cargo run --release
 endif
 
-# Install macOS app bundle to /Applications, binary to PATH, and ACP bridge
-bundle-install: bundle install install-acp
-ifeq ($(shell uname),Darwin)
-	@echo "Installing par-term.app to /Applications..."
-	@if [ -d "/Applications/par-term.app" ]; then \
-		echo "Removing existing /Applications/par-term.app..."; \
-		rm -rf /Applications/par-term.app; \
-	fi
-	@cp -R target/release/bundle/par-term.app /Applications/
-	@echo "✅ Installed to /Applications/par-term.app"
-else
-	@echo "App bundle installation is only supported on macOS"
-endif
+# Backwards-compatible alias: on macOS `make install` now installs the app
+# bundle to /Applications, the binary to PATH, and the ACP bridge
+bundle-install: install
 
 # Build and install the macOS bundle against the local core checkout
 bundle-install-local-core:
