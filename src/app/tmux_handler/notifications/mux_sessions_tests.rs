@@ -508,8 +508,18 @@ fn attach_by_name_finds_or_creates_without_a_profile() {
     let dir = socket_dir("byname");
     daemon(&dir, "default", &["listed"]);
     let mut ws = window_in(&dir);
+    // retried, not pump: the by-name attach's worker rides the client's
+    // fixed 10s reply budget, and under full-suite load one round-trip can
+    // blow it and settle the attempt without installing — waiting longer
+    // cannot recover that, re-issuing can (a pending attach makes the
+    // re-issue a no-op, so this is safe while an attempt is in flight).
     ws.attach_mux_session_by_name("listed");
-    pump(&mut ws, "by-name attach", |ws| attached(ws).is_some());
+    retried(
+        &mut ws,
+        "by-name attach",
+        |ws| ws.attach_mux_session_by_name("listed"),
+        |ws| attached(ws).is_some(),
+    );
     assert_eq!(attached(&ws), Some(("default".into(), "listed".into())));
     assert!(!dir.join("par-mux-listed.sock").exists());
     ws.detach_mux_session();
@@ -517,7 +527,12 @@ fn attach_by_name_finds_or_creates_without_a_profile() {
     let mut ws = window_in(&dir);
     standby_daemon(&dir, "brand-new");
     ws.attach_mux_session_by_name("brand-new");
-    pump(&mut ws, "by-name create", |ws| attached(ws).is_some());
+    retried(
+        &mut ws,
+        "by-name create",
+        |ws| ws.attach_mux_session_by_name("brand-new"),
+        |ws| attached(ws).is_some(),
+    );
     assert_eq!(
         attached(&ws),
         Some(("brand-new".into(), "brand-new".into()))
