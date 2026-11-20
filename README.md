@@ -42,6 +42,17 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.54.0
+
+Mux reliability and session-logging durability: `PAR_MUX_SOCKET` is honored for `--attach` (no more spawning a named daemon when the variable points elsewhere), mirror reflow follows the daemon's advertisement, and session recordings stream to disk as events arrive — with resize events recorded, auto-logging armed on promoted tabs, and same-second cast filenames unique. Core library 0.84.1 ships the matching attach socket-resolution fix plus the kitty RGBA pixel cap and untrusted-output budget (0.81.0), whose refusals now surface as rate-limited notifications. The workspace moves to Rust 1.100.0 and replaces chrono with jiff (RUSTSEC-2026-0543); `make install` on macOS now installs the signed `.app` to `/Applications` along with the binaries. Sub-crates move to `par-term-config` 0.19.0, `par-term-terminal` 0.9.0, `par-term-mux` 0.7.0, and `par-term-settings-ui` 0.24.0.
+
+- **`PAR_MUX_SOCKET` honored for attach** — `par-term --attach` reaches the daemon the variable names instead of resolving by name and spawning a missing named daemon.
+- **Mirror reflow (ENH-045)** — mirrored panes re-wrap with the daemon pane when the daemon advertises reflow.
+- **Durable session logging** — asciicast events stream to disk as they arrive; resizes are recorded, promoted tabs arm auto-logging, and same-second casts get unique filenames.
+- **OutputBudgetExceeded notifications** — the core's untrusted-output budget refusals surface as rate-limited notifications.
+- **Core 0.81–0.84.1** — kitty RGBA pixel cap, untrusted-output budget, roster release-notice fixes, attach socket-resolution fix, attach-renderer frame-model/input-route refactor.
+- **jiff replaces chrono** (RUSTSEC-2026-0543) and the toolchain moves to Rust 1.100.0.
+
 ### 0.53.0
 
 Status-bar polish and quieter mouse behavior: segments hide center-out on narrow windows instead of overlapping text, widgets rearrange by drag-and-drop in Settings, and a toast explains the Shift+drag bypass when a pane's app consumes a mouse press. Core library 0.80.0 is required; the bundled par-mux daemon rebuilds with it and its relay can no longer silently drop chunks — the fix behind the stale-pixel garble sightings. Sub-crates move to `par-term-settings-ui` 0.23.0, `par-term-config` 0.18.1, and `par-term-terminal` 0.8.1.

@@ -1,6 +1,6 @@
 [package]
 name = "par-term-mux"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.100"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -12,10 +12,10 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Sync layer, parser bridge, types, and key translation — reused in place
-par-term-tmux = { path = "../par-term-tmux", version = "0.3.1" }
+par-term-tmux = { path = "../par-term-tmux", version = "0.3.2" }
 
 # Tab/pane id types for the sync mappings
-par-term-config = { path = "../par-term-config", version = "0.18.1" }
+par-term-config = { path = "../par-term-config", version = "0.19.0" }
 
 # Terminal emulator core (MuxClient transport)
 par-term-emu-core-rust.workspace = true

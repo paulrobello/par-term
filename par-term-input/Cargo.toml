@@ -1,6 +1,6 @@
 [package]
 name = "par-term-input"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.100"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration types (OptionKeyMode)
-par-term-config = { path = "../par-term-config", version = "0.18.1" }
+par-term-config = { path = "../par-term-config", version = "0.19.0" }
 
 # Shared key encoder (keyboard::encode_key_with) — the single VT key encoder
 par-term-emu-core-rust.workspace = true

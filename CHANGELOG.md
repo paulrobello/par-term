@@ -11,6 +11,32 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-11-20
+
+### Added
+- **Mirror reflow follows the daemon's advertisement (ENH-045).** When the par-mux daemon advertises reflow support for mirrored panes, the client now follows it — a resize that reflows the daemon pane reflows the mirror's view too, instead of leaving the mirror on stale line wrapping. See [MUX.md](docs/features/MUX.md).
+- **Core opt-in resize, scrollback, and width settings.** New settings expose the core library's opt-in terminal knobs: reflow-on-resize behavior, scrollback sizing, and grid width can now be set from the config and the Settings UI. See [CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md).
+- **OutputBudgetExceeded notifications.** When the core's untrusted-output budget refuses a payload (the DoS guard introduced in core 0.81), the refusal surfaces as a rate-limited notification instead of passing silently. See [NOTIFICATIONS.md](docs/features/NOTIFICATIONS.md).
+
+### Changed
+- **Core bumped to `par-term-emu-core-rust` 0.84.1** (from 0.80.0, via 0.81.0, 0.82.0, 0.83.0, and 0.84.0), which also rebuilds the bundled par-mux daemon: 0.81.0 added the kitty RGBA pixel cap and the untrusted-output budget plus roster release-notice fixes, and 0.84.1 fixed the attach socket resolution so `par-mux attach` reaches daemons by explicit path and pane-env socket (the core half of this release's `PAR_MUX_SOCKET` fix) and split the attach renderer's frame model and input routing into their own modules.
+- **`make install` now installs the macOS app bundle.** On macOS it builds the signed `.app`, installs it to `/Applications`, and runs the ACP bridge install alongside the `~/.cargo/bin` binaries; Linux and Windows keep the binaries-only behavior. `make bundle-install` remains as a backwards-compatible alias.
+- **Rust 1.100.0 toolchain.** The workspace builds on 1.100.0 with the lockfile refreshed and clippy fixes applied; `cargo-deny` advisories stay green.
+- Dependency sweep: unused dependencies dropped and redundant `homepage` fields removed across the workspace.
+- **Sub-crate versions for this release**: `par-term-config` 0.19.0 (the new resize/scrollback/width settings), `par-term-terminal` 0.9.0 (ENH-045 mirror reflow), `par-term-mux` 0.7.0 (ENH-045), `par-term-settings-ui` 0.24.0 (controls for the new settings), `par-term-render` 0.13.1, `par-term-tmux` 0.3.2, `par-term-update` 0.6.1, `par-term-acp` 0.7.1, `par-term-ssh` 0.2.4, `par-term-mcp` 0.3.1, `par-term-fonts` 0.3.3, `par-term-input` 0.2.1, `par-term-keybindings` 0.2.2, `par-term-scripting` 0.3.1.
+
+### Fixed
+- **`PAR_MUX_SOCKET` is honored for `--attach`.** `par-term --attach` now attaches to the daemon the variable names instead of resolving by name and spawning a named daemon when it is missing — the escape hatch for reaching a daemon on a non-default socket works as documented. See [MUX.md](docs/features/MUX.md).
+- **Session logging streams to disk as events arrive.** Asciicast v2 events are written incrementally instead of buffered for the whole session, so a crash mid-session keeps the recording up to the last event.
+- **Auto-logging arms on promoted tabs.** A tab promoted to mux-recording eligibility (for example when it becomes the active mux tab) now arms its auto-logger instead of waiting for the next tab switch.
+- **Resize events reach active loggers.** Pane resizes are recorded onto every active session logger's cast, so replays show the geometry changes the session actually had.
+- **Cast filenames can no longer collide in the same second.** Same-second loggers get unique cast filenames instead of overwriting each other. See [SESSION_LOGGING.md](docs/features/SESSION_LOGGING.md).
+- **PTY resize failures are logged, not swallowed.** A failed PTY resize now logs with the error instead of returning silently — the missing signal when a grid/pane size disagreement appeared.
+- **A capture-pane seed arms when the output backlog overflows its cap.** An overflowing pane backlog now triggers a capture-pane seed so the mirror view heals instead of staying stale past the dropped bytes.
+
+### Security
+- **chrono replaced with jiff across the workspace (RUSTSEC-2026-0543).** The unmaintained `chrono` dependency is gone from every crate; the advisory's `cargo-deny` entry is ignored with a dated reason pending upstream, and the migration is internal (no public API changes).
+
 ## [0.53.0] - 2026-11-08
 
 ### Added
