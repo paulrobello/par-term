@@ -11,6 +11,18 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-11-21
+
+### Added
+- **`make install` Developer-ID-signs everything it lays down.** A new `scripts/sign-installed-artifact.sh` signs the `~/.cargo/bin` binaries, the staged par-mux daemon, and the macOS `.app` under stable code-signing identifiers, so reinstalling no longer mints a fresh unsigned identity that macOS privacy treats as unknown — the failure mode that silently dropped the par-mux daemon's Local Network access on every reinstall. Without a Developer ID identity in the keychain the install still succeeds with a loud warning; a codesign failure fails the install; non-macOS is a no-op. See [ENTERPRISE_DEPLOYMENT.md](docs/ENTERPRISE_DEPLOYMENT.md).
+
+### Changed
+- **Core bumped to `par-term-emu-core-rust` 0.86.0** (from 0.84.1, via 0.85.0), which also rebuilds the bundled par-mux daemon: 0.85.0 externalizes pane grids and pane/session env out of the state file (format v4 — pane snapshots become content-addressed `<stem>.panes/` files and env moves to a `0600` sidecar store, so neither grid mass nor secrets ride the state JSON any more; v4 reads v3 in place and an upgrade keeps the tree), replays every pane of a window on an attach switch-back (a pane that reflowed while its window went unwatched no longer comes back wedged), resumes agents in their own working directory (`agent_cwd` — a claude session that moved itself into a worktree resumes there instead of the main checkout), prints a did-you-mean verb hint when a NAME-form start fails, and Developer-ID-signs its installed artifacts; 0.86.0 routes a launchd-managed default-instance daemon's `par-mux --restart` through its launchd job so the fresh daemon stays launchd-managed and keeps its TCC and Local Network grants, and fixes the install.sh exclusivity check's unbound-variable crash.
+- **Sub-crate versions for this release**: `par-term-mux` 0.7.1 (dependency metadata — unused `par-term-config` dep dropped, remaining deps gated under the crate's `mux` feature).
+
+### Fixed
+- **CI seed-test gating and toolchain pins.** The backlog-overflow seed test is gated unix-only (it exercises Unix-only daemon behavior) and every workflow's toolchain pin is aligned to 1.100.0, so Windows CI no longer fails on it.
+
 ## [0.54.0] - 2026-11-20
 
 ### Added

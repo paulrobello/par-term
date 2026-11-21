@@ -3715,7 +3715,7 @@ dependencies = [
 
 [[package]]
 name = "par-term"
-version = "0.54.0"
+version = "0.55.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3929,7 +3929,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-mux"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "base64",
  "log",

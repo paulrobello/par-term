@@ -42,6 +42,17 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.55.0
+
+Install trust and daemon durability: `make install` now Developer-ID-signs everything it lays down — the `~/.cargo/bin` binaries, the staged par-mux daemon, the `.app` — under stable code-signing identifiers, so macOS privacy stops treating every reinstall as a new unknown app and silently dropping the par-mux daemon's Local Network access. Core library 0.86.0 ships with it: the par-mux daemon's state file slims to metadata (pane grids and session/pane env move to content-addressed sidecar files; format v4 reads v3 trees in place), attach switch-backs replay every pane so a window that reflowed while unwatched comes back correct, agents resume in their own working directory, and a launchd-managed default daemon restarts through its launchd job, keeping its TCC grants.
+
+- **Signed installs** — everything `make install` lays down carries the keychain's Developer ID; reinstalling no longer mints an unsigned identity that lost Local Network access.
+- **Slimmer daemon state (v4)** — pane grids and env leave the state file for content-addressed sidecars; the metadata JSON parses in kilobytes, and v4 loads v3 state trees in place.
+- **Attach switch-back fix** — every pane of a window replays on re-seed, so a pane that reflowed while its window went unwatched no longer comes back wedged.
+- **Agents resume in place** — a claude session that moved into a worktree resumes in the worktree (`agent_cwd`), not the main checkout.
+- **launchd-aware restart** — `par-mux --restart` routes a launchd-managed default instance through its job, keeping TCC and Local Network grants.
+- **Core 0.85.0–0.86.0** — plus the did-you-mean verb hint on mistyped `par-mux` commands and the install.sh exclusivity-check fix.
+
 ### 0.54.0
 
 Mux reliability and recording durability: `PAR_MUX_SOCKET` is honored for `--attach` (no more spawning a named daemon when the variable points elsewhere), mirror reflow follows the daemon's advertisement, and session recordings stream to disk as events arrive — with resize events recorded, auto-logging armed on promoted tabs, and same-second cast filenames unique. Core library 0.84.1 ships the matching attach socket-resolution fix plus the kitty RGBA pixel cap and untrusted-output budget (0.81.0), whose refusals now surface as rate-limited notifications. The workspace moves to Rust 1.100.0 and replaces chrono with jiff (RUSTSEC-2026-0543); `make install` on macOS now installs the signed `.app` to `/Applications` along with the binaries. Sub-crates move to `par-term-config` 0.19.0, `par-term-terminal` 0.9.0, `par-term-mux` 0.7.0, and `par-term-settings-ui` 0.24.0.

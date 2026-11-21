@@ -323,7 +323,7 @@ Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target compu
 
 ### Gatekeeper Considerations
 
-macOS release bundles are Developer ID signed, notarized, and stapled by the release workflow, so they pass Gatekeeper assessment out of the box. The first launch still presents the standard "downloaded from the internet" prompt; clear the quarantine attribute during provisioning to silence it for scripted or self-service installs:
+macOS release bundles are Developer ID signed, notarized, and stapled by the release workflow, so they pass Gatekeeper assessment out of the box. Source installs get the same treatment locally: `make install` signs everything it lays down (the `~/.cargo/bin` binaries, the staged par-mux daemon, the `.app` it installs to `/Applications`) under stable code-signing identifiers via `scripts/sign-installed-artifact.sh`, so reinstalling no longer mints a fresh unsigned identity that macOS privacy treats as unknown and silently strips Local Network access from. The first launch still presents the standard "downloaded from the internet" prompt; clear the quarantine attribute during provisioning to silence it for scripted or self-service installs:
 
 ```bash
 sudo xattr -rd com.apple.quarantine /Applications/par-term.app

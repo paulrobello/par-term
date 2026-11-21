@@ -98,7 +98,7 @@ serial_test = { version = "4.0.1", default-features = false }
 
 [package]
 name = "par-term"
-version = "0.54.0"
+version = "0.55.0"
 edition = "2024"
 rust-version = "1.100"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -169,7 +169,7 @@ par-term-mcp = { path = "par-term-mcp", version = "0.3.1" }
 par-term-tmux = { path = "par-term-tmux", version = "0.3.2" }
 
 # par-mux daemon client (compiles empty unless the `mux` feature is on)
-par-term-mux = { path = "par-term-mux", version = "0.7.0", optional = true }
+par-term-mux = { path = "par-term-mux", version = "0.7.1", optional = true }
 
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
 par-term-emu-core-rust.workspace = true
