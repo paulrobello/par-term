@@ -258,6 +258,7 @@ install: bundle install-acp
 endif
 	@echo "Installing par-term to ~/.cargo/bin/..."
 	@cp target/release/par-term "$${HOME}/.cargo/bin/par-term"
+	@scripts/sign-installed-artifact.sh par_term "$${HOME}/.cargo/bin/par-term"
 	@scripts/build-par-mux.sh target/release/par-mux
 	@scripts/install-par-mux-guarded.sh target/release/par-mux "$${HOME}/.cargo/bin/par-mux"
 	@echo "Installed to ~/.cargo/bin/par-term (and par-mux daemon, version-guarded)"
