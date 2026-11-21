@@ -721,10 +721,26 @@ fn layout_change_from_another_clients_resize_refits_the_mirror() {
     };
 
     let deadline = Instant::now() + DAEMON_DEADLINE;
+    let mut last_send = Instant::now();
     loop {
         ws.check_mux_notifications();
         if mirror_dims(&ws) == (61, 17) {
             break;
+        }
+        // Re-issue the settled resize between pumps, spaced: the first -C
+        // can land while the window's layout wiring is still settling (the
+        // same one-shot gap that blew the by-name attach's 10s reply budget
+        // under full-suite load), and pumping cannot recover a broadcast
+        // that went out to nobody — only a re-issue can. Idempotent while
+        // un-adopted (same dims both times), bounded by the deadline above.
+        if last_send.elapsed() >= Duration::from_secs(5) {
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .unwrap()
+                .send_settled("refresh-client -t %0 -C 61x17")
+                .expect("deliberate resize re-issue");
+            last_send = Instant::now();
         }
         assert!(
             Instant::now() < deadline,
