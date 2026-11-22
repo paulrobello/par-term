@@ -74,6 +74,8 @@ pub mod live_binding;
 #[cfg(test)]
 mod nav_tests;
 pub mod notifications_tab;
+#[cfg(test)]
+mod overflow_tests;
 pub mod profiles_tab;
 pub mod quick_settings;
 pub mod reset;
