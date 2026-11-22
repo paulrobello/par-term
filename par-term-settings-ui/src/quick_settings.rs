@@ -61,189 +61,181 @@ fn show_links(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 }
 
 fn show_controls(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
-    // Controls sit directly in the wrapped row (no nested `ui.horizontal`
-    // scopes): egui sizes a nested scope at the row's full remaining width,
-    // so its wrap never fires between scopes and the row overflows the
-    // window instead of wrapping (the standalone settings window showed rows
-    // cut off at the right edge).
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = 16.0;
-
+    // One control per row: egui's horizontal_wrapped cannot wrap before a
+    // ComboBox (it is sized after placement, like a nested scope) and wraps a
+    // frame late for the other controls here, so the flowing rows put shapes
+    // past the 550pt minimum window edge (overflow_tests.rs pins this). A
+    // stacked layout needs no wrapping, so it holds at any window width.
+    ui.vertical(|ui| {
         // Font Family dropdown
-        ui.label("Font:");
-        let response = ui.add(
-            egui::TextEdit::singleline(&mut settings.temp_font_family)
-                .desired_width(120.0)
-                .hint_text("JetBrains Mono"),
-        );
-        if response.changed() {
-            settings.font_pending_changes = true;
-        }
-
-        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label("Font:");
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut settings.temp_font_family)
+                    .desired_width(120.0)
+                    .hint_text("JetBrains Mono"),
+            );
+            if response.changed() {
+                settings.font_pending_changes = true;
+            }
+        });
 
         // Font Size slider
-        ui.label("Size:");
-        if ui
-            .add(
-                egui::Slider::new(&mut settings.temp_font_size, 6.0..=48.0)
-                    .suffix(" pt")
-                    .show_value(true),
-            )
-            .changed()
-        {
-            settings.font_pending_changes = true;
-        }
-
-        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label("Size:");
+            if ui
+                .add(
+                    egui::Slider::new(&mut settings.temp_font_size, 6.0..=48.0)
+                        .suffix(" pt")
+                        .show_value(true),
+                )
+                .changed()
+            {
+                settings.font_pending_changes = true;
+            }
+        });
 
         // Theme dropdown
-        ui.label("Theme:");
-        let available = Theme::available_themes();
-        let mut selected = settings.config.theme_colors.theme.clone();
-        egui::ComboBox::from_id_salt("quick_theme_select")
-            .width(120.0)
-            .selected_text(selected.clone())
-            .show_ui(ui, |ui| {
-                for theme in &available {
-                    ui.selectable_value(&mut selected, theme.to_string(), *theme);
-                }
-            });
-        if selected != settings.config.theme_colors.theme {
-            settings.config.theme_colors.theme = selected;
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-    });
-
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = 16.0;
+        ui.horizontal(|ui| {
+            ui.label("Theme:");
+            let available = Theme::available_themes();
+            let mut selected = settings.config.theme_colors.theme.clone();
+            egui::ComboBox::from_id_salt("quick_theme_select")
+                .width(120.0)
+                .selected_text(selected.clone())
+                .show_ui(ui, |ui| {
+                    for theme in &available {
+                        ui.selectable_value(&mut selected, theme.to_string(), *theme);
+                    }
+                });
+            if selected != settings.config.theme_colors.theme {
+                settings.config.theme_colors.theme = selected;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
 
         // Window Opacity slider
-        ui.label("Opacity:");
-        if ui
-            .add(crate::units::percent(egui::Slider::new(
-                &mut settings.config.window.window_opacity,
-                0.1..=1.0,
-            )))
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label("Opacity:");
+            if ui
+                .add(crate::units::percent(egui::Slider::new(
+                    &mut settings.config.window.window_opacity,
+                    0.1..=1.0,
+                )))
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
 
         // Cursor Style segmented control
-        ui.label("Cursor:");
-        let current = settings.config.cursor.cursor_style;
-        if ui
-            .selectable_label(current == CursorStyle::Block, "Block")
-            .clicked()
-        {
-            settings.config.cursor.cursor_style = CursorStyle::Block;
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-        if ui
-            .selectable_label(current == CursorStyle::Beam, "Beam")
-            .clicked()
-        {
-            settings.config.cursor.cursor_style = CursorStyle::Beam;
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-        if ui
-            .selectable_label(current == CursorStyle::Underline, "Line")
-            .clicked()
-        {
-            settings.config.cursor.cursor_style = CursorStyle::Underline;
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label("Cursor:");
+            let current = settings.config.cursor.cursor_style;
+            if ui
+                .selectable_label(current == CursorStyle::Block, "Block")
+                .clicked()
+            {
+                settings.config.cursor.cursor_style = CursorStyle::Block;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+            if ui
+                .selectable_label(current == CursorStyle::Beam, "Beam")
+                .clicked()
+            {
+                settings.config.cursor.cursor_style = CursorStyle::Beam;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+            if ui
+                .selectable_label(current == CursorStyle::Underline, "Line")
+                .clicked()
+            {
+                settings.config.cursor.cursor_style = CursorStyle::Underline;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
 
         // Cursor Blink checkbox
         if ui
-            .checkbox(&mut settings.config.cursor.cursor_blink, "Blink")
+            .checkbox(&mut settings.config.cursor.cursor_blink, "Cursor blink")
             .changed()
         {
             settings.has_changes = true;
             *changes_this_frame = true;
         }
-    });
-
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = 16.0;
 
         // Tab Bar visibility dropdown
-        ui.label("Tab bar:");
-        let current = match settings.config.tabs.tab_bar_mode {
-            TabBarMode::Always => 0,
-            TabBarMode::WhenMultiple => 1,
-            TabBarMode::Never => 2,
-        };
-        let mut selected = current;
-        egui::ComboBox::from_id_salt("quick_tab_bar_mode")
-            .width(100.0)
-            .selected_text(match current {
-                0 => "Always",
-                1 => "Multiple",
-                2 => "Never",
-                _ => "Unknown",
-            })
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut selected, 0, "Always");
-                ui.selectable_value(&mut selected, 1, "When multiple");
-                ui.selectable_value(&mut selected, 2, "Never");
-            });
-        if selected != current {
-            settings.config.tabs.tab_bar_mode = match selected {
-                0 => TabBarMode::Always,
-                1 => TabBarMode::WhenMultiple,
-                2 => TabBarMode::Never,
-                _ => TabBarMode::WhenMultiple,
+        ui.horizontal(|ui| {
+            ui.label("Tab bar:");
+            let current = match settings.config.tabs.tab_bar_mode {
+                TabBarMode::Always => 0,
+                TabBarMode::WhenMultiple => 1,
+                TabBarMode::Never => 2,
             };
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.separator();
+            let mut selected = current;
+            egui::ComboBox::from_id_salt("quick_tab_bar_mode")
+                .width(100.0)
+                .selected_text(match current {
+                    0 => "Always",
+                    1 => "Multiple",
+                    2 => "Never",
+                    _ => "Unknown",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut selected, 0, "Always");
+                    ui.selectable_value(&mut selected, 1, "When multiple");
+                    ui.selectable_value(&mut selected, 2, "Never");
+                });
+            if selected != current {
+                settings.config.tabs.tab_bar_mode = match selected {
+                    0 => TabBarMode::Always,
+                    1 => TabBarMode::WhenMultiple,
+                    2 => TabBarMode::Never,
+                    _ => TabBarMode::WhenMultiple,
+                };
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
 
         // Background mode dropdown
-        ui.label("Background:");
-        let current = match settings.config.image.background_mode {
-            BackgroundMode::Default => 0,
-            BackgroundMode::Color => 1,
-            BackgroundMode::Image => 2,
-        };
-        let mut selected = current;
-        egui::ComboBox::from_id_salt("quick_bg_mode")
-            .width(80.0)
-            .selected_text(match current {
-                0 => "Default",
-                1 => "Color",
-                2 => "Image",
-                _ => "Unknown",
-            })
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut selected, 0, "Default");
-                ui.selectable_value(&mut selected, 1, "Color");
-                ui.selectable_value(&mut selected, 2, "Image");
-            });
-        if selected != current {
-            settings.config.image.background_mode = match selected {
-                0 => BackgroundMode::Default,
-                1 => BackgroundMode::Color,
-                2 => BackgroundMode::Image,
-                _ => BackgroundMode::Default,
+        ui.horizontal(|ui| {
+            ui.label("Background:");
+            let current = match settings.config.image.background_mode {
+                BackgroundMode::Default => 0,
+                BackgroundMode::Color => 1,
+                BackgroundMode::Image => 2,
             };
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.separator();
+            let mut selected = current;
+            egui::ComboBox::from_id_salt("quick_bg_mode")
+                .width(80.0)
+                .selected_text(match current {
+                    0 => "Default",
+                    1 => "Color",
+                    2 => "Image",
+                    _ => "Unknown",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut selected, 0, "Default");
+                    ui.selectable_value(&mut selected, 1, "Color");
+                    ui.selectable_value(&mut selected, 2, "Image");
+                });
+            if selected != current {
+                settings.config.image.background_mode = match selected {
+                    0 => BackgroundMode::Default,
+                    1 => BackgroundMode::Color,
+                    2 => BackgroundMode::Image,
+                    _ => BackgroundMode::Default,
+                };
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
 
         // Background shader toggle
         if ui
@@ -257,8 +249,6 @@ fn show_controls(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_fram
             settings.has_changes = true;
             *changes_this_frame = true;
         }
-
-        ui.separator();
 
         // Cursor shader toggle
         if ui
@@ -275,13 +265,14 @@ fn show_controls(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_fram
 
         // Apply Font Changes button (only show if pending)
         if settings.font_pending_changes {
-            ui.separator();
-            if ui.button("Apply Font").clicked() {
-                settings.apply_font_changes();
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-            ui.colored_label(egui::Color32::YELLOW, "(pending)");
+            ui.horizontal(|ui| {
+                if ui.button("Apply Font").clicked() {
+                    settings.apply_font_changes();
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                ui.colored_label(egui::Color32::YELLOW, "(pending)");
+            });
         }
     });
 }

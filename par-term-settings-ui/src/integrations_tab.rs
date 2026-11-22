@@ -127,10 +127,20 @@ impl SettingsUI {
 
                 let curl_cmd = "curl -fsSL https://paulrobello.github.io/par-term/install-shell-integration.sh | bash";
 
-                ui.horizontal(|ui| {
+                // horizontal_wrapped: inside a plain `ui.horizontal` scope,
+                // `available_width` reports the scroll content's claimed width
+                // (inflated by this very row in a feedback loop), while a
+                // wrapped scope stays at the true viewport width, so the
+                // Copy button can wrap below the command box at the 550pt
+                // minimum window.
+                ui.horizontal_wrapped(|ui| {
+                    // Shrink with the container: 400pt of TextEdit plus the
+                    // Copy button exceeds the content column at the 550pt
+                    // minimum window.
+                    let cmd_width = 400.0_f32.min((ui.available_width() - 80.0).max(150.0));
                     ui.add(
                         egui::TextEdit::singleline(&mut curl_cmd.to_string())
-                            .desired_width(400.0)
+                            .desired_width(cmd_width)
                             .interactive(false)
                             .font(egui::TextStyle::Monospace),
                     );
@@ -220,10 +230,15 @@ impl SettingsUI {
 
                 ui.horizontal(|ui| {
                     ui.label("Location:");
-                    ui.label(
-                        RichText::new(shaders_dir.display().to_string())
-                            .small()
-                            .color(Color32::GRAY),
+                    // .wrap(): a long path must fold inside the row instead of
+                    // extending it past the window edge at the 550pt minimum.
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(shaders_dir.display().to_string())
+                                .small()
+                                .color(Color32::GRAY),
+                        )
+                        .wrap(),
                     );
                 });
 
@@ -392,10 +407,20 @@ impl SettingsUI {
                 let curl_cmd =
                     "curl -fsSL https://paulrobello.github.io/par-term/install-shaders.sh | bash";
 
-                ui.horizontal(|ui| {
+                // horizontal_wrapped: inside a plain `ui.horizontal` scope,
+                // `available_width` reports the scroll content's claimed width
+                // (inflated by this very row in a feedback loop), while a
+                // wrapped scope stays at the true viewport width, so the
+                // Copy button can wrap below the command box at the 550pt
+                // minimum window.
+                ui.horizontal_wrapped(|ui| {
+                    // Shrink with the container: 400pt of TextEdit plus the
+                    // Copy button exceeds the content column at the 550pt
+                    // minimum window.
+                    let cmd_width = 400.0_f32.min((ui.available_width() - 80.0).max(150.0));
                     ui.add(
                         egui::TextEdit::singleline(&mut curl_cmd.to_string())
-                            .desired_width(400.0)
+                            .desired_width(cmd_width)
                             .interactive(false)
                             .font(egui::TextStyle::Monospace),
                     );

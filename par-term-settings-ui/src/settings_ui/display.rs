@@ -183,7 +183,9 @@ impl SettingsUI {
 
                     // Footer
                     ui.separator();
-                    ui.horizontal(|ui| {
+                    // horizontal_wrapped, and flat (no nested ui.horizontal):
+                    // see the same note on the panel footer.
+                    ui.horizontal_wrapped(|ui| {
                         if ui.button("Save").clicked() {
                             save_requested = true;
                         }
@@ -304,7 +306,11 @@ impl SettingsUI {
 
                 // Footer
                 ui.separator();
-                ui.horizontal(|ui| {
+                // horizontal_wrapped, and flat (no nested ui.horizontal): the
+                // wrap between known-size widgets is what keeps the row inside
+                // the 550pt minimum window; a nested scope would be sized at
+                // the row's full remaining width and never wrap.
+                ui.horizontal_wrapped(|ui| {
                     if ui.button("Save").clicked() {
                         save_requested = true;
                     }

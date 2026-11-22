@@ -523,7 +523,10 @@ fn show_background_shader_controls(
                 },
             );
 
-            ui.horizontal(|ui| {
+            // horizontal_wrapped: buttons plus the checkbox exceed the
+            // content column at the 550pt minimum window; the known-size
+            // children wrap between themselves.
+            ui.horizontal_wrapped(|ui| {
                 if ui
                     .button("Cycle shader")
                     .on_hover_text("Action: cycle_background_shader")

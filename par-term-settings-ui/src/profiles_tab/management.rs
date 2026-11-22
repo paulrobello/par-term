@@ -107,7 +107,9 @@ pub(crate) fn show_display_options_section(
             // UX.md SC7: the profile drawer button has one control, on
             // Windows & Tabs › Tab Bar. This section points there instead of
             // repeating it.
-            ui.horizontal(|ui| {
+            // horizontal_wrapped: the two known-size children wrap when the
+            // pair exceeds the content column at the 550pt minimum window.
+            ui.horizontal_wrapped(|ui| {
                 let state = if settings.config.tabs.show_profile_drawer_button {
                     "shown"
                 } else {
