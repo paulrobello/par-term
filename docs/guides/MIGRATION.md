@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [v0.56.0 — New Tabs Default to Local Shells](#v0560--new-tabs-default-to-local-shells)
 - [v0.49.0 — par-mux Owns the Agent Hooks and Skill](#v0490--par-mux-owns-the-agent-hooks-and-skill)
 - [v0.48.0 — Leader Key](#v0480--leader-key)
 - [v0.48.0 — Profile Shortcuts and the Open Profiles Launcher](#v0480--profile-shortcuts-and-the-open-profiles-launcher)
@@ -30,6 +31,12 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## v0.56.0 — New Tabs Default to Local Shells
+
+- **`use_mux_by_default` flipped to `false`.** New tabs in an unattached window are now plain local shells; par-mux is used only on explicit attach. Upgrade impact: if you relied on the old behavior, set `use_mux_by_default: true` in `config.yaml` (or re-enable **Settings › Sessions › par-mux › New tabs default to par-mux**); existing configs that set the key explicitly are unaffected. Restored windows keep their recorded sessions; see [TABS.md](../features/TABS.md#new-tabs-and-the-default-par-mux-session).
 
 ---
 

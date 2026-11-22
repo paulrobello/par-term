@@ -421,7 +421,7 @@ impl ProfileModalUI {
 
                         ui.label("Use Mux By Default:");
                         ui.horizontal(|ui| {
-                            let global = par_term_config::defaults::bool_true();
+                            let global = par_term_config::defaults::bool_false();
                             let selected = match self.temp_use_mux_by_default {
                                 None => format!("Inherit (global: {global})"),
                                 Some(true) => "On".to_string(),

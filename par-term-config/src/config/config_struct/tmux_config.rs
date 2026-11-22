@@ -45,8 +45,8 @@ pub struct TmuxConfig {
     /// profile (`use_mux_by_default` on the profile); when the daemon
     /// cannot start or the create fails, the window stays unattached and
     /// the tab is simply the local shell, with a warning logged.
-    /// Default: true
-    #[serde(default = "crate::defaults::bool_true")]
+    /// Default: false
+    #[serde(default = "crate::defaults::bool_false")]
     pub use_mux_by_default: bool,
 
     /// Sync clipboard with tmux paste buffer
@@ -142,7 +142,7 @@ impl Default for TmuxConfig {
             tmux_auto_attach: crate::defaults::bool_false(),
             tmux_auto_attach_session: crate::defaults::tmux_auto_attach_session(),
             mux_auto_attach: None,
-            use_mux_by_default: crate::defaults::bool_true(),
+            use_mux_by_default: crate::defaults::bool_false(),
             tmux_clipboard_sync: crate::defaults::bool_true(),
             mux_auto_reconnect: crate::defaults::bool_false(),
             mux_detach_opens_local_tab: crate::defaults::bool_false(),

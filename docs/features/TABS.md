@@ -89,16 +89,16 @@ New tabs inherit the working directory from the current tab (if shell integratio
 
 ### New Tabs and the Default par-mux Session
 
-By default (`use_mux_by_default: true`), a new tab in a window that is not yet attached to a par-mux session attaches the window: the tab opens immediately as a local shell, and at the same time par-term starts (or joins) the default par-mux session, named `main`. Once the attach lands, every further new tab is a daemon window in that session — it survives closing par-term and rejoins on attach; see [par-mux](MUX.md#attaching) for the attach model. Windows restored on launch follow the same default.
+By default (`use_mux_by_default: false`), a new tab in a window that is not attached to a par-mux session is a plain local shell; par-mux is used only when you attach explicitly. Setting `use_mux_by_default: true` changes this: the tab still opens immediately as a local shell, but par-term also starts (or joins) the default par-mux session, named `main`, so the window attaches — once the attach lands, every further new tab is a daemon window in that session, which survives closing par-term and rejoins on attach; see [par-mux](MUX.md#attaching) for the attach model. Windows restored on launch follow the same setting.
 
 When the session's first daemon window arrives, it replaces the untouched local first tab in the same tab-bar slot, so a fresh window ends up as one par-mux tab instead of a stray empty shell alongside it. A first tab that has already been used — anything typed into it, a manual split, or a rename — stays local.
 
 If the daemon cannot start or the session create fails, the window stays unattached and the tab is simply a local shell; a warning is logged. A later new tab tries the attach again.
 
-To keep new tabs local, turn the default off:
+To make new tabs attach the default par-mux session, turn the setting on:
 
 ```yaml
-use_mux_by_default: false  # default: true — new tabs attach the default par-mux session
+use_mux_by_default: true  # default: false — new tabs are local shells unless you attach explicitly
 ```
 
 **Settings UI:** Settings > Sessions > par-mux > "New tabs default to par-mux"
@@ -737,7 +737,7 @@ show_profile_drawer_button: false
 new_tab_shortcut_shows_profiles: false  # Open Profiles on Cmd+T
 new_tab_position: end  # "end" or "after_active"
 
-# par-mux default: new tabs attach the default par-mux session ("main")
+# par-mux default: opt in to attaching the default par-mux session ("main")
 use_mux_by_default: true
 ```
 

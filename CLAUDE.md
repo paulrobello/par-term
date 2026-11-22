@@ -37,7 +37,7 @@ make typecheck      # Type-check entire workspace (cargo check --workspace)
 make checkall       # fmt-check, lint, typecheck, test — verification only, never rewrites files
 make checkall-ci    # CI-parity gate: `ci` + cargo-deny — the gate that must pass before a push-safe claim
 make doc-check      # Validate markdown links and anchors (needs lychee)
-make docs-settings  # Regenerate the CONFIG_REFERENCE.md settings tables (GENERATED — never hand-edit; the settings-ui doc-freshness test fails on drift)
+make docs-settings  # Regenerate SETTINGS.md and the Settings column of CONFIG_REFERENCE.md (that column is generated — never hand-edit; the rest of CONFIG_REFERENCE.md incl. the Default column is hand-maintained; the settings-ui doc-freshness test fails on drift)
 make check-line-counts  # Fail on production .rs files over 800 lines (warn over 500)
 make check-window-state-budget  # Fail when WindowState's impl-block or field count exceeds its frozen ceiling (AUDIT.md ARC-001)
 make check-nomux    # cargo check --workspace --no-default-features (the no-mux build; only ci and push CI run it)

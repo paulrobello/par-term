@@ -167,6 +167,24 @@ fn default_config_equals_empty_yaml_document() {
     );
 }
 
+// The 2026-11-22 default flip (card 01a203eb7009): new tabs stay local
+// shells unless the user opts in. The parity test above would stay green if
+// both sites were flipped back together, so pin the value itself.
+#[test]
+fn use_mux_by_default_defaults_off_and_explicit_true_round_trips() {
+    assert!(
+        !Config::default().tmux.use_mux_by_default,
+        "use_mux_by_default flipped to off (card 01a203eb7009); flipping it back \
+         to true here also re-enables attach-on-new-tab for every fresh install"
+    );
+
+    // An absent key takes the serde default path, which must agree.
+    assert!(!parse("{}").tmux.use_mux_by_default);
+
+    // Explicit true keeps today's attach-on-new-tab behavior.
+    assert!(parse("use_mux_by_default: true").tmux.use_mux_by_default);
+}
+
 /// Fields whose default is deliberately *not* their type's `Default`.
 ///
 /// Every one of these becomes `0`, `false` or `""` under `#[derive(Default)]`,
