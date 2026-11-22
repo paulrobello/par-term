@@ -11,6 +11,18 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-11-22
+
+### Changed
+- **`use_mux_by_default` now defaults to off.** New tabs in an unattached window are plain local shells, and par-mux is used only on explicit attach — turning the daemon-window flow into an opt-in. Opt back in with `use_mux_by_default: true` in `config.yaml` or **Settings › Sessions › par-mux › New tabs default to par-mux**; existing configs that set the key explicitly are unaffected, restored windows keep their recorded sessions, and the profile editor's **Use Mux By Default** chooser now displays the real global default in its Inherit row. See [MIGRATION.md](docs/guides/MIGRATION.md) and [TABS.md](docs/features/TABS.md).
+- **Core bumped to `par-term-emu-core-rust` 0.87.0**, which also rebuilds the bundled par-mux daemon: the attach settings dialog's integrations tab scrolls and selects (all 16 rows reachable for the first time), each integration row distinguishes a detected agent binary from an installed hook with an `i` bulk-install for detected-but-unhooked agents, and `par-mux --cmd doctor` reports the daemon's macOS responsible-process attribution (`healthy`/`tainted` verdicts naming the bare-fork shapes that silently lose LAN egress and TCC consent). Restage the daemon with `scripts/build-par-mux.sh`. The streaming-CSP breaking change in 0.87.0 (removed `allow_blob_connect_src`) does not touch par-term.
+- **Sub-crate versions for this release**: `par-term-config` 0.20.0 (the default flip), `par-term-settings-ui` 0.24.1 (settings layout fixes below).
+
+### Fixed
+- **The standalone settings window no longer clips its content at the right edge.** The reported Retina overflow was not a pixels bug: egui's `horizontal_wrapped` can never wrap between nested `ui.horizontal` scopes, so the General tab's Common rows laid out at their full natural width (~843pt in a 770pt window) and never reflowed on resize. The rows now wrap between controls, with a layout-extent test pinning every tab at the window's default size plus a reflow case. See [SETTINGS.md](docs/features/SETTINGS.md).
+- **Every settings tab fits the window at its 550pt minimum width.** The shared footer row wrapped (it alone fixed ten tabs), the Keys grid collapses to name-over-controls pairs below the threshold, the Effects curl-command rows wrap with their command box shrinking, and the Profiles drawer row wraps — zero controls hidden and no config-write behavior changed. A per-tab 550pt test pins it.
+- **Security dependency bump: `url` 2.5.9** for [RUSTSEC-2026-0592](https://rustsec.org/advisories/RUSTSEC-2026-0592) (stack overflow in `Url::origin()` on nested `blob:` URLs). Lockfile-only.
+
 ## [0.55.0] - 2026-11-21
 
 ### Added

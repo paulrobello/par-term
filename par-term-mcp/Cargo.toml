@@ -16,7 +16,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 # Agent-command file format (command_create/list/delete write these files)
-par-term-config = { path = "../par-term-config", version = "0.19.0" }
+par-term-config = { path = "../par-term-config", version = "0.20.0" }
 
 # Logging
 log.workspace = true

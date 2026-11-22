@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration (PaneId, TabId)
-par-term-config = { path = "../par-term-config", version = "0.19.0" }
+par-term-config = { path = "../par-term-config", version = "0.20.0" }
 
 # Terminal emulator core (tmux control mode parser)
 par-term-emu-core-rust.workspace = true

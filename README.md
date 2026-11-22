@@ -42,6 +42,15 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.56.0
+
+The settings window learns to fit its window: the standalone Terminal Settings dialog no longer clips its rows at the right edge (the reported Retina overflow turned out to be egui's wrapped rows never firing their wrap between nested horizontal scopes, not a pixels bug), and every tab now lays out at the window's full 550pt-to-wide range with content reflowing on resize — pinned per tab by layout-extent tests. par-mux becomes opt-in: new tabs in an unattached window stay local shells unless you attach explicitly or re-enable `use_mux_by_default` (existing configs that set the key are unaffected; restored windows keep their recorded sessions). Core library 0.87.0 ships with it: the par-mux daemon's attach-settings integrations tab scrolls and selects its 16 rows, distinguishes detected agent binaries from installed hooks with an `i` bulk-install, and `par-mux --cmd doctor` now reports macOS responsible-process attribution verdicts so a bare-forked daemon that silently lost its Local Network and TCC grants announces itself.
+
+- **Settings fit and reflow** — rows wrap between controls, the Keys grid collapses below 550pt, the footer wraps, and a per-tab extent test pins every tab at minimum and default sizes.
+- **par-mux is opt-in** — `use_mux_by_default` defaults to off; opt back in from Settings › Sessions › par-mux or one config line.
+- **Daemon detection and diagnosis** — the integrations page separates detected agents from installed hooks and installs the missing ones with one key; `par-mux --cmd doctor` names the macOS attribution shape costing a daemon its TCC grants.
+- **Core 0.87.0** — plus the RUSTSEC-2026-0592 `url` 2.5.9 lockfile bump.
+
 ### 0.55.0
 
 Install trust and daemon durability: `make install` now Developer-ID-signs everything it lays down — the `~/.cargo/bin` binaries, the staged par-mux daemon, the `.app` — under stable code-signing identifiers, so macOS privacy stops treating every reinstall as a new unknown app and silently dropping the par-mux daemon's Local Network access. Core library 0.86.0 ships with it: the par-mux daemon's state file slims to metadata (pane grids and session/pane env move to content-addressed sidecar files; format v4 reads v3 trees in place), attach switch-backs replay every pane so a window that reflowed while unwatched comes back correct, agents resume in their own working directory, and a launchd-managed default daemon restarts through its launchd job, keeping its TCC grants.
