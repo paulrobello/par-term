@@ -744,6 +744,35 @@ pub(crate) mod tests {
     use std::path::{Path, PathBuf};
     use std::time::{Duration, Instant};
 
+    // Shutdown flags for the in-process daemons this test thread spawned.
+    //
+    // `run()` serves until its shutdown flag is set, so a daemon nobody
+    // signals keeps its thread — and every pane it holds — alive for the
+    // whole test process; at ~800 leaked daemons that exhausted the suite
+    // (the libtest wedge, upstream card 01a20a16fa2d). The thread_local's
+    // destructor runs when the test thread exits, so each daemon lives
+    // exactly as long as the test that spawned it.
+    thread_local! {
+        static SPAWNED_DAEMON_FLAGS: std::cell::RefCell<Vec<DaemonShutdownOnDrop>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// Sets its flag when dropped; only ever held by [`SPAWNED_DAEMON_FLAGS`].
+    struct DaemonShutdownOnDrop(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+    impl Drop for DaemonShutdownOnDrop {
+        fn drop(&mut self) {
+            self.0.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// Registers a daemon spawned outside the shared helpers (the inline
+    /// `MuxServer::bind` + `thread::spawn(server.run)` test sites) for the
+    /// same thread-exit shutdown.
+    pub(crate) fn register_daemon_shutdown(flag: std::sync::Arc<std::sync::atomic::AtomicBool>) {
+        SPAWNED_DAEMON_FLAGS.with(|flags| flags.borrow_mut().push(DaemonShutdownOnDrop(flag)));
+    }
+
     /// [`attach_sequence`] with the metrics a headless test cannot know:
     /// no renderer exists to measure cells, no config to theme from. The
     /// color pair is a real shape (`rrggbb`), not zeros, so a daemon-side
@@ -775,9 +804,12 @@ pub(crate) mod tests {
     }
 
     /// In-process daemon (the compat.rs pattern): bind and serve on a
-    /// thread; `run()` serves until process end.
+    /// thread; `run()` serves until the shutdown flag registered in
+    /// [`SPAWNED_DAEMON_FLAGS`] is set, i.e. until the spawning test
+    /// thread exits — daemons no longer outlive their test.
     pub(crate) fn spawn_daemon(path: &Path) {
         let server = MuxServer::bind(path).expect("daemon binds");
+        register_daemon_shutdown(server.shutdown_handle());
         std::thread::spawn(move || server.run());
     }
 
@@ -796,6 +828,7 @@ pub(crate) mod tests {
             par_term_emu_core_rust::mux::tree::MuxTree::new(Box::new(factory)),
         )
         .expect("daemon binds");
+        register_daemon_shutdown(server.shutdown_handle());
         std::thread::spawn(move || server.run());
     }
 

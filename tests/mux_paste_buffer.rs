@@ -32,10 +32,23 @@ fn socket_path() -> PathBuf {
     path
 }
 
-fn spawn_daemon(path: &std::path::Path) {
+/// Stops the in-process daemon when dropped: `run()` serves until its
+/// shutdown flag is set, so a daemon nobody signals keeps its thread — and
+/// every pane it holds — alive for the whole test process.
+struct DaemonGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl Drop for DaemonGuard {
+    fn drop(&mut self) {
+        self.0.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+fn spawn_daemon(path: &std::path::Path) -> DaemonGuard {
     let server = MuxServer::bind(path).expect("daemon binds");
-    // run() serves until the process ends — the core's own e2e lifecycle.
+    let guard = DaemonGuard(server.shutdown_handle());
+    // run() serves until the guard drops at the end of the spawning test.
     std::thread::spawn(move || server.run());
+    guard
 }
 
 fn connect(path: &std::path::Path) -> MuxSessionClient {
@@ -54,7 +67,7 @@ fn connect(path: &std::path::Path) -> MuxSessionClient {
 #[test]
 fn set_buffer_round_trips_byte_exact_through_the_daemon() {
     let socket = socket_path();
-    spawn_daemon(&socket);
+    let _daemon = spawn_daemon(&socket);
     let mut client = connect(&socket);
     client
         .create_or_attach("paste-buffer-e2e")

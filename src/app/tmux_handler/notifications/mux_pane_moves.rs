@@ -427,7 +427,9 @@ impl WindowState {
 #[cfg(test)]
 mod tests {
     use super::super::mux::MuxAttachPending;
-    use super::super::mux::tests::{manners_state, socket_path, spawn_daemon};
+    use super::super::mux::tests::{
+        manners_state, register_daemon_shutdown, socket_path, spawn_daemon,
+    };
     use super::super::mux_test_seams::{SettledSend, poll_until, quiesce, wait_until};
     use crate::app::tmux_handler::tmux_state::PaneSeedPayload;
     use crate::app::window_state::WindowState;
@@ -617,6 +619,7 @@ mod tests {
                 ));
                 let server = par_term_emu_core_rust::mux::MuxServer::bind_with_tree(&path, tree)
                     .expect("daemon binds");
+                register_daemon_shutdown(server.shutdown_handle());
                 std::thread::spawn(move || server.run());
             }
             None => spawn_daemon(&path),

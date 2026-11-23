@@ -33,11 +33,23 @@ fn socket_path(tag: &str) -> PathBuf {
     path
 }
 
-fn spawn_daemon(path: &Path) {
+/// Stops the in-process daemon when dropped: `run()` serves until its
+/// shutdown flag is set, so a daemon nobody signals keeps its thread — and
+/// every pane it holds — alive for the whole test process.
+struct DaemonGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl Drop for DaemonGuard {
+    fn drop(&mut self) {
+        self.0.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+fn spawn_daemon(path: &Path) -> DaemonGuard {
     let server = MuxServer::bind(path).expect("daemon binds");
-    // run() serves until the process ends — the same detach-and-die
-    // lifecycle the core's own end-to-end tests use.
+    let guard = DaemonGuard(server.shutdown_handle());
+    // run() serves until the guard drops at the end of the spawning test.
     std::thread::spawn(move || server.run());
+    guard
 }
 
 fn connect(path: &Path) -> MuxSessionClient {
@@ -84,7 +96,7 @@ fn adopt_panes(client: &mut MuxSessionClient) {
 #[test]
 fn sync_layer_round_trips_a_live_daemon() {
     let path = socket_path("roundtrip");
-    spawn_daemon(&path);
+    let _daemon = spawn_daemon(&path);
     let mut client = connect(&path);
 
     // 1. new-session broadcasts %window-add; the bridge converts it and
@@ -174,7 +186,7 @@ fn sync_layer_round_trips_a_live_daemon() {
 #[test]
 fn events_replay_reads_the_gap_and_resumes_from_the_head() {
     let path = socket_path("ring");
-    spawn_daemon(&path);
+    let _daemon = spawn_daemon(&path);
 
     // Create a session with a short-lived second pane, then drop the
     // client: nothing is listening when the pane exits.
@@ -233,7 +245,7 @@ fn events_replay_reads_the_gap_and_resumes_from_the_head() {
 #[test]
 fn mixed_payload_with_key_name_text_reaches_the_pane_literally() {
     let path = socket_path("mixed-literal");
-    spawn_daemon(&path);
+    let _daemon = spawn_daemon(&path);
     let mut client = connect(&path);
 
     let outcome = client.create_or_attach("mixed").expect("create_or_attach");
@@ -258,7 +270,7 @@ fn mixed_payload_with_key_name_text_reaches_the_pane_literally() {
 #[test]
 fn create_or_attach_reattaches_to_a_persisted_session() {
     let path = socket_path("reattach");
-    spawn_daemon(&path);
+    let _daemon = spawn_daemon(&path);
 
     {
         let mut first = connect(&path);

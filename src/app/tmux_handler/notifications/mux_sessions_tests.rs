@@ -7,7 +7,7 @@
 //! live daemons are never listed, attached, or ended. The daemons are bound
 //! at `par-mux-<name>.sock` paths the way `par-mux <name>` binds them.
 
-use super::mux::tests::manners_state;
+use super::mux::tests::{manners_state, register_daemon_shutdown};
 use super::mux_test_seams::{try_pump, wait_until};
 use crate::app::window_state::WindowState;
 use crate::session_picker_mux::{MuxPickerAction, MuxSessionRow};
@@ -33,10 +33,12 @@ fn standby_daemon(dir: &Path, name: &str) -> PathBuf {
     daemon(dir, name, &[])
 }
 
-/// Serve a daemon at `<dir>/par-mux-<name>.sock` holding `sessions`.
+/// Serve a daemon at `<dir>/par-mux-<name>.sock` holding `sessions`. The
+/// daemon is registered for shutdown when the spawning test thread exits.
 fn daemon(dir: &Path, name: &str, sessions: &[&str]) -> PathBuf {
     let path = dir.join(format!("par-mux-{name}.sock"));
     let server = MuxServer::bind(&path).expect("daemon binds");
+    register_daemon_shutdown(server.shutdown_handle());
     std::thread::spawn(move || server.run());
     let mut client = MuxClient::connect(&path).expect("seed client");
     for session in sessions {

@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn auto_remove_daemon_shows_no_respawn_affordance() {
         use super::super::mux::MuxAttachPending;
-        use super::super::mux::tests::{manners_state, socket_path};
+        use super::super::mux::tests::{manners_state, register_daemon_shutdown, socket_path};
         use super::super::mux_test_seams::attach_until_installed;
 
         let path = socket_path("pane-autoremove");
@@ -342,6 +342,7 @@ mod tests {
                 ..Default::default()
             },
         )));
+        register_daemon_shutdown(server.shutdown_handle());
         std::thread::spawn(move || server.run());
 
         let mut ws = manners_state();

@@ -37,10 +37,23 @@ fn socket_path(label: &str) -> PathBuf {
     path
 }
 
-fn spawn_daemon(path: &std::path::Path) {
+/// Stops the in-process daemon when dropped: `run()` serves until its
+/// shutdown flag is set, so a daemon nobody signals keeps its thread — and
+/// every pane it holds — alive for the whole test process.
+struct DaemonGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl Drop for DaemonGuard {
+    fn drop(&mut self) {
+        self.0.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+fn spawn_daemon(path: &std::path::Path) -> DaemonGuard {
     let server = MuxServer::bind(path).expect("daemon binds");
-    // run() serves until the process ends — the core's own e2e lifecycle.
+    let guard = DaemonGuard(server.shutdown_handle());
+    // run() serves until the guard drops at the end of the spawning test.
     std::thread::spawn(move || server.run());
+    guard
 }
 
 fn connect(path: &std::path::Path) -> MuxSessionClient {
@@ -67,7 +80,7 @@ fn body_lines(reply: &[String]) -> Vec<String> {
 #[test]
 fn layout_and_exit_action_verbs_answer_the_shapes_the_picker_parses() {
     let path = socket_path("layouts");
-    spawn_daemon(&path);
+    let _daemon = spawn_daemon(&path);
     let mut client = connect(&path);
 
     // Make a live pane first, so the saved layout carries a workspace and
@@ -157,7 +170,7 @@ fn layout_and_exit_action_verbs_answer_the_shapes_the_picker_parses() {
 #[test]
 fn restore_policy_verbs_answer_the_shapes_the_picker_parses() {
     let path = socket_path("restore-policy");
-    spawn_daemon(&path);
+    let _daemon = spawn_daemon(&path);
     let mut client = connect(&path);
 
     client
