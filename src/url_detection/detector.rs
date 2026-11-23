@@ -43,6 +43,9 @@ fn file_path_regex() -> &'static Regex {
         // - Absolute paths starting with / (must follow whitespace or start of line)
         // - Relative paths starting with ./ or ../
         // - Home-relative paths starting with ~/
+        // - Bare relative paths like docs/foo.html (must follow whitespace or
+        //   start of line; components cannot contain `/`, and the final segment
+        //   must carry an extension)
         //
         // Absolute paths use a lookbehind to require whitespace or start-of-string
         // before the leading /, preventing false matches inside relative paths
@@ -65,6 +68,15 @@ fn file_path_regex() -> &'static Regex {
                 # Absolute paths: must be at start of string or after whitespace
                 # Require at least two path components to reduce false positives
                 (?:^|\s)/[^\s:,;'"<>|)\]}\[\(\x00-\x1f\u{2500}-\u{257F}]+/[^\s:,;'"<>|)\]}\[\(\x00-\x1f\u{2500}-\u{257F}]+
+                |
+                # Bare relative paths: one or more `name/` components followed by
+                # a filename with an extension (e.g. docs/foo.html). The grammar
+                # alone is broad (any word/word.ext), so candidates from this arm
+                # are additionally filtered against the pane cwd by
+                # filter_bare_relative_paths before they are surfaced.
+                (?:^|\s)
+                (?:[^\s/:,;'"<>|)\]}\[\(\x00-\x1f\u{2500}-\u{257F}]+/)+
+                [^\s/:,;'"<>|)\]}\[\(\x00-\x1f\u{2500}-\u{257F}]+\.[A-Za-z0-9][^\s/:,;'"<>|)\]}\[\(\x00-\x1f\u{2500}-\u{257F}]*
             )
             # Optional line/column number in various formats
             (?:
@@ -166,6 +178,49 @@ pub fn detect_file_paths_in_line(text: &str, row: usize) -> Vec<DetectedUrl> {
     }
 
     paths
+}
+
+/// Keep only bare-relative file-path candidates whose path exists under `cwd`.
+///
+/// Bare-relative matches (no leading `~`, `.`, or `/`, e.g. `docs/foo.html`)
+/// sit on a deliberately broad grammar: any `word/word.ext` text after
+/// whitespace can match. A candidate from that arm is only surfaced when the
+/// path exists relative to the pane's working directory. Candidates from the
+/// unambiguous arms (`~/`, `./`, `../`, absolute) pass through untouched —
+/// their grammar alone keeps the false-positive profile low, and opening a
+/// missing path is reported at click time.
+///
+/// With `cwd` absent, bare-relative candidates cannot be verified and are
+/// dropped; non-bare candidates are kept regardless.
+pub fn filter_bare_relative_paths(paths: Vec<DetectedUrl>, cwd: Option<&str>) -> Vec<DetectedUrl> {
+    paths
+        .into_iter()
+        .filter(|item| {
+            if !matches!(item.item_type, DetectedItemType::FilePath { .. })
+                || !is_bare_relative_path(&item.url)
+            {
+                return true;
+            }
+            let Some(cwd) = cwd else {
+                return false;
+            };
+            // Match the ~ expansion open_file_in_editor applies to cwd.
+            let expanded_cwd = if cwd.starts_with("~/") {
+                match dirs::home_dir() {
+                    Some(home) => cwd.replacen("~", &home.to_string_lossy(), 1),
+                    None => cwd.to_string(),
+                }
+            } else {
+                cwd.to_string()
+            };
+            std::path::Path::new(&expanded_cwd).join(&item.url).exists()
+        })
+        .collect()
+}
+
+/// A path with no leading `~`, `.`, or `/` — the bare-relative arm's match shape.
+fn is_bare_relative_path(path: &str) -> bool {
+    !path.starts_with('~') && !path.starts_with('.') && !path.starts_with('/')
 }
 
 /// Parse a file path that may include line/column suffixes in various formats:

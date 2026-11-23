@@ -17,6 +17,7 @@ pub mod detector;
 pub mod render;
 
 // Re-export the public API so call-sites are unchanged.
+pub use detector::filter_bare_relative_paths;
 pub use detector::{detect_file_paths_in_line, detect_osc8_hyperlinks, detect_urls_in_line};
 pub use render::{ensure_url_scheme, expand_link_handler, open_file_in_editor, open_url};
 pub use state::{DetectedItemType, DetectedUrl, find_url_at_position};

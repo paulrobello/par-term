@@ -126,6 +126,62 @@ fn validate_url_scheme(url: &str, allow_file_scheme: bool) -> Result<(), String>
     Ok(())
 }
 
+/// Resolve a clickable file path against the pane's working directory.
+///
+/// Resolution rules, applied in order:
+/// 1. A path starting with `~/` has `~` expanded to the user's home directory.
+/// 2. If the result is still relative (`./`, `../`, or a bare relative path such
+///    as `docs/foo.html`) and `cwd` is provided, the path is joined against the
+///    `~`-expanded `cwd` and canonicalized so `.` and `..` components
+///    disappear. If canonicalization fails (e.g. the file does not exist yet),
+///    the joined, non-canonical path is used instead.
+/// 3. Anything else — an absolute path after `~` expansion, or any path when no
+///    `cwd` is available — is returned unchanged.
+pub(crate) fn resolve_clickable_path(path: &str, cwd: Option<&str>) -> String {
+    // Expand ~ to home directory
+    let resolved_path = if path.starts_with("~/") {
+        if let Some(home) = dirs::home_dir() {
+            path.replacen("~", &home.to_string_lossy(), 1)
+        } else {
+            path.to_string()
+        }
+    } else {
+        path.to_string()
+    };
+
+    // Resolve relative paths (./, ../, or bare relative) against the CWD
+    if !resolved_path.starts_with('/')
+        && let Some(working_dir) = cwd
+    {
+        // Expand ~ in CWD as well
+        let expanded_cwd = if working_dir.starts_with("~/") {
+            if let Some(home) = dirs::home_dir() {
+                working_dir.replacen("~", &home.to_string_lossy(), 1)
+            } else {
+                working_dir.to_string()
+            }
+        } else {
+            working_dir.to_string()
+        };
+
+        let full_path = std::path::Path::new(&expanded_cwd).join(&resolved_path);
+        crate::debug_info!(
+            "SEMANTIC",
+            "Resolved relative path: {:?} + {:?} = {:?}",
+            expanded_cwd,
+            resolved_path,
+            full_path
+        );
+        // Canonicalize to resolve . and .. components
+        return full_path
+            .canonicalize()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| full_path.to_string_lossy().to_string());
+    }
+
+    resolved_path
+}
+
 /// Open a file path in the configured editor, or a directory in the file manager
 ///
 /// # Arguments
@@ -158,51 +214,7 @@ pub fn open_file_in_editor(
     editor_cmd: &str,
     cwd: Option<&str>,
 ) -> Result<(), String> {
-    // Expand ~ to home directory
-    let resolved_path = if path.starts_with("~/") {
-        if let Some(home) = dirs::home_dir() {
-            path.replacen("~", &home.to_string_lossy(), 1)
-        } else {
-            path.to_string()
-        }
-    } else {
-        path.to_string()
-    };
-
-    // Resolve relative paths using CWD
-    let resolved_path = if resolved_path.starts_with("./") || resolved_path.starts_with("../") {
-        if let Some(working_dir) = cwd {
-            // Expand ~ in CWD as well
-            let expanded_cwd = if working_dir.starts_with("~/") {
-                if let Some(home) = dirs::home_dir() {
-                    working_dir.replacen("~", &home.to_string_lossy(), 1)
-                } else {
-                    working_dir.to_string()
-                }
-            } else {
-                working_dir.to_string()
-            };
-
-            let cwd_path = std::path::Path::new(&expanded_cwd);
-            let full_path = cwd_path.join(&resolved_path);
-            crate::debug_info!(
-                "SEMANTIC",
-                "Resolved relative path: {:?} + {:?} = {:?}",
-                expanded_cwd,
-                resolved_path,
-                full_path
-            );
-            // Canonicalize to resolve . and .. components
-            full_path
-                .canonicalize()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| full_path.to_string_lossy().to_string())
-        } else {
-            resolved_path.clone()
-        }
-    } else {
-        resolved_path.clone()
-    };
+    let resolved_path = resolve_clickable_path(path, cwd);
 
     // Verify the path exists
     let path_obj = std::path::Path::new(&resolved_path);

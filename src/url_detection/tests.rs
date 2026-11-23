@@ -479,3 +479,283 @@ fn test_shell_escape_path_with_dollar_expansion() {
         "'/tmp/$(whoami)/file.txt'"
     );
 }
+
+// --- Bare relative path detection (docs/foo.html) ---
+
+#[test]
+fn test_detect_bare_relative_path_with_extension() {
+    let text = "see docs/guide.html for details";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1, "unexpected match count: {}", paths.len());
+    assert_eq!(
+        paths[0].url, "docs/guide.html",
+        "unexpected url: {:?}",
+        paths[0].url
+    );
+}
+
+#[test]
+fn test_detect_bare_relative_multi_component() {
+    let text = "mockup: docs/art-direction/mockups/B-painted-diorama.html";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1, "unexpected match count: {}", paths.len());
+    assert_eq!(
+        paths[0].url, "docs/art-direction/mockups/B-painted-diorama.html",
+        "unexpected url: {:?}",
+        paths[0].url
+    );
+}
+
+#[test]
+fn test_no_match_bare_relative_without_extension() {
+    let text = "the word/word pair and a/b stay plain";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 0, "unexpected matches: {:?}", paths);
+}
+
+#[test]
+fn test_no_match_bare_relative_inside_url() {
+    // A path-shaped tail inside a URL is owned by the URL arm; the file-path
+    // regex must not re-match it as a bare relative path.
+    let text = "see https://example.com/docs/spec.html";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 0, "unexpected matches: {:?}", paths);
+}
+
+#[test]
+fn test_detect_bare_relative_with_line_number() {
+    let text = "check src/lib/mod.rs:42 first";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1, "unexpected match count: {}", paths.len());
+    assert_eq!(
+        paths[0].url, "src/lib/mod.rs",
+        "unexpected url: {:?}",
+        paths[0].url
+    );
+    assert_eq!(
+        paths[0].item_type,
+        DetectedItemType::FilePath {
+            line: Some(42),
+            column: None
+        },
+        "unexpected item_type: {:?}",
+        paths[0].item_type
+    );
+}
+
+#[test]
+fn test_detect_bare_relative_internal_dots() {
+    let text = "dist/app.bundle.tar.gz uploaded";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1, "unexpected match count: {}", paths.len());
+    assert_eq!(
+        paths[0].url, "dist/app.bundle.tar.gz",
+        "unexpected url: {:?}",
+        paths[0].url
+    );
+}
+
+#[test]
+fn test_detect_bare_relative_stops_at_box_drawing() {
+    // U+2502 (box drawing) terminates the match, and because it is not
+    // whitespace the right-hand path cannot start a new bare-relative match.
+    let text = "docs/left.html│docs/right.html";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1, "unexpected match count: {}", paths.len());
+    assert_eq!(
+        paths[0].url, "docs/left.html",
+        "unexpected url: {:?}",
+        paths[0].url
+    );
+}
+
+#[test]
+fn test_detect_bare_relative_strips_trailing_period() {
+    let text = "open docs/notes.html.";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1, "unexpected match count: {}", paths.len());
+    assert_eq!(
+        paths[0].url, "docs/notes.html",
+        "unexpected url: {:?}",
+        paths[0].url
+    );
+}
+
+// --- Bare relative path filtering (filter_bare_relative_paths) ---
+
+/// Build a FilePath DetectedUrl with placeholder geometry; only `url` and
+/// `item_type` matter to filter_bare_relative_paths.
+fn make_file_path_item(url: &str) -> DetectedUrl {
+    DetectedUrl {
+        url: url.to_string(),
+        start_col: 0,
+        end_col: 5,
+        row: 0,
+        hyperlink_id: None,
+        item_type: DetectedItemType::FilePath {
+            line: None,
+            column: None,
+        },
+    }
+}
+
+#[test]
+fn test_filter_bare_relative_requires_existence() {
+    let dir = tempfile::tempdir().expect("tempdir should create");
+    std::fs::create_dir_all(dir.path().join("docs")).expect("create docs/ dir");
+    std::fs::write(dir.path().join("docs/real.html"), b"test").expect("write docs/real.html");
+    let cwd = dir.path().to_string_lossy().to_string();
+
+    let paths = vec![
+        make_file_path_item("docs/real.html"),
+        make_file_path_item("docs/missing.html"),
+        make_file_path_item("./missing.txt"),
+    ];
+    let kept = filter_bare_relative_paths(paths, Some(&cwd));
+    assert_eq!(kept.len(), 2, "unexpected kept count: {}", kept.len());
+    assert_eq!(
+        kept[0].url, "docs/real.html",
+        "unexpected first kept url: {:?}",
+        kept[0].url
+    );
+    assert_eq!(
+        kept[1].url, "./missing.txt",
+        "unexpected second kept url: {:?}",
+        kept[1].url
+    );
+}
+
+#[test]
+fn test_filter_bare_relative_drops_bare_without_cwd() {
+    let paths = vec![
+        make_file_path_item("docs/guess.html"),
+        make_file_path_item("/tmp"),
+    ];
+    let kept = filter_bare_relative_paths(paths, None);
+    assert_eq!(kept.len(), 1, "unexpected kept count: {}", kept.len());
+    assert_eq!(
+        kept[0].url, "/tmp",
+        "unexpected kept url: {:?}",
+        kept[0].url
+    );
+}
+
+#[test]
+fn test_filter_bare_relative_keeps_unambiguous_arms() {
+    let dir = tempfile::tempdir().expect("tempdir should create");
+    let cwd = dir.path().to_string_lossy().to_string();
+
+    let paths = vec![
+        make_file_path_item("./nope.txt"),
+        make_file_path_item("../nope.txt"),
+        make_file_path_item("~/nope.txt"),
+        make_file_path_item("/no/such/dir/nope.txt"),
+    ];
+    let kept = filter_bare_relative_paths(paths, Some(&cwd));
+    assert_eq!(kept.len(), 4, "unexpected kept count: {}", kept.len());
+}
+
+#[test]
+fn test_bare_relative_click_chain_resolves() {
+    let repo_root = env!("CARGO_MANIFEST_DIR");
+    let text = "open docs/CONFIG_REFERENCE.md";
+
+    let detected = detect_file_paths_in_line(text, 0);
+    assert_eq!(
+        detected.len(),
+        1,
+        "unexpected match count: {}",
+        detected.len()
+    );
+    assert_eq!(
+        detected[0].url, "docs/CONFIG_REFERENCE.md",
+        "unexpected url: {:?}",
+        detected[0].url
+    );
+
+    let kept = filter_bare_relative_paths(detected, Some(repo_root));
+    assert_eq!(kept.len(), 1, "unexpected kept count: {}", kept.len());
+
+    let resolved = render::resolve_clickable_path(&kept[0].url, Some(repo_root));
+    assert!(
+        std::path::Path::new(&resolved).is_absolute(),
+        "resolved path should be absolute: {:?}",
+        resolved
+    );
+    assert!(
+        std::path::Path::new(&resolved).exists(),
+        "resolved path should exist: {:?}",
+        resolved
+    );
+}
+
+#[test]
+#[ignore = "spawns the OS file handler on a real file; run deliberately"]
+fn test_open_bare_relative_path_system_default() {
+    let repo_root = env!("CARGO_MANIFEST_DIR");
+    open_file_in_editor(
+        "docs/CONFIG_REFERENCE.md",
+        None,
+        None,
+        crate::config::SemanticHistoryEditorMode::SystemDefault,
+        "",
+        Some(repo_root),
+    )
+    .expect("open with repo-root cwd should succeed");
+}
+
+// --- resolve_clickable_path ---
+
+#[test]
+fn test_resolve_bare_relative_uses_cwd() {
+    let dir = tempfile::tempdir().expect("tempdir should create");
+    std::fs::create_dir_all(dir.path().join("a")).expect("create a/ dir");
+    std::fs::write(dir.path().join("a/b.txt"), b"test").expect("write a/b.txt");
+    let cwd = dir.path().to_string_lossy().to_string();
+
+    let resolved = render::resolve_clickable_path("a/b.txt", Some(&cwd));
+    assert!(
+        std::path::Path::new(&resolved).is_absolute(),
+        "resolved path should be absolute: {:?}",
+        resolved
+    );
+    assert!(
+        std::path::Path::new(&resolved).exists(),
+        "resolved path should exist: {:?}",
+        resolved
+    );
+}
+
+#[test]
+fn test_resolve_bare_relative_without_cwd_unchanged() {
+    let resolved = render::resolve_clickable_path("a/b.txt", None);
+    assert_eq!(
+        resolved, "a/b.txt",
+        "unexpected resolved path: {:?}",
+        resolved
+    );
+}
+
+#[test]
+fn test_resolve_dot_relative_still_resolves() {
+    let dir = tempfile::tempdir().expect("tempdir should create");
+    std::fs::create_dir_all(dir.path().join("a")).expect("create a/ dir");
+    std::fs::write(dir.path().join("a/b.txt"), b"test").expect("write a/b.txt");
+    let cwd = dir.path().to_string_lossy().to_string();
+
+    let resolved = render::resolve_clickable_path("./a/b.txt", Some(&cwd));
+    assert!(
+        std::path::Path::new(&resolved).exists(),
+        "resolved path should exist: {:?}",
+        resolved
+    );
+}
+
+#[test]
+fn test_resolve_absolute_unchanged() {
+    let dir = tempfile::tempdir().expect("tempdir should create");
+    let cwd = dir.path().to_string_lossy().to_string();
+
+    let resolved = render::resolve_clickable_path("/tmp", Some(&cwd));
+    assert_eq!(resolved, "/tmp", "unexpected resolved path: {:?}", resolved);
+}

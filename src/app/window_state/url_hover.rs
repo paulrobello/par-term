@@ -80,6 +80,18 @@ impl WindowState {
             }
         };
 
+        // One cwd read per detect pass: bare-relative path candidates are
+        // filtered by existence under the pane's working directory
+        // (see filter_bare_relative_paths). Intentionally NOT refetched per row.
+        let pane_cwd = {
+            let tab = if let Some(t) = self.tab_manager.active_tab() {
+                t
+            } else {
+                return;
+            };
+            tab.get_cwd()
+        };
+
         // Build new URL list into a local vec — keeps detected_urls stable
         // until the full list is ready so there is no intermediate empty-list frame.
         let mut new_urls: Vec<url_detection::DetectedUrl> = Vec::new();
@@ -159,6 +171,11 @@ impl WindowState {
             // wrap-aware segmentation as URLs.
             if self.config.load().semantic_history.semantic_history_enabled {
                 let file_paths = url_detection::detect_file_paths_in_line(&line, absolute_row);
+                // Bare-relative matches (e.g. docs/foo.html) are only surfaced
+                // when the path exists under the pane cwd; the other arms
+                // (~/, ./, ../, absolute) pass through unchanged.
+                let file_paths =
+                    url_detection::filter_bare_relative_paths(file_paths, pane_cwd.as_deref());
                 for fp in file_paths {
                     crate::debug_trace!(
                         "SEMANTIC",

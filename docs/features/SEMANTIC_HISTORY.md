@@ -73,12 +73,14 @@ Paths are detected when they start with:
 - `../` (parent directory)
 - `~/` (home directory)
 - `/` (absolute path — must have at least two components and appear at the start of a line or after whitespace to reduce false positives)
+- A bare relative form like `docs/foo.html`: one or more `name/` components followed by a filename that carries an extension, at the start of a line or after whitespace. Because that grammar also fits ordinary `word/word.ext` text, a bare-relative match is only highlighted and clickable when the path actually exists under the pane's current working directory.
 
 ### Supported Path Formats
 
 | Format | Example | Description |
 |--------|---------|-------------|
 | Path only | `./src/main.rs` | Opens file at line 1 |
+| Path only (bare relative) | `docs/guide.html` | Opens file at line 1; must exist under the pane's working directory |
 | Path only (absolute) | `/usr/local/bin/cargo` | Opens absolute path (two+ components required) |
 | Path:line | `./src/main.rs:42` | Opens file at line 42 |
 | Path:line:col | `./src/main.rs:42:10` | Opens file at line 42, column 10 |
@@ -96,7 +98,7 @@ Paths are detected when they start with:
 
 **Path resolution:**
 1. `~/` is expanded to the user's home directory
-2. `./` and `../` are resolved relative to the shell's current working directory
+2. `./`, `../`, and bare relative paths (`docs/foo.html`) are resolved relative to the shell's current working directory
 3. The path is verified to exist before attempting to open
 4. Directories open in the system file manager (Finder, Explorer, Nautilus)
 

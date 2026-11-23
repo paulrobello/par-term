@@ -11,6 +11,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Added
+
+- Semantic history detects bare relative paths like `docs/guide.html`: one or more `name/` components followed by a filename with an extension, after whitespace or at line start. A bare-relative match is only clickable when the path exists under the pane's current working directory.
+
 ## [0.56.0] - 2026-11-22
 
 ### Changed
