@@ -9,9 +9,9 @@ name: Release and Deploy
 on:
   workflow_dispatch:
 
-# Least privilege: github-release holds the write/OIDC grant; other jobs read.
 permissions:
-  contents: read
+  contents: write
+  id-token: write
 
 env:
   MACOS_SIGNING_IDENTITY: "Developer ID Application: PAUL AARON ROBELLO (QMLVG482FY)"
@@ -22,7 +22,6 @@ jobs:
   preflight-checks:
     name: Preflight Checks
     runs-on: ubuntu-latest
-    environment: release
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -818,7 +817,6 @@ jobs:
       - build-macos-arm64
       - build-macos-universal
       - publish-crates
-    environment: release
     permissions:
       contents: write
       id-token: write
