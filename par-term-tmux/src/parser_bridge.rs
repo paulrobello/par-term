@@ -119,7 +119,12 @@ impl ParserBridge {
                     zoomed: zoomed_pane(&window_raw_flags, &window_visible_layout),
                 }),
 
-            CoreNotification::Output { pane_id, data } => ParsedId::parse(&pane_id)
+            // gen= rides only on daemon replay-fenced chunks (core 0.89); external tmux never emits it
+            CoreNotification::Output {
+                pane_id,
+                data,
+                generation: _,
+            } => ParsedId::parse(&pane_id)
                 .as_pane()
                 .map(|id| TmuxNotification::Output { pane_id: id, data }),
 

@@ -479,8 +479,11 @@ out.flush()
     while Instant::now() < deadline && !saw_update {
         let (notes, _) = transport.drain();
         for note in notes {
-            if let par_term_emu_core_rust::tmux_control::TmuxNotification::Output { pane_id, data } =
-                note
+            if let par_term_emu_core_rust::tmux_control::TmuxNotification::Output {
+                pane_id,
+                data,
+                generation: _,
+            } = note
                 && pane_id == "%0"
             {
                 term.process(&data);
