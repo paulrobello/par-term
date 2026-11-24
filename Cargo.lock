@@ -3715,7 +3715,7 @@ dependencies = [
 
 [[package]]
 name = "par-term"
-version = "0.56.0"
+version = "0.57.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3929,7 +3929,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-mux"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "base64",
  "log",
@@ -4027,7 +4027,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-tmux"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "hostname",
  "jiff",

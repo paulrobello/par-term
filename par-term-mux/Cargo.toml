@@ -1,6 +1,6 @@
 [package]
 name = "par-term-mux"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2024"
 rust-version = "1.100"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -15,7 +15,7 @@ categories = ["command-line-utilities"]
 # Optional: only the mux-gated modules reference it (the crate body is
 # #![cfg(feature = "mux")], so a default-features build would otherwise
 # carry an unused dependency through packaging).
-par-term-tmux = { path = "../par-term-tmux", version = "0.3.2", optional = true }
+par-term-tmux = { path = "../par-term-tmux", version = "0.3.3", optional = true }
 
 # Terminal emulator core (MuxClient transport)
 par-term-emu-core-rust = { workspace = true, optional = true }

@@ -42,6 +42,16 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.57.0
+
+Semantic history gets smarter and the daemon gets cheaper: URL detection now recognizes bare relative paths like `docs/guide.html` — clickable only when the file exists under the pane's current working directory — and core library 0.89.0 brings the par-mux daemon's idle-CPU cut, the attach replay fence that finishes off the daemon-restart output-corruption class, and agy (Antigravity CLI) as a detectable agent integration. Restage the bundled daemon with `scripts/build-par-mux.sh` after installing.
+
+- **Bare relative paths clickable** — `docs/foo.html`-style matches resolve against the pane's cwd before they highlight.
+- **Daemon idle CPU cut** — in-process mux servers stop burning cycles while idle (core a3d57308).
+- **Attach replay fence** — a replay-covered chunk arriving after the resync reply is dropped instead of double-applying (`gen=` fence, core 0.88.0 + 0.89.0).
+- **agy joins the roster** — Antigravity CLI panes enroll through the bundled hooks; `par-mux --cmd doctor` grades Developer-ID-signed self-responsible daemons `stable-identity`.
+- **Sub-crates** — `par-term-tmux` 0.3.3, `par-term-mux` 0.7.2.
+
 ### 0.56.0
 
 The settings window learns to fit its window: the standalone Terminal Settings dialog no longer clips its rows at the right edge (the reported Retina overflow turned out to be egui's wrapped rows never firing their wrap between nested horizontal scopes, not a pixels bug), and every tab now lays out at the window's full 550pt-to-wide range with content reflowing on resize — pinned per tab by layout-extent tests. par-mux becomes opt-in: new tabs in an unattached window stay local shells unless you attach explicitly or re-enable `use_mux_by_default` (existing configs that set the key are unaffected; restored windows keep their recorded sessions). Core library 0.87.0 ships with it: the par-mux daemon's attach-settings integrations tab scrolls and selects its 16 rows, distinguishes detected agent binaries from installed hooks with an `i` bulk-install, and `par-mux --cmd doctor` now reports macOS responsible-process attribution verdicts so a bare-forked daemon that silently lost its Local Network and TCC grants announces itself.

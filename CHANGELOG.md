@@ -11,9 +11,16 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-11-23
+
 ### Added
 
-- Semantic history detects bare relative paths like `docs/guide.html`: one or more `name/` components followed by a filename with an extension, after whitespace or at line start. A bare-relative match is only clickable when the path exists under the pane's current working directory.
+- Semantic history detects bare relative paths like `docs/guide.html`: one or more `name/` components followed by a filename with an extension, after whitespace or at line start. A bare-relative match is only clickable when the path exists under the pane's current working directory. See [SEMANTIC_HISTORY.md](docs/features/SEMANTIC_HISTORY.md).
+
+### Changed
+
+- **Core bumped to `par-term-emu-core-rust` 0.89.0**, which also rebuilds the bundled par-mux daemon — restage it with `scripts/build-par-mux.sh` after installing. Headlines: the daemon's idle cadence stops burning CPU while in-process servers sit idle (core a3d57308); passthrough attach output is fenced by replay generation, so a replay-covered `%output` chunk arriving after the reply no longer double-applies onto the shadow emulator and host screen (layered on 0.88.0's `gen=` stamping that ended the daemon-restart holed-grid corruption class); the DECSERA selective-erase fuzz panic is fixed; agy (Antigravity CLI) joins the detectable agent hook integrations; `par-mux --cmd doctor` grades a Developer-ID-signed self-responsible daemon `stable-identity` instead of `tainted`; and the daemon's state-file claim takes a real `LockFileEx` lock on Windows. The 0.88.0/0.89.0 streaming-server changes (SEC-002 legacy-password-hash refusal default, CSP script nonces, minisign-signed release artifacts) do not touch par-term.
+- **Sub-crate versions for this release**: `par-term-tmux` 0.3.3 (adapts to the core 0.89 `TmuxNotification::Output` generation field), `par-term-mux` 0.7.2 (in-process test-daemon shutdown signal at teardown).
 
 ## [0.56.0] - 2026-11-22
 
