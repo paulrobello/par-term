@@ -68,7 +68,7 @@ commit changes, then sync with remote before pushing:
    `git rebase origin/main` — resolve any conflicts, then continue. Never `git push --force` to `main` — it would discard those remote-only commits.
 4. Push: `git push origin main` (fast-forwards cleanly after the rebase).
 
-- Run 'make deploy' to trigger cicd deployment
+- Run `make deploy` — publishing is tag-gated: it creates+pushes the `v<version>` tag, which is the release approval and triggers Release and Deploy. A plain `gh workflow run "Release and Deploy"` builds/tests only and publishes nothing.
 - Monitor cicd every 5 minutes for issues and fix any found and re-trigger deploy
 
 ## Final Release Summary

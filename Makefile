@@ -91,7 +91,7 @@ help:
 	@echo "  make docs-settings     - Regenerate SETTINGS.md and the CONFIG_REFERENCE.md Settings column"
 	@echo "  make check-nomux       - Type-check the workspace without default features (no par-mux)"
 	@echo "  make coverage    - Generate test coverage report"
-	@echo "  make deploy      - Trigger Release and Deploy GitHub Action"
+	@echo "  make deploy      - Push the release tag to trigger Release and Deploy (tag-gated publishing)"
 	@echo ""
 
 # Build in dev-release mode (optimized, no full LTO — ~30-40s)
@@ -735,12 +735,29 @@ profile-instruments:
 
 # === Deployment Targets ===
 
-# Trigger the Release and Deploy GitHub Action
+# Trigger the release. Publishing is tag-gated (see .github/workflows/release.yml):
+# only a v* tag push runs the publish jobs; `gh workflow run` builds and tests
+# without publishing. Refuses a dirty tree (the workflow reads Cargo.toml from
+# the tagged commit) and an already-released version.
 deploy:
-	@echo "🚀 Triggering Release and Deploy GitHub Action..."
-	@command -v gh >/dev/null 2>&1 || { echo "❌ gh CLI not installed."; echo "Install with: brew install gh"; exit 1; }
-	gh workflow run "Release and Deploy"
-	@echo "✅ Workflow triggered. View progress at: https://github.com/paulrobello/par-term/actions"
+	@echo "🚀 Release gate: publishing is tag-gated — pushing the release tag..."
+	@test -z "$$(git status --porcelain)" || { echo "❌ Uncommitted changes — commit before releasing."; git status --short; exit 1; }
+	@VERSION=$$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1); \
+	TAG="v$$VERSION"; \
+	if git ls-remote --tags origin "refs/tags/$$TAG" | grep -q .; then \
+	  echo "❌ Tag $$TAG is already on origin — v$$VERSION appears already released."; \
+	  echo "   Bump the version in Cargo.toml first, then re-run make deploy."; \
+	  exit 1; \
+	fi; \
+	if git rev-parse -q --verify "refs/tags/$$TAG" >/dev/null 2>&1; then \
+	  echo "✓ Tag $$TAG exists locally, pushing it"; \
+	else \
+	  git tag -a "$$TAG" -m "Release $$TAG"; \
+	  echo "✓ Created $$TAG at HEAD"; \
+	fi; \
+	git push origin "$$TAG"; \
+	echo "✅ $$TAG pushed — Release and Deploy is publishing v$$VERSION."; \
+	echo "   Progress: https://github.com/paulrobello/par-term/actions"
 
 # ==== Grind loop (~/Repos/par-grind) ========================================
 # The full grind target set, pasted from par-grind's examples/Makefile.grind.

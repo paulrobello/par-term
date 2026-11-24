@@ -6,7 +6,16 @@ name: Release and Deploy
 # 3. Creates a GitHub release with all binary artifacts
 # 4. Updates Homebrew cask
 
+# Release gate: publishing is tag-gated, not environment-gated. An
+# `environment:` deployment gate startup-fails every workflow_dispatch run
+# (measured: run 45335779625 failed with zero jobs; reverting it restored
+# dispatches), so the approval step is the v* tag push itself — `gh workflow
+# run` / `make deploy` can only build and test. The publish jobs below carry
+# `if: github.event_name == 'push'`.
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -73,6 +82,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Create version tag
+        if: github.event_name == 'push'
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
           TAG="v${VERSION}"
@@ -663,6 +673,8 @@ jobs:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Tag-gated (see the file-top comment): dispatch runs stop before this job.
+    if: github.event_name == 'push'
     needs:
       - preflight-checks
       - build-linux-arm64
@@ -809,6 +821,9 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Tag-gated (see the file-top comment); publish-homebrew-cask inherits the
+    # skip through its needs on this job.
+    if: github.event_name == 'push'
     needs:
       - build-linux-arm64
       - build-linux-x86_64
